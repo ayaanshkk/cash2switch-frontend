@@ -1,0 +1,262 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <title>Quote - {{quoteNumber}}</title>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      body {
+        font-family: "Arial", sans-serif;
+        line-height: 1.6;
+        color: #333;
+        background: white;
+      }
+
+      .container {
+        max-width: 800px;
+        margin: 0 auto;
+        padding: 40px;
+      }
+
+      .header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        margin-bottom: 40px;
+        border-bottom: 3px solid #2563eb;
+        padding-bottom: 20px;
+      }
+
+      .company-info h1 {
+        color: #2563eb;
+        font-size: 32px;
+        margin-bottom: 10px;
+      }
+
+      .company-info p {
+        color: #666;
+        font-size: 14px;
+      }
+
+      .quote-info {
+        text-align: right;
+      }
+
+      .quote-info h2 {
+        color: #2563eb;
+        font-size: 24px;
+        margin-bottom: 10px;
+      }
+
+      .quote-info p {
+        margin-bottom: 5px;
+        font-size: 14px;
+      }
+
+      .customer-section {
+        margin-bottom: 30px;
+      }
+
+      .customer-section h3 {
+        color: #2563eb;
+        font-size: 18px;
+        margin-bottom: 15px;
+        border-bottom: 1px solid #e5e7eb;
+        padding-bottom: 5px;
+      }
+
+      .customer-details {
+        background-color: #f8fafc;
+        padding: 20px;
+        border-radius: 8px;
+      }
+
+      .customer-details p {
+        margin-bottom: 8px;
+      }
+
+      .items-table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-bottom: 30px;
+        border: 1px solid #e5e7eb;
+      }
+
+      .items-table th {
+        background-color: #2563eb;
+        color: white;
+        padding: 12px 8px;
+        text-align: left;
+        font-size: 14px;
+        font-weight: 600;
+      }
+
+      .items-table td {
+        padding: 12px 8px;
+        border-bottom: 1px solid #e5e7eb;
+        font-size: 14px;
+      }
+
+      .items-table tr:nth-child(even) {
+        background-color: #f8fafc;
+      }
+
+      .text-right {
+        text-align: right;
+      }
+
+      .totals-section {
+        margin-top: 20px;
+        float: right;
+        width: 300px;
+      }
+
+      .totals-table {
+        width: 100%;
+        border-collapse: collapse;
+      }
+
+      .totals-table td {
+        padding: 8px 12px;
+        border-bottom: 1px solid #e5e7eb;
+      }
+
+      .totals-table .total-row {
+        font-weight: bold;
+        font-size: 16px;
+        background-color: #2563eb;
+        color: white;
+      }
+
+      .notes-section {
+        clear: both;
+        margin-top: 40px;
+        padding-top: 20px;
+        border-top: 1px solid #e5e7eb;
+      }
+
+      .notes-section h3 {
+        color: #2563eb;
+        margin-bottom: 10px;
+      }
+
+      .footer {
+        margin-top: 40px;
+        text-align: center;
+        color: #666;
+        font-size: 12px;
+        border-top: 1px solid #e5e7eb;
+        padding-top: 20px;
+      }
+
+      @media print {
+        body {
+          font-size: 12px;
+        }
+        .container {
+          padding: 20px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <!-- Header Section -->
+      <div class="header">
+        <div class="company-info">
+          <h1>Your Company Name</h1>
+          <p>
+            123 Business Street<br />
+            City, State 12345<br />
+            Phone: (123) 456-7890<br />
+            Email: info@yourcompany.com
+          </p>
+        </div>
+        <div class="quote-info">
+          <h2>QUOTATION</h2>
+          <p><strong>Quote #:</strong> {{quoteNumber}}</p>
+          <p><strong>Date:</strong> {{date}}</p>
+          <p><strong>Valid Until:</strong> {{validUntil}}</p>
+        </div>
+      </div>
+
+      <!-- Customer Information -->
+      <div class="customer-section">
+        <h3>Quote For:</h3>
+        <div class="customer-details">
+          <p><strong>{{name}}</strong></p>
+          {{#if address}}
+          <p>{{address}}</p>
+          {{/if}} {{#if phone}}
+          <p><strong>Phone:</strong> {{phone}}</p>
+          {{/if}} {{#if email}}
+          <p><strong>Email:</strong> {{email}}</p>
+          {{/if}}
+        </div>
+      </div>
+
+      <!-- Items Table -->
+      <table class="items-table">
+        <thead>
+          <tr>
+            <th style="width: 25%">Item</th>
+            <th style="width: 30%">Description</th>
+            <th style="width: 15%">Colour</th>
+            <th style="width: 10%">Qty</th>
+            <th style="width: 10%">Unit Price</th>
+            <th style="width: 10%">Amount</th>
+          </tr>
+        </thead>
+        <tbody>
+          {{#each items}}
+          <tr>
+            <td>{{item}}</td>
+            <td>{{description}}</td>
+            <td>{{colour}}</td>
+            <td class="text-right">{{quantity}}</td>
+            <td class="text-right">£{{unitPrice}}</td>
+            <td class="text-right">£{{amount}}</td>
+          </tr>
+          {{/each}}
+        </tbody>
+      </table>
+
+      <!-- Totals Section -->
+      <div class="totals-section">
+        <table class="totals-table">
+          <tr>
+            <td><strong>Subtotal:</strong></td>
+            <td class="text-right">£{{subtotal}}</td>
+          </tr>
+          <tr>
+            <td><strong>VAT (20%):</strong></td>
+            <td class="text-right">£{{vatAmount}}</td>
+          </tr>
+          <tr class="total-row">
+            <td><strong>Total:</strong></td>
+            <td class="text-right">£{{total}}</td>
+          </tr>
+        </table>
+      </div>
+
+      <!-- Notes Section -->
+      {{#if notes}}
+      <div class="notes-section">
+        <h3>Additional Notes:</h3>
+        <p>{{notes}}</p>
+      </div>
+      {{/if}}
+
+      <!-- Footer -->
+      <div class="footer">
+        <p>Thank you for your business! This quotation is valid for 30 days from the date issued.</p>
+        <p>Terms & Conditions apply. Please contact us if you have any questions.</p>
+      </div>
+    </div>
+  </body>
+</html>
