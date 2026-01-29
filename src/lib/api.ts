@@ -169,10 +169,10 @@ async function handleApiResponse(response: Response) {
 // Example usage functions
 export const api = {
   // AUTH ENDPOINTS (use fetchPublic - calls Next.js API routes)
-  async login(email: string, password: string) {
+  async login(username: string, password: string, tenantId: number = 1) {
     const response = await fetchPublic("/auth/login", {
       method: "POST",
-      body: JSON.stringify({ email, password }),
+      body: JSON.stringify({ username, password, tenant_id: tenantId }),
     });
     return handleApiResponse(response);
   },
@@ -414,5 +414,58 @@ export const api = {
         throw error;
       }
     });
+  },
+
+  // ✅ CRM LEADS ENDPOINTS
+  async getLeadsByCustomerType(customerType?: 'NEW' | 'EXISTING', filters?: { stage_id?: number; lead_status?: string; assigned_employee_id?: number }) {
+    return deduplicateRequest(`getLeadsByCustomerType-${customerType || 'all'}`, async () => {
+      try {
+        let url = '/api/crm/leads/customer-type';
+        const params = new URLSearchParams();
+        if (customerType) params.append('type', customerType);
+        if (filters?.stage_id) params.append('stage_id', filters.stage_id.toString());
+        if (filters?.lead_status) params.append('lead_status', filters.lead_status);
+        if (filters?.assigned_employee_id) params.append('assigned_employee_id', filters.assigned_employee_id.toString());
+        if (params.toString()) url += `?${params.toString()}`;
+        
+        const response = await fetchWithAuth(url, {
+          headers: {
+            'X-Tenant-ID': '1', // TODO: Get from auth context
+          },
+        });
+        
+        if (!response.ok) {
+          throw new Error(`Failed to fetch leads: ${response.status}`);
+        }
+        
+        const data = await response.json();
+        return data;
+      } catch (error) {
+        console.error("❌ getLeadsByCustomerType failed:", error);
+        throw error;
+      }
+    });
+  },
+
+  async createCallSummary(clientId: number, callData: { call_status: string; call_result: string; remarks: string; next_follow_up_date?: string }) {
+    try {
+      const response = await fetchWithAuth(`/api/crm/clients/${clientId}/call-summary`, {
+        method: 'POST',
+        body: JSON.stringify(callData),
+        headers: {
+          'X-Tenant-ID': '1', // TODO: Get from auth context
+        },
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to create call summary');
+      }
+      
+      return await response.json();
+    } catch (error) {
+      console.error("❌ createCallSummary failed:", error);
+      throw error;
+    }
   },
 };

@@ -28,6 +28,8 @@ import {
   DollarSign,
   ClipboardCheck, // ✅ Add this for test grading
   History,        // ✅ Add this for results history
+  TrendingUp,    // ✅ Add this for CRM/Leads
+  Phone,          // ✅ Add this for Leads
 } from "lucide-react";
 
 export interface NavSubItem {
@@ -91,6 +93,27 @@ const allSidebarItems: NavGroup[] = [
         roles: ["admin", "staff"],
       },
       {
+        title: "CRM",
+        url: "/dashboard/crm",
+        icon: TrendingUp,
+        roles: ["admin", "staff"],
+        subItems: [
+          {
+            title: "CRM Overview",
+            url: "/dashboard/crm",
+            icon: TrendingUp,
+            roles: ["admin", "staff"],
+          },
+          {
+            title: "Leads",
+            url: "/dashboard/crm/leads",
+            icon: Phone,
+            roles: ["admin", "staff"],
+            isNew: true,
+          },
+        ],
+      },
+      {
         title: "Calendar",
         url: "/dashboard/calendar",
         icon: Calendar,
@@ -142,7 +165,17 @@ const allSidebarItems: NavGroup[] = [
 
 // Filter sidebar items based on user role and optionally set notification badge
 export const getSidebarItems = (userRole: string, notificationCount?: number): NavGroup[] => {
-  const normalizedRole = userRole; // Keep case-sensitive for Admin/Staff
+  // Normalize role: Manager/Admin -> admin, Staff -> staff
+  const normalizedRole = userRole?.toLowerCase() || '';
+  const roleMap: Record<string, string[]> = {
+    'manager': ['admin', 'staff'],
+    'admin': ['admin', 'staff'],
+    'staff': ['staff'],
+  };
+  
+  // Get allowed roles for this user
+  const allowedRoles = roleMap[normalizedRole] || ['admin', 'staff']; // Default to showing all if role unknown
+  
   return allSidebarItems
     .map((group) => ({
       ...group,
@@ -150,8 +183,8 @@ export const getSidebarItems = (userRole: string, notificationCount?: number): N
         .filter((item) => {
           // If no roles defined, show to everyone
           if (!item.roles || item.roles.length === 0) return true;
-          // Check if user's role is in the allowed roles
-          return item.roles.includes(userRole);
+          // Check if any of the user's allowed roles match the item's required roles
+          return item.roles.some(role => allowedRoles.includes(role));
         })
         .map((item) => {
           // Update notification badge count dynamically
@@ -169,8 +202,8 @@ export const getSidebarItems = (userRole: string, notificationCount?: number): N
               subItems: item.subItems.filter((subItem) => {
                 // If no roles defined, show to everyone
                 if (!subItem.roles || subItem.roles.length === 0) return true;
-                // Check if user's role is in the allowed roles
-                return subItem.roles.includes(userRole);
+                // Check if any of the user's allowed roles match the sub-item's required roles
+                return subItem.roles.some(role => allowedRoles.includes(role));
               }),
             };
           }

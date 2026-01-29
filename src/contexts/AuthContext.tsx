@@ -34,7 +34,7 @@ interface AuthContextType {
   user: User | null;
   token: string | null;
   loading: boolean;
-  login: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
+  login: (username: string, password: string, tenantId?: number) => Promise<{ success: boolean; error?: string }>;
   logout: () => void;
   register: (userData: RegisterData) => Promise<{ success: boolean; error?: string }>;
   updateUser: (userData: Partial<User>) => void;
@@ -112,13 +112,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);
 
   // ✅ LOGIN - Sets both localStorage AND cookie
-  const login = async (email: string, password: string): Promise<{ success: boolean; error?: string }> => {
+  const login = async (username: string, password: string, tenantId: number = 1): Promise<{ success: boolean; error?: string }> => {
     try {
       console.log("🔄 Attempting login...");
 
       const response = await fetchPublic("/auth/login", {
         method: "POST",
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({ username, password, tenant_id: tenantId }),
       });
 
       let data;

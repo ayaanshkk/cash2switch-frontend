@@ -160,7 +160,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useRouter } from "next/navigation";
 
 const FormSchema = z.object({
-  email: z.string().email({ message: "Please enter a valid email address." }),
+  username: z.string().min(1, { message: "Please enter your username." }),
   password: z.string().min(6, { message: "Password must be at least 6 characters." }),
   remember: z.boolean().optional(),
 });
@@ -177,7 +177,7 @@ export function LoginForm({ onSuccess }: LoginFormProps) {
   const form = useForm<z.infer<typeof FormSchema>>({
     resolver: zodResolver(FormSchema),
     defaultValues: {
-      email: "",
+      username: "",
       password: "",
       remember: false,
     },
@@ -187,8 +187,8 @@ export function LoginForm({ onSuccess }: LoginFormProps) {
     setLoading(true);
 
     try {
-      console.log("🔄 Attempting login with:", data.email);
-      const result = await login(data.email, data.password);
+      console.log("🔄 Attempting login with:", data.username);
+      const result = await login(data.username, data.password);
 
       if (result.success) {
         toast.success("Login successful!", {
@@ -237,16 +237,16 @@ export function LoginForm({ onSuccess }: LoginFormProps) {
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
         <FormField
           control={form.control}
-          name="email"
+          name="username"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Email Address</FormLabel>
+              <FormLabel>Username</FormLabel>
               <FormControl>
                 <Input
-                  id="email"
-                  type="email"
-                  placeholder="you@example.com"
-                  autoComplete="email"
+                  id="username"
+                  type="text"
+                  placeholder="your-username"
+                  autoComplete="username"
                   disabled={loading}
                   {...field}
                 />

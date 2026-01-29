@@ -5,9 +5,12 @@ const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:500
 
 export async function POST(request: NextRequest) {
   try {
-    const { email, password } = await request.json();
+    const body = await request.json();
+    const username = body.username || body.email; // accept legacy email if sent
+    const password = body.password;
+    const tenant_id = body.tenant_id ?? 1;
     
-    console.log('🔄 Proxying login to backend:', { email, backend: BACKEND_URL });
+    console.log('🔄 Proxying login to backend:', { username, tenant_id, backend: BACKEND_URL });
     
     // ✅ Call your REAL backend login endpoint
     const response = await fetch(`${BACKEND_URL}/auth/login`, {
@@ -15,7 +18,7 @@ export async function POST(request: NextRequest) {
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ email, password }),
+      body: JSON.stringify({ username, password, tenant_id }),
     });
 
     console.log('📡 Backend response status:', response.status);
