@@ -155,7 +155,7 @@ export default function EnergyCustomersPage() {
 
       console.log("🔄 Fetching energy customers from:", `${API_BASE_URL}/clients`);
       
-      const response = await fetch(`${API_BASE_URL}/clients`, {
+      const response = await fetch(`${API_BASE_URL}/energy-clients`, {
         headers: { 
           Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json'
@@ -285,7 +285,7 @@ export default function EnergyCustomersPage() {
 
     try {
       const token = localStorage.getItem("auth_token");
-      const res = await fetch(`${API_BASE_URL}/clients/${id}`, {
+      const res = await fetch(`${API_BASE_URL}/energy-clients/${id}`, {
         method: "DELETE",
         headers: { Authorization: `Bearer ${token}` },
       });

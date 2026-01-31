@@ -73,12 +73,12 @@ const allSidebarItems: NavGroup[] = [
         icon: Home,
         roles: ["admin", "staff"], // Everyone can see dashboard
       },
-      {
-        title: "Sales Pipeline",
-        url: "/dashboard/sales_pipeline",
-        icon: Briefcase,
-        roles: ["admin", "staff"],
-      },
+      // {
+      //   title: "Sales Pipeline",
+      //   url: "/dashboard/sales_pipeline",
+      //   icon: Briefcase,
+      //   roles: ["admin", "staff"],
+      // },
       // {
       //   title: "Training Pipeline",
       //   url: "/dashboard/training_pipeline",
