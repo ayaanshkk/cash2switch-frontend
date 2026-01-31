@@ -12,7 +12,7 @@ export default function LoginV2Enhanced() {
         <div className="flex h-full flex-col items-center justify-center p-12 text-center">
           <div className="space-y-6">
             <Image
-              src="/images/fai-logo.png"
+              src="/images/cash2switch.png"
               alt="Logo"
               width={80}
               height={80}

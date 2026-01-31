@@ -113,46 +113,46 @@ const allSidebarItems: NavGroup[] = [
           },
         ],
       },
-      {
-        title: "Calendar",
-        url: "/dashboard/calendar",
-        icon: Calendar,
-        roles: ["admin", "staff"],
-      },
-      {
-        title: "Proposals",
-        url: "/dashboard/proposals",
-        icon: FileText,
-        roles: ["admin", "staff"],
-      },
-      {
-        title: "Invoices",
-        url: "/dashboard/invoices",
-        icon: DollarSign,
-        roles: ["admin", "staff"],
-      },
-      // ✅ ADD TEST GRADING SECTION
-      {
-        title: "Test Grading",
-        url: "/dashboard/test_grading",
-        icon: ClipboardCheck,
-        roles: ["admin", "staff"],
-        isNew: true, // Mark as new feature
-        subItems: [
-          {
-            title: "Grade Test",
-            url: "/dashboard/test_grading",
-            icon: ClipboardCheck,
-            roles: ["admin", "staff"],
-          },
-          {
-            title: "Results History",
-            url: "/dashboard/test_grading/results",
-            icon: History,
-            roles: ["admin", "staff"],
-          },
-        ],
-      },
+      // {
+      //   title: "Calendar",
+      //   url: "/dashboard/calendar",
+      //   icon: Calendar,
+      //   roles: ["admin", "staff"],
+      // },
+      // {
+      //   title: "Proposals",
+      //   url: "/dashboard/proposals",
+      //   icon: FileText,
+      //   roles: ["admin", "staff"],
+      // },
+      // {
+      //   title: "Invoices",
+      //   url: "/dashboard/invoices",
+      //   icon: DollarSign,
+      //   roles: ["admin", "staff"],
+      // },
+      // // ✅ ADD TEST GRADING SECTION
+      // {
+      //   title: "Test Grading",
+      //   url: "/dashboard/test_grading",
+      //   icon: ClipboardCheck,
+      //   roles: ["admin", "staff"],
+      //   isNew: true, // Mark as new feature
+      //   subItems: [
+      //     {
+      //       title: "Grade Test",
+      //       url: "/dashboard/test_grading",
+      //       icon: ClipboardCheck,
+      //       roles: ["admin", "staff"],
+      //     },
+      //     {
+      //       title: "Results History",
+      //       url: "/dashboard/test_grading/results",
+      //       icon: History,
+      //       roles: ["admin", "staff"],
+      //     },
+      //   ],
+      // },
       {
         title: "Settings",
         url: "/dashboard/settings",

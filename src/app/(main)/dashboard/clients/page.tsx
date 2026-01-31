@@ -1,7 +1,10 @@
 "use client";
 
 import React, { useState, useEffect, useMemo } from "react";
-import { Search, Plus, Edit, Trash2, ChevronDown, Filter, AlertCircle, ChevronRight, ChevronLeft, ChevronLast, ChevronFirst, GraduationCap, Building2, User } from "lucide-react";
+import { 
+  Search, Plus, Edit, Trash2, ChevronDown, Filter, AlertCircle, 
+  ChevronRight, ChevronLeft, ChevronLast, ChevronFirst, Zap, Building2
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -10,75 +13,113 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { useRouter } from "next/navigation"; 
+import { useRouter } from "next/navigation";
 import { CreateCustomerModal } from "@/components/ui/CreateCustomerModal";
 import { useAuth } from "@/contexts/AuthContext";
 
 // ---------------- Constants ----------------
 const CUSTOMERS_PER_PAGE = 25;
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
 
 // ---------------- Types ----------------
-type CustomerType = 'Individual' | 'Commercial';
-type PipelineType = 'sales' | 'training';
-type SalesStage = "Enquiry" | "Proposal" | "Converted";
-type TrainingStage = "Training Scheduled" | "Training Conducted" | "Training Completed" | "PTI Created" | "Certificates Created" | "Certificates Dispatched";
-
-interface Customer {
-  id: string;
+interface EnergyCustomer {
+  id: number;
+  client_id: number;
   name: string;
-  address: string;
+  business_name: string;
+  contact_person: string;
   phone: string;
   email?: string;
-  contact_made?: "Yes" | "No" | "Unknown";
-  pipeline_type: PipelineType;
-  sales_stage?: SalesStage;
-  training_stage?: TrainingStage;
-  status: string;
-  notes?: string;
+  address?: string;
+  site_address?: string;
+  
+  // Energy specific fields
+  mpan_mpr?: string;
+  supplier_id?: number;
+  supplier_name?: string;
+  annual_usage?: number;
+  start_date?: string;
+  end_date?: string;
+  unit_rate?: number;
+  
+  // Pipeline fields
+  status?: string;
+  stage_id?: number;
+  opportunity_id?: number;
+  
+  // Assignment
+  assigned_to_id?: number;
+  assigned_to_name?: string;
+  
+  // Callback
+  callback_date?: string;
+  last_contact_date?: string;
+  
   created_at: string;
-  created_by?: string;
-  updated_at?: string;
-  salesperson?: string;
+}
+
+interface Supplier {
+  supplier_id: number;
+  supplier_name: string;
+  provisions: number;
+  provisions_text: string;
+}
+
+interface Stage {
+  stage_id: number;
+  stage_name: string;
+  description?: string;
 }
 
 // ---------------- Utility functions ----------------
-const getSalesStageColor = (stage: SalesStage): string => {
-  switch (stage) {
-    case "Enquiry":
-      return "bg-gray-100 text-gray-800";
-    case "Proposal":
-      return "bg-blue-100 text-blue-800";
-    case "Converted":
-      return "bg-green-100 text-green-800";
-    default:
-      return "bg-gray-100 text-gray-800";
+const getStageColor = (stageName: string): string => {
+  const lowerStage = stageName?.toLowerCase() || '';
+  
+  if (lowerStage.includes('lead') || lowerStage.includes('prospect')) {
+    return "bg-gray-100 text-gray-800";
+  }
+  if (lowerStage.includes('quote') || lowerStage.includes('proposal')) {
+    return "bg-blue-100 text-blue-800";
+  }
+  if (lowerStage.includes('negotiation')) {
+    return "bg-yellow-100 text-yellow-800";
+  }
+  if (lowerStage.includes('won') || lowerStage.includes('active') || lowerStage.includes('converted')) {
+    return "bg-green-100 text-green-800";
+  }
+  if (lowerStage.includes('lost') || lowerStage.includes('closed')) {
+    return "bg-red-100 text-red-800";
+  }
+  
+  return "bg-gray-100 text-gray-800";
+};
+
+const formatDate = (dateString: string | undefined): string => {
+  if (!dateString) return "—";
+  try {
+    return new Date(dateString).toLocaleDateString('en-GB', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric'
+    });
+  } catch {
+    return "—";
   }
 };
 
-const getTrainingStageColor = (stage: TrainingStage): string => {
-  switch (stage) {
-    case "Training Scheduled":
-      return "bg-yellow-100 text-yellow-800";
-    case "Training Conducted":
-      return "bg-orange-100 text-orange-800";
-    case "Training Completed":
-      return "bg-green-100 text-green-800";
-    case "PTI Created":
-      return "bg-purple-100 text-purple-800";
-    case "Certificates Created":
-      return "bg-blue-100 text-blue-800";
-    case "Certificates Dispatched":
-      return "bg-indigo-100 text-indigo-800";
-    default:
-      return "bg-gray-100 text-gray-800";
-  }
+const formatUsage = (usage: number | undefined): string => {
+  if (!usage) return "—";
+  return `${usage.toLocaleString()} kWh`;
 };
 
 // ---------------- Component ----------------
-export default function CustomersPage() {
-  const [allCustomers, setAllCustomers] = useState<Customer[]>([]); 
+export default function EnergyCustomersPage() {
+  const [allCustomers, setAllCustomers] = useState<EnergyCustomer[]>([]);
+  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
+  const [stages, setStages] = useState<Stage[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
-  const [pipelineFilter, setPipelineFilter] = useState<PipelineType | "All">("All");
+  const [supplierFilter, setSupplierFilter] = useState<number | "All">("All");
+  const [stageFilter, setStageFilter] = useState<number | "All">("All");
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
@@ -87,17 +128,19 @@ export default function CustomersPage() {
   const router = useRouter();
   const { user } = useAuth();
 
-  // Fetch customers initially
+  // Fetch data initially
   useEffect(() => {
     fetchCustomers();
+    fetchSuppliers();
+    fetchStages();
   }, []);
 
   // Reset page when filters/search change
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchTerm, pipelineFilter]);
+  }, [searchTerm, supplierFilter, stageFilter]);
 
-  // ---------------- Fetch Customers ----------------
+  // ---------------- Fetch Functions ----------------
   const fetchCustomers = async () => {
     setIsLoading(true);
     setError(null);
@@ -110,15 +153,13 @@ export default function CustomersPage() {
         return;
       }
 
-      const headers: HeadersInit = { 
-        Authorization: `Bearer ${token}`,
-        'Content-Type': 'application/json'
-      };
-
-      console.log("🔄 Fetching customers from: http://localhost:5000/clients");
+      console.log("🔄 Fetching energy customers from:", `${API_BASE_URL}/clients`);
       
-      const response = await fetch("http://localhost:5000/clients", {
-        headers,
+      const response = await fetch(`${API_BASE_URL}/clients`, {
+        headers: { 
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
       });
 
       console.log("📡 Response status:", response.status, response.statusText);
@@ -127,7 +168,7 @@ export default function CustomersPage() {
         const errorText = await response.text();
         console.error("❌ Error response:", errorText);
         
-        let errorMessage = "Failed to fetch clients";
+        let errorMessage = "Failed to fetch energy clients";
         try {
           const errorJson = JSON.parse(errorText);
           errorMessage = errorJson.error || errorJson.message || errorMessage;
@@ -139,12 +180,12 @@ export default function CustomersPage() {
       }
 
       const data = await response.json();
-      console.log(`✅ Customers received: ${data.length} customers`, data);
+      console.log(`✅ Energy customers received: ${data.length} customers`, data);
 
       setAllCustomers(data);
 
     } catch (err) {
-      console.error("❌ Error fetching clients:", err);
+      console.error("❌ Error fetching energy clients:", err);
       const errorMessage = err instanceof Error ? err.message : "Unknown error occurred";
       setError(errorMessage);
       setAllCustomers([]);
@@ -153,45 +194,66 @@ export default function CustomersPage() {
     }
   };
 
-  // ✅ Apply role-based filtering
-  const roleFilteredCustomers = useMemo(() => {
-    if (user?.role === "Staff") {
-      // Staff can only see customers they created
-      return allCustomers.filter((customer) => {
-        const customerCreatedBy = String(customer.created_by || "").trim();
-        const userId = String(user.id || "").trim();
-        return customerCreatedBy === userId;
+  const fetchSuppliers = async () => {
+    try {
+      const token = localStorage.getItem("auth_token");
+      const response = await fetch(`${API_BASE_URL}/suppliers`, {
+        headers: { Authorization: `Bearer ${token}` },
       });
+      
+      if (response.ok) {
+        const data = await response.json();
+        setSuppliers(data);
+        console.log("✅ Suppliers loaded:", data.length);
+      }
+    } catch (err) {
+      console.error("❌ Error fetching suppliers:", err);
     }
-    
-    // Admin sees all customers
-    return allCustomers;
-  }, [allCustomers, user]);
+  };
+
+  const fetchStages = async () => {
+    try {
+      const token = localStorage.getItem("auth_token");
+      const response = await fetch(`${API_BASE_URL}/stages`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        setStages(data);
+        console.log("✅ Stages loaded:", data.length);
+      }
+    } catch (err) {
+      console.error("❌ Error fetching stages:", err);
+    }
+  };
 
   // ✅ Sort customers by most recent first
   const sortedCustomers = useMemo(() => {
-    return [...roleFilteredCustomers].sort((a, b) => {
-      const aDate = new Date(a.updated_at || a.created_at).getTime();
-      const bDate = new Date(b.updated_at || b.created_at).getTime();
+    return [...allCustomers].sort((a, b) => {
+      const aDate = new Date(a.created_at).getTime();
+      const bDate = new Date(b.created_at).getTime();
       return bDate - aDate;
     });
-  }, [roleFilteredCustomers]);
+  }, [allCustomers]);
 
-  // ✅ Apply search and pipeline filters
+  // ✅ Apply search and filters
   const filteredCustomers = useMemo(() => {
     return sortedCustomers.filter((customer) => {
       const term = searchTerm.toLowerCase();
       const matchesSearch =
-        (customer.name || "").toLowerCase().includes(term) ||
-        (customer.address || "").toLowerCase().includes(term) ||
+        (customer.business_name || "").toLowerCase().includes(term) ||
+        (customer.contact_person || "").toLowerCase().includes(term) ||
         (customer.email || "").toLowerCase().includes(term) ||
-        (customer.phone || "").toLowerCase().includes(term);
+        (customer.phone || "").toLowerCase().includes(term) ||
+        (customer.mpan_mpr || "").toLowerCase().includes(term);
 
-      const matchesPipeline = pipelineFilter === "All" || customer.pipeline_type === pipelineFilter;
+      const matchesSupplier = supplierFilter === "All" || customer.supplier_id === supplierFilter;
+      const matchesStage = stageFilter === "All" || customer.stage_id === stageFilter;
 
-      return matchesSearch && matchesPipeline;
+      return matchesSearch && matchesSupplier && matchesStage;
     });
-  }, [sortedCustomers, searchTerm, pipelineFilter]);
+  }, [sortedCustomers, searchTerm, supplierFilter, stageFilter]);
 
   // ---------------- Pagination Calculations ----------------
   const totalPages = Math.ceil(filteredCustomers.length / CUSTOMERS_PER_PAGE);
@@ -203,12 +265,10 @@ export default function CustomersPage() {
   }, [filteredCustomers, currentPage]);
 
   // ---------------- Permissions ----------------
-  const canEditCustomer = (customer: Customer): boolean => {
+  const canEditCustomer = (customer: EnergyCustomer): boolean => {
     if (user?.role === "Admin") return true;
     if (user?.role === "Staff") {
-      const customerCreatedBy = String(customer.created_by || "").trim();
-      const userId = String(user.id || "").trim();
-      return customerCreatedBy === userId;
+      return customer.assigned_to_id === user.employee_id;
     }
     return false;
   };
@@ -216,19 +276,20 @@ export default function CustomersPage() {
   const canDeleteCustomer = (): boolean => user?.role === "Admin";
 
   // ---------------- Delete Customer ----------------
-  const deleteCustomer = async (id: string) => {
+  const deleteCustomer = async (id: number) => {
     if (!canDeleteCustomer()) {
       alert("You don't have permission to delete clients.");
       return;
     }
-    if (!window.confirm("Are you sure you want to delete this client?")) return;
+    if (!window.confirm("Are you sure you want to delete this client and all related records?")) return;
 
     try {
       const token = localStorage.getItem("auth_token");
-      const res = await fetch(`http://localhost:5000/clients/${id}`, {
+      const res = await fetch(`${API_BASE_URL}/clients/${id}`, {
         method: "DELETE",
         headers: { Authorization: `Bearer ${token}` },
       });
+      
       if (!res.ok) throw new Error("Failed to delete client");
 
       setAllCustomers((prev) => prev.filter((c) => c.id !== id));
@@ -242,12 +303,18 @@ export default function CustomersPage() {
     }
   };
 
-  // Extract customer type from notes
-  const getCustomerType = (customer: Customer): CustomerType | null => {
-    if (!customer.notes) return null;
-    if (customer.notes.includes("Customer Type: Individual")) return "Individual";
-    if (customer.notes.includes("Customer Type: Commercial")) return "Commercial";
-    return null;
+  // Get supplier name from ID
+  const getSupplierName = (supplierId: number | undefined): string => {
+    if (!supplierId) return "—";
+    const supplier = suppliers.find(s => s.supplier_id === supplierId);
+    return supplier?.supplier_name || "—";
+  };
+
+  // Get stage name from ID
+  const getStageName = (stageId: number | undefined): string => {
+    if (!stageId) return "—";
+    const stage = stages.find(s => s.stage_id === stageId);
+    return stage?.stage_name || "—";
   };
 
   // Pagination Component
@@ -313,7 +380,7 @@ export default function CustomersPage() {
   return (
     <div className="w-full p-6">
       <h1 className="mb-6 text-3xl font-bold">
-        {user?.role === "Staff" ? "My Clients" : "Clients"}
+        Energy Clients
       </h1>
 
       {/* Error Display */}
@@ -352,27 +419,52 @@ export default function CustomersPage() {
             <DropdownMenuTrigger asChild>
               <Button variant="outline">
                 <Filter className="mr-2 h-4 w-4" />
-                {pipelineFilter === "All" ? "All Pipelines" : pipelineFilter === "sales" ? "Sales" : "Training"}
+                {supplierFilter === "All" ? "All Suppliers" : getSupplierName(supplierFilter as number)}
                 <ChevronDown className="ml-1 h-3 w-3" />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent>
-              <DropdownMenuItem onClick={() => setPipelineFilter("All")}>
-                All Pipelines
+              <DropdownMenuItem onClick={() => setSupplierFilter("All")}>
+                All Suppliers
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setPipelineFilter("sales")}>
-                Sales Pipeline
+              {suppliers.map(supplier => (
+                <DropdownMenuItem 
+                  key={supplier.supplier_id} 
+                  onClick={() => setSupplierFilter(supplier.supplier_id)}
+                >
+                  {supplier.supplier_name} ({supplier.provisions_text})
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline">
+                <Filter className="mr-2 h-4 w-4" />
+                {stageFilter === "All" ? "All Stages" : getStageName(stageFilter as number)}
+                <ChevronDown className="ml-1 h-3 w-3" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent>
+              <DropdownMenuItem onClick={() => setStageFilter("All")}>
+                All Stages
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setPipelineFilter("training")}>
-                Training Pipeline
-              </DropdownMenuItem>
+              {stages.map(stage => (
+                <DropdownMenuItem 
+                  key={stage.stage_id} 
+                  onClick={() => setStageFilter(stage.stage_id)}
+                >
+                  {stage.stage_name}
+                </DropdownMenuItem>
+              ))}
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
 
         <Button onClick={() => setShowCreateModal(true)}>
           <Plus className="mr-2 h-4 w-4" />
-          Add Client
+          Add Energy Client
         </Button>
       </div>
 
@@ -382,10 +474,25 @@ export default function CustomersPage() {
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
-                {["Name", "Phone", "Email", "Address", "Type", "Pipeline", "Stage", "Actions"].map((h) => (
+                {[
+                  "ID",
+                  "Name",
+                  "Business Name",
+                  "Contact Person",
+                  "Tel Number",
+                  "MPAN/MPR",
+                  "Supplier",
+                  "Annual Usage",
+                  "Start Date",
+                  "End Date",
+                  "Status",
+                  "Callback",
+                  "Assigned To",
+                  "Actions"
+                ].map((h) => (
                   <th
                     key={h}
-                    className="px-6 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase"
+                    className="px-4 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase whitespace-nowrap"
                   >
                     {h}
                   </th>
@@ -396,101 +503,104 @@ export default function CustomersPage() {
             <tbody className="divide-y divide-gray-200 bg-white">
               {isLoading ? (
                 <tr>
-                  <td colSpan={8} className="px-6 py-12 text-center">
+                  <td colSpan={14} className="px-6 py-12 text-center">
                     <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-current border-r-transparent text-gray-600"></div>
-                    <p className="mt-4 text-gray-500">Loading clients...</p>
+                    <p className="mt-4 text-gray-500">Loading energy clients...</p>
                   </td>
                 </tr>
               ) : error ? (
                 <tr>
-                  <td colSpan={8} className="px-6 py-12 text-center text-gray-500">
+                  <td colSpan={14} className="px-6 py-12 text-center text-gray-500">
                     <AlertCircle className="h-12 w-12 text-red-400 mx-auto mb-3" />
-                    <p className="text-lg text-red-600">Failed to load clients</p>
+                    <p className="text-lg text-red-600">Failed to load energy clients</p>
                     <p className="mt-2 text-sm">{error}</p>
                   </td>
                 </tr>
               ) : paginatedCustomers.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="px-6 py-12 text-center text-gray-500">
-                    <p className="text-lg">No clients found.</p>
-                    {user?.role === "Staff" && (
-                      <p className="mt-2 text-sm">Create your first client to get started!</p>
-                    )}
+                  <td colSpan={14} className="px-6 py-12 text-center text-gray-500">
+                    <Zap className="h-12 w-12 text-gray-400 mx-auto mb-3" />
+                    <p className="text-lg">No energy clients found.</p>
+                    <p className="mt-2 text-sm">Create your first energy client to get started!</p>
                   </td>
                 </tr>
               ) : (
                 paginatedCustomers.map((customer) => {
-                  const customerType = getCustomerType(customer);
-                  const currentStage = customer.pipeline_type === 'sales' ? customer.sales_stage : customer.training_stage;
-
+                  const stageName = getStageName(customer.stage_id);
+                  
                   return (
                     <tr
                       key={customer.id}
                       onClick={() => router.push(`/dashboard/clients/${customer.id}`)}
                       className="cursor-pointer hover:bg-gray-50 transition-colors"
                     >
-                      <td className="px-6 py-4 whitespace-nowrap font-medium text-gray-900">
-                        {customer.name}
+                      <td className="px-4 py-3 whitespace-nowrap text-sm font-medium text-gray-900">
+                        {customer.id}
                       </td>
 
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      <td className="px-4 py-3 whitespace-nowrap text-sm font-medium text-gray-900">
+                        {customer.name || customer.contact_person}
+                      </td>
+
+                      <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
+                        <div className="flex items-center gap-2">
+                          <Building2 className="h-4 w-4 text-gray-400" />
+                          {customer.business_name}
+                        </div>
+                      </td>
+
+                      <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-700">
+                        {customer.contact_person}
+                      </td>
+
+                      <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
                         {customer.phone}
                       </td>
 
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {customer.email || "—"}
+                      <td className="px-4 py-3 whitespace-nowrap text-sm font-mono text-blue-600">
+                        {customer.mpan_mpr || "—"}
                       </td>
 
-                      <td className="px-6 py-4 text-sm text-gray-900 max-w-xs truncate">
-                        {customer.address}
+                      <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
+                        <div className="flex items-center gap-2">
+                          <Zap className="h-3 w-3 text-amber-500" />
+                          {customer.supplier_name || "—"}
+                        </div>
                       </td>
 
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        {customerType === 'Individual' ? (
-                          <div className="flex items-center gap-2" title="Individual Client">
-                            <User className="h-4 w-4 text-blue-600" />
-                            <span className="text-xs text-gray-600">Individual</span>
-                          </div>
-                        ) : customerType === 'Commercial' ? (
-                          <div className="flex items-center gap-2" title="Commercial Client">
-                            <Building2 className="h-4 w-4 text-purple-600" />
-                            <span className="text-xs text-gray-600">Commercial</span>
-                          </div>
-                        ) : (
-                          <span className="text-xs text-gray-400">—</span>
-                        )}
+                      <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900 text-right">
+                        {formatUsage(customer.annual_usage)}
                       </td>
 
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        {customer.pipeline_type === 'sales' ? (
-                          <span className="inline-flex items-center gap-1 rounded-full px-2 py-1 text-xs font-semibold bg-blue-100 text-blue-800">
-                            Sales
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center gap-1 rounded-full px-2 py-1 text-xs font-semibold bg-green-100 text-green-800">
-                            <GraduationCap className="h-3 w-3" />
-                            Training
-                          </span>
-                        )}
+                      <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-700">
+                        {formatDate(customer.start_date)}
                       </td>
 
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        {currentStage ? (
+                      <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-700">
+                        {formatDate(customer.end_date)}
+                      </td>
+
+                      <td className="px-4 py-3 whitespace-nowrap">
+                        {stageName !== "—" ? (
                           <span
-                            className={`inline-flex rounded-full px-2 py-1 text-xs font-semibold ${
-                              customer.pipeline_type === 'sales'
-                                ? getSalesStageColor(currentStage as SalesStage)
-                                : getTrainingStageColor(currentStage as TrainingStage)
-                            }`}
+                            className={`inline-flex rounded-full px-2 py-1 text-xs font-semibold ${getStageColor(stageName)}`}
                           >
-                            {currentStage}
+                            {stageName}
                           </span>
                         ) : (
                           <span className="text-sm text-gray-400">—</span>
                         )}
                       </td>
 
-                      <td className="px-6 py-4 text-right whitespace-nowrap">
+                      <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-700">
+                        {formatDate(customer.callback_date)}
+                      </td>
+
+                      <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
+                        {customer.assigned_to_name || "—"}
+                      </td>
+
+                      <td className="px-4 py-3 text-right whitespace-nowrap">
                         <div className="flex gap-2 justify-end">
                           {canEditCustomer(customer) && (
                             <Button
@@ -530,10 +640,12 @@ export default function CustomersPage() {
       </div>
 
       {showCreateModal && (
-        <CreateCustomerModal
+        <CreateEnergyCustomerModal
           isOpen={showCreateModal}
           onClose={() => setShowCreateModal(false)}
           onCustomerCreated={fetchCustomers}
+          suppliers={suppliers}
+          stages={stages}
         />
       )}
     </div>

@@ -3,12 +3,12 @@ import packageJson from "../../package.json";
 const currentYear = new Date().getFullYear();
 
 export const APP_CONFIG = {
-  name: "FAI",
+  name: "Business Gas",
   version: packageJson.version,
-  copyright: `© ${currentYear}, Forklift Academy of India.`,
+  copyright: `© ${currentYear}, Business Gas.`,
   meta: {
-    title: "Forklift Academy of India",
-    description: "Forklift Academy of India",
+    title: "Business Gas",
+    description: "Business Gas",
   },
   // ✅ Add your base path here
   basePath: "/streemlyne",
