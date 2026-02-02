@@ -10,205 +10,151 @@ import {
   Edit,
   Phone,
   Mail,
-  MessageSquare,
-  Calendar,
-  User,
   Building2,
   Loader2,
   AlertCircle,
   Save,
   X,
-  FileText,
-  Eye,
+  MapPin,
+  Zap,
+  Calendar,
+  User,
   DollarSign,
-  Plus,
-  ChevronDown,
-  Trash2,
+  FileText,
+  CreditCard,
+  MoreVertical,
 } from "lucide-react";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
 import { useAuth } from "@/contexts/AuthContext";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
-// ---------------- Types ----------------
-type PipelineType = 'sales' | 'training';
-type SalesStage = "Enquiry" | "Proposal" | "Converted";
-type TrainingStage = "Training Scheduled" | "Training Conducted" | "Training Completed" | "PTI Created" | "Certificates Created" | "Certificates Dispatched";
-type CustomerType = 'Individual' | 'Commercial';
-type MHEType = 'Forklift' | 'Reach Truck' | 'Stacker' | 'BOPT' | 'Other';
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
 
-interface Customer {
-  id: string;
+// Tab configuration
+const TABS = [
+  { id: "contact", label: "Contact Information", icon: User },
+  { id: "contract", label: "Contract & Billing Details", icon: FileText },
+  { id: "address", label: "Address", icon: MapPin },
+  { id: "charges", label: "Charges", icon: DollarSign },
+  { id: "banking", label: "Bank & Trading Account Details", icon: CreditCard },
+  { id: "others", label: "Others", icon: MoreVertical },
+];
+
+// Status options
+const STATUS_OPTIONS = [
+  { value: "called", label: "Called" },
+  { value: "not_answered", label: "Not Answered" },
+  { value: "priced", label: "Priced" },
+  { value: "lost", label: "Lost" },
+];
+
+interface EnergyCustomer {
+  id: number;
+  client_id: number;
   name: string;
-  address: string;
+  business_name: string;
+  contact_person: string;
   phone: string;
   email?: string;
-  contact_made?: "Yes" | "No" | "Unknown";
-  pipeline_type: PipelineType;
-  sales_stage?: SalesStage;
-  training_stage?: TrainingStage;
-  status: string;
-  notes?: string;
-  created_at: string;
-  created_by?: string;
-  updated_at?: string;
-  salesperson?: string;
-  preferred_contact_method?: "Phone" | "Email" | "WhatsApp";
-}
-
-interface Quotation {
-  id: number;
-  reference_number: string;
-  total: number;
-  status: string;
-  notes: string;
-  created_at: string;
-  items_count?: number;
-  customer_id?: string;
-}
-
-interface Invoice {
-  id: number;
-  invoice_number: string;
-  total: number;
-  status: string;
-  created_at: string;
-  customer_id: string;
-}
-
-interface FinancialDocument {
-  id: string | number;
-  type: "quotation" | "invoice";
-  title: string;
-  reference?: string;
-  total?: number;
-  created_at: string;
+  address?: string;
+  post_code?: string;
+  site_address?: string;
+  mpan_mpr?: string;
+  supplier_name?: string;
+  supplier_id?: number;
+  annual_usage?: number;
+  start_date?: string;
+  end_date?: string;
+  unit_rate?: number;
+  standing_charge?: number;
   status?: string;
-  customer_id?: string;
+  assigned_to_name?: string;
+  assigned_to_id?: number;
+  created_at?: string;
+  // Banking details
+  bank_name?: string;
+  bank_sort_code?: string;
+  bank_account_number?: string;
+  // Trading details
+  trading_type?: string;
+  trading_number?: string;
+  // Additional charges
+  night_charge?: number;
+  eve_weekend_charge?: number;
+  other_charges_1?: number;
+  other_charges_2?: number;
+  other_charges_3?: number;
+  // Other fields
+  meter_ref?: string;
+  payment_type?: string;
+  aggregator?: string;
+  uplift?: number;
+  term_sold?: number;
+  comments?: string;
 }
 
-// ---------------- Utility functions ----------------
-const formatDate = (dateString: string) => {
+interface Employee {
+  employee_id: number;
+  employee_name: string;
+  email: string;
+}
+
+const formatDate = (dateString?: string) => {
   if (!dateString) return "—";
   try {
-    const isoLike = /^\d{4}-\d{2}-\d{2}$/;
-    const date = isoLike.test(dateString) ? new Date(dateString + "T00:00:00") : new Date(dateString);
-    if (isNaN(date.getTime())) return dateString;
+    const date = new Date(dateString);
     return date.toLocaleDateString("en-GB", {
       day: "2-digit",
-      month: "long",
+      month: "2-digit",
       year: "numeric",
     });
   } catch {
-    return dateString;
+    return "—";
   }
 };
 
-const getSalesStageColor = (stage: SalesStage): string => {
-  switch (stage) {
-    case "Enquiry":
-      return "bg-gray-100 text-gray-800";
-    case "Proposal":
-      return "bg-blue-100 text-blue-800";
-    case "Converted":
+const getStatusColor = (status?: string) => {
+  switch (status) {
+    case "called":
+    case "priced":
       return "bg-green-100 text-green-800";
-    default:
-      return "bg-gray-100 text-gray-800";
-  }
-};
-
-const getTrainingStageColor = (stage: TrainingStage): string => {
-  switch (stage) {
-    case "Training Scheduled":
+    case "not_answered":
       return "bg-yellow-100 text-yellow-800";
-    case "Training Conducted":
-      return "bg-orange-100 text-orange-800";
-    case "Training Completed":
-      return "bg-green-100 text-green-800";
-    case "PTI Created":
-      return "bg-purple-100 text-purple-800";
-    case "Certificates Created":
-      return "bg-blue-100 text-blue-800";
-    case "Certificates Dispatched":
-      return "bg-indigo-100 text-indigo-800";
+    case "lost":
+      return "bg-red-100 text-red-800";
     default:
       return "bg-gray-100 text-gray-800";
   }
 };
 
-// Extract customer type from notes
-const getCustomerType = (notes: string | undefined): CustomerType | null => {
-  if (!notes) return null;
-  if (notes.includes("Customer Type: Individual")) return "Individual";
-  if (notes.includes("Customer Type: Commercial")) return "Commercial";
-  return null;
+const getStatusLabel = (status?: string) => {
+  const option = STATUS_OPTIONS.find((opt) => opt.value === status);
+  return option ? option.label : status || "—";
 };
 
-// Extract MHE type from notes
-const getMHEType = (notes: string | undefined): MHEType | null => {
-  if (!notes) return null;
-  if (notes.includes("MHE Type: Forklift")) return "Forklift";
-  if (notes.includes("MHE Type: Reach Truck")) return "Reach Truck";
-  if (notes.includes("MHE Type: Stacker")) return "Stacker";
-  if (notes.includes("MHE Type: BOPT")) return "BOPT";
-  if (notes.includes("MHE Type: Other")) return "Other";
-  return null;
-};
-
-// Clean notes by removing metadata and stage change logs
-const getCleanNotes = (notes: string | undefined): string => {
-  if (!notes) return "";
-  
-  return notes
-    .split("\n")
-    .filter((line) => {
-      // Remove customer type lines
-      if (line.includes("Customer Type:")) return false;
-      // Remove MHE type lines
-      if (line.includes("MHE Type:")) return false;
-      // Remove stage change logs
-      if (line.includes("Stage changed:")) return false;
-      // Remove pipeline change logs
-      if (line.includes("pipeline)")) return false;
-      return true;
-    })
-    .join("\n")
-    .trim();
-};
-
-export default function CustomerDetailsPage() {
+export default function EnergyCustomerDetailsPage() {
   const params = useParams();
   const router = useRouter();
   const { user } = useAuth();
   const id = params?.id as string;
 
-  const [customer, setCustomer] = useState<Customer | null>(null);
-  const [financialDocuments, setFinancialDocuments] = useState<FinancialDocument[]>([]);
+  const [customer, setCustomer] = useState<EnergyCustomer | null>(null);
+  const [employees, setEmployees] = useState<Employee[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [isEditingNotes, setIsEditingNotes] = useState(false);
-  const [editedNotes, setEditedNotes] = useState("");
-  const [isSavingNotes, setIsSavingNotes] = useState(false);
-  const [deletingQuoteId, setDeletingQuoteId] = useState<number | null>(null);
-  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  const [quoteToDelete, setQuoteToDelete] = useState<{ id: number; reference: string } | null>(null);
+  const [activeTab, setActiveTab] = useState("contact");
+  const [isEditing, setIsEditing] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [editedCustomer, setEditedCustomer] = useState<Partial<EnergyCustomer>>({});
 
   useEffect(() => {
-    if (!id) return;
     loadCustomerData();
+    loadEmployees();
   }, [id]);
 
   const loadCustomerData = async () => {
@@ -216,725 +162,832 @@ export default function CustomerDetailsPage() {
     setError(null);
 
     const token = localStorage.getItem("auth_token");
-    const headers: HeadersInit = {
-      "Content-Type": "application/json",
-    };
-
-    if (token) {
-      headers["Authorization"] = `Bearer ${token}`;
-    }
 
     try {
-      const customerRes = await fetch(`http://localhost:5000/clients/${id}`, { headers });
+      const response = await fetch(`${API_BASE_URL}/energy-clients/${id}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
 
-      if (!customerRes.ok) {
-        throw new Error("Failed to load client data");
-      }
+      if (!response.ok) throw new Error("Failed to load customer data");
 
-      const customerData = await customerRes.json();
-      setCustomer(customerData);
-
-      // ✅ Helper function to safely fetch data
-      const fetchWithFallback = async (url: string) => {
-        try {
-          const response = await fetch(url, { headers });
-          if (!response.ok) {
-            console.warn(`Failed to fetch ${url}: ${response.status} ${response.statusText}`);
-            return null;
-          }
-          const contentType = response.headers.get("content-type");
-          if (contentType && contentType.includes("application/json")) {
-            return await response.json();
-          }
-          console.warn(`Non-JSON response from ${url}`);
-          return null;
-        } catch (error) {
-          console.warn(`Error fetching ${url}:`, error);
-          return null;
-        }
-      };
-
-      // ✅ Fetch quotations and invoices in parallel
-      const [quotationsData, invoicesData] = await Promise.all([
-        fetchWithFallback(`http://localhost:5000/proposals?customer_id=${id}`),
-        fetchWithFallback(`http://localhost:5000/invoices?customer_id=${id}`)
-      ]);
-
-      // ✅ Process and combine all financial documents
-      const allFinancialDocs: FinancialDocument[] = [];
-
-      // Quotations
-      if (quotationsData && Array.isArray(quotationsData)) {
-        quotationsData.forEach((quote: Quotation) => {
-          allFinancialDocs.push({
-            id: quote.id,
-            type: 'quotation',
-            title: `Quotation ${quote.reference_number}`,
-            reference: quote.reference_number,
-            total: quote.total,
-            status: quote.status,
-            created_at: quote.created_at,
-          });
-        });
-      }
-
-      // Invoices
-      if (invoicesData && Array.isArray(invoicesData)) {
-        invoicesData.forEach((invoice: Invoice) => {
-          allFinancialDocs.push({
-            id: invoice.id,
-            type: 'invoice',
-            title: invoice.invoice_number || `Invoice #${invoice.id}`,
-            reference: invoice.invoice_number,
-            total: invoice.total,
-            status: invoice.status,
-            created_at: invoice.created_at,
-          });
-        });
-      }
-
-      // Sort by created date (newest first)
-      allFinancialDocs.sort((a, b) => 
-        new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-      );
-
-      setFinancialDocuments(allFinancialDocs);
-
+      const data = await response.json();
+      setCustomer(data);
+      setEditedCustomer(data);
     } catch (error) {
-      console.error("Error loading client data:", error);
-      setError("Failed to load client data. Please refresh the page.");
+      console.error("Error loading customer:", error);
+      setError("Failed to load customer data. Please refresh the page.");
     } finally {
       setLoading(false);
     }
   };
 
-  const handleSaveNotes = async () => {
+  const loadEmployees = async () => {
+    const token = localStorage.getItem("auth_token");
+    try {
+      const response = await fetch(`${API_BASE_URL}/employees`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setEmployees(data);
+      }
+    } catch (error) {
+      console.error("Error loading employees:", error);
+    }
+  };
+
+  const handleSave = async () => {
     if (!customer) return;
-    
-    setIsSavingNotes(true);
+
+    setIsSaving(true);
     const token = localStorage.getItem("auth_token");
 
     try {
-      // Preserve customer type and MHE type metadata
-      const customerType = getCustomerType(customer.notes);
-      const mheType = getMHEType(customer.notes);
-      
-      let finalNotes = editedNotes.trim();
-      
-      // Re-add metadata to notes
-      if (customerType) {
-        finalNotes = `Customer Type: ${customerType}\n${finalNotes}`;
-      }
-      if (mheType) {
-        finalNotes = `MHE Type: ${mheType}\n${finalNotes}`;
-      }
-
-      const response = await fetch(`http://localhost:5000/clients/${id}`, {
+      const response = await fetch(`${API_BASE_URL}/energy-clients/${id}`, {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ notes: finalNotes }),
+        body: JSON.stringify(editedCustomer),
       });
 
       if (response.ok) {
-        const updatedCustomer = await response.json();
-        setCustomer(updatedCustomer.customer || updatedCustomer);
-        setIsEditingNotes(false);
+        const data = await response.json();
+        setCustomer(data.customer || data);
+        setIsEditing(false);
+        alert("✅ Customer updated successfully!");
       } else {
         const errorData = await response.json().catch(() => ({ error: "Unknown error" }));
-        alert(`Failed to update notes: ${errorData.error}`);
+        alert(`Failed to update customer: ${errorData.error}`);
       }
     } catch (error) {
-      console.error("Error updating notes:", error);
-      alert("Network error: Could not update notes");
+      console.error("Error updating customer:", error);
+      alert("Network error: Could not update customer");
     } finally {
-      setIsSavingNotes(false);
+      setIsSaving(false);
     }
   };
 
-  const handleCreateQuote = () => {
-    if (!canEdit()) {
-      alert("You don't have permission to create quotations.");
-      return;
-    }
-    const queryParams = new URLSearchParams({
-      customerId: String(id),
-      customerName: customer?.name || "",
-      customerAddress: customer?.address || "",
-      customerPhone: customer?.phone || "",
-      customerEmail: customer?.email || "",
-      type: "quotation",
-      source: "customer",
-    });
-    router.push(`/dashboard/quotes/create?${queryParams.toString()}`);
+  const handleCancel = () => {
+    setEditedCustomer(customer || {});
+    setIsEditing(false);
   };
 
-  const handleCreateInvoice = () => {
-    if (!canEdit()) {
-      alert("You don't have permission to create invoices.");
-      return;
-    }
-    const queryParams = new URLSearchParams({
-      customerId: String(id),
-      customerName: customer?.name || "",
-      customerAddress: customer?.address || "",
-      customerPhone: customer?.phone || "",
-      customerEmail: customer?.email || "",
-    });
-    router.push(`/dashboard/invoices/create?${queryParams.toString()}`);
+  const handleUpdateField = (field: keyof EnergyCustomer, value: any) => {
+    setEditedCustomer((prev) => ({ ...prev, [field]: value }));
   };
 
-  const handleViewFinancialDocument = (doc: FinancialDocument) => {
-    switch (doc.type) {
-      case 'quotation':
-        window.open(`/dashboard/quotes/${doc.id}`, '_blank');
-        break;
-      case 'invoice':
-        window.open(`/dashboard/invoices/${doc.id}`, '_blank');
-        break;
-      default:
-        alert('Document viewer not available');
-    }
-  };
-
-  const handleDeleteQuote = async (quoteId: number) => {
-    setDeletingQuoteId(quoteId);
-    
+  const updateStatus = async (newStatus: string) => {
+    const token = localStorage.getItem("auth_token");
     try {
-      const token = localStorage.getItem('auth_token');
-      const response = await fetch(
-        `http://localhost:5000/proposals/${quoteId}`,
-        {
-          method: 'DELETE',
-          headers: {
-            Authorization: `Bearer ${token}`,
-            'Content-Type': 'application/json',
-          },
-        }
-      );
+      const response = await fetch(`${API_BASE_URL}/energy-clients/${id}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ status: newStatus }),
+      });
 
-      if (!response.ok) {
-        throw new Error('Failed to delete quotation');
+      if (response.ok) {
+        setCustomer((prev) => (prev ? { ...prev, status: newStatus } : null));
       }
-
-      console.log('✅ Quotation deleted successfully');
-      
-      await loadCustomerData(); 
-      
-      alert('✅ Quotation deleted successfully!');
     } catch (error) {
-      console.error('❌ Error deleting quotation:', error);
-      alert('❌ Failed to delete quotation. Please try again.');
-    } finally {
-      setDeletingQuoteId(null);
-      setDeleteDialogOpen(false);
-      setQuoteToDelete(null);
+      console.error("Error updating status:", error);
     }
   };
 
-  const getFinancialDocIcon = (type: string) => {
-    switch (type) {
-      case 'quotation':
-        return <FileText className="h-5 w-5 text-blue-600" />;
-      case 'invoice':
-        return <FileText className="h-5 w-5 text-indigo-600" />;
-      default:
-        return <FileText className="h-5 w-5 text-gray-600" />;
-    }
-  };
+  const updateAssignedTo = async (employeeId: number) => {
+    const token = localStorage.getItem("auth_token");
+    try {
+      const response = await fetch(`${API_BASE_URL}/energy-clients/${id}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ assigned_to_id: employeeId }),
+      });
 
-  const getFinancialDocColor = (type: string) => {
-    switch (type) {
-      case 'quotation':
-        return 'from-blue-50 to-blue-100';
-      case 'invoice':
-        return 'from-indigo-50 to-indigo-100';
-      default:
-        return 'from-gray-50 to-gray-100';
+      if (response.ok) {
+        const employee = employees.find((e) => e.employee_id === employeeId);
+        setCustomer((prev) =>
+          prev
+            ? {
+                ...prev,
+                assigned_to_id: employeeId,
+                assigned_to_name: employee?.employee_name,
+              }
+            : null
+        );
+      }
+    } catch (error) {
+      console.error("Error updating assignment:", error);
     }
   };
 
   const canEdit = (): boolean => {
-    if (!customer) return false;
-    const allowedRoles = ["Manager", "HR", "Production", "Sales", "Admin"];
-    return allowedRoles.includes(user?.role || "");
+    return true; // Adjust based on your permission logic
   };
-
-  const handleEdit = () => {
-    if (!canEdit()) {
-      alert("You don't have permission to edit this client.");
-      return;
-    }
-    router.push(`/dashboard/clients/${id}/edit`);
-  };
-
-  const getContactMethodIcon = (method: string) => {
-    switch (method) {
-      case "Phone":
-        return <Phone className="h-4 w-4" />;
-      case "Email":
-        return <Mail className="h-4 w-4" />;
-      case "WhatsApp":
-        return <MessageSquare className="h-4 w-4" />;
-      default:
-        return null;
-    }
-  };
-
-  // Error state
-  if (error) {
-    return (
-      <div className="container mx-auto p-6">
-        <div className="flex h-64 items-center justify-center">
-          <div className="text-center">
-            <AlertCircle className="mx-auto mb-4 h-12 w-12 text-red-500" />
-            <h3 className="mb-2 text-lg font-medium text-red-900">Error Loading Data</h3>
-            <p className="mb-4 text-red-600">{error}</p>
-            <Button onClick={() => window.location.reload()}>Try Again</Button>
-          </div>
-        </div>
-      </div>
-    );
-  }
 
   // Loading state
   if (loading) {
     return (
-      <div className="container mx-auto space-y-8 p-6">
-        <div className="flex items-center justify-between">
-          <div className="h-10 w-64 bg-gray-200 rounded animate-pulse" />
-          <div className="h-10 w-24 bg-gray-200 rounded animate-pulse" />
-        </div>
-        <div className="rounded-lg border bg-white p-6 shadow-sm">
-          <div className="h-6 w-48 bg-gray-200 rounded animate-pulse mb-6" />
-          <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
-            {[1, 2, 3, 4, 5, 6].map((i) => (
-              <div key={i} className="space-y-2">
-                <div className="h-4 w-24 bg-gray-200 rounded animate-pulse" />
-                <div className="h-6 w-full bg-gray-100 rounded animate-pulse" />
-              </div>
-            ))}
-          </div>
+      <div className="flex h-screen items-center justify-center bg-gray-50">
+        <div className="text-center">
+          <Loader2 className="mx-auto h-12 w-12 animate-spin text-gray-600" />
+          <p className="mt-4 text-gray-600">Loading customer details...</p>
         </div>
       </div>
     );
   }
 
-  if (!customer) return <div className="p-8">Customer not found.</div>;
+  // Error state
+  if (error || !customer) {
+    return (
+      <div className="flex h-screen items-center justify-center bg-gray-50">
+        <div className="text-center">
+          <AlertCircle className="mx-auto h-12 w-12 text-red-500" />
+          <h3 className="mt-4 text-lg font-medium text-red-900">
+            {error || "Customer not found"}
+          </h3>
+          <Button onClick={() => router.push("/dashboard/clients")} className="mt-4">
+            Back to Customers
+          </Button>
+        </div>
+      </div>
+    );
+  }
 
-  const customerType = getCustomerType(customer.notes);
-  const mheType = getMHEType(customer.notes);
-  const cleanNotes = getCleanNotes(customer.notes);
-  const currentStage = customer.pipeline_type === 'sales' ? customer.sales_stage : customer.training_stage;
+  const displayCustomer = isEditing ? editedCustomer : customer;
 
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen bg-gray-50">
       {/* Header */}
-      <div className="border-b border-gray-200 bg-white px-8 py-6">
+      <div className="border-b border-gray-200 bg-white px-6 py-4 pr-[340px]">
         <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-2">
-            <div
-              onClick={() => router.push("/dashboard/clients")}
-              className="flex cursor-pointer items-center text-gray-500 hover:text-gray-700"
-            >
-              <ArrowLeft className="h-5 w-5" />
-            </div>
-            <h1 className="text-3xl font-semibold text-gray-900">Client Details</h1>
-          </div>
-          
           <div className="flex items-center space-x-3">
-            {canEdit() && (
+            <button
+              onClick={() => router.push("/dashboard/clients")}
+              className="rounded-lg p-2 hover:bg-gray-100"
+            >
+              <ArrowLeft className="h-5 w-5 text-gray-600" />
+            </button>
+            <div>
+              <h1 className="text-2xl font-bold text-gray-900">Consumer Details</h1>
+              <p className="text-sm text-gray-500">ID: {customer.id}</p>
+            </div>
+          </div>
+
+          <div className="flex items-center space-x-3">
+            {isEditing ? (
               <>
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="outline" className="flex items-center space-x-2">
-                      <Plus className="h-4 w-4" />
-                      <span>Create</span>
-                      <ChevronDown className="h-4 w-4" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="w-56">
-                    <DropdownMenuItem onClick={handleCreateQuote} className="flex items-center space-x-2">
-                      <FileText className="h-4 w-4" />
-                      <span>Quotation</span>
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={handleCreateInvoice} className="flex items-center space-x-2">
-                      <FileText className="h-4 w-4" />
-                      <span>Invoice</span>
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-                <Button onClick={handleEdit} className="flex items-center space-x-2">
-                  <Edit className="h-4 w-4" />
-                  <span>Edit Client</span>
+                <Button onClick={handleCancel} variant="outline" disabled={isSaving}>
+                  <X className="mr-2 h-4 w-4" />
+                  Cancel
                 </Button>
+                <Button onClick={handleSave} disabled={isSaving} className="bg-black hover:bg-gray-800">
+                  {isSaving ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Saving...
+                    </>
+                  ) : (
+                    <>
+                      <Save className="mr-2 h-4 w-4" />
+                      Save Changes
+                    </>
+                  )}
+                </Button>
+              </>
+            ) : (
+              <>
+                <Button onClick={() => setIsEditing(true)} variant="outline">
+                  <Edit className="mr-2 h-4 w-4" />
+                  Edit
+                </Button>
+                <Button className="bg-gray-700 hover:bg-gray-800">Place to Sales Agent</Button>
+                <Button className="bg-green-600 hover:bg-green-700">Move to resolved</Button>
+                <Button className="bg-orange-600 hover:bg-orange-700">Send to callback</Button>
               </>
             )}
           </div>
         </div>
-      </div>
 
-      <div className="px-8 py-6">
-        {/* Contact Information Section */}
-        <div className="mb-8">
-          <h2 className="text-xl font-semibold text-gray-900 mb-6">Contact Information</h2>
-          
-          <div className="space-y-8">
-            {/* Row 1: Name, Phone, Email */}
-            <div className="grid grid-cols-1 gap-x-8 gap-y-6 md:grid-cols-3">
-              <div className="flex flex-col">
-                <span className="text-sm font-medium text-gray-500">Name</span>
-                <span className="mt-1 text-base font-medium text-gray-900">{customer.name || "—"}</span>
-              </div>
-              <div className="flex flex-col">
-                <span className="text-sm font-medium text-gray-500">
-                  Phone <span className="text-red-500">*</span>
-                </span>
-                <span className="mt-1 text-base text-gray-900">{customer.phone || "—"}</span>
-              </div>
-              <div className="flex flex-col">
-                <span className="text-sm font-medium text-gray-500">Email</span>
-                <span className="mt-1 text-base text-gray-900">{customer.email || "—"}</span>
-              </div>
-            </div>
-
-            {/* Row 2: Address, Customer Type, MHE Type */}
-            <div className="grid grid-cols-1 gap-x-8 gap-y-6 md:grid-cols-3">
-              <div className="flex flex-col">
-                <span className="text-sm font-medium text-gray-500">
-                  Address <span className="text-red-500">*</span>
-                </span>
-                <span className="mt-1 text-base text-gray-900">{customer.address || "—"}</span>
-              </div>
-              
-              <div className="flex flex-col">
-                <span className="text-sm font-medium text-gray-500">Customer Type</span>
-                <div className="mt-1">
-                  {customerType === 'Individual' ? (
-                    <div className="flex items-center gap-2">
-                      <User className="h-4 w-4 text-blue-600" />
-                      <span className="text-base font-medium text-blue-600">Individual</span>
-                    </div>
-                  ) : customerType === 'Commercial' ? (
-                    <div className="flex items-center gap-2">
-                      <Building2 className="h-4 w-4 text-purple-600" />
-                      <span className="text-base font-medium text-purple-600">Commercial</span>
-                    </div>
-                  ) : (
-                    <span className="text-base text-gray-400">—</span>
-                  )}
-                </div>
-              </div>
-
-              <div className="flex flex-col">
-                <span className="text-sm font-medium text-gray-500">MHE Type</span>
-                <div className="mt-1">
-                  {mheType ? (
-                    <span className="inline-flex rounded-full px-3 py-1 text-sm font-semibold bg-green-100 text-green-800">
-                      {mheType}
-                    </span>
-                  ) : (
-                    <span className="text-base text-gray-400">—</span>
-                  )}
-                </div>
-              </div>
-            </div>
-
-            {/* Row 3: Preferred Contact, Pipeline Stage, Customer Since */}
-            <div className="grid grid-cols-1 gap-x-8 gap-y-6 md:grid-cols-3">
-              <div className="flex flex-col">
-                <span className="text-sm font-medium text-gray-500">Preferred Contact</span>
-                <div className="mt-1">
-                  {customer.preferred_contact_method ? (
-                    <div className="flex items-center space-x-2">
-                      {getContactMethodIcon(customer.preferred_contact_method)}
-                      <span className="text-base text-gray-900">{customer.preferred_contact_method}</span>
-                    </div>
-                  ) : (
-                    <span className="text-base text-gray-900">—</span>
-                  )}
-                </div>
-              </div>
-
-              <div className="flex flex-col">
-                <span className="text-sm font-medium text-gray-500">Pipeline Stage</span>
-                <div className="mt-1">
-                  {currentStage ? (
-                    <span
-                      className={`inline-flex rounded-full px-3 py-1 text-sm font-semibold ${
-                        customer.pipeline_type === 'sales'
-                          ? getSalesStageColor(currentStage as SalesStage)
-                          : getTrainingStageColor(currentStage as TrainingStage)
-                      }`}
-                    >
-                      {currentStage}
-                    </span>
-                  ) : (
-                    <span className="text-base text-gray-900">—</span>
-                  )}
-                </div>
-              </div>
-
-              <div className="flex flex-col">
-                <span className="text-sm font-medium text-gray-500">Customer Since</span>
-                <div className="mt-1 flex items-center space-x-2">
-                  <Calendar className="h-4 w-4 text-gray-400" />
-                  <span className="text-base text-gray-900">{formatDate(customer.created_at)}</span>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Notes Section */}
-        <div className="mb-8 border-t border-gray-200 pt-8">
-          <div className="mb-4 flex items-center justify-between">
-            <h2 className="text-xl font-semibold text-gray-900">Notes</h2>
-            {canEdit() && !isEditingNotes && (
-              <Button
-                onClick={() => {
-                  setEditedNotes(cleanNotes);
-                  setIsEditingNotes(true);
-                }}
-                variant="outline"
-                className="flex items-center space-x-2"
+        {/* Tabs */}
+        <div className="mt-4 flex space-x-1 border-b border-gray-200">
+          {TABS.map((tab) => {
+            const Icon = tab.icon;
+            return (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className={`flex items-center space-x-2 px-4 py-3 text-sm font-medium transition-colors ${
+                  activeTab === tab.id
+                    ? "border-b-2 border-black text-black"
+                    : "text-gray-600 hover:text-gray-900"
+                }`}
               >
-                <Edit className="h-4 w-4" />
-                <span>Edit Notes</span>
-              </Button>
-            )}
-          </div>
+                <Icon className="h-4 w-4" />
+                <span>{tab.label}</span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
 
-          {isEditingNotes ? (
-            <div className="space-y-4">
-              <Textarea
-                value={editedNotes}
-                onChange={(e) => setEditedNotes(e.target.value)}
-                className="min-h-[200px] w-full rounded-lg border-gray-300 focus:border-blue-500 focus:ring-blue-500"
-                placeholder="Add notes about this client..."
-              />
-              <div className="flex items-center space-x-2">
-                <Button
-                  onClick={handleSaveNotes}
-                  disabled={isSavingNotes}
-                  className="flex items-center space-x-2"
-                >
-                  {isSavingNotes ? (
-                    <>
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                      <span>Saving...</span>
-                    </>
-                  ) : (
-                    <>
-                      <Save className="h-4 w-4" />
-                      <span>Save Notes</span>
-                    </>
-                  )}
-                </Button>
-                <Button
-                  onClick={() => {
-                    setIsEditingNotes(false);
-                    setEditedNotes("");
-                  }}
-                  variant="outline"
-                  disabled={isSavingNotes}
-                >
-                  <X className="h-4 w-4 mr-2" />
-                  Cancel
-                </Button>
-              </div>
-            </div>
-          ) : (
-            <div>
-              {cleanNotes ? (
-                <div className="rounded-lg bg-gray-50 p-4">
-                  <pre className="whitespace-pre-wrap text-base text-gray-900 font-sans">
-                    {cleanNotes}
-                  </pre>
+      {/* Content */}
+      <div className="p-6 pr-[340px]">
+        <div className="rounded-lg bg-white p-6 shadow-sm">
+          {/* Contact Information Tab */}
+          {activeTab === "contact" && (
+            <div className="space-y-6">
+              <h2 className="text-lg font-semibold text-gray-900">Contact Information</h2>
+
+              <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+                {/* ID */}
+                <div>
+                  <label className="text-sm font-medium text-gray-700">ID</label>
+                  <Input
+                    value={displayCustomer.id || ""}
+                    disabled
+                    className="mt-1 bg-gray-50"
+                  />
                 </div>
-              ) : (
-                <div className="rounded-lg border-2 border-dashed border-gray-200 bg-gray-50 p-8 text-center">
-                  <p className="text-gray-500">No notes added yet.</p>
-                  {canEdit() && (
-                    <Button
-                      onClick={() => {
-                        setEditedNotes("");
-                        setIsEditingNotes(true);
-                      }}
-                      variant="outline"
-                      className="mt-4"
+
+                {/* Name */}
+                <div>
+                  <label className="text-sm font-medium text-gray-700">Name</label>
+                  <Input
+                    value={displayCustomer.contact_person || ""}
+                    onChange={(e) => handleUpdateField("contact_person", e.target.value)}
+                    disabled={!isEditing}
+                    className="mt-1"
+                  />
+                </div>
+
+                {/* Business Name */}
+                <div>
+                  <label className="text-sm font-medium text-gray-700">Business Name</label>
+                  <Input
+                    value={displayCustomer.business_name || ""}
+                    onChange={(e) => handleUpdateField("business_name", e.target.value)}
+                    disabled={!isEditing}
+                    className="mt-1"
+                  />
+                </div>
+
+                {/* Contact Person */}
+                <div>
+                  <label className="text-sm font-medium text-gray-700">Contact Person</label>
+                  <Input
+                    value={displayCustomer.contact_person || ""}
+                    onChange={(e) => handleUpdateField("contact_person", e.target.value)}
+                    disabled={!isEditing}
+                    className="mt-1"
+                  />
+                </div>
+
+                {/* Tel Number */}
+                <div>
+                  <label className="text-sm font-medium text-gray-700">
+                    Tel Number <span className="text-red-500">*</span>
+                  </label>
+                  <Input
+                    value={displayCustomer.phone || ""}
+                    onChange={(e) => handleUpdateField("phone", e.target.value)}
+                    disabled={!isEditing}
+                    className="mt-1"
+                  />
+                </div>
+
+                {/* Tel Number 2 */}
+                <div>
+                  <label className="text-sm font-medium text-gray-700">Tel Number 2</label>
+                  <Input disabled className="mt-1 bg-gray-50" placeholder="—" />
+                </div>
+
+                {/* Email */}
+                <div>
+                  <label className="text-sm font-medium text-gray-700">Email</label>
+                  <Input
+                    value={displayCustomer.email || ""}
+                    onChange={(e) => handleUpdateField("email", e.target.value)}
+                    disabled={!isEditing}
+                    className="mt-1"
+                  />
+                </div>
+
+                {/* Agent Allocated */}
+                <div>
+                  <label className="text-sm font-medium text-gray-700">Agent Allocated</label>
+                  {isEditing ? (
+                    <Select
+                      value={displayCustomer.assigned_to_id?.toString() || ""}
+                      onValueChange={(value) => handleUpdateField("assigned_to_id", parseInt(value))}
                     >
-                      <Edit className="h-4 w-4 mr-2" />
-                      Add Notes
-                    </Button>
+                      <SelectTrigger className="mt-1">
+                        <SelectValue placeholder="Select agent" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {employees.map((employee) => (
+                          <SelectItem
+                            key={employee.employee_id}
+                            value={employee.employee_id.toString()}
+                          >
+                            {employee.employee_name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    <Input
+                      value={displayCustomer.assigned_to_name || ""}
+                      disabled
+                      className="mt-1 bg-gray-50"
+                    />
                   )}
                 </div>
-              )}
+
+                {/* Agent Sold */}
+                <div>
+                  <label className="text-sm font-medium text-gray-700">Agent Sold</label>
+                  <Input disabled className="mt-1 bg-gray-50" placeholder="—" />
+                </div>
+              </div>
             </div>
           )}
-        </div>
 
-        {/* Financial Documents Section */}
-        <div className="mb-8 border-t border-gray-200 pt-8">
-          <div className="mb-6 flex items-center justify-between">
-            <h2 className="text-xl font-semibold text-gray-900">
-              Financial Documents ({financialDocuments.length})
-            </h2>
-            {financialDocuments.length > 0 && (
-              <div className="text-sm text-gray-600">
-                {financialDocuments.filter(d => d.type === 'quotation').length} Quotation{financialDocuments.filter(d => d.type === 'quotation').length !== 1 ? 's' : ''} • {' '}
-                {financialDocuments.filter(d => d.type === 'invoice').length} Invoice{financialDocuments.filter(d => d.type === 'invoice').length !== 1 ? 's' : ''}
+          {/* Contract & Billing Details Tab */}
+          {activeTab === "contract" && (
+            <div className="space-y-6">
+              <h2 className="text-lg font-semibold text-gray-900">Contract & Billing Details</h2>
+
+              <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+                {/* Supplier */}
+                <div>
+                  <label className="text-sm font-medium text-gray-700">Supplier</label>
+                  <Input
+                    value={displayCustomer.supplier_name || ""}
+                    disabled
+                    className="mt-1 bg-gray-50"
+                  />
+                </div>
+
+                {/* Data Source */}
+                <div>
+                  <label className="text-sm font-medium text-gray-700">Data Source</label>
+                  <Input disabled className="mt-1 bg-gray-50" placeholder="—" />
+                </div>
+
+                {/* MPAN/MPR */}
+                <div>
+                  <label className="text-sm font-medium text-gray-700">Mpan MPR</label>
+                  <Input
+                    value={displayCustomer.mpan_mpr || ""}
+                    onChange={(e) => handleUpdateField("mpan_mpr", e.target.value)}
+                    disabled={!isEditing}
+                    className="mt-1"
+                  />
+                </div>
+
+                {/* Top Line */}
+                <div>
+                  <label className="text-sm font-medium text-gray-700">Top Line</label>
+                  <Input disabled className="mt-1 bg-gray-50" placeholder="—" />
+                </div>
+
+                {/* Annual Usage */}
+                <div>
+                  <label className="text-sm font-medium text-gray-700">Annual Usage</label>
+                  <Input
+                    type="number"
+                    value={displayCustomer.annual_usage || ""}
+                    onChange={(e) => handleUpdateField("annual_usage", parseFloat(e.target.value))}
+                    disabled={!isEditing}
+                    className="mt-1"
+                  />
+                </div>
+
+                {/* Payment Type */}
+                <div>
+                  <label className="text-sm font-medium text-gray-700">Payment Type</label>
+                  <Input
+                    value={displayCustomer.payment_type || ""}
+                    onChange={(e) => handleUpdateField("payment_type", e.target.value)}
+                    disabled={!isEditing}
+                    className="mt-1"
+                  />
+                </div>
+
+                {/* Start Date */}
+                <div>
+                  <label className="text-sm font-medium text-gray-700">Start Date</label>
+                  <Input
+                    type="date"
+                    value={displayCustomer.start_date?.split("T")[0] || ""}
+                    onChange={(e) => handleUpdateField("start_date", e.target.value)}
+                    disabled={!isEditing}
+                    className="mt-1"
+                  />
+                </div>
+
+                {/* End Date */}
+                <div>
+                  <label className="text-sm font-medium text-gray-700">End Date</label>
+                  <Input
+                    type="date"
+                    value={displayCustomer.end_date?.split("T")[0] || ""}
+                    onChange={(e) => handleUpdateField("end_date", e.target.value)}
+                    disabled={!isEditing}
+                    className="mt-1"
+                  />
+                </div>
+
+                {/* Term Sold */}
+                <div>
+                  <label className="text-sm font-medium text-gray-700">Term Sold</label>
+                  <Input
+                    type="number"
+                    value={displayCustomer.term_sold || ""}
+                    onChange={(e) => handleUpdateField("term_sold", parseFloat(e.target.value))}
+                    disabled={!isEditing}
+                    className="mt-1"
+                  />
+                </div>
               </div>
-            )}
-          </div>
-
-          {financialDocuments.length > 0 ? (
-            <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
-              {financialDocuments.map((doc) => (
-                <div
-                  key={`${doc.type}-${doc.id}`}
-                  className={`rounded-lg border bg-gradient-to-br ${getFinancialDocColor(doc.type)} p-6 shadow-sm transition-all duration-200 hover:shadow-md`}
-                >
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                      <div className="mb-3 flex items-center space-x-3">
-                        <div className="rounded-lg bg-white p-2 shadow-sm">
-                          {getFinancialDocIcon(doc.type)}
-                        </div>
-                        <div className="flex-1">
-                          <h3 className="font-semibold text-gray-900 line-clamp-1">{doc.title}</h3>
-                          <p className="text-xs text-gray-600 capitalize">{doc.type}</p>
-                        </div>
-                      </div>
-
-                      <div className="space-y-2">
-                        {doc.status && (
-                          <div className="flex items-center space-x-2">
-                            <span className={`inline-flex rounded-full px-2 py-1 text-xs font-medium ${
-                              doc.status === 'Approved' || doc.status === 'Paid' ? 'bg-green-100 text-green-800' :
-                              doc.status === 'Draft' || doc.status === 'Pending' ? 'bg-yellow-100 text-yellow-800' :
-                              doc.status === 'Rejected' ? 'bg-red-100 text-red-800' :
-                              'bg-gray-100 text-gray-800'
-                            }`}>
-                              {doc.status}
-                            </span>
-                          </div>
-                        )}
-
-                        {doc.total !== undefined && (
-                          <p className="text-sm text-gray-700">
-                            <span className="font-medium">Total:</span>{' '}
-                            <span className="font-semibold text-gray-900">₹{doc.total.toFixed(2)}</span>
-                          </p>
-                        )}
-
-                        <p className="text-xs text-gray-600">
-                          <Calendar className="mr-1 inline h-3 w-3" />
-                          {formatDate(doc.created_at)}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="mt-4 flex items-center gap-2">
-                    <Button
-                      onClick={() => handleViewFinancialDocument(doc)}
-                      variant="outline"
-                      size="sm"
-                      className="flex-1 bg-white hover:bg-gray-50"
-                    >
-                      <Eye className="mr-2 h-4 w-4" />
-                      View Details
-                    </Button>
-                    
-                    {/* Delete Button - ONLY for quotations */}
-                    {doc.type === 'quotation' && canEdit() && (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setQuoteToDelete({
-                            id: typeof doc.id === 'string' ? parseInt(doc.id) : doc.id, 
-                            reference: doc.reference || doc.title 
-                          });
-                          setDeleteDialogOpen(true);
-                        }}
-                        disabled={deletingQuoteId === doc.id}
-                        className="text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200"
-                      >
-                        {deletingQuoteId === doc.id ? (
-                          <Loader2 className="h-4 w-4 animate-spin" />
-                        ) : (
-                          <Trash2 className="h-4 w-4" />
-                        )}
-                      </Button>
-                    )}
-                  </div>
-                </div>
-              ))}
             </div>
-          ) : (
-            <div className="rounded-lg border-2 border-dashed border-gray-200 bg-gray-50 p-12 text-center">
-              <DollarSign className="mx-auto mb-6 h-16 w-16 text-gray-300" />
-              <h3 className="mb-4 text-xl font-semibold text-gray-900">No Financial Documents</h3>
-              <p className="mx-auto mb-8 max-w-2xl text-gray-600">
-                Create quotations or invoices to track this customer's financial activity.
-              </p>
-              {canEdit() && (
-                <div className="flex flex-wrap justify-center gap-4">
-                  <Button onClick={handleCreateQuote} className="flex items-center space-x-2">
-                    <FileText className="h-4 w-4" />
-                    <span>Create Quotation</span>
-                  </Button>
-                  <Button onClick={handleCreateInvoice} variant="outline" className="flex items-center space-x-2">
-                    <FileText className="h-4 w-4" />
-                    <span>Create Invoice</span>
-                  </Button>
+          )}
+
+          {/* Address Tab */}
+          {activeTab === "address" && (
+            <div className="space-y-6">
+              <h2 className="text-lg font-semibold text-gray-900">Address</h2>
+
+              <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+                {/* House Name */}
+                <div>
+                  <label className="text-sm font-medium text-gray-700">House Name</label>
+                  <Input disabled className="mt-1 bg-gray-50" placeholder="—" />
                 </div>
-              )}
+
+                {/* Door Number */}
+                <div>
+                  <label className="text-sm font-medium text-gray-700">Door Number</label>
+                  <Input disabled className="mt-1 bg-gray-50" placeholder="—" />
+                </div>
+
+                {/* Street */}
+                <div>
+                  <label className="text-sm font-medium text-gray-700">Street</label>
+                  <Input
+                    value={displayCustomer.address || ""}
+                    onChange={(e) => handleUpdateField("address", e.target.value)}
+                    disabled={!isEditing}
+                    className="mt-1"
+                  />
+                </div>
+
+                {/* Town */}
+                <div>
+                  <label className="text-sm font-medium text-gray-700">Town</label>
+                  <Input disabled className="mt-1 bg-gray-50" placeholder="—" />
+                </div>
+
+                {/* Locality */}
+                <div>
+                  <label className="text-sm font-medium text-gray-700">Locality</label>
+                  <Input disabled className="mt-1 bg-gray-50" placeholder="—" />
+                </div>
+
+                {/* County */}
+                <div>
+                  <label className="text-sm font-medium text-gray-700">County</label>
+                  <Input disabled className="mt-1 bg-gray-50" placeholder="—" />
+                </div>
+
+                {/* Post Code */}
+                <div>
+                  <label className="text-sm font-medium text-gray-700">Post Code</label>
+                  <Input
+                    value={displayCustomer.post_code || ""}
+                    onChange={(e) => handleUpdateField("post_code", e.target.value)}
+                    disabled={!isEditing}
+                    className="mt-1"
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Charges Tab */}
+          {activeTab === "charges" && (
+            <div className="space-y-6">
+              <h2 className="text-lg font-semibold text-gray-900">Charges</h2>
+
+              <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+                {/* Standing Charge */}
+                <div>
+                  <label className="text-sm font-medium text-gray-700">Standing Charge</label>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    value={displayCustomer.standing_charge || ""}
+                    onChange={(e) => handleUpdateField("standing_charge", parseFloat(e.target.value))}
+                    disabled={!isEditing}
+                    className="mt-1"
+                  />
+                </div>
+
+                {/* Unit Charge */}
+                <div>
+                  <label className="text-sm font-medium text-gray-700">Unit Charge</label>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    value={displayCustomer.unit_rate || ""}
+                    onChange={(e) => handleUpdateField("unit_rate", parseFloat(e.target.value))}
+                    disabled={!isEditing}
+                    className="mt-1"
+                  />
+                </div>
+
+                {/* Night Charge */}
+                <div>
+                  <label className="text-sm font-medium text-gray-700">Night Charge</label>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    value={displayCustomer.night_charge || ""}
+                    onChange={(e) => handleUpdateField("night_charge", parseFloat(e.target.value))}
+                    disabled={!isEditing}
+                    className="mt-1"
+                  />
+                </div>
+
+                {/* Eve/Weekend Charge */}
+                <div>
+                  <label className="text-sm font-medium text-gray-700">Eve/Weekend Charge</label>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    value={displayCustomer.eve_weekend_charge || ""}
+                    onChange={(e) =>
+                      handleUpdateField("eve_weekend_charge", parseFloat(e.target.value))
+                    }
+                    disabled={!isEditing}
+                    className="mt-1"
+                  />
+                </div>
+
+                {/* Other Charges 1 */}
+                <div>
+                  <label className="text-sm font-medium text-gray-700">Other Charges 1</label>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    value={displayCustomer.other_charges_1 || ""}
+                    onChange={(e) =>
+                      handleUpdateField("other_charges_1", parseFloat(e.target.value))
+                    }
+                    disabled={!isEditing}
+                    className="mt-1"
+                  />
+                </div>
+
+                {/* Other Charges 2 */}
+                <div>
+                  <label className="text-sm font-medium text-gray-700">Other Charges 2</label>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    value={displayCustomer.other_charges_2 || ""}
+                    onChange={(e) =>
+                      handleUpdateField("other_charges_2", parseFloat(e.target.value))
+                    }
+                    disabled={!isEditing}
+                    className="mt-1"
+                  />
+                </div>
+
+                {/* Other Charges 3 */}
+                <div>
+                  <label className="text-sm font-medium text-gray-700">Other Charges 3</label>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    value={displayCustomer.other_charges_3 || ""}
+                    onChange={(e) =>
+                      handleUpdateField("other_charges_3", parseFloat(e.target.value))
+                    }
+                    disabled={!isEditing}
+                    className="mt-1"
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Banking Tab */}
+          {activeTab === "banking" && (
+            <div className="space-y-6">
+              <h2 className="text-lg font-semibold text-gray-900">
+                Bank & Trading Account Details
+              </h2>
+
+              <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+                {/* Trading Type */}
+                <div>
+                  <label className="text-sm font-medium text-gray-700">Trading Type</label>
+                  <Input
+                    value={displayCustomer.trading_type || ""}
+                    onChange={(e) => handleUpdateField("trading_type", e.target.value)}
+                    disabled={!isEditing}
+                    className="mt-1"
+                  />
+                </div>
+
+                {/* Trading Number */}
+                <div>
+                  <label className="text-sm font-medium text-gray-700">Trading Number</label>
+                  <Input
+                    value={displayCustomer.trading_number || ""}
+                    onChange={(e) => handleUpdateField("trading_number", e.target.value)}
+                    disabled={!isEditing}
+                    className="mt-1"
+                  />
+                </div>
+
+                {/* Bank Name */}
+                <div>
+                  <label className="text-sm font-medium text-gray-700">Bank Name</label>
+                  <Input
+                    value={displayCustomer.bank_name || ""}
+                    onChange={(e) => handleUpdateField("bank_name", e.target.value)}
+                    disabled={!isEditing}
+                    className="mt-1"
+                  />
+                </div>
+
+                {/* Bank Sort Code */}
+                <div>
+                  <label className="text-sm font-medium text-gray-700">Bank Sort Code</label>
+                  <Input
+                    value={displayCustomer.bank_sort_code || ""}
+                    onChange={(e) => handleUpdateField("bank_sort_code", e.target.value)}
+                    disabled={!isEditing}
+                    className="mt-1"
+                  />
+                </div>
+
+                {/* Bank Account Number */}
+                <div>
+                  <label className="text-sm font-medium text-gray-700">
+                    Bank Account Number
+                  </label>
+                  <Input
+                    value={displayCustomer.bank_account_number || ""}
+                    onChange={(e) => handleUpdateField("bank_account_number", e.target.value)}
+                    disabled={!isEditing}
+                    className="mt-1"
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Others Tab */}
+          {activeTab === "others" && (
+            <div className="space-y-6">
+              <h2 className="text-lg font-semibold text-gray-900">Others</h2>
+
+              <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+                {/* Meter Ref */}
+                <div>
+                  <label className="text-sm font-medium text-gray-700">Meter Ref</label>
+                  <Input
+                    value={displayCustomer.meter_ref || ""}
+                    onChange={(e) => handleUpdateField("meter_ref", e.target.value)}
+                    disabled={!isEditing}
+                    className="mt-1"
+                  />
+                </div>
+
+                {/* Aggregator */}
+                <div>
+                  <label className="text-sm font-medium text-gray-700">Aggregator</label>
+                  <Input
+                    value={displayCustomer.aggregator || ""}
+                    onChange={(e) => handleUpdateField("aggregator", e.target.value)}
+                    disabled={!isEditing}
+                    className="mt-1"
+                  />
+                </div>
+
+                {/* Uplift */}
+                <div>
+                  <label className="text-sm font-medium text-gray-700">Uplift</label>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    value={displayCustomer.uplift || ""}
+                    onChange={(e) => handleUpdateField("uplift", parseFloat(e.target.value))}
+                    disabled={!isEditing}
+                    className="mt-1"
+                  />
+                </div>
+
+                {/* Comments */}
+                <div className="md:col-span-2">
+                  <label className="text-sm font-medium text-gray-700">Comments</label>
+                  <Textarea
+                    value={displayCustomer.comments || ""}
+                    onChange={(e) => handleUpdateField("comments", e.target.value)}
+                    disabled={!isEditing}
+                    className="mt-1"
+                    rows={4}
+                  />
+                </div>
+              </div>
             </div>
           )}
         </div>
       </div>
 
-      {/* Delete Quotation Confirmation Dialog */}
-      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete Quotation</AlertDialogTitle>
-            <AlertDialogDescription>
-              Are you sure you want to delete quotation "{quoteToDelete?.reference}"? 
-              This action cannot be undone and will permanently remove the quotation and all its items.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={deletingQuoteId !== null}>
-              Cancel
-            </AlertDialogCancel>
-            <AlertDialogAction
-              onClick={() => {
-                if (quoteToDelete) {
-                  handleDeleteQuote(quoteToDelete.id);
-                }
-              }}
-              disabled={deletingQuoteId !== null}
-              className="bg-red-600 hover:bg-red-700"
+      {/* Action Panel (Right Side) */}
+      <div className="fixed right-0 top-0 h-full w-80 border-l border-gray-200 bg-gray-50 p-6">
+        <h3 className="mb-4 text-lg font-semibold text-gray-900">Action</h3>
+
+        <div className="space-y-4">
+          {/* Assign To */}
+          <div>
+            <label className="text-sm font-medium text-gray-700">Assign to:</label>
+            <Select
+              value={customer.assigned_to_id?.toString() || ""}
+              onValueChange={(value) => updateAssignedTo(parseInt(value))}
             >
-              {deletingQuoteId !== null ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Deleting...
-                </>
-              ) : (
-                'Delete Quotation'
-              )}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+              <SelectTrigger className="mt-1">
+                <SelectValue placeholder="Unassigned" />
+              </SelectTrigger>
+              <SelectContent>
+                {employees.map((employee) => (
+                  <SelectItem key={employee.employee_id} value={employee.employee_id.toString()}>
+                    {employee.employee_name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Call Back Parameter */}
+          <div>
+            <label className="text-sm font-medium text-gray-700">
+              Call back parameter: <span className="text-red-500">*</span>
+            </label>
+            <Select value={customer.status || ""} onValueChange={updateStatus}>
+              <SelectTrigger className="mt-1">
+                <SelectValue placeholder="Select status" />
+              </SelectTrigger>
+              <SelectContent>
+                {STATUS_OPTIONS.map((option) => (
+                  <SelectItem key={option.value} value={option.value}>
+                    {option.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Follow up on */}
+          <div>
+            <label className="text-sm font-medium text-gray-700">
+              Follow up on: <span className="text-red-500">*</span>
+            </label>
+            <Input type="date" className="mt-1" />
+            <p className="mt-1 text-xs text-gray-500">
+              Enter datetime in European London (UTC+00:00) timezone.
+            </p>
+          </div>
+
+          {/* Comment */}
+          <div>
+            <label className="text-sm font-medium text-gray-700">
+              Comment: <span className="text-red-500">*</span>
+            </label>
+            <Textarea className="mt-1" rows={4} placeholder="Enter comment..." />
+          </div>
+
+          {/* Update Button */}
+          <Button className="w-full bg-black hover:bg-gray-800">Update</Button>
+        </div>
+
+        {/* History Section */}
+        <div className="mt-8">
+          <h3 className="mb-2 text-lg font-semibold text-gray-900">History</h3>
+          <p className="text-sm text-gray-500">Not Found</p>
+        </div>
+      </div>
     </div>
   );
 }
