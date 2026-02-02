@@ -174,7 +174,7 @@ export default function EnergyCustomersPage() {
         return;
       }
 
-      const response = await fetch(`${API_BASE_URL}/energy-clients`, {
+      const response = await fetch(`${API_BASE_URL}/renewals`, {
         headers: { 
           Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json'
@@ -308,7 +308,7 @@ export default function EnergyCustomersPage() {
   const updateCustomerStatus = async (customerId: number, newStatus: string) => {
     try {
       const token = localStorage.getItem("auth_token");
-      const res = await fetch(`${API_BASE_URL}/energy-clients/${customerId}`, {
+      const res = await fetch(`${API_BASE_URL}/renewals/${customerId}`, {
         method: "PUT",
         headers: {
           Authorization: `Bearer ${token}`,
@@ -335,7 +335,7 @@ export default function EnergyCustomersPage() {
   const updateAssignedTo = async (customerId: number, employeeId: number) => {
     try {
       const token = localStorage.getItem("auth_token");
-      const res = await fetch(`${API_BASE_URL}/energy-clients/${customerId}`, {
+      const res = await fetch(`${API_BASE_URL}/renewals/${customerId}`, {
         method: "PUT",
         headers: {
           Authorization: `Bearer ${token}`,
@@ -371,7 +371,7 @@ export default function EnergyCustomersPage() {
 
     try {
       const token = localStorage.getItem("auth_token");
-      const res = await fetch(`${API_BASE_URL}/energy-clients/${id}`, {
+      const res = await fetch(`${API_BASE_URL}/renewals/${id}`, {
         method: "DELETE",
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -424,7 +424,7 @@ export default function EnergyCustomersPage() {
     try {
       const token = localStorage.getItem("auth_token");
       const deletePromises = selectedCustomers.map(id =>
-        fetch(`${API_BASE_URL}/energy-clients/${id}`, {
+        fetch(`${API_BASE_URL}/renewals/${id}`, {
           method: "DELETE",
           headers: { Authorization: `Bearer ${token}` },
         })
@@ -696,7 +696,7 @@ export default function EnergyCustomersPage() {
                     <tr
                       key={customer.id}
                       className={`hover:bg-gray-50 transition-colors cursor-pointer ${isSelected ? 'bg-blue-50' : ''}`}
-                      onClick={() => router.push(`/dashboard/clients/${customer.client_id}`)}
+                      onClick={() => router.push(`/dashboard/renewals/${customer.client_id}`)}
                       onContextMenu={(e) => {
                         e.preventDefault();
                         const menu = document.createElement('div');
@@ -708,7 +708,7 @@ export default function EnergyCustomersPage() {
                         editBtn.className = 'w-full px-4 py-2 text-left text-sm hover:bg-gray-100 flex items-center gap-2';
                         editBtn.innerHTML = '<svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg> Edit';
                         editBtn.onclick = () => {
-                          router.push(`/dashboard/clients/${customer.client_id}/edit`);
+                          router.push(`/dashboard/renewals/${customer.client_id}/edit`);
                           document.body.removeChild(menu);
                         };
                         
@@ -747,7 +747,7 @@ export default function EnergyCustomersPage() {
                       </td>
 
                       <td className="px-2 py-3 text-sm font-medium text-gray-900 border-r-2 border-gray-300">
-                        {displayId}
+                        {customer.client_id}
                       </td>
 
                       <td className="px-3 py-3 text-sm text-gray-700">

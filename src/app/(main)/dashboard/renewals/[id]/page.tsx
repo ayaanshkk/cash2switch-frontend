@@ -151,6 +151,11 @@ export default function EnergyCustomerDetailsPage() {
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [editedCustomer, setEditedCustomer] = useState<Partial<EnergyCustomer>>({});
+  
+  // Action panel state
+  const [followUpDate, setFollowUpDate] = useState("");
+  const [actionComment, setActionComment] = useState("");
+  const [isUpdatingAction, setIsUpdatingAction] = useState(false);
 
   useEffect(() => {
     loadCustomerData();
@@ -164,7 +169,7 @@ export default function EnergyCustomerDetailsPage() {
     const token = localStorage.getItem("auth_token");
 
     try {
-      const response = await fetch(`${API_BASE_URL}/energy-clients/${id}`, {
+      const response = await fetch(`${API_BASE_URL}/renewals/${id}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
 
@@ -203,7 +208,7 @@ export default function EnergyCustomerDetailsPage() {
     const token = localStorage.getItem("auth_token");
 
     try {
-      const response = await fetch(`${API_BASE_URL}/energy-clients/${id}`, {
+      const response = await fetch(`${API_BASE_URL}/renewals/${id}`, {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
@@ -241,7 +246,7 @@ export default function EnergyCustomerDetailsPage() {
   const updateStatus = async (newStatus: string) => {
     const token = localStorage.getItem("auth_token");
     try {
-      const response = await fetch(`${API_BASE_URL}/energy-clients/${id}`, {
+      const response = await fetch(`${API_BASE_URL}/renewals/${id}`, {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
@@ -261,7 +266,7 @@ export default function EnergyCustomerDetailsPage() {
   const updateAssignedTo = async (employeeId: number) => {
     const token = localStorage.getItem("auth_token");
     try {
-      const response = await fetch(`${API_BASE_URL}/energy-clients/${id}`, {
+      const response = await fetch(`${API_BASE_URL}/renewals/${id}`, {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
@@ -284,6 +289,60 @@ export default function EnergyCustomerDetailsPage() {
       }
     } catch (error) {
       console.error("Error updating assignment:", error);
+    }
+  };
+
+  const handleActionUpdate = async () => {
+    if (!customer?.status) {
+      alert("Please select a callback parameter");
+      return;
+    }
+
+    if (!followUpDate) {
+      alert("Please select a follow-up date");
+      return;
+    }
+
+    if (!actionComment.trim()) {
+      alert("Please enter a comment");
+      return;
+    }
+
+    setIsUpdatingAction(true);
+    const token = localStorage.getItem("auth_token");
+
+    try {
+      // In a real implementation, you would update the customer record
+      // and possibly create a history/activity log entry
+      const response = await fetch(`${API_BASE_URL}/renewals/${id}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          status: customer.status,
+          // Add follow_up_date and comments to your database schema if needed
+          // follow_up_date: followUpDate,
+          // action_comment: actionComment,
+        }),
+      });
+
+      if (response.ok) {
+        alert("✅ Action updated successfully!");
+        // Clear the form
+        setFollowUpDate("");
+        setActionComment("");
+        // Optionally reload customer data to get updated history
+        loadCustomerData();
+      } else {
+        alert("Failed to update action");
+      }
+    } catch (error) {
+      console.error("Error updating action:", error);
+      alert("Network error: Could not update action");
+    } finally {
+      setIsUpdatingAction(false);
     }
   };
 
@@ -312,7 +371,7 @@ export default function EnergyCustomerDetailsPage() {
           <h3 className="mt-4 text-lg font-medium text-red-900">
             {error || "Customer not found"}
           </h3>
-          <Button onClick={() => router.push("/dashboard/clients")} className="mt-4">
+          <Button onClick={() => router.push("/dashboard/renewals")} className="mt-4">
             Back to Customers
           </Button>
         </div>
@@ -329,14 +388,14 @@ export default function EnergyCustomerDetailsPage() {
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-3">
             <button
-              onClick={() => router.push("/dashboard/clients")}
+              onClick={() => router.push("/dashboard/renewals")}
               className="rounded-lg p-2 hover:bg-gray-100"
             >
               <ArrowLeft className="h-5 w-5 text-gray-600" />
             </button>
             <div>
               <h1 className="text-2xl font-bold text-gray-900">Consumer Details</h1>
-              <p className="text-sm text-gray-500">ID: {customer.id}</p>
+              <p className="text-sm text-gray-500">ID: {customer.client_id}</p>
             </div>
           </div>
 
@@ -367,9 +426,11 @@ export default function EnergyCustomerDetailsPage() {
                   <Edit className="mr-2 h-4 w-4" />
                   Edit
                 </Button>
+                {/* Commented out - not needed for renewal database
                 <Button className="bg-gray-700 hover:bg-gray-800">Place to Sales Agent</Button>
                 <Button className="bg-green-600 hover:bg-green-700">Move to resolved</Button>
                 <Button className="bg-orange-600 hover:bg-orange-700">Send to callback</Button>
+                */}
               </>
             )}
           </div>
@@ -410,7 +471,7 @@ export default function EnergyCustomerDetailsPage() {
                 <div>
                   <label className="text-sm font-medium text-gray-700">ID</label>
                   <Input
-                    value={displayCustomer.id || ""}
+                    value={displayCustomer.client_id || ""}
                     disabled
                     className="mt-1 bg-gray-50"
                   />
@@ -916,11 +977,12 @@ export default function EnergyCustomerDetailsPage() {
       </div>
 
       {/* Action Panel (Right Side) */}
-      <div className="fixed right-0 top-0 h-full w-80 border-l border-gray-200 bg-gray-50 p-6">
+      <div className="fixed right-0 top-0 h-full w-80 border-l border-gray-200 bg-gray-50 p-6 overflow-y-auto">
         <h3 className="mb-4 text-lg font-semibold text-gray-900">Action</h3>
 
         <div className="space-y-4">
-          {/* Assign To */}
+          {/* Assign To - Accessible to all roles for now */}
+          {/* {user?.role === "Admin" && ( */}
           <div>
             <label className="text-sm font-medium text-gray-700">Assign to:</label>
             <Select
@@ -939,8 +1001,10 @@ export default function EnergyCustomerDetailsPage() {
               </SelectContent>
             </Select>
           </div>
+          {/* )} */}
 
-          {/* Call Back Parameter */}
+          {/* Call Back Parameter - Accessible to all roles */}
+          {/* {(user?.role === "Admin" || user?.role === "Staff") && ( */}
           <div>
             <label className="text-sm font-medium text-gray-700">
               Call back parameter: <span className="text-red-500">*</span>
@@ -958,28 +1022,59 @@ export default function EnergyCustomerDetailsPage() {
               </SelectContent>
             </Select>
           </div>
+          {/* )} */}
 
-          {/* Follow up on */}
+          {/* Follow up on - Accessible to all roles */}
+          {/* {(user?.role === "Admin" || user?.role === "Staff") && ( */}
           <div>
             <label className="text-sm font-medium text-gray-700">
               Follow up on: <span className="text-red-500">*</span>
             </label>
-            <Input type="date" className="mt-1" />
+            <Input
+              type="date"
+              className="mt-1"
+              value={followUpDate}
+              onChange={(e) => setFollowUpDate(e.target.value)}
+            />
             <p className="mt-1 text-xs text-gray-500">
               Enter datetime in European London (UTC+00:00) timezone.
             </p>
           </div>
+          {/* )} */}
 
-          {/* Comment */}
+          {/* Comment - Accessible to all roles */}
+          {/* {(user?.role === "Admin" || user?.role === "Staff") && ( */}
           <div>
             <label className="text-sm font-medium text-gray-700">
               Comment: <span className="text-red-500">*</span>
             </label>
-            <Textarea className="mt-1" rows={4} placeholder="Enter comment..." />
+            <Textarea
+              className="mt-1"
+              rows={4}
+              placeholder="Enter comment..."
+              value={actionComment}
+              onChange={(e) => setActionComment(e.target.value)}
+            />
           </div>
+          {/* )} */}
 
-          {/* Update Button */}
-          <Button className="w-full bg-black hover:bg-gray-800">Update</Button>
+          {/* Update Button - Accessible to all roles */}
+          {/* {(user?.role === "Admin" || user?.role === "Staff") && ( */}
+          <Button
+            className="w-full bg-black hover:bg-gray-800"
+            onClick={handleActionUpdate}
+            disabled={isUpdatingAction}
+          >
+            {isUpdatingAction ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Updating...
+              </>
+            ) : (
+              "Update"
+            )}
+          </Button>
+          {/* )} */}
         </div>
 
         {/* History Section */}

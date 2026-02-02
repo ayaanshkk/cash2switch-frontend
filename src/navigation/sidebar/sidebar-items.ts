@@ -87,8 +87,8 @@ const allSidebarItems: NavGroup[] = [
       //   isNew: true, // Mark as new feature
       // },
       {
-        title: "Clients",
-        url: "/dashboard/clients",
+        title: "Renewals",
+        url: "/dashboard/renewals",
         icon: Users,
         roles: ["admin", "staff"],
       },
