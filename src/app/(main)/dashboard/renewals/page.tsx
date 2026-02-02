@@ -174,7 +174,7 @@ export default function EnergyCustomersPage() {
         return;
       }
 
-      const response = await fetch(`${API_BASE_URL}/renewals`, {
+      const response = await fetch(`${API_BASE_URL}/clients`, {
         headers: { 
           Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json'
