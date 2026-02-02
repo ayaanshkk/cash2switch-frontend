@@ -94,22 +94,15 @@ const allSidebarItems: NavGroup[] = [
       },
       {
         title: "CRM",
-        url: "/dashboard/crm",
+        url: "/dashboard/crm/leads",
         icon: TrendingUp,
         roles: ["admin", "staff"],
         subItems: [
-          {
-            title: "CRM Overview",
-            url: "/dashboard/crm",
-            icon: TrendingUp,
-            roles: ["admin", "staff"],
-          },
           {
             title: "Leads",
             url: "/dashboard/crm/leads",
             icon: Phone,
             roles: ["admin", "staff"],
-            isNew: true,
           },
         ],
       },
