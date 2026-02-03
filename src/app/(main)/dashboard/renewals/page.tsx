@@ -174,7 +174,7 @@ export default function EnergyCustomersPage() {
         return;
       }
 
-      const response = await fetch(`${API_BASE_URL}/renewals`, {
+      const response = await fetch(`${API_BASE_URL}/energy-clients`, {
         headers: { 
           Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json'
@@ -308,7 +308,7 @@ export default function EnergyCustomersPage() {
   const updateCustomerStatus = async (customerId: number, newStatus: string) => {
     try {
       const token = localStorage.getItem("auth_token");
-      const res = await fetch(`${API_BASE_URL}/renewals/${customerId}`, {
+      const res = await fetch(`${API_BASE_URL}/energy-clients/${customerId}`, {
         method: "PUT",
         headers: {
           Authorization: `Bearer ${token}`,
@@ -335,7 +335,7 @@ export default function EnergyCustomersPage() {
   const updateAssignedTo = async (customerId: number, employeeId: number) => {
     try {
       const token = localStorage.getItem("auth_token");
-      const res = await fetch(`${API_BASE_URL}/renewals/${customerId}`, {
+      const res = await fetch(`${API_BASE_URL}/energy-clients/${customerId}`, {
         method: "PUT",
         headers: {
           Authorization: `Bearer ${token}`,
@@ -371,7 +371,7 @@ export default function EnergyCustomersPage() {
 
     try {
       const token = localStorage.getItem("auth_token");
-      const res = await fetch(`${API_BASE_URL}/renewals/${id}`, {
+      const res = await fetch(`${API_BASE_URL}/energy-clients/${id}`, {
         method: "DELETE",
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -424,7 +424,7 @@ export default function EnergyCustomersPage() {
     try {
       const token = localStorage.getItem("auth_token");
       const deletePromises = selectedCustomers.map(id =>
-        fetch(`${API_BASE_URL}/renewals/${id}`, {
+        fetch(`${API_BASE_URL}/energy-clients/${id}`, {
           method: "DELETE",
           headers: { Authorization: `Bearer ${token}` },
         })

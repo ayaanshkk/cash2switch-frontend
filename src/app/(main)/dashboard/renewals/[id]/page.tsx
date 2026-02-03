@@ -23,6 +23,10 @@ import {
   FileText,
   CreditCard,
   MoreVertical,
+  Upload,        
+  File,          
+  Download,      
+  Trash2,        
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import {
@@ -33,7 +37,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
+const API_BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
 
 // Tab configuration
 const TABS = [
@@ -156,6 +160,8 @@ export default function EnergyCustomerDetailsPage() {
   const [followUpDate, setFollowUpDate] = useState("");
   const [actionComment, setActionComment] = useState("");
   const [isUpdatingAction, setIsUpdatingAction] = useState(false);
+  const [uploadedDocuments, setUploadedDocuments] = useState<string[]>([]);
+  const [isUploadingDocument, setIsUploadingDocument] = useState(false);
 
   useEffect(() => {
     loadCustomerData();
@@ -169,7 +175,7 @@ export default function EnergyCustomerDetailsPage() {
     const token = localStorage.getItem("auth_token");
 
     try {
-      const response = await fetch(`${API_BASE_URL}/renewals/${id}`, {
+      const response = await fetch(`${API_BASE_URL}/energy-clients/${id}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
 
@@ -178,6 +184,14 @@ export default function EnergyCustomerDetailsPage() {
       const data = await response.json();
       setCustomer(data);
       setEditedCustomer(data);
+      if (data.document_details) {  // ✅ Correct
+        try {
+          const docs = JSON.parse(data.document_details);
+          setUploadedDocuments(Array.isArray(docs) ? docs : []);
+        } catch {
+          setUploadedDocuments([]);
+        }
+      }
     } catch (error) {
       console.error("Error loading customer:", error);
       setError("Failed to load customer data. Please refresh the page.");
@@ -208,7 +222,7 @@ export default function EnergyCustomerDetailsPage() {
     const token = localStorage.getItem("auth_token");
 
     try {
-      const response = await fetch(`${API_BASE_URL}/renewals/${id}`, {
+      const response = await fetch(`${API_BASE_URL}/energy-clients/${id}`, {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
@@ -246,7 +260,7 @@ export default function EnergyCustomerDetailsPage() {
   const updateStatus = async (newStatus: string) => {
     const token = localStorage.getItem("auth_token");
     try {
-      const response = await fetch(`${API_BASE_URL}/renewals/${id}`, {
+      const response = await fetch(`${API_BASE_URL}/energy-clients/${id}`, {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
@@ -266,7 +280,7 @@ export default function EnergyCustomerDetailsPage() {
   const updateAssignedTo = async (employeeId: number) => {
     const token = localStorage.getItem("auth_token");
     try {
-      const response = await fetch(`${API_BASE_URL}/renewals/${id}`, {
+      const response = await fetch(`${API_BASE_URL}/energy-clients/${id}`, {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
@@ -314,7 +328,7 @@ export default function EnergyCustomerDetailsPage() {
     try {
       // In a real implementation, you would update the customer record
       // and possibly create a history/activity log entry
-      const response = await fetch(`${API_BASE_URL}/renewals/${id}`, {
+      const response = await fetch(`${API_BASE_URL}/energy-clients/${id}`, {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
@@ -344,6 +358,142 @@ export default function EnergyCustomerDetailsPage() {
     } finally {
       setIsUpdatingAction(false);
     }
+  };
+
+  const handleDocumentUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = event.target.files;
+    if (!files || files.length === 0) {
+      console.log("No files selected");
+      return;
+    }
+
+    console.log("=== STARTING UPLOAD ===");
+    console.log("Files selected:", files.length);
+    
+    setIsUploadingDocument(true);
+
+    try {
+      const token = localStorage.getItem("auth_token");
+      if (!token) {
+        alert("No authentication token found. Please log in again.");
+        return;
+      }
+      console.log("Auth token found:", token.substring(0, 20) + "...");
+      
+      const formData = new FormData();
+      
+      // Append all selected files
+      Array.from(files).forEach((file, index) => {
+        formData.append("documents", file);
+        console.log(`File ${index + 1}:`, {
+          name: file.name,
+          size: file.size,
+          type: file.type
+        });
+      });
+      
+      formData.append("client_id", id);
+      console.log("Client ID:", id);
+      console.log("Upload URL:", `${API_BASE_URL}/upload-documents`);
+
+      const response = await fetch(`${API_BASE_URL}/upload-documents`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+        body: formData,
+      });
+
+      console.log("Response status:", response.status);
+      console.log("Response headers:", Object.fromEntries(response.headers.entries()));
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error("Upload failed - Response:", errorText);
+        
+        // Try to parse as JSON for better error message
+        try {
+          const errorJson = JSON.parse(errorText);
+          alert(`Failed to upload: ${errorJson.error || errorJson.message || errorText}`);
+        } catch {
+          alert(`Failed to upload: ${errorText}`);
+        }
+        return;
+      }
+
+      const result = await response.json();
+      console.log("Upload successful - Result:", result);
+
+      if (!result.file_paths || result.file_paths.length === 0) {
+        console.error("No file paths in result:", result);
+        alert("Upload succeeded but no file paths were returned");
+        return;
+      }
+
+      const newDocuments = result.file_paths;
+      console.log("New documents:", newDocuments);
+      
+      const updatedDocuments = [...uploadedDocuments, ...newDocuments];
+      setUploadedDocuments(updatedDocuments);
+      console.log("Updated documents list:", updatedDocuments);
+
+      // Update the customer record with new document details
+      console.log("Updating database...");
+      await updateDocumentDetails(updatedDocuments);
+      
+      alert(`✅ ${newDocuments.length} document(s) uploaded successfully!`);
+      console.log("=== UPLOAD COMPLETE ===");
+      
+    } catch (error) {
+      console.error("=== UPLOAD ERROR ===");
+      console.error("Error type:", error.constructor.name);
+      console.error("Error message:", error instanceof Error ? error.message : String(error));
+      console.error("Full error:", error);
+      
+      alert(`Network error: ${error instanceof Error ? error.message : 'Could not upload documents'}`);
+    } finally {
+      setIsUploadingDocument(false);
+      // Reset file input
+      if (event.target) {
+        event.target.value = "";
+      }
+    }
+  };
+
+  const updateDocumentDetails = async (documents: string[]) => {
+    if (!customer) return;
+    
+    const token = localStorage.getItem("auth_token");
+    try {
+      await fetch(`${API_BASE_URL}/energy-clients/${customer.id}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          document_details: JSON.stringify(documents),
+        }),
+      });
+    } catch (error) {
+      console.error("Error updating document details:", error);
+    }
+  };
+
+  const handleDeleteDocument = async (docIndex: number) => {
+    if (!window.confirm("Are you sure you want to delete this document?")) return;
+
+    const updatedDocuments = uploadedDocuments.filter((_, index) => index !== docIndex);
+    setUploadedDocuments(updatedDocuments);
+    
+    // Update the customer record
+    await updateDocumentDetails(updatedDocuments);
+    
+    alert("✅ Document removed successfully!");
+  };
+
+  const getFileNameFromPath = (path: string) => {
+    return path.split("/").pop() || path;
   };
 
   const canEdit = (): boolean => {
@@ -676,6 +826,88 @@ export default function EnergyCustomerDetailsPage() {
                     disabled={!isEditing}
                     className="mt-1"
                   />
+                </div>
+                <div className="md:col-span-2 border-t pt-6 mt-6">
+                  <div className="flex items-center justify-between mb-4">
+                    <label className="text-sm font-medium text-gray-700">Documents</label>
+                    <div>
+                      <input
+                        type="file"
+                        id="document-upload"
+                        multiple
+                        accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png"
+                        onChange={handleDocumentUpload}
+                        className="hidden"
+                        disabled={isUploadingDocument}
+                      />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => document.getElementById("document-upload")?.click()}
+                        disabled={isUploadingDocument}
+                      >
+                        {isUploadingDocument ? (
+                          <>
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            Uploading...
+                          </>
+                        ) : (
+                          <>
+                            <Upload className="mr-2 h-4 w-4" />
+                            Upload Documents
+                          </>
+                        )}
+                      </Button>
+                    </div>
+                  </div>
+
+                  {uploadedDocuments.length > 0 ? (
+                    <div className="space-y-2">
+                      {uploadedDocuments.map((doc, index) => (
+                        <div
+                          key={index}
+                          className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-200"
+                        >
+                          <div className="flex items-center space-x-3 flex-1 min-w-0">
+                            <File className="h-5 w-5 text-gray-400 flex-shrink-0" />
+                            <span className="text-sm text-gray-700 truncate">
+                              {getFileNameFromPath(doc)}
+                            </span>
+                          </div>
+                          <div className="flex items-center space-x-2 ml-4">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => window.open(doc, "_blank")}
+                              title="Download"
+                            >
+                              <Download className="h-4 w-4" />
+                            </Button>
+                            {isEditing && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleDeleteDocument(index)}
+                                className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                                title="Delete"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="p-6 text-center border-2 border-dashed border-gray-200 rounded-lg bg-gray-50">
+                      <File className="mx-auto h-8 w-8 text-gray-400 mb-2" />
+                      <p className="text-sm text-gray-500">No documents uploaded yet</p>
+                      <p className="text-xs text-gray-400 mt-1">
+                        Click "Upload Documents" to add files
+                      </p>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
