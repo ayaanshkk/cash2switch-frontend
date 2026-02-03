@@ -13,6 +13,12 @@ import { Upload, Download, X, CheckCircle, AlertCircle, FileSpreadsheet } from "
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
 
+const DEFAULT_STATUS = "Not Called";
+const STATUS_OPTIONS = [DEFAULT_STATUS, "Called", "Priced", "Rejected"];
+
+const normalizeStatus = (stageName?: string | null) =>
+  STATUS_OPTIONS.includes(stageName || "") ? (stageName as string) : DEFAULT_STATUS;
+
 type LeadRow = {
   opportunity_id: number;
   business_name: string | null;
@@ -250,8 +256,7 @@ export default function LeadsPage() {
   };
 
   // Handle status change
-  const handleStatusChange = async (opportunityId: number, newStageId: string) => {
-    const stageIdNum = parseInt(newStageId);
+  const handleStatusChange = async (opportunityId: number, newStageName: string) => {
     
     // Mark as updating
     setUpdatingStatus(prev => ({ ...prev, [opportunityId]: true }));
@@ -261,7 +266,7 @@ export default function LeadsPage() {
       const resp = await fetchWithAuth(`/api/crm/leads/${opportunityId}/status`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ stage_id: stageIdNum }),
+        body: JSON.stringify({ stage_name: newStageName }),
       });
 
       if (!resp.ok) {
@@ -269,11 +274,19 @@ export default function LeadsPage() {
         throw new Error(body?.message || 'Failed to update status');
       }
 
+      const body = await resp.json().catch(() => ({}));
+      const updatedLead = body?.data;
+
       // Optimistically update UI
       setRows(prevRows =>
         prevRows.map(row =>
           row.opportunity_id === opportunityId
-            ? { ...row, stage_id: stageIdNum, stage_name: getStageNameById(stageIdNum) }
+            ? {
+                ...row,
+                ...(updatedLead || {}),
+                stage_name: updatedLead?.stage_name || newStageName,
+                stage_id: updatedLead?.stage_id ?? row.stage_id,
+              }
             : row
         )
       );
@@ -288,50 +301,33 @@ export default function LeadsPage() {
   };
 
   // Map stage ID to name
-  const getStageNameById = (stageId: number): string => {
-    const stages: Record<number, string> = {
-      1: 'New',
-      2: 'Contacted',
-      3: 'Qualified',
-      4: 'Not Qualified',
-      5: 'Call Rejected',
-    };
-    return stages[stageId] || 'Unknown';
-  };
-
   // Get color classes for stage
-  const getStageColor = (stageId: number | null | undefined): string => {
-    switch (stageId) {
-      case 1: // New
+  const getStageColor = (stageName?: string | null): string => {
+    switch ((stageName || DEFAULT_STATUS).toLowerCase()) {
+      case 'called':
         return 'bg-blue-100 text-blue-700 border-blue-200';
-      case 2: // Contacted
-        return 'bg-purple-100 text-purple-700 border-purple-200';
-      case 3: // Qualified
+      case 'priced':
         return 'bg-green-100 text-green-700 border-green-200';
-      case 4: // Not Qualified
+      case 'rejected':
         return 'bg-red-100 text-red-700 border-red-200';
-      case 5: // Call Rejected
-        return 'bg-gray-100 text-gray-700 border-gray-200';
+      case 'not called':
       default:
-        return 'bg-gray-100 text-gray-600 border-gray-200';
+        return 'bg-gray-100 text-gray-700 border-gray-200';
     }
   };
 
   // Get dot color for dropdown items
-  const getDotColor = (stageId: string): string => {
-    switch (stageId) {
-      case '1':
+  const getDotColor = (stageName: string): string => {
+    switch (stageName.toLowerCase()) {
+      case 'called':
         return 'bg-blue-500';
-      case '2':
-        return 'bg-purple-500';
-      case '3':
+      case 'priced':
         return 'bg-green-500';
-      case '4':
+      case 'rejected':
         return 'bg-red-500';
-      case '5':
-        return 'bg-gray-500';
+      case 'not called':
       default:
-        return 'bg-gray-400';
+        return 'bg-gray-500';
     }
   };
 
@@ -374,74 +370,52 @@ export default function LeadsPage() {
             <div className="p-6 text-center text-sm text-muted-foreground">No leads found.</div>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full">
+              <table className="w-full min-w-[1200px]">
                 <thead>
                   <tr className="border-b">
-                    <th className="text-left p-3 text-sm font-medium">Business Name</th>
-                    <th className="text-left p-3 text-sm font-medium">Contact Person</th>
-                    <th className="text-left p-3 text-sm font-medium">Tel Number</th>
-                    <th className="text-left p-3 text-sm font-medium">Email</th>
-                    <th className="text-left p-3 text-sm font-medium">MPAN</th>
-                    <th className="text-left p-3 text-sm font-medium">Start Date</th>
-                    <th className="text-left p-3 text-sm font-medium">End Date</th>
-                    <th className="text-left p-3 text-sm font-medium">Status</th>
-                    <th className="text-left p-3 text-sm font-medium">Created At</th>
+                    <th className="text-left p-3 text-sm font-medium min-w-[80px]">ID</th>
+                    <th className="text-left p-3 text-sm font-medium min-w-[160px]">Contact Person</th>
+                    <th className="text-left p-3 text-sm font-medium min-w-[180px]">Business Name</th>
+                    <th className="text-left p-3 text-sm font-medium min-w-[140px]">Phone</th>
+                    <th className="text-left p-3 text-sm font-medium min-w-[200px]">Email</th>
+                    <th className="text-left p-3 text-sm font-medium min-w-[140px]">MPAN/MPR</th>
+                    <th className="text-left p-3 text-sm font-medium min-w-[130px]">Start Date</th>
+                    <th className="text-left p-3 text-sm font-medium min-w-[130px]">End Date</th>
+                    <th className="text-left p-3 text-sm font-medium min-w-[160px]">Status</th>
                   </tr>
                 </thead>
                 <tbody>
                   {rows.map((r) => (
                     <tr key={r.opportunity_id} className="border-b hover:bg-gray-50">
-                      <td className="p-3 text-sm">{r.business_name || "—"}</td>
-                      <td className="p-3 text-sm">{r.contact_person || "—"}</td>
-                      <td className="p-3 text-sm">{r.tel_number || "—"}</td>
-                      <td className="p-3 text-sm">{r.email || "—"}</td>
-                      <td className="p-3 text-sm">{r.mpan_mpr || "—"}</td>
-                      <td className="p-3 text-sm">{r.start_date ? format(new Date(r.start_date), "yyyy-MM-dd") : "—"}</td>
-                      <td className="p-3 text-sm">{r.end_date ? format(new Date(r.end_date), "yyyy-MM-dd") : "—"}</td>
-                      <td className="p-3 text-sm">
+                      <td className="p-3 text-sm min-w-[80px]">{r.opportunity_id}</td>
+                      <td className="p-3 text-sm min-w-[160px]">{r.contact_person || "—"}</td>
+                      <td className="p-3 text-sm min-w-[180px]">{r.business_name || "—"}</td>
+                      <td className="p-3 text-sm min-w-[140px]">{r.tel_number || "—"}</td>
+                      <td className="p-3 text-sm min-w-[200px]">{r.email || "—"}</td>
+                      <td className="p-3 text-sm min-w-[140px]">{r.mpan_mpr || "—"}</td>
+                      <td className="p-3 text-sm min-w-[130px]">{r.start_date ? format(new Date(r.start_date), "yyyy-MM-dd") : "—"}</td>
+                      <td className="p-3 text-sm min-w-[130px]">{r.end_date ? format(new Date(r.end_date), "yyyy-MM-dd") : "—"}</td>
+                      <td className="p-3 text-sm min-w-[160px]">
                         <Select
-                          value={r.stage_id?.toString() || "1"}
+                          value={normalizeStatus(r.stage_name)}
                           onValueChange={(value) => handleStatusChange(r.opportunity_id, value)}
                           disabled={updatingStatus[r.opportunity_id] || false}
                         >
-                          <SelectTrigger className={`w-[140px] h-8 text-xs font-medium ${getStageColor(r.stage_id)}`}>
+                          <SelectTrigger className={`w-[140px] h-8 text-xs font-medium ${getStageColor(r.stage_name)}`}>
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="1">
-                              <div className="flex items-center gap-2">
-                                <div className={`w-2 h-2 rounded-full ${getDotColor('1')}`} />
-                                New
-                              </div>
-                            </SelectItem>
-                            <SelectItem value="2">
-                              <div className="flex items-center gap-2">
-                                <div className={`w-2 h-2 rounded-full ${getDotColor('2')}`} />
-                                Contacted
-                              </div>
-                            </SelectItem>
-                            <SelectItem value="3">
-                              <div className="flex items-center gap-2">
-                                <div className={`w-2 h-2 rounded-full ${getDotColor('3')}`} />
-                                Qualified
-                              </div>
-                            </SelectItem>
-                            <SelectItem value="4">
-                              <div className="flex items-center gap-2">
-                                <div className={`w-2 h-2 rounded-full ${getDotColor('4')}`} />
-                                Not Qualified
-                              </div>
-                            </SelectItem>
-                            <SelectItem value="5">
-                              <div className="flex items-center gap-2">
-                                <div className={`w-2 h-2 rounded-full ${getDotColor('5')}`} />
-                                Call Rejected
-                              </div>
-                            </SelectItem>
+                            {STATUS_OPTIONS.map((status) => (
+                              <SelectItem key={status} value={status}>
+                                <div className="flex items-center gap-2">
+                                  <div className={`w-2 h-2 rounded-full ${getDotColor(status)}`} />
+                                  {status}
+                                </div>
+                              </SelectItem>
+                            ))}
                           </SelectContent>
                         </Select>
                       </td>
-                      <td className="p-3 text-sm">{r.created_at ? format(new Date(r.created_at), "yyyy-MM-dd HH:mm") : "—"}</td>
                     </tr>
                   ))}
                 </tbody>
