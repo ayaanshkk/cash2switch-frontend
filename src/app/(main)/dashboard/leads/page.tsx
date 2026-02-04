@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useMemo } from "react";
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -119,6 +119,12 @@ export default function LeadsPage() {
       mounted = false;
     };
   }, [authLoading]);
+
+  const sortedRows = useMemo(() => {
+    return [...rows].sort((a, b) => {
+      return a.opportunity_id - b.opportunity_id; // Ascending order
+    });
+  }, [rows]);
 
   // File validation and selection
   const validateAndSetFile = (selectedFile: File) => {
@@ -338,7 +344,7 @@ export default function LeadsPage() {
           <div className="flex items-center justify-between">
             <div>
               <CardTitle>Leads</CardTitle>
-              <CardDescription>Read-only list of imported leads (most recent first).</CardDescription>
+              <CardDescription>List of imported leads (oldest first).</CardDescription>
             </div>
             <Button 
               onClick={() => {
@@ -385,7 +391,7 @@ export default function LeadsPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {rows.map((r) => (
+                  {sortedRows.map((r) => (
                     <tr key={r.opportunity_id} className="border-b hover:bg-gray-50">
                       <td className="p-3 text-sm min-w-[80px]">{r.opportunity_id}</td>
                       <td className="p-3 text-sm min-w-[160px]">{r.contact_person || "—"}</td>

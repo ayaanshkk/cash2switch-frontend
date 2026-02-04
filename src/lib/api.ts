@@ -100,6 +100,7 @@ export async function fetchPublic(path: string, options: RequestInit = {}) {
  */
 export async function fetchWithAuth(path: string, options: RequestInit = {}) {
   const token = localStorage.getItem("auth_token");
+  const tenantId = localStorage.getItem("tenant_id") || "1"; // Default to tenant 1
 
   const url = `${DATA_API_ROOT}${path.startsWith("/") ? "" : "/"}${path}`;
 
@@ -113,6 +114,7 @@ export async function fetchWithAuth(path: string, options: RequestInit = {}) {
   const headers = {
     "Content-Type": "application/json",
     Authorization: `Bearer ${token}`,
+    "X-Tenant-ID": tenantId, // ✅ ADD THIS LINE - Required for CRM endpoints
     ...options.headers,
   };
 
@@ -174,6 +176,10 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ username, password, tenant_id: tenantId }),
     });
+    // ✅ SAVE TENANT ID AFTER LOGIN
+    if (response.ok) {
+      localStorage.setItem("tenant_id", tenantId.toString());
+    }
     return handleApiResponse(response);
   },
 
@@ -428,11 +434,7 @@ export const api = {
         if (filters?.assigned_employee_id) params.append('assigned_employee_id', filters.assigned_employee_id.toString());
         if (params.toString()) url += `?${params.toString()}`;
         
-        const response = await fetchWithAuth(url, {
-          headers: {
-            'X-Tenant-ID': '1', // TODO: Get from auth context
-          },
-        });
+        const response = await fetchWithAuth(url);
         
         if (!response.ok) {
           throw new Error(`Failed to fetch leads: ${response.status}`);
@@ -452,9 +454,6 @@ export const api = {
       const response = await fetchWithAuth(`/api/crm/clients/${clientId}/call-summary`, {
         method: 'POST',
         body: JSON.stringify(callData),
-        headers: {
-          'X-Tenant-ID': '1', // TODO: Get from auth context
-        },
       });
       
       if (!response.ok) {

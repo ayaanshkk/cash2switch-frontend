@@ -34,6 +34,11 @@ const STATUS_OPTIONS = [
   { value: "not_answered", label: "Not Answered" },
   { value: "priced", label: "Priced" },
   { value: "lost", label: "Lost" },
+  { value: "lost_cot", label: "Lost - COT" },
+  { value: "already_renewed_cb_next_year", label: "Already Renewed - CB Next Year" },
+  { value: "invalid_number_need_alternative", label: "Invalid Number - Need alternative" },
+  { value: "meter_de_energised", label: "Meter De-Energised" },
+  { value: "broker_in_place", label: "Broker in Place" },
 ];
 
 // ---------------- Types ----------------
@@ -174,7 +179,7 @@ export default function EnergyCustomersPage() {
         return;
       }
 
-      const response = await fetch(`${API_BASE_URL}/clients`, {
+      const response = await fetch(`${API_BASE_URL}/energy-clients`, {
         headers: { 
           Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json'
@@ -616,7 +621,7 @@ export default function EnergyCustomersPage() {
       {/* ✅ ISSUE 3 FIXED: Compact table - removed horizontal scroll, optimized column widths */}
       <div className="overflow-hidden rounded-lg border border-gray-200 bg-white">
         <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200">
+          <table className="w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
                 <th className="px-3 py-3 text-left w-10">
@@ -627,13 +632,13 @@ export default function EnergyCustomersPage() {
                     onChange={handleSelectAll}
                   />
                 </th>
-                <th className="px-2 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase w-12 border-r-2 border-gray-300">
+                <th className="px-2 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase w-16 border-r-2 border-gray-300">
                   ID
                 </th>
-                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase min-w-[120px]">
+                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase w-32">
                   Name
                 </th>
-                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase min-w-[180px]">
+                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase w-44">
                   Business Name
                 </th>
                 <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase w-28">
@@ -645,8 +650,8 @@ export default function EnergyCustomersPage() {
                 <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase w-32">
                   Supplier
                 </th>
-                <th className="px-3 py-3 text-right text-xs font-medium tracking-wider text-gray-500 uppercase w-28">
-                  Usage (kWh)
+                <th className="px-3 py-3 text-right text-xs font-medium tracking-wider text-gray-500 uppercase w-24">
+                  Usage
                 </th>
                 <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase w-24">
                   Start
@@ -654,7 +659,7 @@ export default function EnergyCustomersPage() {
                 <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase w-24">
                   End
                 </th>
-                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase w-32">
+                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase w-40">
                   Status
                 </th>
                 <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase w-36">
@@ -666,14 +671,14 @@ export default function EnergyCustomersPage() {
             <tbody className="divide-y divide-gray-200 bg-white">
               {isLoading ? (
                 <tr>
-                  <td colSpan={13} className="px-6 py-12 text-center">
+                  <td colSpan={12} className="px-6 py-12 text-center">
                     <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-current border-r-transparent text-gray-600"></div>
                     <p className="mt-4 text-gray-500">Loading renewals...</p>
                   </td>
                 </tr>
               ) : error ? (
                 <tr>
-                  <td colSpan={13} className="px-6 py-12 text-center text-gray-500">
+                  <td colSpan={12} className="px-6 py-12 text-center text-gray-500">
                     <AlertCircle className="h-12 w-12 text-red-400 mx-auto mb-3" />
                     <p className="text-lg text-red-600">Failed to load renewals</p>
                     <p className="mt-2 text-sm">{error}</p>
@@ -681,7 +686,7 @@ export default function EnergyCustomersPage() {
                 </tr>
               ) : paginatedCustomers.length === 0 ? (
                 <tr>
-                  <td colSpan={13} className="px-6 py-12 text-center text-gray-500">
+                  <td colSpan={12} className="px-6 py-12 text-center text-gray-500">
                     <Zap className="h-12 w-12 text-gray-400 mx-auto mb-3" />
                     <p className="text-lg">No clients found.</p>
                     <p className="mt-2 text-sm">Create your first client to get started!</p>
@@ -736,65 +741,83 @@ export default function EnergyCustomersPage() {
                         setTimeout(() => document.addEventListener('click', closeMenu), 0);
                       }}
                     >
-                      {/* Checkbox Column - No Delete Icon */}
-                      <td className="px-3 py-3" onClick={(e) => e.stopPropagation()}>
+                      {/* Checkbox */}
+                      <td className="px-3 py-3 align-top" onClick={(e) => e.stopPropagation()}>
                         <input
                           type="checkbox"
-                          className="rounded border-gray-300"
+                          className="rounded border-gray-300 mt-1"
                           checked={isSelected}
                           onChange={() => handleSelectCustomer(customer.id)}
                         />
                       </td>
 
-                      <td className="px-2 py-3 text-sm font-medium text-gray-900 border-r-2 border-gray-300">
+                      {/* ID */}
+                      <td className="px-2 py-3 text-sm font-medium text-gray-900 border-r-2 border-gray-300 align-top">
                         {customer.client_id}
                       </td>
 
-                      <td className="px-3 py-3 text-sm text-gray-700">
-                        <div className="truncate">{customer.contact_person}</div>
-                      </td>
-
-                      <td className="px-3 py-3 text-sm text-gray-900">
-                        <div className="flex items-center gap-2">
-                          <Building2 className="h-4 w-4 text-gray-400 flex-shrink-0" />
-                          <span className="truncate">{customer.business_name}</span>
+                      {/* Name - WRAPPED TEXT */}
+                      <td className="px-3 py-3 text-sm text-gray-700 align-top">
+                        <div className="break-words max-w-[120px] leading-tight">
+                          {customer.contact_person}
                         </div>
                       </td>
 
-                      <td className="px-3 py-3 text-sm text-gray-900">
-                        <div className="truncate">{customer.phone}</div>
-                      </td>
-
-                      <td className="px-3 py-3 text-sm font-mono text-blue-600">
-                        <div className="truncate">{customer.mpan_mpr || "—"}</div>
-                      </td>
-
-                      <td className="px-3 py-3 text-sm text-gray-900">
-                        <div className="flex items-center gap-1">
-                          <Zap className="h-3 w-3 text-amber-500 flex-shrink-0" />
-                          <span className="truncate text-xs">{customer.supplier_name || "—"}</span>
+                      {/* Business Name - WRAPPED TEXT WITH ICON */}
+                      <td className="px-3 py-3 text-sm text-gray-900 align-top">
+                        <div className="flex items-start gap-1">
+                          <Building2 className="h-3 w-3 text-gray-400 flex-shrink-0 mt-0.5" />
+                          <span className="break-words max-w-[160px] leading-tight">
+                            {customer.business_name}
+                          </span>
                         </div>
                       </td>
 
-                      <td className="px-3 py-3 text-sm text-gray-900 text-right">
-                        <div className="truncate">{customer.annual_usage ? customer.annual_usage.toLocaleString() : "—"}</div>
+                      {/* Phone */}
+                      <td className="px-3 py-3 text-sm text-gray-900 align-top">
+                        <div className="whitespace-nowrap">
+                          {customer.phone ? String(customer.phone).replace(/\.0$/, '') : '—'}
+                        </div>
                       </td>
 
-                      <td className="px-3 py-3 text-xs text-gray-700">
-                        {formatDate(customer.start_date)}
+                      {/* MPAN/MPR */}
+                      <td className="px-3 py-3 text-xs font-mono text-gray-900 align-top">
+                        <div className="break-all max-w-[120px] leading-tight">
+                          {customer.mpan_mpr || "—"}
+                        </div>
                       </td>
 
-                      <td className="px-3 py-3 text-xs text-gray-700">
-                        {formatDate(customer.end_date)}
+                      {/* Supplier - WRAPPED TEXT */}
+                      <td className="px-3 py-3 text-xs text-gray-900 align-top">
+                        <div className="break-words max-w-[120px] leading-tight">
+                          {customer.supplier_name || "—"}
+                        </div>
                       </td>
 
-                      {/* ✅ ISSUE 4: Status Dropdown */}
-                      <td className="px-3 py-3" onClick={(e) => e.stopPropagation()}>
+                      {/* Usage */}
+                      <td className="px-3 py-3 text-xs text-gray-900 text-right align-top">
+                        <div className="whitespace-nowrap">
+                          {customer.annual_usage ? customer.annual_usage.toLocaleString() : "—"}
+                        </div>
+                      </td>
+
+                      {/* Start Date */}
+                      <td className="px-3 py-3 text-xs text-gray-700 align-top">
+                        <div className="whitespace-nowrap">{formatDate(customer.start_date)}</div>
+                      </td>
+
+                      {/* End Date */}
+                      <td className="px-3 py-3 text-xs text-gray-700 align-top">
+                        <div className="whitespace-nowrap">{formatDate(customer.end_date)}</div>
+                      </td>
+
+                      {/* Status Dropdown */}
+                      <td className="px-3 py-3 align-top" onClick={(e) => e.stopPropagation()}>
                         <Select
                           value={customer.status || ""}
                           onValueChange={(value) => updateCustomerStatus(customer.id, value)}
                         >
-                          <SelectTrigger className="h-7 text-xs">
+                          <SelectTrigger className="h-7 text-xs w-full max-w-[150px]">
                             <SelectValue placeholder="Set status">
                               {customer.status ? (
                                 <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-semibold ${getStatusColor(customer.status)}`}>
@@ -815,13 +838,13 @@ export default function EnergyCustomersPage() {
                         </Select>
                       </td>
 
-                      {/* ✅ ISSUE 5: Assigned To Dropdown */}
-                      <td className="px-3 py-3" onClick={(e) => e.stopPropagation()}>
+                      {/* Assigned To Dropdown */}
+                      <td className="px-3 py-3 align-top" onClick={(e) => e.stopPropagation()}>
                         <Select
                           value={customer.assigned_to_id?.toString() || ""}
                           onValueChange={(value) => updateAssignedTo(customer.id, parseInt(value))}
                         >
-                          <SelectTrigger className="h-7 text-xs">
+                          <SelectTrigger className="h-7 text-xs w-full max-w-[130px]">
                             <SelectValue placeholder="Assign">
                               <span className="truncate text-xs">{customer.assigned_to_name || "—"}</span>
                             </SelectValue>
