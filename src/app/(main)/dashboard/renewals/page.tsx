@@ -766,7 +766,7 @@ export default function EnergyCustomersPage() {
                       {/* Business Name - WRAPPED TEXT WITH ICON */}
                       <td className="px-3 py-3 text-sm text-gray-900 align-top">
                         <div className="flex items-start gap-1">
-                          <Building2 className="h-3 w-3 text-gray-400 flex-shrink-0 mt-0.5" />
+                          {/* <Building2 className="h-3 w-3 text-gray-400 flex-shrink-0 mt-0.5" /> */}
                           <span className="break-words max-w-[160px] leading-tight">
                             {customer.business_name}
                           </span>

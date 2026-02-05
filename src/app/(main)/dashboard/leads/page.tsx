@@ -9,7 +9,15 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { fetchWithAuth } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { format } from "date-fns";
-import { Upload, Download, X, CheckCircle, AlertCircle, FileSpreadsheet } from "lucide-react";
+import { Upload, Download, X, CheckCircle, AlertCircle, FileSpreadsheet, Search, Trash2, Filter, ChevronDown } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
 
@@ -67,6 +75,9 @@ export default function LeadsPage() {
   const [uploadProgress, setUploadProgress] = useState(0);
   const [result, setResult] = useState<ImportResult | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [selectedLeads, setSelectedLeads] = useState<number[]>([]);
+  const [statusFilter, setStatusFilter] = useState<string | "All">("All");
 
   // Status update state
   const [updatingStatus, setUpdatingStatus] = useState<Record<number, boolean>>({});
@@ -186,11 +197,13 @@ export default function LeadsPage() {
       formData.append('file', file);
 
       const token = localStorage.getItem('auth_token');
+      const tenantId = localStorage.getItem('tenant_id') || '1'; // ✅ ADDED
       
       const response = await fetch(`${API_BASE_URL}/api/crm/leads/import`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
+          'X-Tenant-ID': tenantId, // ✅ ADDED - Required for CRM endpoints
         },
         body: formData,
       });
@@ -222,13 +235,16 @@ export default function LeadsPage() {
     }
   };
 
-  // Download template
+  // Download template - FIXED VERSION with X-Tenant-ID header
   const handleDownloadTemplate = async () => {
     try {
       const token = localStorage.getItem('auth_token');
+      const tenantId = localStorage.getItem('tenant_id') || '1'; // ✅ ADDED
+      
       const response = await fetch(`${API_BASE_URL}/api/crm/leads/import/template`, {
         headers: {
           'Authorization': `Bearer ${token}`,
+          'X-Tenant-ID': tenantId, // ✅ ADDED - Required for CRM endpoints
         },
       });
 
@@ -260,6 +276,104 @@ export default function LeadsPage() {
     setUploadProgress(0);
     setImportModalOpen(false);
   };
+
+  const handleSelectAll = () => {
+    if (selectedLeads.length === filteredRows.length) {
+      setSelectedLeads([]);
+    } else {
+      setSelectedLeads(filteredRows.map(r => r.opportunity_id));
+    }
+  };
+
+  const handleSelectLead = (id: number) => {
+    setSelectedLeads(prev => 
+      prev.includes(id) ? prev.filter(lid => lid !== id) : [...prev, id]
+    );
+  };
+
+  // Delete single lead
+  const deleteLead = async (opportunityId: number) => {
+    if (!window.confirm("Are you sure you want to delete this lead?")) return;
+
+    try {
+      const resp = await fetchWithAuth(`/api/crm/leads/${opportunityId}`, {
+        method: 'DELETE',
+      });
+      
+      if (!resp.ok) throw new Error("Failed to delete lead");
+
+      setRows(prev => prev.filter(r => r.opportunity_id !== opportunityId));
+      setSelectedLeads(prev => prev.filter(id => id !== opportunityId));
+      
+      alert("Lead deleted successfully");
+    } catch (err) {
+      console.error("Delete error:", err);
+      alert("Error deleting lead");
+    }
+  };
+
+  // Bulk delete leads
+  const bulkDeleteLeads = async () => {
+    if (selectedLeads.length === 0) {
+      alert("Please select leads to delete");
+      return;
+    }
+
+    if (!window.confirm(`Are you sure you want to delete ${selectedLeads.length} lead(s)?`)) {
+      return;
+    }
+
+    try {
+      const deletePromises = selectedLeads.map(id =>
+        fetchWithAuth(`/api/crm/leads/${id}`, {
+          method: "DELETE",
+        })
+      );
+
+      await Promise.all(deletePromises);
+
+      setRows(prev => prev.filter(r => !selectedLeads.includes(r.opportunity_id)));
+      setSelectedLeads([]);
+      
+      alert(`Successfully deleted ${deletePromises.length} lead(s)`);
+    } catch (err) {
+      console.error("Bulk delete error:", err);
+      alert("Error deleting some leads");
+    }
+  };
+
+  // Get status label
+  const getStatusLabel = (status: string | undefined): string => {
+    if (!status) return "—";
+    const option = STATUS_OPTIONS.find(opt => opt === status);
+    return option || status;
+  };
+
+  // 4. UPDATE filteredRows to include status filter:
+  const filteredRows = useMemo(() => {
+    let filtered = sortedRows;
+    
+    // Apply search filter
+    if (searchTerm) {
+      const term = searchTerm.toLowerCase();
+      filtered = filtered.filter((row) => {
+        return (
+          (row.business_name || "").toLowerCase().includes(term) ||
+          (row.contact_person || "").toLowerCase().includes(term) ||
+          (row.email || "").toLowerCase().includes(term) ||
+          (row.tel_number || "").toLowerCase().includes(term) ||
+          (row.mpan_mpr || "").toLowerCase().includes(term)
+        );
+      });
+    }
+    
+    // Apply status filter
+    if (statusFilter !== "All") {
+      filtered = filtered.filter(row => row.stage_name === statusFilter);
+    }
+    
+    return filtered;
+  }, [sortedRows, searchTerm, statusFilter]);
 
   // Handle status change
   const handleStatusChange = async (opportunityId: number, newStageName: string) => {
@@ -338,76 +452,268 @@ export default function LeadsPage() {
   };
 
   return (
-    <div className="space-y-6">
-      <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <div>
-              <CardTitle>Leads</CardTitle>
-              <CardDescription>List of imported leads (oldest first).</CardDescription>
-            </div>
+    <div className="w-full p-6">
+      <h1 className="mb-6 text-3xl font-bold">Leads</h1>
+
+      {/* Error Display */}
+      {error && (
+        <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg flex items-start gap-3">
+          <AlertCircle className="h-5 w-5 text-red-600 flex-shrink-0 mt-0.5" />
+          <div className="flex-1">
+            <h3 className="text-sm font-medium text-red-800">Error Loading Leads</h3>
+            <p className="mt-1 text-sm text-red-700">{error}</p>
             <Button 
-              onClick={() => {
-                handleCloseModal();
-                setImportModalOpen(true);
-              }}
-              className="gap-2"
+              onClick={loadLeads} 
+              variant="outline" 
+              size="sm" 
+              className="mt-3"
             >
-              <Upload className="h-4 w-4" />
-              Import Leads
+              Try Again
             </Button>
           </div>
-        </CardHeader>
-        <CardContent>
-          {statusError && (
-            <div className="mb-4 p-4 bg-amber-50 border border-amber-200 rounded-lg flex items-start gap-2">
-              <AlertCircle className="h-4 w-4 text-amber-600 mt-0.5 flex-shrink-0" />
-              <p className="text-sm text-amber-600">{statusError}</p>
-            </div>
-          )}
+        </div>
+      )}
 
-          {loading ? (
-            <div className="grid gap-3">
-              <div className="h-64 animate-pulse bg-gray-100 rounded" />
-            </div>
-          ) : error ? (
-            <div className="text-center text-sm text-destructive">{error}</div>
-          ) : rows.length === 0 ? (
-            <div className="p-6 text-center text-sm text-muted-foreground">No leads found.</div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[1200px]">
-                <thead>
-                  <tr className="border-b">
-                    <th className="text-left p-3 text-sm font-medium min-w-[80px]">ID</th>
-                    <th className="text-left p-3 text-sm font-medium min-w-[160px]">Contact Person</th>
-                    <th className="text-left p-3 text-sm font-medium min-w-[180px]">Business Name</th>
-                    <th className="text-left p-3 text-sm font-medium min-w-[140px]">Phone</th>
-                    <th className="text-left p-3 text-sm font-medium min-w-[200px]">Email</th>
-                    <th className="text-left p-3 text-sm font-medium min-w-[140px]">MPAN/MPR</th>
-                    <th className="text-left p-3 text-sm font-medium min-w-[130px]">Start Date</th>
-                    <th className="text-left p-3 text-sm font-medium min-w-[130px]">End Date</th>
-                    <th className="text-left p-3 text-sm font-medium min-w-[160px]">Status</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {sortedRows.map((r) => (
-                    <tr key={r.opportunity_id} className="border-b hover:bg-gray-50">
-                      <td className="p-3 text-sm min-w-[80px]">{r.opportunity_id}</td>
-                      <td className="p-3 text-sm min-w-[160px]">{r.contact_person || "—"}</td>
-                      <td className="p-3 text-sm min-w-[180px]">{r.business_name || "—"}</td>
-                      <td className="p-3 text-sm min-w-[140px]">{r.tel_number || "—"}</td>
-                      <td className="p-3 text-sm min-w-[200px]">{r.email || "—"}</td>
-                      <td className="p-3 text-sm min-w-[140px]">{r.mpan_mpr || "—"}</td>
-                      <td className="p-3 text-sm min-w-[130px]">{r.start_date ? format(new Date(r.start_date), "yyyy-MM-dd") : "—"}</td>
-                      <td className="p-3 text-sm min-w-[130px]">{r.end_date ? format(new Date(r.end_date), "yyyy-MM-dd") : "—"}</td>
-                      <td className="p-3 text-sm min-w-[160px]">
+      {/* Search and Filter Bar */}
+      <div className="mb-6 flex flex-wrap gap-3 justify-between">
+        <div className="flex flex-wrap gap-3">
+          {/* Search Input */}
+          <div className="relative w-64">
+            <Search className="text-muted-foreground absolute top-2.5 left-2 h-4 w-4" />
+            <Input
+              placeholder="Search leads..."
+              className="pl-8"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
+          </div>
+
+          {/* Status Filter */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline">
+                <Filter className="mr-2 h-4 w-4" />
+                {statusFilter === "All" ? "All Status" : getStatusLabel(statusFilter as string)}
+                <ChevronDown className="ml-1 h-3 w-3" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent>
+              <DropdownMenuItem onClick={() => setStatusFilter("All")}>
+                All Status
+              </DropdownMenuItem>
+              {STATUS_OPTIONS.map(status => (
+                <DropdownMenuItem 
+                  key={status} 
+                  onClick={() => setStatusFilter(status)}
+                >
+                  {status}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+
+        {/* Action Buttons */}
+        <div className="flex gap-2">
+          {selectedLeads.length > 0 && (
+            <Button onClick={bulkDeleteLeads} variant="destructive">
+              <Trash2 className="mr-2 h-4 w-4" />
+              Delete Selected ({selectedLeads.length})
+            </Button>
+          )}
+          <Button 
+            onClick={() => {
+              handleCloseModal();
+              setImportModalOpen(true);
+            }}
+            variant="outline"
+          >
+            <Upload className="mr-2 h-4 w-4" />
+            Bulk Import
+          </Button>
+        </div>
+      </div>
+
+      {/* Table */}
+      <div className="overflow-hidden rounded-lg border border-gray-200 bg-white">
+        {statusError && (
+          <div className="m-4 p-4 bg-amber-50 border border-amber-200 rounded-lg flex items-start gap-2">
+            <AlertCircle className="h-4 w-4 text-amber-600 mt-0.5 flex-shrink-0" />
+            <p className="text-sm text-amber-600">{statusError}</p>
+          </div>
+        )}
+
+        {loading ? (
+          <div className="px-6 py-12 text-center">
+            <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-current border-r-transparent text-gray-600"></div>
+            <p className="mt-4 text-gray-500">Loading leads...</p>
+          </div>
+        ) : error ? (
+          <div className="px-6 py-12 text-center text-gray-500">
+            <AlertCircle className="h-12 w-12 text-red-400 mx-auto mb-3" />
+            <p className="text-lg text-red-600">Failed to load leads</p>
+            <p className="mt-2 text-sm">{error}</p>
+          </div>
+        ) : filteredRows.length === 0 ? (
+          <div className="px-6 py-12 text-center text-muted-foreground">
+            <Upload className="h-12 w-12 text-gray-400 mx-auto mb-3" />
+            <p className="text-lg">No leads found.</p>
+            {searchTerm || statusFilter !== "All" ? (
+              <p className="mt-2 text-sm">Try adjusting your filters.</p>
+            ) : (
+              <p className="mt-2 text-sm">Import your first leads to get started!</p>
+            )}
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full divide-y divide-gray-200">
+              <thead className="bg-gray-50">
+                <tr>
+                  {/* Checkbox Column */}
+                  <th className="px-3 py-3 text-left w-10">
+                    <input
+                      type="checkbox"
+                      className="rounded border-gray-300"
+                      checked={selectedLeads.length === filteredRows.length && filteredRows.length > 0}
+                      onChange={handleSelectAll}
+                    />
+                  </th>
+                  <th className="px-2 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase w-16 border-r-2 border-gray-300">
+                    ID
+                  </th>
+                  <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase w-32">
+                    Contact Person
+                  </th>
+                  <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase w-44">
+                    Business Name
+                  </th>
+                  <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase w-28">
+                    Phone
+                  </th>
+                  <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase w-44">
+                    Email
+                  </th>
+                  <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase w-32">
+                    MPAN/MPR
+                  </th>
+                  <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase w-24">
+                    Start Date
+                  </th>
+                  <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase w-24">
+                    End Date
+                  </th>
+                  <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase w-40">
+                    Status
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-200 bg-white">
+                {filteredRows.map((r) => {
+                  const isSelected = selectedLeads.includes(r.opportunity_id);
+                  
+                  return (
+                    <tr 
+                      key={r.opportunity_id} 
+                      className={`hover:bg-gray-50 transition-colors ${isSelected ? 'bg-blue-50' : ''}`}
+                      onContextMenu={(e) => {
+                        e.preventDefault();
+                        const menu = document.createElement('div');
+                        menu.className = 'fixed bg-white border border-gray-300 rounded-md shadow-lg z-50 py-1';
+                        menu.style.left = `${e.pageX}px`;
+                        menu.style.top = `${e.pageY}px`;
+                        
+                        const deleteBtn = document.createElement('button');
+                        deleteBtn.className = 'w-full px-4 py-2 text-left text-sm hover:bg-red-50 text-red-600 flex items-center gap-2';
+                        deleteBtn.innerHTML = '<svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg> Delete';
+                        deleteBtn.onclick = () => {
+                          deleteLead(r.opportunity_id);
+                          document.body.removeChild(menu);
+                        };
+                        
+                        menu.appendChild(deleteBtn);
+                        document.body.appendChild(menu);
+                        
+                        const closeMenu = (e: MouseEvent) => {
+                          if (!menu.contains(e.target as Node)) {
+                            document.body.removeChild(menu);
+                            document.removeEventListener('click', closeMenu);
+                          }
+                        };
+                        setTimeout(() => document.addEventListener('click', closeMenu), 0);
+                      }}
+                    >
+                      {/* Checkbox */}
+                      <td className="px-3 py-3 align-top" onClick={(e) => e.stopPropagation()}>
+                        <input
+                          type="checkbox"
+                          className="rounded border-gray-300 mt-1"
+                          checked={isSelected}
+                          onChange={() => handleSelectLead(r.opportunity_id)}
+                        />
+                      </td>
+
+                      {/* ID */}
+                      <td className="px-2 py-3 text-sm font-medium text-gray-900 border-r-2 border-gray-300 align-top">
+                        {r.opportunity_id}
+                      </td>
+
+                      {/* Contact Person */}
+                      <td className="px-3 py-3 text-sm text-gray-700 align-top">
+                        <div className="break-words max-w-[120px] leading-tight">
+                          {r.contact_person || "—"}
+                        </div>
+                      </td>
+
+                      {/* Business Name */}
+                      <td className="px-3 py-3 text-sm text-gray-900 align-top">
+                        <div className="break-words max-w-[160px] leading-tight">
+                          {r.business_name || "—"}
+                        </div>
+                      </td>
+
+                      {/* Phone */}
+                      <td className="px-3 py-3 text-sm text-gray-900 align-top">
+                        <div className="whitespace-nowrap">
+                          {r.tel_number || "—"}
+                        </div>
+                      </td>
+
+                      {/* Email */}
+                      <td className="px-3 py-3 text-sm text-gray-900 align-top">
+                        <div className="break-words max-w-[160px] leading-tight">
+                          {r.email || "—"}
+                        </div>
+                      </td>
+
+                      {/* MPAN/MPR */}
+                      <td className="px-3 py-3 text-xs font-mono text-gray-900 align-top">
+                        <div className="break-all max-w-[120px] leading-tight">
+                          {r.mpan_mpr || "—"}
+                        </div>
+                      </td>
+
+                      {/* Start Date */}
+                      <td className="px-3 py-3 text-xs text-gray-700 align-top">
+                        <div className="whitespace-nowrap">
+                          {r.start_date ? format(new Date(r.start_date), "dd/MM/yyyy") : "—"}
+                        </div>
+                      </td>
+
+                      {/* End Date */}
+                      <td className="px-3 py-3 text-xs text-gray-700 align-top">
+                        <div className="whitespace-nowrap">
+                          {r.end_date ? format(new Date(r.end_date), "dd/MM/yyyy") : "—"}
+                        </div>
+                      </td>
+
+                      {/* Status Dropdown */}
+                      <td className="px-3 py-3 align-top">
                         <Select
                           value={normalizeStatus(r.stage_name)}
                           onValueChange={(value) => handleStatusChange(r.opportunity_id, value)}
                           disabled={updatingStatus[r.opportunity_id] || false}
                         >
-                          <SelectTrigger className={`w-[140px] h-8 text-xs font-medium ${getStageColor(r.stage_name)}`}>
+                          <SelectTrigger className={`h-7 text-xs w-full max-w-[150px] ${getStageColor(r.stage_name)}`}>
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
@@ -423,15 +729,15 @@ export default function LeadsPage() {
                         </Select>
                       </td>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
 
-      {/* Import Leads Modal */}
+      {/* Import Leads Modal - Keep as is */}
       <Dialog open={importModalOpen} onOpenChange={(open) => {
         setImportModalOpen(open);
         if (!open) handleCloseModal();
