@@ -1,470 +1,140 @@
-// 1. CENTRALIZED BASE CONFIGURATION (LOCALHOST READY)
+// ================= BASE CONFIG =================
 
-// Pick basePath normally
+// Frontend base path (Vercel subpath support)
 const BASE_PATH = process.env.NEXT_PUBLIC_BASE_PATH || "";
 
-// 🚀 NEW: Localhost backend for development
+// Backend URL (Render in production, localhost in dev)
 const BACKEND_URL =
   process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
 
-// Auth uses Next.js API routes (your frontend)
+// Next.js routes ONLY for auth
 const AUTH_API_ROOT = `${BASE_PATH}/api`;
 
-// Data uses backend API (now on localhost)
+// All data endpoints go directly to backend
 const DATA_API_ROOT = BACKEND_URL;
 
-// 🔍 DEBUG LOG
 if (typeof window !== "undefined") {
-  console.log("🌐 API Configuration:", {
-    BASE_PATH,
-    AUTH_API_ROOT,
-    DATA_API_ROOT,
-  });
+  console.log("🌐 API CONFIG:", { AUTH_API_ROOT, DATA_API_ROOT });
 }
 
+// ================= HELPERS =================
 
-// ✅ Helper function to redirect to login with basePath support
-function redirectToLogin() {
-  if (typeof window !== 'undefined') {
-    const basePath = process.env.NEXT_PUBLIC_BASE_PATH || '';
-    window.location.href = `${basePath}/login`;
-  }
-}
-
-// ✅ REQUEST DEDUPLICATION: Prevent duplicate requests
-const pendingRequests = new Map<string, Promise<any>>();
-
-function deduplicateRequest<T>(key: string, requestFn: () => Promise<T>): Promise<T> {
-  // If request is already pending, return existing promise
-  if (pendingRequests.has(key)) {
-    console.log(`♻️ Reusing pending request: ${key}`);
-    return pendingRequests.get(key)!;
-  }
-
-  // Create new request
-  const promise = requestFn().finally(() => {
-    // Clean up after request completes
-    pendingRequests.delete(key);
-  });
-
-  pendingRequests.set(key, promise);
-  return promise;
-}
-
-// ✅ INCREASED TIMEOUT: 30s for slow Render backend (handles cold starts)
 async function fetchWithTimeout(url: string, options: RequestInit = {}, timeout = 30000) {
   const controller = new AbortController();
   const id = setTimeout(() => controller.abort(), timeout);
-  
+
   try {
-    const response = await fetch(url, {
-      ...options,
-      signal: controller.signal
-    });
+    const res = await fetch(url, { ...options, signal: controller.signal });
     clearTimeout(id);
-    return response;
-  } catch (error: any) {
+    return res;
+  } catch (err: any) {
     clearTimeout(id);
-    if (error.name === 'AbortError') {
-      throw new Error(`Request timeout after ${timeout}ms - server is taking too long to respond`);
+    if (err.name === "AbortError") {
+      throw new Error("Server timeout (cold start)");
     }
-    throw error;
+    throw err;
   }
 }
 
-/**
- * Helper function for PUBLIC API calls (no authentication required)
- * Used for login/register - calls Next.js API routes
- */
-export async function fetchPublic(path: string, options: RequestInit = {}) {
-  const url = `${AUTH_API_ROOT}${path.startsWith("/") ? "" : "/"}${path}`;
+async function handleApiResponse(response: Response) {
+  const contentType = response.headers.get("content-type");
 
-  console.log('📡 fetchPublic calling:', url);
+  if (!response.ok) {
+    if (contentType?.includes("application/json")) {
+      const data = await response.json();
+      throw new Error(data.message || data.error || "API error");
+    }
+    throw new Error(`Request failed: ${response.status}`);
+  }
 
-  const headers = {
-    "Content-Type": "application/json",
-    ...options.headers,
-  };
+  if (contentType?.includes("application/json")) {
+    return response.json();
+  }
 
-  const response = await fetch(url, {
-    ...options,
-    headers,
-  });
-
-  return response;
+  return { success: true };
 }
 
-/**
- * Helper function to make authenticated API calls
- * Used for data endpoints - calls external Render backend
- */
+// ================= AUTH CALLS (NEXT ROUTES) =================
+
+export async function fetchPublic(path: string, options: RequestInit = {}) {
+  const url = `${AUTH_API_ROOT}${path}`;
+  return fetch(url, {
+    headers: { "Content-Type": "application/json", ...options.headers },
+    ...options,
+  });
+}
+
+// ================= BACKEND CALLS =================
+
 export async function fetchWithAuth(path: string, options: RequestInit = {}) {
   const token = localStorage.getItem("auth_token");
-  const tenantId = localStorage.getItem("tenant_id") || "1"; // Default to tenant 1
+  const tenantId = localStorage.getItem("tenant_id") || "1";
 
-  const url = `${DATA_API_ROOT}${path.startsWith("/") ? "" : "/"}${path}`;
+  if (!token) throw new Error("Not authenticated");
 
-  console.log('📡 fetchWithAuth calling:', url);
+  // IMPORTANT: path MUST NOT start with /api
+  const url = `${DATA_API_ROOT}${path}`;
 
-  if (!token) {
-    console.error("No auth token found");
-    throw new Error("Not authenticated");
-  }
+  console.log("📡 BACKEND CALL:", url);
 
-  const headers = {
-    "Content-Type": "application/json",
-    Authorization: `Bearer ${token}`,
-    "X-Tenant-ID": tenantId, // ✅ ADD THIS LINE - Required for CRM endpoints
-    ...options.headers,
-  };
-
-  try {
-    // ✅ Increased timeout to 30s for Render cold starts
-    const response = await fetchWithTimeout(url, {
+  const response = await fetchWithTimeout(
+    url,
+    {
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+        "X-Tenant-ID": tenantId,
+        ...options.headers,
+      },
       ...options,
-      headers,
-    }, 30000);
+    },
+    30000
+  );
 
-    // ✅ DON'T logout on 401 - mock auth setup
-    if (response.status === 401) {
-      console.warn("⚠️ Got 401 from backend - continuing with mock auth");
-    }
-
-    return response;
-  } catch (error: any) {
-    if (error.name === 'AbortError' || error.message.includes('timeout')) {
-      console.error("⏱️ Request timeout - backend not responding (likely cold start)");
-      throw new Error("Request timeout - the server is taking too long. Please try again.");
-    }
-    throw error;
-  }
+  return handleApiResponse(response);
 }
 
-// ✅ Helper to handle API responses gracefully
-async function handleApiResponse(response: Response) {
-  // For 401s, return empty data instead of throwing
-  if (response.status === 401) {
-    console.warn("⚠️ 401 response - returning empty data for mock auth");
-    return { data: [], error: "Backend authentication in progress" };
-  }
+// ================= API METHODS =================
 
-  if (response.ok) {
-    const contentType = response.headers.get("content-type");
-    if (contentType && contentType.includes("application/json")) {
-      return response.json();
-    } else {
-      return { success: true };
-    }
-  }
-
-  const contentType = response.headers.get("content-type");
-  if (contentType && contentType.includes("application/json")) {
-    const errorData = await response.json();
-    throw new Error(errorData.error || "API error");
-  } else {
-    const errorText = await response.text();
-    console.error("Non-JSON response:", errorText);
-    throw new Error(`API failed with status ${response.status}`);
-  }
-}
-
-// Example usage functions
 export const api = {
-  // AUTH ENDPOINTS (use fetchPublic - calls Next.js API routes)
-  async login(username: string, password: string, tenantId: number = 1) {
-    const response = await fetchPublic("/auth/login", {
+  // AUTH
+  async login(username: string, password: string, tenant_id: number = 1) {
+    const res = await fetchPublic("/auth/login", {
       method: "POST",
-      body: JSON.stringify({ username, password, tenant_id: tenantId }),
+      body: JSON.stringify({ username, password, tenant_id }),
     });
-    // ✅ SAVE TENANT ID AFTER LOGIN
-    if (response.ok) {
-      localStorage.setItem("tenant_id", tenantId.toString());
-    }
-    return handleApiResponse(response);
+
+    const data = await handleApiResponse(res);
+
+    localStorage.setItem("tenant_id", tenant_id.toString());
+    return data;
   },
 
-  async register(userData: {
-    email: string;
-    password: string;
-    first_name: string;
-    last_name: string;
-    role?: string;
-  }) {
-    const response = await fetchPublic("/auth/register", {
+  // CLIENTS
+  getCustomers: () => fetchWithAuth("/clients"),
+
+  // LEADS
+  getLeads: () => fetchWithAuth("/crm/leads"),
+
+  updateLeadStatus: (id: number, stage_id: number) =>
+    fetchWithAuth(`/crm/leads/${id}/status`, {
+      method: "PATCH",
+      body: JSON.stringify({ stage_id }),
+    }),
+
+  importLeads: (formData: FormData) =>
+    fetch(`${DATA_API_ROOT}/crm/leads/import`, {
       method: "POST",
-      body: JSON.stringify(userData),
-    });
-    return handleApiResponse(response);
-  },
+      headers: {
+        Authorization: `Bearer ${localStorage.getItem("auth_token")}`,
+        "X-Tenant-ID": localStorage.getItem("tenant_id") || "1",
+      },
+      body: formData,
+    }),
 
-  // DATA ENDPOINTS (use fetchWithAuth - calls Render backend)
-  async getCustomers() {
-    return deduplicateRequest('getCustomers', async () => {
-      try {
-        const response = await fetchWithAuth("/clients");
-        return await handleApiResponse(response);
-      } catch (error) {
-        console.warn("⚠️ getCustomers failed, returning empty data");
-        return { customers: [] };
-      }
-    });
-  },
+  // RENEWALS
+  getRenewals: () => fetchWithAuth("/clients"),
 
-  async getJobs() {
-    return deduplicateRequest('getJobs', async () => {
-      try {
-        const response = await fetchWithAuth("/jobs");
-        return await handleApiResponse(response);
-      } catch (error) {
-        console.warn("⚠️ getJobs failed, returning empty data");
-        return { jobs: [] };
-      }
-    });
-  },
-
-  async getPipeline() {
-    return deduplicateRequest('getPipeline', async () => {
-      try {
-        const response = await fetchWithAuth("/pipeline");
-        return await handleApiResponse(response);
-      } catch (error) {
-        console.warn("⚠️ getPipeline failed, returning empty data");
-        return { pipeline: [] };
-      }
-    });
-  },
-
-  async updateCustomerStage(customerId: string, stage: string, reason: string, updatedBy: string) {
-    const response = await fetchWithAuth(`/clients/${customerId}/stage`, {
-      method: "PATCH",
-      body: JSON.stringify({ stage, reason, updated_by: updatedBy }),
-    });
-    return handleApiResponse(response);
-  },
-
-  async updateJobStage(jobId: string, stage: string, reason: string, updatedBy: string) {
-    const response = await fetchWithAuth(`/jobs/${jobId}/stage`, {
-      method: "PATCH",
-      body: JSON.stringify({ stage, reason, updated_by: updatedBy }),
-    });
-    return handleApiResponse(response);
-  },
-
-  // ✅ ASSIGNMENT ENDPOINTS (Schedule Page) - WITH DEDUPLICATION
-  async getAssignments() {
-    return deduplicateRequest('getAssignments', async () => {
-      try {
-        console.log("📋 Fetching assignments...");
-        const response = await fetchWithAuth("/assignments");
-        
-        if (!response.ok) {
-          console.error(`❌ Assignments API returned ${response.status}`);
-          throw new Error(`Failed to fetch assignments: ${response.status}`);
-        }
-        
-        const data = await response.json();
-        console.log(`✅ Got ${data.length} assignments`);
-        return data;
-      } catch (error) {
-        console.error("❌ getAssignments failed:", error);
-        throw error;
-      }
-    });
-  },
-
-  async getAvailableJobs() {
-    return deduplicateRequest('getAvailableJobs', async () => {
-      try {
-        console.log("🔨 Fetching available jobs...");
-        const response = await fetchWithAuth("/jobs/available");
-        
-        if (!response.ok) {
-          console.warn(`⚠️ Jobs API returned ${response.status}`);
-          return []; // Return empty array instead of throwing
-        }
-        
-        const data = await response.json();
-        console.log(`✅ Got ${data.length} jobs`);
-        return data;
-      } catch (error) {
-        console.warn("⚠️ getAvailableJobs failed (non-critical):", error);
-        return []; // Return empty array for graceful degradation
-      }
-    });
-  },
-
-  async getActiveCustomers() {
-    return deduplicateRequest('getActiveCustomers', async () => {
-      try {
-        console.log("👥 Fetching active customers...");
-        const response = await fetchWithAuth("/clients/active");
-        
-        if (!response.ok) {
-          console.warn(`⚠️ Customers API returned ${response.status}`);
-          return []; // Return empty array instead of throwing
-        }
-        
-        const data = await response.json();
-        console.log(`✅ Got ${data.length} customers`);
-        return data;
-      } catch (error) {
-        console.warn("⚠️ getActiveCustomers failed (non-critical):", error);
-        return []; // Return empty array for graceful degradation
-      }
-    });
-  },
-
-  async createAssignment(assignmentData: any) {
-    try {
-      console.log("📝 Creating assignment:", assignmentData);
-      console.log("⏳ This may take up to 30 seconds if the server is waking up...");
-      
-      const response = await fetchWithAuth("/assignments", {
-        method: "POST",
-        body: JSON.stringify(assignmentData),
-      });
-      
-      if (!response.ok) {
-        const contentType = response.headers.get("content-type");
-        if (contentType && contentType.includes("application/json")) {
-          const errorData = await response.json();
-          throw new Error(errorData.error || `Failed to create assignment: ${response.status}`);
-        } else {
-          const errorText = await response.text();
-          console.error("Non-JSON error response:", errorText);
-          throw new Error(`Server error: ${response.status}. Please try again.`);
-        }
-      }
-      
-      const result = await response.json();
-      console.log("✅ Assignment created:", result.assignment?.id || result.id);
-      return result.assignment || result;
-    } catch (error: any) {
-      console.error("❌ createAssignment failed:", error);
-      if (error.message.includes('timeout')) {
-        throw new Error('The server is taking too long to respond. This might be because the server is waking up. Please try again in a moment.');
-      }
-      throw error;
-    }
-  },
-
-  async updateAssignment(assignmentId: string, assignmentData: any) {
-    try {
-      console.log(`📝 Updating assignment ${assignmentId}:`, assignmentData);
-      const response = await fetchWithAuth(`/assignments/${assignmentId}`, {
-        method: "PUT",
-        body: JSON.stringify(assignmentData),
-      });
-      
-      if (!response.ok) {
-        const contentType = response.headers.get("content-type");
-        if (contentType && contentType.includes("application/json")) {
-          const errorData = await response.json();
-          throw new Error(errorData.error || "Failed to update assignment");
-        } else {
-          throw new Error(`Server error: ${response.status}`);
-        }
-      }
-      
-      const result = await response.json();
-      console.log("✅ Assignment updated:", result.assignment?.id || result.id);
-      return result.assignment || result;
-    } catch (error) {
-      console.error("❌ updateAssignment failed:", error);
-      throw error;
-    }
-  },
-
-  async deleteAssignment(assignmentId: string) {
-    try {
-      console.log(`🗑️ Deleting assignment ${assignmentId}`);
-      const response = await fetchWithAuth(`/assignments/${assignmentId}`, {
-        method: "DELETE",
-      });
-      
-      if (!response.ok) {
-        const contentType = response.headers.get("content-type");
-        if (contentType && contentType.includes("application/json")) {
-          const errorData = await response.json();
-          throw new Error(errorData.error || "Failed to delete assignment");
-        } else {
-          throw new Error(`Server error: ${response.status}`);
-        }
-      }
-      
-      console.log("✅ Assignment deleted");
-      return true;
-    } catch (error) {
-      console.error("❌ deleteAssignment failed:", error);
-      throw error;
-    }
-  },
-
-  async getAssignmentsByDateRange(startDate: string, endDate: string) {
-    return deduplicateRequest(`getAssignmentsByDateRange-${startDate}-${endDate}`, async () => {
-      try {
-        console.log(`📅 Fetching assignments from ${startDate} to ${endDate}`);
-        const response = await fetchWithAuth(
-          `/assignments/by-date-range?start_date=${startDate}&end_date=${endDate}`
-        );
-        
-        if (!response.ok) {
-          throw new Error(`Failed to fetch assignments by date range: ${response.status}`);
-        }
-        
-        const data = await response.json();
-        console.log(`✅ Got ${data.length} assignments in range`);
-        return data;
-      } catch (error) {
-        console.error("❌ getAssignmentsByDateRange failed:", error);
-        throw error;
-      }
-    });
-  },
-
-  // ✅ CRM LEADS ENDPOINTS
-  async getLeadsByCustomerType(customerType?: 'NEW' | 'EXISTING', filters?: { stage_id?: number; lead_status?: string; assigned_employee_id?: number }) {
-    return deduplicateRequest(`getLeadsByCustomerType-${customerType || 'all'}`, async () => {
-      try {
-        let url = '/api/crm/leads/customer-type';
-        const params = new URLSearchParams();
-        if (customerType) params.append('type', customerType);
-        if (filters?.stage_id) params.append('stage_id', filters.stage_id.toString());
-        if (filters?.lead_status) params.append('lead_status', filters.lead_status);
-        if (filters?.assigned_employee_id) params.append('assigned_employee_id', filters.assigned_employee_id.toString());
-        if (params.toString()) url += `?${params.toString()}`;
-        
-        const response = await fetchWithAuth(url);
-        
-        if (!response.ok) {
-          throw new Error(`Failed to fetch leads: ${response.status}`);
-        }
-        
-        const data = await response.json();
-        return data;
-      } catch (error) {
-        console.error("❌ getLeadsByCustomerType failed:", error);
-        throw error;
-      }
-    });
-  },
-
-  async createCallSummary(clientId: number, callData: { call_status: string; call_result: string; remarks: string; next_follow_up_date?: string }) {
-    try {
-      const response = await fetchWithAuth(`/api/crm/clients/${clientId}/call-summary`, {
-        method: 'POST',
-        body: JSON.stringify(callData),
-      });
-      
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to create call summary');
-      }
-      
-      return await response.json();
-    } catch (error) {
-      console.error("❌ createCallSummary failed:", error);
-      throw error;
-    }
-  },
+  // ASSIGNMENTS
+  getAssignments: () => fetchWithAuth("/assignments"),
 };
