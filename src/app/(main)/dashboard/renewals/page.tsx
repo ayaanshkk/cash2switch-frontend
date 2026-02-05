@@ -26,7 +26,7 @@ import { useAuth } from "@/contexts/AuthContext";
 
 // ---------------- Constants ----------------
 const CUSTOMERS_PER_PAGE = 25;
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
+const API_BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
 
 // Status options for dropdown
 const STATUS_OPTIONS = [

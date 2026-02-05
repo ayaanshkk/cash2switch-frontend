@@ -11,7 +11,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { format } from "date-fns";
 import { Upload, Download, X, CheckCircle, AlertCircle, FileSpreadsheet } from "lucide-react";
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
+const API_BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
 
 const DEFAULT_STATUS = "Not Called";
 const STATUS_OPTIONS = [DEFAULT_STATUS, "Called", "Priced", "Rejected"];
