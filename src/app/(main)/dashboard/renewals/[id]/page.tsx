@@ -444,11 +444,17 @@ export default function EnergyCustomerDetailsPage() {
       alert(`✅ ${newDocuments.length} document(s) uploaded successfully!`);
       console.log("=== UPLOAD COMPLETE ===");
       
-    } catch (error) {
+    } catch (error: unknown) {
       console.error("=== UPLOAD ERROR ===");
-      console.error("Error type:", error.constructor.name);
-      console.error("Error message:", error instanceof Error ? error.message : String(error));
-      console.error("Full error:", error);
+      
+      if (error instanceof Error) {
+        console.error("Error type:", error.constructor.name);
+        console.error("Error message:", error.message);
+        console.error("Full error:", error);
+      } else {
+        console.error("Unknown error type:", typeof error);
+        console.error("Error value:", error);
+      }
       
       alert(`Network error: ${error instanceof Error ? error.message : 'Could not upload documents'}`);
     } finally {
