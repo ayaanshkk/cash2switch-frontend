@@ -875,6 +875,9 @@ export default function EnergyCustomersPage() {
           isOpen={showImportModal}
           onClose={() => setShowImportModal(false)}
           onImportComplete={fetchCustomers}
+          uploadEndpoint="/clients/import"
+          templateEndpoint="/clients/import/template"
+          templateFilename="customers_import_template.csv"
         />
       )}
     </div>

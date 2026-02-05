@@ -97,6 +97,18 @@ const allSidebarItems: NavGroup[] = [
         url: "/dashboard/leads",
         icon: Phone,
         roles: ["admin", "staff"],
+        subItems: [
+          {
+            title: "All Leads",
+            url: "/dashboard/leads",
+            roles: ["admin", "staff"],
+          },
+          {
+            title: "Recycle Bin",
+            url: "/dashboard/leads/recycle-bin",
+            roles: ["admin", "staff"],
+          },
+        ],
       },
       // {
       //   title: "Calendar",

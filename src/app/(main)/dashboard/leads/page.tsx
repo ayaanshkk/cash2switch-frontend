@@ -5,11 +5,11 @@ import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select";
 import { fetchWithAuth } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { format } from "date-fns";
-import { Upload, Download, X, CheckCircle, AlertCircle, FileSpreadsheet, Search, Trash2, Filter, ChevronDown } from "lucide-react";
+import { Upload, Download, X, CheckCircle, AlertCircle, FileSpreadsheet, Search, Trash2, Filter, ChevronDown, RotateCcw } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import {
   DropdownMenu,
@@ -21,11 +21,12 @@ import {
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
 
-const DEFAULT_STATUS = "Not Called";
-const STATUS_OPTIONS = [DEFAULT_STATUS, "Called", "Priced", "Rejected"];
+const STATUS_OPTIONS = ["Not Called", "Called", "Priced", "Lost"] as const;
 
-const normalizeStatus = (stageName?: string | null) =>
-  STATUS_OPTIONS.includes(stageName || "") ? (stageName as string) : DEFAULT_STATUS;
+interface Stage {
+  stage_id: number;
+  stage_name: string;
+}
 
 type LeadRow = {
   opportunity_id: number;
@@ -55,7 +56,6 @@ function getBadgeVariant(stage?: string) {
   const s = stage.toLowerCase();
   if (s.includes("new") || s.includes("enquiry") || s.includes("open")) return "secondary" as const;
   if (s.includes("proposal") || s.includes("contact")) return "default" as const;
-  // map positive/closed states to the default (green-like) visual using "default"
   if (s.includes("won") || s.includes("converted") || s.includes("completed")) return "default" as const;
   if (s.includes("lost") || s.includes("rejected") || s.includes("failed")) return "destructive" as const;
   return "outline" as const;
@@ -64,6 +64,7 @@ function getBadgeVariant(stage?: string) {
 export default function LeadsPage() {
   const { loading: authLoading } = useAuth();
   const [rows, setRows] = useState<LeadRow[]>([]);
+  const [stages, setStages] = useState<Stage[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   
@@ -78,22 +79,71 @@ export default function LeadsPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedLeads, setSelectedLeads] = useState<number[]>([]);
   const [statusFilter, setStatusFilter] = useState<string | "All">("All");
+  const [service, setService] = useState("electricity");
 
   // Status update state
   const [updatingStatus, setUpdatingStatus] = useState<Record<number, boolean>>({});
   const [statusError, setStatusError] = useState<string | null>(null);
+  const [editingStatusId, setEditingStatusId] = useState<number | null>(null);
+  const [restoredLeadIds, setRestoredLeadIds] = useState<Set<number>>(new Set());
+
+  // Lost confirmation modal state
+  const [lostConfirmation, setLostConfirmation] = useState<{
+    isOpen: boolean;
+    opportunityId: number | null;
+    stageName: string | null;
+    stageId: number | null;
+  }>({ isOpen: false, opportunityId: null, stageName: null, stageId: null });
+
+  // Build stage map from fetched stages
+  const stageMap = useMemo(() => {
+    const map: Record<string, number> = {};
+    stages.forEach(s => {
+      map[s.stage_name.trim()] = s.stage_id;
+    });
+    return map;
+  }, [stages]);
+
+  // Get available stage names for dropdown
+  const stageOptions = useMemo(() => {
+    console.log("Computing stageOptions from stages:", stages);
+    const allowedStages = ['Not Called', 'Called', 'Priced', 'Lost'];
+    const options = stages
+      .map(s => s.stage_name)
+      .filter(name => allowedStages.includes(name));
+    console.log("stageOptions computed:", options);
+    return options;
+  }, [stages]);
 
   const loadLeads = async () => {
     try {
       setLoading(true);
       setError(null);
-      const resp = await fetchWithAuth("/api/crm/leads");
+      
+      // Fetch stages first
+      console.log("Fetching stages from /api/crm/stages...");
+      const stagesResp = await fetchWithAuth("/api/crm/stages");
+      console.log("Stages response status:", stagesResp.status, stagesResp.ok);
+      if (stagesResp.ok) {
+        const stagesBody = await stagesResp.json();
+        console.log("Stages response body:", stagesBody);
+        const stagesList = Array.isArray(stagesBody.data) ? stagesBody.data : [];
+        console.log("Stages list parsed:", stagesList);
+        setStages(stagesList);
+        console.log("Stages state updated");
+      } else {
+        console.error("Failed to fetch stages:", stagesResp.status, stagesResp.statusText);
+      }
+      
+      // Fetch leads (exclude Lost stage)
+      const resp = await fetchWithAuth(`/api/crm/leads?exclude_stage=Lost&service=${encodeURIComponent(service)}`);
       if (!resp.ok) {
         const body = await resp.json().catch(() => ({}));
         throw new Error(body?.message || `Failed to fetch leads (${resp.status})`);
       }
       const body = await resp.json();
-      setRows(Array.isArray(body.data) ? body.data : []);
+      const leads = Array.isArray(body.data) ? body.data : [];
+      setRows(leads);
     } catch (err: any) {
       console.error("Leads page: fetch error", err);
       setError(err.message || "Failed to load leads");
@@ -103,33 +153,30 @@ export default function LeadsPage() {
   };
 
   useEffect(() => {
-    let mounted = true;
-    const load = async () => {
+    if (!authLoading) {
+      loadLeads();
+    }
+  }, [authLoading, service]);
+
+  useEffect(() => {
+    const loadRestored = () => {
       try {
-        setLoading(true);
-        setError(null);
-        const resp = await fetchWithAuth("/api/crm/leads");
-        if (!mounted) return;
-        if (!resp.ok) {
-          const body = await resp.json().catch(() => ({}));
-          throw new Error(body?.message || `Failed to fetch leads (${resp.status})`);
-        }
-        const body = await resp.json();
-        if (!mounted) return;
-        setRows(Array.isArray(body.data) ? body.data : []);
-      } catch (err: any) {
-        console.error("Leads page: fetch error", err);
-        if (mounted) setError(err.message || "Failed to load leads");
-      } finally {
-        if (mounted) setLoading(false);
+        const raw = localStorage.getItem("restored_lead_ids");
+        const ids = new Set<number>((raw ? JSON.parse(raw) : []) as number[]);
+        setRestoredLeadIds(ids);
+      } catch {
+        setRestoredLeadIds(new Set());
       }
     };
-
-    if (!authLoading) load();
+    loadRestored();
+    const handler = () => loadRestored();
+    window.addEventListener("restored-leads-updated", handler);
+    window.addEventListener("storage", handler);
     return () => {
-      mounted = false;
+      window.removeEventListener("restored-leads-updated", handler);
+      window.removeEventListener("storage", handler);
     };
-  }, [authLoading]);
+  }, []);
 
   const sortedRows = useMemo(() => {
     return [...rows].sort((a, b) => {
@@ -199,7 +246,7 @@ export default function LeadsPage() {
       const token = localStorage.getItem('auth_token');
       const tenantId = localStorage.getItem('tenant_id') || '1'; // ✅ ADDED
       
-      const response = await fetch(`${API_BASE_URL}/api/crm/leads/import`, {
+      const response = await fetch(`${API_BASE_URL}/api/crm/leads/import?service=${encodeURIComponent(service)}`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -349,6 +396,12 @@ export default function LeadsPage() {
     return option || status;
   };
 
+  const normalizeStatus = (stageName?: string | null): string => {
+    if (!stageName) return "Not Called";
+    if (stageName.toLowerCase() === "lead") return "Not Called";
+    return stageName;
+  };
+
   // 4. UPDATE filteredRows to include status filter:
   const filteredRows = useMemo(() => {
     let filtered = sortedRows;
@@ -369,7 +422,7 @@ export default function LeadsPage() {
     
     // Apply status filter
     if (statusFilter !== "All") {
-      filtered = filtered.filter(row => row.stage_name === statusFilter);
+      filtered = filtered.filter(row => normalizeStatus(row.stage_name) === statusFilter);
     }
     
     return filtered;
@@ -378,6 +431,31 @@ export default function LeadsPage() {
   // Handle status change
   const handleStatusChange = async (opportunityId: number, newStageName: string) => {
     
+    // Get the stage_id for the selected stage name using the stage map
+    const selectedStageId = stageMap[newStageName];
+
+    if (!selectedStageId) {
+      setStatusError(`Unable to update: stage "${newStageName}" not found. Please refresh the page.`);
+      setTimeout(() => setStatusError(null), 5000);
+      return;
+    }
+
+    // Check if user is selecting "Lost" - show confirmation
+    if (newStageName.toLowerCase() === 'lost') {
+      setLostConfirmation({
+        isOpen: true,
+        opportunityId,
+        stageName: newStageName,
+        stageId: selectedStageId
+      });
+      return;
+    }
+
+    // For other statuses, proceed directly
+    await performStatusUpdate(opportunityId, newStageName, selectedStageId);
+  };
+
+  const performStatusUpdate = async (opportunityId: number, newStageName: string, stageId: number) => {
     // Mark as updating
     setUpdatingStatus(prev => ({ ...prev, [opportunityId]: true }));
     setStatusError(null);
@@ -386,7 +464,7 @@ export default function LeadsPage() {
       const resp = await fetchWithAuth(`/api/crm/leads/${opportunityId}/status`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ stage_name: newStageName }),
+        body: JSON.stringify({ stage_id: stageId }),
       });
 
       if (!resp.ok) {
@@ -397,19 +475,24 @@ export default function LeadsPage() {
       const body = await resp.json().catch(() => ({}));
       const updatedLead = body?.data;
 
-      // Optimistically update UI
-      setRows(prevRows =>
-        prevRows.map(row =>
-          row.opportunity_id === opportunityId
-            ? {
-                ...row,
-                ...(updatedLead || {}),
-                stage_name: updatedLead?.stage_name || newStageName,
-                stage_id: updatedLead?.stage_id ?? row.stage_id,
-              }
-            : row
-        )
-      );
+      // If status was Lost, remove the lead from the list
+      if (newStageName.toLowerCase() === 'lost') {
+        setRows(prevRows => prevRows.filter(row => row.opportunity_id !== opportunityId));
+      } else {
+        // Otherwise, optimistically update UI
+        setRows(prevRows =>
+          prevRows.map(row =>
+            row.opportunity_id === opportunityId
+              ? {
+                  ...row,
+                  ...(updatedLead || {}),
+                  stage_name: updatedLead?.stage_name || newStageName,
+                  stage_id: updatedLead?.stage_id ?? stageId,
+                }
+              : row
+          )
+        );
+      }
     } catch (err: any) {
       console.error('Status update error:', err);
       setStatusError(err.message || 'Failed to update status');
@@ -420,17 +503,19 @@ export default function LeadsPage() {
     }
   };
 
-  // Map stage ID to name
-  // Get color classes for stage
+  // Get color classes for stage by name
   const getStageColor = (stageName?: string | null): string => {
-    switch ((stageName || DEFAULT_STATUS).toLowerCase()) {
+    if (!stageName) return 'bg-gray-100 text-gray-700 border-gray-200';
+    const s = stageName.toLowerCase().trim();
+    switch (s) {
+      case 'not called':
+        return 'bg-amber-100 text-amber-700 border-amber-200';
       case 'called':
         return 'bg-blue-100 text-blue-700 border-blue-200';
       case 'priced':
         return 'bg-green-100 text-green-700 border-green-200';
-      case 'rejected':
+      case 'lost':
         return 'bg-red-100 text-red-700 border-red-200';
-      case 'not called':
       default:
         return 'bg-gray-100 text-gray-700 border-gray-200';
     }
@@ -438,14 +523,16 @@ export default function LeadsPage() {
 
   // Get dot color for dropdown items
   const getDotColor = (stageName: string): string => {
-    switch (stageName.toLowerCase()) {
+    const s = stageName.toLowerCase().trim();
+    switch (s) {
+      case 'not called':
+        return 'bg-amber-500';
       case 'called':
         return 'bg-blue-500';
       case 'priced':
         return 'bg-green-500';
-      case 'rejected':
+      case 'lost':
         return 'bg-red-500';
-      case 'not called':
       default:
         return 'bg-gray-500';
     }
@@ -473,6 +560,32 @@ export default function LeadsPage() {
           </div>
         </div>
       )}
+
+      {/* Service Tabs */}
+      <div className="mb-4 flex items-center gap-2">
+        <button
+          type="button"
+          onClick={() => setService("electricity")}
+          className={`px-4 py-2 rounded-md text-sm font-medium border transition-colors ${
+            service === "electricity"
+              ? "bg-blue-600 text-white border-blue-600"
+              : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50"
+          }`}
+        >
+          Electricity
+        </button>
+        <button
+          type="button"
+          onClick={() => setService("water")}
+          className={`px-4 py-2 rounded-md text-sm font-medium border transition-colors ${
+            service === "water"
+              ? "bg-blue-600 text-white border-blue-600"
+              : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50"
+          }`}
+        >
+          Water
+        </button>
+      </div>
 
       {/* Search and Filter Bar */}
       <div className="mb-6 flex flex-wrap gap-3 justify-between">
@@ -610,6 +723,8 @@ export default function LeadsPage() {
               <tbody className="divide-y divide-gray-200 bg-white">
                 {filteredRows.map((r) => {
                   const isSelected = selectedLeads.includes(r.opportunity_id);
+                  const normalizedStageName = normalizeStatus(r.stage_name);
+                  const isRestored = restoredLeadIds.has(r.opportunity_id);
                   
                   return (
                     <tr 
@@ -708,25 +823,44 @@ export default function LeadsPage() {
 
                       {/* Status Dropdown */}
                       <td className="px-3 py-3 align-top">
-                        <Select
-                          value={normalizeStatus(r.stage_name)}
-                          onValueChange={(value) => handleStatusChange(r.opportunity_id, value)}
-                          disabled={updatingStatus[r.opportunity_id] || false}
-                        >
-                          <SelectTrigger className={`h-7 text-xs w-full max-w-[150px] ${getStageColor(r.stage_name)}`}>
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {STATUS_OPTIONS.map((status) => (
-                              <SelectItem key={status} value={status}>
-                                <div className="flex items-center gap-2">
-                                  <div className={`w-2 h-2 rounded-full ${getDotColor(status)}`} />
-                                  {status}
-                                </div>
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                        {editingStatusId === r.opportunity_id ? (
+                          <Select
+                            value={normalizedStageName}
+                            onValueChange={(value) => {
+                              handleStatusChange(r.opportunity_id, value);
+                              setEditingStatusId(null);
+                            }}
+                            onOpenChange={(open) => {
+                              if (!open) setEditingStatusId(null);
+                            }}
+                            disabled={updatingStatus[r.opportunity_id] || false}
+                            open={editingStatusId === r.opportunity_id}
+                          >
+                            <SelectTrigger className={`h-7 text-xs w-full max-w-[150px] ${getStageColor(normalizedStageName)}`}>
+                              <span className="truncate">{normalizedStageName}</span>
+                            </SelectTrigger>
+                            <SelectContent>
+                              {STATUS_OPTIONS.map((status) => (
+                                <SelectItem key={status} value={status}>
+                                  <div className="flex items-center gap-2">
+                                    <div className={`w-2 h-2 rounded-full ${getDotColor(status)}`} />
+                                    {status}
+                                  </div>
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        ) : (
+                          <button
+                            onClick={() => setEditingStatusId(r.opportunity_id)}
+                            disabled={updatingStatus[r.opportunity_id]}
+                            className={`px-3 py-1 rounded-md text-xs font-medium border ${getStageColor(normalizedStageName)} hover:opacity-80 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center gap-1`}
+                          >
+                            <span className="truncate">{normalizedStageName}</span>
+                            <ChevronDown className="h-3 w-3 opacity-60" />
+                            {isRestored && <RotateCcw className="h-3 w-3 text-blue-600" />}
+                          </button>
+                        )}
                       </td>
                     </tr>
                   );
@@ -931,6 +1065,46 @@ export default function LeadsPage() {
                 Note: Leads will be imported with default status and can be updated later.
               </p>
             </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Lost Confirmation Modal */}
+      <Dialog open={lostConfirmation.isOpen} onOpenChange={(open) => {
+        if (!open) {
+          setLostConfirmation({ isOpen: false, opportunityId: null, stageName: null, stageId: null });
+        }
+      }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Move lead to Recycle Bin?</DialogTitle>
+            <DialogDescription>
+              This lead will move to Recycle Bin and be deleted after 30 days.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex justify-end gap-3 mt-6">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setLostConfirmation({ isOpen: false, opportunityId: null, stageName: null, stageId: null });
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={async () => {
+                const opportunityId = lostConfirmation.opportunityId;
+                const stageId = lostConfirmation.stageId;
+                const stageName = lostConfirmation.stageName || 'Lost';
+                setLostConfirmation({ isOpen: false, opportunityId: null, stageName: null, stageId: null });
+                if (opportunityId && stageId) {
+                  await performStatusUpdate(opportunityId, stageName, stageId);
+                }
+              }}
+            >
+              Move to Recycle Bin
+            </Button>
           </div>
         </DialogContent>
       </Dialog>

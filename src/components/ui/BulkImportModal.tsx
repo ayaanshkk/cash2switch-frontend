@@ -26,9 +26,12 @@ interface BulkImportModalProps {
   isOpen: boolean;
   onClose: () => void;
   onImportComplete: () => void;
+  uploadEndpoint: string;
+  templateEndpoint: string;
+  templateFilename?: string;
 }
 
-export function BulkImportModal({ isOpen, onClose, onImportComplete }: BulkImportModalProps) {
+export function BulkImportModal({ isOpen, onClose, onImportComplete, uploadEndpoint, templateEndpoint, templateFilename }: BulkImportModalProps) {
   const [file, setFile] = useState<File | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
@@ -98,7 +101,7 @@ export function BulkImportModal({ isOpen, onClose, onImportComplete }: BulkImpor
 
       const token = localStorage.getItem('auth_token');
       
-      const response = await fetch(`${API_BASE_URL}/import/energy-customers`, {
+      const response = await fetch(`${API_BASE_URL}${uploadEndpoint}`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -138,7 +141,7 @@ export function BulkImportModal({ isOpen, onClose, onImportComplete }: BulkImpor
     try {
       const token = localStorage.getItem('auth_token');
       
-      const response = await fetch(`${API_BASE_URL}/import/template`, {
+      const response = await fetch(`${API_BASE_URL}${templateEndpoint}`, {
         headers: {
           'Authorization': `Bearer ${token}`,
         },
@@ -152,7 +155,7 @@ export function BulkImportModal({ isOpen, onClose, onImportComplete }: BulkImpor
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = 'energy_customers_template.xlsx';
+      a.download = templateFilename || 'import_template.csv';
       document.body.appendChild(a);
       a.click();
       window.URL.revokeObjectURL(url);
