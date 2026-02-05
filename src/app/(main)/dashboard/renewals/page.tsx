@@ -299,7 +299,7 @@ export default function EnergyCustomersPage() {
   const canEditCustomer = (customer: EnergyCustomer): boolean => {
     if (user?.role === "Admin") return true;
     if (user?.role === "Staff") {
-      return customer.assigned_to_id === user.employee_id;
+      return customer.assigned_to_id === user.id;
     }
     return false;
   };
