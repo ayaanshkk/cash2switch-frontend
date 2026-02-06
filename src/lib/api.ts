@@ -66,6 +66,8 @@ export async function fetchPublic(path: string, options: RequestInit = {}) {
 
 // ================= BACKEND CALLS =================
 
+// ================= BACKEND CALLS =================
+
 export async function fetchWithAuth(path: string, options: RequestInit = {}) {
   const token = localStorage.getItem("auth_token");
   const tenantId = localStorage.getItem("tenant_id") || "1";
@@ -77,16 +79,24 @@ export async function fetchWithAuth(path: string, options: RequestInit = {}) {
 
   console.log("📡 BACKEND CALL:", url);
 
+  // ✅ FIX: Properly merge headers - custom headers should not overwrite auth headers
+  const defaultHeaders = {
+    "Content-Type": "application/json",
+    Authorization: `Bearer ${token}`,
+    "X-Tenant-ID": tenantId,
+  };
+
+  // ✅ Merge options.headers AFTER default headers, but preserve auth headers
+  const mergedHeaders = {
+    ...defaultHeaders,
+    ...(options.headers || {}),
+  };
+
   const response = await fetchWithTimeout(
     url,
     {
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-        "X-Tenant-ID": tenantId,
-        ...options.headers,
-      },
       ...options,
+      headers: mergedHeaders,
     },
     30000
   );

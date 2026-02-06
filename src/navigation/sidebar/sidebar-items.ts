@@ -26,10 +26,11 @@ import {
   Bell,
   ClipboardList,
   DollarSign,
-  ClipboardCheck, // ✅ Add this for test grading
-  History,        // ✅ Add this for results history
-  TrendingUp,    // ✅ Add this for CRM/Leads
-  Phone,          // ✅ Add this for Leads
+  ClipboardCheck,
+  History,
+  TrendingUp,
+  Phone,
+  BadgeDollarSign,
 } from "lucide-react";
 
 export interface NavSubItem {
@@ -39,8 +40,8 @@ export interface NavSubItem {
   comingSoon?: boolean;
   newTab?: boolean;
   isNew?: boolean;
-  roles?: string[]; // Add roles field
-  badge?: number | string; // Add badge support for notification count
+  roles?: string[];
+  badge?: number | string;
 }
 
 export interface NavMainItem {
@@ -51,8 +52,8 @@ export interface NavMainItem {
   comingSoon?: boolean;
   newTab?: boolean;
   isNew?: boolean;
-  roles?: string[]; // Add roles field
-  badge?: number | string; // Add badge support for notification count
+  roles?: string[];
+  badge?: number | string;
 }
 
 export interface NavGroup {
@@ -110,6 +111,15 @@ const allSidebarItems: NavGroup[] = [
           },
         ],
       },
+
+      {
+        title: "Priced", // ✅ NEW PRICED PAGE
+        url: "/dashboard/priced",
+        icon: BadgeDollarSign, // ✅ Icon for pricing/quotes
+        roles: ["admin", "staff"],
+        isNew: true, // ✅ Mark as new feature
+      },
+
       // {
       //   title: "Calendar",
       //   url: "/dashboard/calendar",
