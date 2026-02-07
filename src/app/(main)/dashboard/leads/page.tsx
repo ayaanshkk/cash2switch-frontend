@@ -11,7 +11,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { format } from "date-fns";
 import { Upload, Download, X, CheckCircle, AlertCircle, FileSpreadsheet, Search, Trash2, Filter, ChevronDown, RotateCcw } from "lucide-react";
 import { Input } from "@/components/ui/input";
-import { toast } from "react-hot-toast"; // ✅ ADD THIS IMPORT
+import { toast } from "react-hot-toast";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -61,6 +61,12 @@ function getBadgeVariant(stage?: string) {
   if (s.includes("lost") || s.includes("rejected") || s.includes("failed")) return "destructive" as const;
   return "outline" as const;
 }
+
+// ✅ Helper function to normalize status
+const normalizeStatus = (status: string | null | undefined): string => {
+  if (!status) return "Not Called";
+  return status;
+};
 
 export default function LeadsPage() {
   const { loading: authLoading } = useAuth();
@@ -121,10 +127,9 @@ export default function LeadsPage() {
       setLoading(true);
       setError(null);
       
-      // ✅ fetchWithAuth already returns parsed JSON
       const body = await fetchWithAuth("/api/crm/leads");
       
-      // ✅ FILTER OUT "PRICED" LEADS - They belong on the Priced page
+      // Filter out "PRICED" leads - They belong on the Priced page
       const allLeads = Array.isArray(body.data) ? body.data : [];
       const filteredLeads = allLeads.filter((lead: LeadRow) => lead.stage_name !== 'Priced');
       
@@ -137,19 +142,37 @@ export default function LeadsPage() {
     }
   };
 
+  // ✅ Load stages
+  useEffect(() => {
+    const loadStages = async () => {
+      try {
+        const stagesData = await fetchWithAuth("/api/crm/stages");
+        const stagesList = Array.isArray(stagesData.data) ? stagesData.data : [];
+        setStages(stagesList);
+      } catch (err) {
+        console.error("Failed to load stages:", err);
+      }
+    };
+
+    if (!authLoading) {
+      loadStages();
+    }
+  }, [authLoading]);
+
+  // ✅ Fixed useEffect with proper handler definition
   useEffect(() => {
     let mounted = true;
+    
     const load = async () => {
       try {
         setLoading(true);
         setError(null);
         
-        // ✅ fetchWithAuth already returns parsed JSON
         const body = await fetchWithAuth("/api/crm/leads");
         
         if (!mounted) return;
         
-        // ✅ FILTER OUT "PRICED" LEADS
+        // Filter out "PRICED" leads
         const allLeads = Array.isArray(body.data) ? body.data : [];
         const filteredLeads = allLeads.filter((lead: LeadRow) => lead.stage_name !== 'Priced');
         
@@ -162,12 +185,34 @@ export default function LeadsPage() {
       }
     };
 
-    if (!authLoading) load();
-    return () => {
-      window.removeEventListener("restored-leads-updated", handler);
-      window.removeEventListener("storage", handler);
+    // ✅ Define handler function for restored leads
+    const handleRestoredLeads = () => {
+      try {
+        const raw = localStorage.getItem("restored_lead_ids");
+        const ids = raw ? JSON.parse(raw) : [];
+        setRestoredLeadIds(new Set(ids));
+        load(); // Reload leads when restoration happens
+      } catch (e) {
+        console.error("Error loading restored leads:", e);
+      }
     };
-  }, []);
+
+    if (!authLoading) {
+      load();
+      handleRestoredLeads();
+    }
+
+    // ✅ Add event listeners
+    window.addEventListener("restored-leads-updated", handleRestoredLeads);
+    window.addEventListener("storage", handleRestoredLeads);
+
+    // ✅ Cleanup with the defined handler
+    return () => {
+      mounted = false;
+      window.removeEventListener("restored-leads-updated", handleRestoredLeads);
+      window.removeEventListener("storage", handleRestoredLeads);
+    };
+  }, [authLoading]);
 
   const sortedRows = useMemo(() => {
     return [...rows].sort((a, b) => {
@@ -329,7 +374,6 @@ export default function LeadsPage() {
     if (!window.confirm("Are you sure you want to delete this lead?")) return;
 
     try {
-      // ✅ fetchWithAuth already returns parsed JSON
       await fetchWithAuth(`/api/crm/leads/${opportunityId}`, {
         method: 'DELETE',
       });
@@ -402,24 +446,28 @@ export default function LeadsPage() {
     return filtered;
   }, [sortedRows, searchTerm, statusFilter]);
 
-  // ✅ UPDATED: Handle status change with toast notification
-  const handleStatusChange = async (opportunityId: number, newStageName: string) => {
+  // ✅ New function for the actual status update
+  const performStatusUpdate = async (opportunityId: number, newStageName: string, stageId: number) => {
     setUpdatingStatus(prev => ({ ...prev, [opportunityId]: true }));
     setStatusError(null);
 
     try {
-      // ✅ fetchWithAuth already returns parsed JSON
+      // ✅ Send stage_name instead of stage_id
       const body = await fetchWithAuth(`/api/crm/leads/${opportunityId}/status`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ stage_id: stageId }),
+        body: JSON.stringify({ stage_name: newStageName }), // ✅ Changed from stage_id to stage_name
       });
 
       const updatedLead = body?.data;
 
-      // ✅ IF STATUS CHANGED TO "PRICED", REMOVE FROM LEADS PAGE
+      // If status changed to "Priced" or "Lost", remove from leads page
       if (newStageName === 'Priced') {
         toast.success('Lead moved to Priced page!');
+        setRows(prevRows => prevRows.filter(row => row.opportunity_id !== opportunityId));
+        setSelectedLeads(prev => prev.filter(id => id !== opportunityId));
+      } else if (newStageName === 'Lost') {
+        toast.success('Lead moved to Recycle Bin!');
         setRows(prevRows => prevRows.filter(row => row.opportunity_id !== opportunityId));
         setSelectedLeads(prev => prev.filter(id => id !== opportunityId));
       } else {
@@ -446,6 +494,29 @@ export default function LeadsPage() {
     } finally {
       setUpdatingStatus(prev => ({ ...prev, [opportunityId]: false }));
     }
+  };
+
+  // ✅ Fixed handleStatusChange with confirmation for Lost status
+  const handleStatusChange = async (opportunityId: number, newStageName: string) => {
+    // Show confirmation modal for "Lost" status
+    if (newStageName === 'Lost') {
+      const stageId = stageMap[newStageName];
+      setLostConfirmation({
+        isOpen: true,
+        opportunityId,
+        stageName: newStageName,
+        stageId: stageId || null,
+      });
+      return;
+    }
+
+    const stageId = stageMap[newStageName];
+    if (!stageId) {
+      toast.error(`Invalid stage: ${newStageName}`);
+      return;
+    }
+
+    await performStatusUpdate(opportunityId, newStageName, stageId);
   };
 
   const getStageColor = (stageName?: string | null): string => {
@@ -771,7 +842,7 @@ export default function LeadsPage() {
         )}
       </div>
 
-      {/* Import Modal - Keep as is */}
+      {/* Import Modal */}
       <Dialog open={importModalOpen} onOpenChange={(open) => {
         setImportModalOpen(open);
         if (!open) handleCloseModal();
