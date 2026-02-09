@@ -1,179 +1,3 @@
-// // ================= BASE CONFIG =================
-
-// // Frontend base path (Vercel subpath support)
-// const BASE_PATH = process.env.NEXT_PUBLIC_BASE_PATH || "";
-
-// // Backend URL (Render in production, localhost in dev)
-// const BACKEND_URL =
-//   process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
-
-// // Next.js routes ONLY for auth
-// const AUTH_API_ROOT = `${BASE_PATH}/api`;
-
-// // All data endpoints go directly to backend
-// const DATA_API_ROOT = BACKEND_URL;
-
-// if (typeof window !== "undefined") {
-//   console.log("🌐 API CONFIG:", { 
-//     AUTH_API_ROOT, 
-//     DATA_API_ROOT, 
-//     BACKEND_URL,
-//     BASE_PATH 
-//   });
-// }
-
-// // ================= HELPERS =================
-
-// async function fetchWithTimeout(url: string, options: RequestInit = {}, timeout = 30000) {
-//   const controller = new AbortController();
-//   const id = setTimeout(() => controller.abort(), timeout);
-
-//   try {
-//     const res = await fetch(url, { ...options, signal: controller.signal });
-//     clearTimeout(id);
-//     return res;
-//   } catch (err: any) {
-//     clearTimeout(id);
-//     if (err.name === "AbortError") {
-//       throw new Error("Server timeout (cold start)");
-//     }
-//     throw err;
-//   }
-// }
-
-// async function handleApiResponse(response: Response) {
-//   const contentType = response.headers.get("content-type");
-//   const url = response.url;
-
-//   if (!response.ok) {
-//     console.error(`❌ API Error [${response.status}]:`, url);
-    
-//     if (contentType?.includes("application/json")) {
-//       const data = await response.json();
-//       console.error("Error details:", data);
-//       throw new Error(data.message || data.error || "API error");
-//     }
-    
-//     // Try to get text response for non-JSON errors
-//     const text = await response.text().catch(() => "");
-//     if (text) {
-//       console.error("Error response:", text);
-//     }
-    
-//     throw new Error(`Request failed: ${response.status} - ${url}`);
-//   }
-
-//   if (contentType?.includes("application/json")) {
-//     return response.json();
-//   }
-
-//   return { success: true };
-// }
-
-// // ================= AUTH CALLS (NEXT ROUTES) =================
-
-// export async function fetchPublic(path: string, options: RequestInit = {}) {
-//   const url = `${AUTH_API_ROOT}${path}`;
-//   console.log("🔓 Public API:", url);
-//   return fetch(url, {
-//     headers: { "Content-Type": "application/json", ...options.headers },
-//     ...options,
-//   });
-// }
-
-// // ================= BACKEND CALLS =================
-
-// export async function fetchWithAuth(path: string, options: RequestInit = {}) {
-//   const token = localStorage.getItem("auth_token");
-//   const tenantId = localStorage.getItem("tenant_id") || "1";
-
-//   if (!token) throw new Error("Not authenticated");
-
-//   // IMPORTANT: path MUST NOT start with /api
-//   const url = `${DATA_API_ROOT}${path}`;
-
-//   console.log("📡 BACKEND CALL:", {
-//     url,
-//     method: options.method || "GET",
-//     path,
-//     DATA_API_ROOT,
-//     tenantId
-//   });
-
-//   const defaultHeaders = {
-//     "Content-Type": "application/json",
-//     Authorization: `Bearer ${token}`,
-//     "X-Tenant-ID": tenantId,
-//   };
-
-//   const mergedHeaders = {
-//     ...defaultHeaders,
-//     ...(options.headers || {}),
-//   };
-
-//   const response = await fetchWithTimeout(
-//     url,
-//     {
-//       ...options,
-//       headers: mergedHeaders,
-//     },
-//     30000
-//   );
-
-//   return handleApiResponse(response);
-// }
-
-// // ================= API METHODS =================
-
-// export const api = {
-//   // AUTH
-//   async login(username: string, password: string, tenant_id: number = 1) {
-//     const res = await fetchPublic("/auth/login", {
-//       method: "POST",
-//       body: JSON.stringify({ username, password, tenant_id }),
-//     });
-
-//     const data = await handleApiResponse(res);
-
-//     localStorage.setItem("tenant_id", tenant_id.toString());
-//     return data;
-//   },
-
-//   // CLIENTS
-//   getCustomers: () => fetchWithAuth("/clients"),
-
-//   // LEADS - Try different possible endpoints
-//   getLeads: () => fetchWithAuth("/crm/leads"),
-  
-//   getLeadsAlt: () => fetchWithAuth("/api/crm/leads"), // Alternative with /api prefix
-  
-//   getLeadsAlt2: () => fetchWithAuth("/leads"), // Alternative without /crm
-
-//   updateLeadStatus: (id: number, stage_id: number) =>
-//     fetchWithAuth(`/crm/leads/${id}/status`, {
-//       method: "PATCH",
-//       body: JSON.stringify({ stage_id }),
-//     }),
-
-//   importLeads: (formData: FormData) =>
-//     fetch(`${DATA_API_ROOT}/crm/leads/import`, {
-//       method: "POST",
-//       headers: {
-//         Authorization: `Bearer ${localStorage.getItem("auth_token")}`,
-//         "X-Tenant-ID": localStorage.getItem("tenant_id") || "1",
-//       },
-//       body: formData,
-//     }),
-
-//   // RENEWALS
-//   getRenewals: () => fetchWithAuth("/clients"),
-
-//   // ASSIGNMENTS
-//   getAssignments: () => fetchWithAuth("/assignments"),
-// };
-
-
-
 // ================= BASE CONFIG =================
 
 // Frontend base path (Vercel subpath support)
@@ -248,21 +72,22 @@ export async function fetchWithAuth(path: string, options: RequestInit = {}) {
 
   if (!token) throw new Error("Not authenticated");
 
-  // IMPORTANT: path MUST NOT start with /api
   const url = `${DATA_API_ROOT}${path}`;
 
   console.log("📡 BACKEND CALL:", url);
 
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    Authorization: `Bearer ${token}`,
+    "X-Tenant-ID": tenantId, // ✅ Send for all endpoints
+    ...((options.headers as Record<string, string>) || {}),
+  };
+
   const response = await fetchWithTimeout(
     url,
     {
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-        "X-Tenant-ID": tenantId,
-        ...options.headers,
-      },
       ...options,
+      headers,
     },
     30000
   );
@@ -290,20 +115,20 @@ export const api = {
   getCustomers: () => fetchWithAuth("/clients"),
 
   // LEADS
-  getLeads: () => fetchWithAuth("/crm/leads"),
+  getLeads: () => fetchWithAuth("/api/crm/leads"),
 
   updateLeadStatus: (id: number, stage_id: number) =>
-    fetchWithAuth(`/crm/leads/${id}/status`, {
+    fetchWithAuth(`/api/crm/leads/${id}/status`, {
       method: "PATCH",
       body: JSON.stringify({ stage_id }),
     }),
 
   importLeads: (formData: FormData) =>
-    fetch(`${DATA_API_ROOT}/crm/leads/import`, {
+    fetch(`${DATA_API_ROOT}/api/crm/leads/import`, {
       method: "POST",
       headers: {
         Authorization: `Bearer ${localStorage.getItem("auth_token")}`,
-        "X-Tenant-ID": localStorage.getItem("tenant_id") || "1",
+        "X-Tenant-ID": localStorage.getItem("tenant_id") || "1", // ✅ Add back
       },
       body: formData,
     }),
