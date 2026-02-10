@@ -143,6 +143,7 @@ export default function EnergyCustomersPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [supplierFilter, setSupplierFilter] = useState<number | "All">("All");
   const [statusFilter, setStatusFilter] = useState<string | "All">("All");
+  const [service, setService] = useState("electricity");
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showImportModal, setShowImportModal] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
@@ -159,7 +160,7 @@ export default function EnergyCustomersPage() {
     fetchSuppliers();
     fetchEmployees();
     fetchStages();
-  }, []);
+  }, [service]);
 
   // Reset page when filters/search change
   useEffect(() => {
@@ -179,7 +180,7 @@ export default function EnergyCustomersPage() {
         return;
       }
 
-      const response = await fetch(`${API_BASE_URL}/energy-clients`, {
+      const response = await fetch(`${API_BASE_URL}/energy-clients?service=${encodeURIComponent(service)}`, {
         headers: { 
           Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json'
@@ -519,6 +520,32 @@ export default function EnergyCustomersPage() {
       <h1 className="mb-6 text-3xl font-bold">
         Renewals
       </h1>
+
+      {/* Service Tabs */}
+      <div className="mb-4 flex items-center gap-2">
+        <button
+          type="button"
+          onClick={() => setService("electricity")}
+          className={`px-4 py-2 rounded-md text-sm font-medium border transition-colors ${
+            service === "electricity"
+              ? "bg-blue-600 text-white border-blue-600"
+              : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50"
+          }`}
+        >
+          Electricity
+        </button>
+        <button
+          type="button"
+          onClick={() => setService("water")}
+          className={`px-4 py-2 rounded-md text-sm font-medium border transition-colors ${
+            service === "water"
+              ? "bg-blue-600 text-white border-blue-600"
+              : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50"
+          }`}
+        >
+          Water
+        </button>
+      </div>
 
       {/* Error Display */}
       {error && (
@@ -875,7 +902,7 @@ export default function EnergyCustomersPage() {
           isOpen={showImportModal}
           onClose={() => setShowImportModal(false)}
           onImportComplete={fetchCustomers}
-          uploadEndpoint="/clients/import"
+          uploadEndpoint={`/energy-clients/import?service=${encodeURIComponent(service)}`}
           templateEndpoint="/clients/import/template"
           templateFilename="customers_import_template.csv"
         />

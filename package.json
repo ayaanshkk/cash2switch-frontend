@@ -10,7 +10,9 @@
     "lint": "next lint",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "generate:presets": "ts-node --compiler-options \"{\\\"module\\\":\\\"CommonJS\\\"}\" src/scripts/generate-theme-presets.ts"
+    "generate:presets": "ts-node --compiler-options \"{\\\"module\\\":\\\"CommonJS\\\"}\" src/scripts/generate-theme-presets.ts",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui"
   },
   "lint-staged": {
     "*.{js,ts,jsx,tsx}": [
@@ -67,6 +69,7 @@
   "devDependencies": {
     "@eslint/eslintrc": "^3.3.1",
     "@eslint/js": "^9.16.0",
+    "@playwright/test": "^1.49.1",
     "@tailwindcss/postcss": "^4.1.12",
     "@types/html-pdf-node": "^1.0.2",
     "@types/jest": "^30.0.0",

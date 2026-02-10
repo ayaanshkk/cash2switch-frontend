@@ -44,167 +44,142 @@ export default function RecycleBinPage() {
       setLoading(true);
       setError(null);
       if (!notCalledStageId) {
-        const stagesResp = await fetchWithAuth("/api/crm/stages");
-        if (stagesResp.ok) {
-          const stagesBody = await stagesResp.json();
-          const stagesList = Array.isArray(stagesBody.data) ? stagesBody.data : [];
-          const notCalled = stagesList.find((s: any) => String(s.stage_name).toLowerCase() === "not called");
-          setNotCalledStageId(notCalled?.stage_id ?? null);
-        }
+        const stagesBody = await fetchWithAuth("/api/crm/stages");
+        const stagesList = Array.isArray(stagesBody.data) ? stagesBody.data : [];
+        const notCalled = stagesList.find((s: any) => String(s.stage_name).toLowerCase() === "not called");
+        setNotCalledStageId(notCalled?.stage_id ?? null);
       }
-      const resp = await fetchWithAuth("/api/crm/leads?stage=Lost");
-      if (!resp.ok) {
-        const body = await resp.json().catch(() => ({}));
-        throw new Error(body?.message || `Failed to fetch recycle bin (${resp.status})`);
-      }
-      const body = await resp.json();
+      const body = await fetchWithAuth("/api/crm/leads?stage=Lost");
       setRows(Array.isArray(body.data) ? body.data : []);
     } catch (err: any) {
       console.error("Recycle bin: fetch error", err);
       setError(err.message || "Failed to load deleted leads");
     } finally {
-
-    const getDaysRemaining = (createdAt?: string | null) => {
-      if (!createdAt) return null;
-      const createdDate = new Date(createdAt);
-      if (Number.isNaN(createdDate.getTime())) return null;
-      const now = new Date();
-      const diffMs = now.getTime() - createdDate.getTime();
-      const daysPassed = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-      const remaining = 30 - daysPassed;
-      return remaining < 0 ? 0 : remaining;
-    };
       setLoading(false);
-        setLoading(false);
-      }
-    };
+    }
+  };
 
-    useEffect(() => {
-      if (!authLoading) {
-        loadDeletedLeads();
-      }
-    }, [authLoading]);
+  useEffect(() => {
+    if (!authLoading) {
+      loadDeletedLeads();
+    }
+  }, [authLoading]);
 
-    const handleRestore = async (lead: DeletedLead) => {
-      if (!notCalledStageId) {
-        setError("Not Called stage not available. Please refresh.");
-        return;
-      }
-      setRestoringIds(prev => ({ ...prev, [lead.opportunity_id]: true }));
+  const handleRestore = async (lead: DeletedLead) => {
+    if (!notCalledStageId) {
+      setError("Not Called stage not available. Please refresh.");
+      return;
+    }
+    setRestoringIds(prev => ({ ...prev, [lead.opportunity_id]: true }));
+    try {
+      const body = await fetchWithAuth(`/api/crm/leads/${lead.opportunity_id}/status`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ stage_id: notCalledStageId })
+      });
+
       try {
-        const resp = await fetchWithAuth(`/api/crm/leads/${lead.opportunity_id}/status`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ stage_id: notCalledStageId })
-        });
-
-        if (!resp.ok) {
-          const body = await resp.json().catch(() => ({}));
-          throw new Error(body?.message || "Failed to restore lead");
-        }
-
-        try {
-          const key = "restored_lead_ids";
-          const raw = localStorage.getItem(key);
-          const ids = new Set<number>((raw ? JSON.parse(raw) : []) as number[]);
-          ids.add(lead.opportunity_id);
-          localStorage.setItem(key, JSON.stringify(Array.from(ids)));
-          window.dispatchEvent(new Event("restored-leads-updated"));
-        } catch {
-          // ignore storage errors
-        }
-
-        setRows(prev => prev.filter(r => r.opportunity_id !== lead.opportunity_id));
-      } catch (err: any) {
-        setError(err.message || "Failed to restore lead");
-      } finally {
-        setRestoringIds(prev => ({ ...prev, [lead.opportunity_id]: false }));
+        const key = "restored_lead_ids";
+        const raw = localStorage.getItem(key);
+        const ids = new Set<number>((raw ? JSON.parse(raw) : []) as number[]);
+        ids.add(lead.opportunity_id);
+        localStorage.setItem(key, JSON.stringify(Array.from(ids)));
+        window.dispatchEvent(new Event("restored-leads-updated"));
+      } catch {
+        // ignore storage errors
       }
-    };
 
-    return (
-      <div className="space-y-6">
-        <Card>
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <div>
-                <CardTitle>Recycle Bin</CardTitle>
-                <CardDescription>
-                  Lost leads are shown here. They will be permanently removed after 30 days.
-                </CardDescription>
-              </div>
-              <Button variant="outline" size="sm" onClick={loadDeletedLeads}>
-                Refresh
-              </Button>
+      setRows(prev => prev.filter(r => r.opportunity_id !== lead.opportunity_id));
+    } catch (err: any) {
+      setError(err.message || "Failed to restore lead");
+    } finally {
+      setRestoringIds(prev => ({ ...prev, [lead.opportunity_id]: false }));
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle>Recycle Bin</CardTitle>
+              <CardDescription>
+                Lost leads are shown here. They will be permanently removed after 30 days.
+              </CardDescription>
             </div>
-          </CardHeader>
-          <CardContent>
-            {loading ? (
-              <div className="grid gap-3">
-                <div className="h-64 animate-pulse bg-gray-100 rounded" />
-              </div>
-            ) : error ? (
-              <div className="text-center text-sm text-destructive">{error}</div>
-            ) : rows.length === 0 ? (
-              <div className="p-6 text-center text-sm text-muted-foreground">
-                No deleted leads in recycle bin.
-              </div>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full min-w-[1000px]">
-                  <thead>
-                    <tr className="border-b">
-                      <th className="text-left p-3 text-sm font-medium min-w-[80px]">ID</th>
-                      <th className="text-left p-3 text-sm font-medium min-w-[160px]">Contact Person</th>
-                      <th className="text-left p-3 text-sm font-medium min-w-[180px]">Business Name</th>
-                      <th className="text-left p-3 text-sm font-medium min-w-[140px]">Tel Number</th>
-                      <th className="text-left p-3 text-sm font-medium min-w-[200px]">Email</th>
-                      <th className="text-left p-3 text-sm font-medium min-w-[140px]">MPAN/MPR</th>
-                      <th className="text-left p-3 text-sm font-medium min-w-[130px]">Start Date</th>
-                      <th className="text-left p-3 text-sm font-medium min-w-[180px]">Deletion</th>
-                      <th className="text-left p-3 text-sm font-medium min-w-[140px]">Actions</th>
+            <Button variant="outline" size="sm" onClick={loadDeletedLeads}>
+              Refresh
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {loading ? (
+            <div className="grid gap-3">
+              <div className="h-64 animate-pulse bg-gray-100 rounded" />
+            </div>
+          ) : error ? (
+            <div className="text-center text-sm text-destructive">{error}</div>
+          ) : rows.length === 0 ? (
+            <div className="p-6 text-center text-sm text-muted-foreground">
+              No deleted leads in recycle bin.
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[1000px]">
+                <thead>
+                  <tr className="border-b">
+                    <th className="text-left p-3 text-sm font-medium min-w-[80px]">ID</th>
+                    <th className="text-left p-3 text-sm font-medium min-w-[160px]">Contact Person</th>
+                    <th className="text-left p-3 text-sm font-medium min-w-[180px]">Business Name</th>
+                    <th className="text-left p-3 text-sm font-medium min-w-[140px]">Tel Number</th>
+                    <th className="text-left p-3 text-sm font-medium min-w-[200px]">Email</th>
+                    <th className="text-left p-3 text-sm font-medium min-w-[140px]">MPAN/MPR</th>
+                    <th className="text-left p-3 text-sm font-medium min-w-[130px]">Start Date</th>
+                    <th className="text-left p-3 text-sm font-medium min-w-[180px]">Deletion</th>
+                    <th className="text-left p-3 text-sm font-medium min-w-[140px]">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.map((r) => (
+                    <tr key={r.opportunity_id} className="border-b hover:bg-gray-50">
+                      <td className="p-3 text-sm min-w-[80px]">{r.opportunity_id}</td>
+                      <td className="p-3 text-sm min-w-[160px]">{r.contact_person || "—"}</td>
+                      <td className="p-3 text-sm min-w-[180px]">{r.business_name || "—"}</td>
+                      <td className="p-3 text-sm min-w-[140px]">{r.tel_number || "—"}</td>
+                      <td className="p-3 text-sm min-w-[200px]">{r.email || "—"}</td>
+                      <td className="p-3 text-sm min-w-[140px]">{r.mpan_mpr || "—"}</td>
+                      <td className="p-3 text-sm min-w-[130px]">
+                        {r.start_date
+                          ? format(new Date(r.start_date), "dd/MM/yyyy")
+                          : "—"}
+                      </td>
+                      <td className="p-3 text-sm min-w-[180px] text-red-600">
+                        {(() => {
+                          const daysLeft = getDaysRemaining(r.created_at);
+                          return daysLeft === null ? "—" : `${daysLeft} days remaining`;
+                        })()}
+                      </td>
+                      <td className="p-3 text-sm min-w-[140px]">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleRestore(r)}
+                          disabled={restoringIds[r.opportunity_id]}
+                          className="gap-2"
+                        >
+                          <RotateCcw className="h-4 w-4" />
+                          Restore
+                        </Button>
+                      </td>
                     </tr>
-                  </thead>
-                  <tbody>
-                    {rows.map((r) => (
-                      <tr key={r.opportunity_id} className="border-b hover:bg-gray-50">
-                        <td className="p-3 text-sm min-w-[80px]">{r.opportunity_id}</td>
-                        <td className="p-3 text-sm min-w-[160px]">{r.contact_person || "—"}</td>
-                        <td className="p-3 text-sm min-w-[180px]">{r.business_name || "—"}</td>
-                        <td className="p-3 text-sm min-w-[140px]">{r.tel_number || "—"}</td>
-                        <td className="p-3 text-sm min-w-[200px]">{r.email || "—"}</td>
-                        <td className="p-3 text-sm min-w-[140px]">{r.mpan_mpr || "—"}</td>
-                        <td className="p-3 text-sm min-w-[130px]">
-                          {r.start_date
-                            ? format(new Date(r.start_date), "dd/MM/yyyy")
-                            : "—"}
-                        </td>
-                        <td className="p-3 text-sm min-w-[180px] text-red-600">
-                          {(() => {
-                            const daysLeft = getDaysRemaining(r.created_at);
-                            return daysLeft === null ? "—" : `${daysLeft} days remaining`;
-                          })()}
-                        </td>
-                        <td className="p-3 text-sm min-w-[140px]">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => handleRestore(r)}
-                            disabled={restoringIds[r.opportunity_id]}
-                            className="gap-2"
-                          >
-                            <RotateCcw className="h-4 w-4" />
-                            Restore
-                          </Button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  );
+}

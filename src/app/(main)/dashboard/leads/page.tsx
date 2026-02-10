@@ -120,9 +120,12 @@ export default function LeadsPage() {
     try {
       setLoading(true);
       setError(null);
+
+      const stagesBody = await fetchWithAuth("/api/crm/stages");
+      const stagesList = Array.isArray(stagesBody.data) ? stagesBody.data : [];
+      setStages(stagesList);
       
-      // ✅ fetchWithAuth already returns parsed JSON
-      const body = await fetchWithAuth("/api/crm/leads");
+      const body = await fetchWithAuth(`/api/crm/leads?exclude_stage=Lost&service=${encodeURIComponent(service)}`);
       
       // ✅ FILTER OUT "PRICED" LEADS - They belong on the Priced page
       const allLeads = Array.isArray(body.data) ? body.data : [];
@@ -143,9 +146,12 @@ export default function LeadsPage() {
       try {
         setLoading(true);
         setError(null);
+
+        const stagesBody = await fetchWithAuth("/api/crm/stages");
+        const stagesList = Array.isArray(stagesBody.data) ? stagesBody.data : [];
+        setStages(stagesList);
         
-        // ✅ fetchWithAuth already returns parsed JSON
-        const body = await fetchWithAuth("/api/crm/leads");
+        const body = await fetchWithAuth(`/api/crm/leads?exclude_stage=Lost&service=${encodeURIComponent(service)}`);
         
         if (!mounted) return;
         
@@ -162,12 +168,27 @@ export default function LeadsPage() {
       }
     };
 
+    const loadRestored = () => {
+      try {
+        const raw = localStorage.getItem("restored_lead_ids");
+        const ids = new Set<number>((raw ? JSON.parse(raw) : []) as number[]);
+        setRestoredLeadIds(ids);
+      } catch {
+        setRestoredLeadIds(new Set());
+      }
+    };
+
+    const handler = () => loadRestored();
+    loadRestored();
+    window.addEventListener("restored-leads-updated", handler);
+    window.addEventListener("storage", handler);
+
     if (!authLoading) load();
     return () => {
       window.removeEventListener("restored-leads-updated", handler);
       window.removeEventListener("storage", handler);
     };
-  }, []);
+  }, [authLoading, service]);
 
   const sortedRows = useMemo(() => {
     return [...rows].sort((a, b) => {
@@ -379,6 +400,16 @@ export default function LeadsPage() {
     return option || status;
   };
 
+  const normalizeStatus = (stageName?: string | null): string => {
+    if (!stageName) return "Not Called";
+    const s = stageName.toLowerCase().trim();
+    if (s === "not called") return "Not Called";
+    if (s === "called") return "Called";
+    if (s === "priced") return "Priced";
+    if (s === "lost") return "Lost";
+    return stageName;
+  };
+
   const filteredRows = useMemo(() => {
     let filtered = sortedRows;
     
@@ -404,6 +435,28 @@ export default function LeadsPage() {
 
   // ✅ UPDATED: Handle status change with toast notification
   const handleStatusChange = async (opportunityId: number, newStageName: string) => {
+    const selectedStageId = stageMap[newStageName];
+
+    if (!selectedStageId) {
+      setStatusError(`Unable to update: stage "${newStageName}" not found. Please refresh the page.`);
+      setTimeout(() => setStatusError(null), 5000);
+      return;
+    }
+
+    if (newStageName.toLowerCase() === 'lost') {
+      setLostConfirmation({
+        isOpen: true,
+        opportunityId,
+        stageName: newStageName,
+        stageId: selectedStageId
+      });
+      return;
+    }
+
+    await performStatusUpdate(opportunityId, newStageName, selectedStageId);
+  };
+
+  const performStatusUpdate = async (opportunityId: number, newStageName: string, stageId: number) => {
     setUpdatingStatus(prev => ({ ...prev, [opportunityId]: true }));
     setStatusError(null);
 
@@ -417,13 +470,13 @@ export default function LeadsPage() {
 
       const updatedLead = body?.data;
 
-      // ✅ IF STATUS CHANGED TO "PRICED", REMOVE FROM LEADS PAGE
       if (newStageName === 'Priced') {
         toast.success('Lead moved to Priced page!');
         setRows(prevRows => prevRows.filter(row => row.opportunity_id !== opportunityId));
         setSelectedLeads(prev => prev.filter(id => id !== opportunityId));
+      } else if (newStageName.toLowerCase() === 'lost') {
+        setRows(prevRows => prevRows.filter(row => row.opportunity_id !== opportunityId));
       } else {
-        // Update the lead in place for other statuses
         setRows(prevRows =>
           prevRows.map(row =>
             row.opportunity_id === opportunityId
@@ -484,6 +537,32 @@ export default function LeadsPage() {
   return (
     <div className="w-full p-6">
       <h1 className="mb-6 text-3xl font-bold">Leads</h1>
+
+      {/* Service Tabs */}
+      <div className="mb-4 flex items-center gap-2">
+        <button
+          type="button"
+          onClick={() => setService("electricity")}
+          className={`px-4 py-2 rounded-md text-sm font-medium border transition-colors ${
+            service === "electricity"
+              ? "bg-blue-600 text-white border-blue-600"
+              : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50"
+          }`}
+        >
+          Electricity
+        </button>
+        <button
+          type="button"
+          onClick={() => setService("water")}
+          className={`px-4 py-2 rounded-md text-sm font-medium border transition-colors ${
+            service === "water"
+              ? "bg-blue-600 text-white border-blue-600"
+              : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50"
+          }`}
+        >
+          Water
+        </button>
+      </div>
 
       {error && (
         <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg flex items-start gap-3">
