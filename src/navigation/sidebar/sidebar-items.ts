@@ -31,6 +31,7 @@ import {
   TrendingUp,
   Phone,
   BadgeDollarSign,
+  FolderOpen, // ✅ Added for Documents
 } from "lucide-react";
 
 export interface NavSubItem {
@@ -113,9 +114,17 @@ const allSidebarItems: NavGroup[] = [
       },
 
       {
-        title: "Priced", // ✅ NEW PRICED PAGE
+        title: "Priced",
         url: "/dashboard/priced",
-        icon: BadgeDollarSign, // ✅ Icon for pricing/quotes
+        icon: BadgeDollarSign,
+        roles: ["admin", "staff"],
+        isNew: true,
+      },
+
+      {
+        title: "Documents", // ✅ NEW DOCUMENTS PAGE
+        url: "/dashboard/documents",
+        icon: FolderOpen, // ✅ Icon for documents/templates
         roles: ["admin", "staff"],
         isNew: true, // ✅ Mark as new feature
       },

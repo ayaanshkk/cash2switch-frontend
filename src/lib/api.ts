@@ -79,7 +79,7 @@ export async function fetchWithAuth(path: string, options: RequestInit = {}) {
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
     Authorization: `Bearer ${token}`,
-    "X-Tenant-ID": tenantId, // ✅ Send for all endpoints
+    "X-Tenant-ID": tenantId, // ✅ Always send for ALL endpoints
     ...((options.headers as Record<string, string>) || {}),
   };
 
@@ -128,7 +128,7 @@ export const api = {
       method: "POST",
       headers: {
         Authorization: `Bearer ${localStorage.getItem("auth_token")}`,
-        "X-Tenant-ID": localStorage.getItem("tenant_id") || "1", // ✅ Add back
+        "X-Tenant-ID": localStorage.getItem("tenant_id") || "1",
       },
       body: formData,
     }),
@@ -138,4 +138,23 @@ export const api = {
 
   // ASSIGNMENTS
   getAssignments: () => fetchWithAuth("/assignments"),
-};
+
+  // DOCUMENTS
+  uploadDocument: (formData: FormData) =>
+    fetch(`${DATA_API_ROOT}/api/crm/documents/upload`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${localStorage.getItem("auth_token")}`,
+        "X-Tenant-ID": localStorage.getItem("tenant_id") || "1",
+      },
+      body: formData,
+    }).then(res => res.json()),
+
+  getDocuments: () => fetchWithAuth("/api/crm/documents"),
+
+  deleteDocument: (publicId: string) =>
+    fetchWithAuth("/api/crm/documents", {
+      method: "DELETE",
+      body: JSON.stringify({ public_id: publicId }),
+    }),
+}; 
