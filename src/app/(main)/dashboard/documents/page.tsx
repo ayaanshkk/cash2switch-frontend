@@ -158,7 +158,7 @@ export default function DocumentsPage() {
     }
   };
 
-  const handleDownload = (url: string, filename: string, format: string) => {
+  const handleDownload = (downloadUrl: string, filename: string, format: string) => {
     try {
       const fileExtension = format ? `.${format}` : '';
       const filenameWithExtension = filename.includes('.') 
@@ -166,7 +166,7 @@ export default function DocumentsPage() {
         : `${filename}${fileExtension}`;
       
       const link = document.createElement('a');
-      link.href = url;  // ✅ Direct Cloudinary URL
+      link.href = downloadUrl;
       link.download = filenameWithExtension;
       link.target = '_blank';
       document.body.appendChild(link);
@@ -314,7 +314,7 @@ export default function DocumentsPage() {
                       variant="outline"
                       size="sm"
                       className="flex-1"
-                      onClick={() => handleDownload(doc.download_url || doc.url, doc.url, doc.document_name, doc.format)}
+                      onClick={() => handleDownload(doc.download_url || doc.url, doc.document_name, doc.format)}
                     >
                       <Download className="h-4 w-4 mr-1" />
                       Download
