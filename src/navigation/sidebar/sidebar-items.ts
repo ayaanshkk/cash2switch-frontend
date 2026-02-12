@@ -31,7 +31,8 @@ import {
   TrendingUp,
   Phone,
   BadgeDollarSign,
-  FolderOpen, // ✅ Added for Documents
+  FolderOpen,
+  Trash2, // ✅ Added for Recycle Bin
 } from "lucide-react";
 
 export interface NavSubItem {
@@ -73,21 +74,8 @@ const allSidebarItems: NavGroup[] = [
         title: "Dashboard",
         url: "/dashboard/default",
         icon: Home,
-        roles: ["admin", "staff"], // Everyone can see dashboard
+        roles: ["admin", "staff"],
       },
-      // {
-      //   title: "Sales Pipeline",
-      //   url: "/dashboard/sales_pipeline",
-      //   icon: Briefcase,
-      //   roles: ["admin", "staff"],
-      // },
-      // {
-      //   title: "Training Pipeline",
-      //   url: "/dashboard/training_pipeline",
-      //   icon: GraduationCap,
-      //   roles: ["admin", "staff"],
-      //   isNew: true, // Mark as new feature
-      // },
       {
         title: "Renewals",
         url: "/dashboard/renewals",
@@ -99,20 +87,7 @@ const allSidebarItems: NavGroup[] = [
         url: "/dashboard/leads",
         icon: Phone,
         roles: ["admin", "staff"],
-        subItems: [
-          {
-            title: "All Leads",
-            url: "/dashboard/leads",
-            roles: ["admin", "staff"],
-          },
-          {
-            title: "Recycle Bin",
-            url: "/dashboard/leads/recycle-bin",
-            roles: ["admin", "staff"],
-          },
-        ],
       },
-
       {
         title: "Priced",
         url: "/dashboard/priced",
@@ -120,55 +95,19 @@ const allSidebarItems: NavGroup[] = [
         roles: ["admin", "staff"],
         isNew: true,
       },
-
       {
-        title: "Documents", // ✅ NEW DOCUMENTS PAGE
+        title: "Documents",
         url: "/dashboard/documents",
-        icon: FolderOpen, // ✅ Icon for documents/templates
+        icon: FolderOpen,
         roles: ["admin", "staff"],
-        isNew: true, // ✅ Mark as new feature
+        isNew: true,
       },
-
-      // {
-      //   title: "Calendar",
-      //   url: "/dashboard/calendar",
-      //   icon: Calendar,
-      //   roles: ["admin", "staff"],
-      // },
-      // {
-      //   title: "Proposals",
-      //   url: "/dashboard/proposals",
-      //   icon: FileText,
-      //   roles: ["admin", "staff"],
-      // },
-      // {
-      //   title: "Invoices",
-      //   url: "/dashboard/invoices",
-      //   icon: DollarSign,
-      //   roles: ["admin", "staff"],
-      // },
-      // // ✅ ADD TEST GRADING SECTION
-      // {
-      //   title: "Test Grading",
-      //   url: "/dashboard/test_grading",
-      //   icon: ClipboardCheck,
-      //   roles: ["admin", "staff"],
-      //   isNew: true, // Mark as new feature
-      //   subItems: [
-      //     {
-      //       title: "Grade Test",
-      //       url: "/dashboard/test_grading",
-      //       icon: ClipboardCheck,
-      //       roles: ["admin", "staff"],
-      //     },
-      //     {
-      //       title: "Results History",
-      //       url: "/dashboard/test_grading/results",
-      //       icon: History,
-      //       roles: ["admin", "staff"],
-      //     },
-      //   ],
-      // },
+      {
+        title: "Recycle Bin", // ✅ Separate page (removed from Leads sub-items)
+        url: "/dashboard/recycle-bin",
+        icon: Trash2,
+        roles: ["admin", "staff"],
+      },
       {
         title: "Settings",
         url: "/dashboard/settings",
@@ -190,20 +129,17 @@ export const getSidebarItems = (userRole: string, notificationCount?: number): N
   };
   
   // Get allowed roles for this user
-  const allowedRoles = roleMap[normalizedRole] || ['admin', 'staff']; // Default to showing all if role unknown
+  const allowedRoles = roleMap[normalizedRole] || ['admin', 'staff'];
   
   return allSidebarItems
     .map((group) => ({
       ...group,
       items: group.items
         .filter((item) => {
-          // If no roles defined, show to everyone
           if (!item.roles || item.roles.length === 0) return true;
-          // Check if any of the user's allowed roles match the item's required roles
           return item.roles.some(role => allowedRoles.includes(role));
         })
         .map((item) => {
-          // Update notification badge count dynamically
           if (item.title === "Notifications" && notificationCount !== undefined && notificationCount > 0) {
             return {
               ...item,
@@ -211,14 +147,11 @@ export const getSidebarItems = (userRole: string, notificationCount?: number): N
             };
           }
           
-          // Filter sub-items based on role if they exist
           if (item.subItems && item.subItems.length > 0) {
             return {
               ...item,
               subItems: item.subItems.filter((subItem) => {
-                // If no roles defined, show to everyone
                 if (!subItem.roles || subItem.roles.length === 0) return true;
-                // Check if any of the user's allowed roles match the sub-item's required roles
                 return subItem.roles.some(role => allowedRoles.includes(role));
               }),
             };
@@ -227,7 +160,7 @@ export const getSidebarItems = (userRole: string, notificationCount?: number): N
           return item;
         }),
     }))
-    .filter((group) => group.items.length > 0); // Remove empty groups
+    .filter((group) => group.items.length > 0);
 };
 
 // For backwards compatibility, export default items (Admin view shows all)

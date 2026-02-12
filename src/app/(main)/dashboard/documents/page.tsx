@@ -10,13 +10,14 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { api } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { format } from "date-fns";
-import { Upload, Download, FileText, Trash2, Filter, Search, X, ExternalLink, File } from "lucide-react";
+import { Upload, Download, FileText, Trash2, Search, X, ExternalLink, File } from "lucide-react";
 import { toast } from "react-hot-toast";
 
 type Document = {
   public_id: string;
   document_name: string;
   url: string;
+  download_url?: string;
   format: string;
   file_size: number;
   created_at: string;
@@ -50,6 +51,18 @@ export default function DocumentsPage() {
   // Filter state
   const [searchTerm, setSearchTerm] = useState("");
 
+  // ✅ Define resetUploadForm early, before it's used
+  const resetUploadForm = () => {
+    setFile(null);
+    setUploadForm({
+      document_name: "",
+      category: "CONTRACT",
+    });
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+  };
+
   const loadDocuments = async () => {
     try {
       setLoading(true);
@@ -74,7 +87,6 @@ export default function DocumentsPage() {
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = e.target.files?.[0];
     if (selectedFile) {
-      // Validate file type
       const validTypes = [
         'application/pdf',
         'application/msword',
@@ -88,7 +100,6 @@ export default function DocumentsPage() {
         return;
       }
       
-      // Validate file size (max 10MB)
       if (selectedFile.size > 10 * 1024 * 1024) {
         toast.error("File size must be less than 10MB");
         return;
@@ -97,7 +108,6 @@ export default function DocumentsPage() {
       setFile(selectedFile);
       
       if (!uploadForm.document_name) {
-        // Remove file extension from name
         const nameWithoutExt = selectedFile.name.replace(/\.[^/.]+$/, "");
         setUploadForm(prev => ({
           ...prev,
@@ -126,10 +136,14 @@ export default function DocumentsPage() {
       formData.append('document_name', uploadForm.document_name);
       formData.append('category', uploadForm.category);
 
+      console.log('📤 Uploading:', uploadForm.document_name);
+
       const result = await api.uploadDocument(formData);
 
+      console.log('✅ Upload result:', result);
+
       if (!result.success) {
-        throw new Error(result.error || 'Upload failed');
+        throw new Error(result.message || result.error || 'Upload failed');
       }
 
       toast.success('Document uploaded successfully');
@@ -137,40 +151,38 @@ export default function DocumentsPage() {
       resetUploadForm();
       await loadDocuments();
     } catch (error: any) {
-      console.error('Upload error:', error);
+      console.error('❌ Upload error:', error);
       toast.error(error.message || 'Failed to upload document');
     } finally {
       setUploading(false);
     }
   };
 
-  const resetUploadForm = () => {
-    setFile(null);
-    setUploadForm({
-      document_name: "",
-      category: "CONTRACT",
-    });
-    if (fileInputRef.current) {
-      fileInputRef.current.value = "";
+  const handleDownload = (url: string, filename: string, format: string) => {
+    try {
+      const fileExtension = format ? `.${format}` : '';
+      const filenameWithExtension = filename.includes('.') 
+        ? filename 
+        : `${filename}${fileExtension}`;
+      
+      const link = document.createElement('a');
+      link.href = url;  // ✅ Direct Cloudinary URL
+      link.download = filenameWithExtension;
+      link.target = '_blank';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      
+      toast.success('Download started');
+    } catch (error: any) {
+      console.error('Download error:', error);
+      toast.error('Failed to download file');
     }
   };
 
-  const handleDownload = (url: string, filename: string, format: string) => {
-    // ✅ Add file extension if not present
-    const fileExtension = format ? `.${format}` : '';
-    const filenameWithExtension = filename.includes('.') 
-      ? filename 
-      : `${filename}${fileExtension}`;
-    
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = filenameWithExtension; // ✅ Use filename with extension
-    link.target = '_blank';
-    link.rel = 'noopener noreferrer';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    toast.success('Download started');
+  const handleView = (url: string) => {
+    // ✅ Just open the direct URL
+    window.open(url, '_blank', 'noopener,noreferrer');
   };
 
   const handleDelete = async (publicId: string, documentName: string) => {
@@ -302,7 +314,7 @@ export default function DocumentsPage() {
                       variant="outline"
                       size="sm"
                       className="flex-1"
-                      onClick={() => handleDownload(doc.url, doc.document_name, doc.format)}
+                      onClick={() => handleDownload(doc.download_url || doc.url, doc.url, doc.document_name, doc.format)}
                     >
                       <Download className="h-4 w-4 mr-1" />
                       Download
@@ -310,7 +322,7 @@ export default function DocumentsPage() {
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => window.open(doc.url, '_blank')}
+                      onClick={() => handleView(doc.url)}
                       title="View in new tab"
                     >
                       <ExternalLink className="h-4 w-4" />

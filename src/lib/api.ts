@@ -140,15 +140,35 @@ export const api = {
   getAssignments: () => fetchWithAuth("/assignments"),
 
   // DOCUMENTS
-  uploadDocument: (formData: FormData) =>
-    fetch(`${DATA_API_ROOT}/api/crm/documents/upload`, {
+  uploadDocument: async (formData: FormData) => {
+    const token = localStorage.getItem("auth_token");
+    const tenantId = localStorage.getItem("tenant_id") || "1";
+
+    if (!token) throw new Error("Not authenticated");
+
+    const url = `${DATA_API_ROOT}/api/crm/documents/upload`;
+    
+    console.log("📡 Uploading document to:", url);
+
+    const response = await fetch(url, {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${localStorage.getItem("auth_token")}`,
-        "X-Tenant-ID": localStorage.getItem("tenant_id") || "1",
+        Authorization: `Bearer ${token}`,
+        "X-Tenant-ID": tenantId,
+        // ✅ Don't set Content-Type - let browser set it with boundary
       },
       body: formData,
-    }).then(res => res.json()),
+    });
+
+    // ✅ Check if response is OK before parsing
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      console.error("Upload failed:", errorData);
+      throw new Error(errorData.message || errorData.error || `Upload failed: ${response.status}`);
+    }
+
+    return response.json();
+  },
 
   getDocuments: () => fetchWithAuth("/api/crm/documents"),
 
