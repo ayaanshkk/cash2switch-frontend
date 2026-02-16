@@ -32,7 +32,7 @@ import {
   Phone,
   BadgeDollarSign,
   FolderOpen,
-  Trash2, // ✅ Added for Recycle Bin
+  Trash2,
 } from "lucide-react";
 
 export interface NavSubItem {
@@ -96,14 +96,20 @@ const allSidebarItems: NavGroup[] = [
         isNew: true,
       },
       {
-        title: "Documents",
-        url: "/dashboard/documents",
-        icon: FolderOpen,
+        title: "Calendar", // ✅ Calendar instead of Schedule
+        url: "/dashboard/calendar",
+        icon: Calendar,
         roles: ["admin", "staff"],
         isNew: true,
       },
       {
-        title: "Recycle Bin", // ✅ Separate page (removed from Leads sub-items)
+        title: "Documents",
+        url: "/dashboard/documents",
+        icon: FolderOpen,
+        roles: ["admin", "staff"],
+      },
+      {
+        title: "Recycle Bin",
         url: "/dashboard/recycle-bin",
         icon: Trash2,
         roles: ["admin", "staff"],

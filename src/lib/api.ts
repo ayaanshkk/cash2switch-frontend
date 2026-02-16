@@ -177,4 +177,11 @@ export const api = {
       method: "DELETE",
       body: JSON.stringify({ public_id: publicId }),
     }),
-}; 
+
+  
+  // CALENDAR
+  getContractSchedule: () => fetchWithAuth("/api/calendar/contracts"),
+  getCalendarClients: () => fetchWithAuth("/api/calendar/clients"),
+  getCalendarEmployees: () => fetchWithAuth("/api/calendar/employees"),
+  getCalendarRenewals: () => fetchWithAuth("/api/calendar/renewals"),
+};

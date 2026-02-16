@@ -100,11 +100,13 @@ export function BulkImportModal({ isOpen, onClose, onImportComplete, uploadEndpo
       formData.append('file', file);
 
       const token = localStorage.getItem('auth_token');
+      const tenantId = localStorage.getItem('tenant_id') || '1';  // ✅ Add this
       
       const response = await fetch(`${API_BASE_URL}${uploadEndpoint}`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
+          'X-Tenant-ID': tenantId,  // ✅ Add this
         },
         body: formData,
       });
@@ -136,14 +138,16 @@ export function BulkImportModal({ isOpen, onClose, onImportComplete, uploadEndpo
     }
   };
 
-  // Download template
+  // Also fix template download
   const handleDownloadTemplate = async () => {
     try {
       const token = localStorage.getItem('auth_token');
+      const tenantId = localStorage.getItem('tenant_id') || '1';  // ✅ Add this
       
       const response = await fetch(`${API_BASE_URL}${templateEndpoint}`, {
         headers: {
           'Authorization': `Bearer ${token}`,
+          'X-Tenant-ID': tenantId,  // ✅ Add this
         },
       });
 
