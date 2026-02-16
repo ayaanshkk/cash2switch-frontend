@@ -10,12 +10,20 @@ import { fetchWithAuth } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { format } from "date-fns";
 import { Upload, Download, X, CheckCircle, AlertCircle, FileSpreadsheet, ChevronDown, RotateCcw } from "lucide-react";
+import { toast } from "react-hot-toast";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
 
 interface Stage {
   stage_id: number;
   stage_name: string;
+}
+
+interface Employee {
+  employee_id: number;
+  employee_name: string;
+  email: string;
+  phone: string | null;
 }
 
 type LeadRow = {
@@ -30,6 +38,8 @@ type LeadRow = {
   stage_id: number | null;
   stage_name: string | null;
   created_at: string | null;
+  opportunity_owner_employee_id: number | null;
+  assigned_to_name: string | null;
 };
 
 interface ImportResult {
@@ -55,6 +65,7 @@ export default function LeadsPage() {
   const { loading: authLoading } = useAuth();
   const [rows, setRows] = useState<LeadRow[]>([]);
   const [stages, setStages] = useState<Stage[]>([]);
+  const [employees, setEmployees] = useState<Employee[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   
@@ -81,6 +92,9 @@ export default function LeadsPage() {
     stageId: number | null;
   }>({ isOpen: false, opportunityId: null, stageName: null, stageId: null });
 
+  // Bulk assignment state
+  const [selectedLeads, setSelectedLeads] = useState<Set<number>>(new Set());
+
   // Build stage map from fetched stages
   const stageMap = useMemo(() => {
     const map: Record<string, number> = {};
@@ -98,6 +112,81 @@ export default function LeadsPage() {
       .filter(name => allowedStages.includes(name));
   }, [stages]);
 
+  // Bulk selection handlers
+  const handleSelectAll = (checked: boolean) => {
+    if (checked) {
+      setSelectedLeads(new Set(rows.map(r => r.opportunity_id)));
+    } else {
+      setSelectedLeads(new Set());
+    }
+  };
+
+  const handleSelectLead = (leadId: number, checked: boolean) => {
+    const newSelected = new Set(selectedLeads);
+    if (checked) {
+      newSelected.add(leadId);
+    } else {
+      newSelected.delete(leadId);
+    }
+    setSelectedLeads(newSelected);
+  };
+
+  const handleBulkAssign = async (employeeId: number) => {
+    try {
+      const leadIds = Array.from(selectedLeads);
+      const response = await fetchWithAuth("/api/crm/leads/assign", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          lead_ids: leadIds,
+          employee_id: employeeId
+        })
+      });
+
+      if (!response.ok) {
+        if (response.status === 403) {
+          toast.error("You don't have permission to assign leads. Only administrators can assign leads.");
+          return;
+        }
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || "Failed to assign leads");
+      }
+
+      const result = await response.json();
+      toast.success(`Successfully assigned ${result.assigned_count || leadIds.length} leads`);
+      
+      // Clear selection and reload leads
+      setSelectedLeads(new Set());
+      await loadLeads();
+    } catch (err: any) {
+      console.error("Bulk assign error:", err);
+      toast.error(err.message || "Failed to assign leads");
+    }
+  };
+
+  const handleAssignSingle = async (leadId: number, employeeId: number) => {
+    try {
+      await fetchWithAuth("/api/crm/leads/assign", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          lead_ids: [leadId],
+          employee_id: employeeId
+        })
+      });
+
+      toast.success("Lead assigned successfully");
+      await loadLeads();
+    } catch (err: any) {
+      console.error("Single assign error:", err);
+      if (err.message && err.message.includes("403")) {
+        toast.error("You don't have permission to assign leads. Only administrators can assign leads.");
+      } else {
+        toast.error(err.message || "Failed to assign lead");
+      }
+    }
+  };
+
   const loadLeads = async () => {
     try {
       setLoading(true);
@@ -112,6 +201,17 @@ export default function LeadsPage() {
         setStages(stagesList);
       } else {
         console.error("Failed to fetch stages:", stagesResp.status, stagesResp.statusText);
+      }
+      
+      // Fetch employees for assignment dropdown
+      const employeesResp = await fetchWithAuth("/api/crm/employees");
+      if (employeesResp.ok) {
+        const employeesBody = await employeesResp.json();
+        const employeesList = Array.isArray(employeesBody.data) ? employeesBody.data : [];
+        console.log("Employees fetched:", employeesList);
+        setEmployees(employeesList);
+      } else {
+        console.error("Failed to fetch employees:", employeesResp.status, employeesResp.statusText);
       }
       
       // Fetch leads (exclude Lost stage)
@@ -217,8 +317,7 @@ export default function LeadsPage() {
       formData.append('file', file);
 
       const token = localStorage.getItem('auth_token');
-      
-      const response = await fetch(`${API_BASE_URL}/api/crm/leads/import`, {
+      const previewResponse = await fetch(`${API_BASE_URL}/api/crm/leads/import/preview`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -226,15 +325,43 @@ export default function LeadsPage() {
         body: formData,
       });
 
-      const data = await response.json();
+      const previewData = await previewResponse.json();
 
-      if (!response.ok) {
-        throw new Error(data.error || 'Upload failed');
+      if (!previewResponse.ok) {
+        throw new Error(previewData.error || 'Preview failed');
       }
 
-      setResult(data);
+      const previewRows = Array.isArray(previewData.rows) ? previewData.rows : [];
+      const confirmResponse = await fetch(`${API_BASE_URL}/api/crm/leads/import/confirm`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(previewRows),
+      });
+
+      const confirmData = await confirmResponse.json();
+
+      if (!confirmResponse.ok) {
+        throw new Error(confirmData.error || 'Import failed');
+      }
+
+      const totalRows = Number(previewData.total_rows || previewRows.length || 0);
+      const invalidRows = Number(previewData.invalid_rows || 0);
+      const skippedRows = Number(confirmData.skipped || 0);
+      const insertedRows = Number(confirmData.inserted || 0);
+
+      setResult({
+        success: Boolean(confirmData.success),
+        message: confirmData.message || 'Import complete',
+        total_rows: totalRows,
+        successful: insertedRows,
+        failed: invalidRows + skippedRows,
+        errors: confirmData.errors || [],
+      });
       
-      if (data.successful > 0) {
+      if (insertedRows > 0) {
         await loadLeads();
       }
 
@@ -415,6 +542,7 @@ export default function LeadsPage() {
               onClick={() => {
                 handleCloseModal();
                 setImportModalOpen(true);
+                toast('Leads can only be added via import');
               }}
               className="gap-2"
             >
@@ -424,6 +552,44 @@ export default function LeadsPage() {
           </div>
         </CardHeader>
         <CardContent>
+          {/* Bulk Assignment Controls */}
+          {selectedLeads.size > 0 && (
+            <div className="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-lg flex items-center gap-4">
+              <p className="text-sm font-medium text-blue-900">
+                {selectedLeads.size} {selectedLeads.size === 1 ? 'lead' : 'leads'} selected
+              </p>
+              <div className="flex items-center gap-2">
+                <Select
+                  value="select"
+                  onValueChange={(value) => {
+                    if (value !== "select") {
+                      handleBulkAssign(parseInt(value));
+                    }
+                  }}
+                >
+                  <SelectTrigger className="w-[180px] h-9 text-sm">
+                    <span className="truncate">Assign to...</span>
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="select" disabled>Select employee</SelectItem>
+                    {employees.map((emp) => (
+                      <SelectItem key={emp.employee_id} value={emp.employee_id.toString()}>
+                        {emp.employee_name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setSelectedLeads(new Set())}
+                >
+                  Clear Selection
+                </Button>
+              </div>
+            </div>
+          )}
+          
           {statusError && (
             <div className="mb-4 p-4 bg-amber-50 border border-amber-200 rounded-lg flex items-start gap-2">
               <AlertCircle className="h-4 w-4 text-amber-600 mt-0.5 flex-shrink-0" />
@@ -444,6 +610,14 @@ export default function LeadsPage() {
               <table className="w-full min-w-[1200px]">
                 <thead>
                   <tr className="border-b">
+                    <th className="text-left p-3 text-sm font-medium w-12">
+                      <input
+                        type="checkbox"
+                        checked={rows.length > 0 && selectedLeads.size === rows.length}
+                        onChange={(e) => handleSelectAll(e.target.checked)}
+                        className="w-4 h-4 cursor-pointer"
+                      />
+                    </th>
                     <th className="text-left p-3 text-sm font-medium min-w-[80px]">ID</th>
                     <th className="text-left p-3 text-sm font-medium min-w-[160px]">Contact Person</th>
                     <th className="text-left p-3 text-sm font-medium min-w-[180px]">Business Name</th>
@@ -453,6 +627,7 @@ export default function LeadsPage() {
                     <th className="text-left p-3 text-sm font-medium min-w-[130px]">Start Date</th>
                     <th className="text-left p-3 text-sm font-medium min-w-[130px]">End Date</th>
                     <th className="text-left p-3 text-sm font-medium min-w-[160px]">Status</th>
+                    <th className="text-left p-3 text-sm font-medium min-w-[180px]">Assigned To</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -461,6 +636,14 @@ export default function LeadsPage() {
                     const isRestored = restoredLeadIds.has(r.opportunity_id);
                     return (
                     <tr key={r.opportunity_id} className="border-b hover:bg-gray-50">
+                      <td className="p-3 text-sm w-12">
+                        <input
+                          type="checkbox"
+                          checked={selectedLeads.has(r.opportunity_id)}
+                          onChange={(e) => handleSelectLead(r.opportunity_id, e.target.checked)}
+                          className="w-4 h-4 cursor-pointer"
+                        />
+                      </td>
                       <td className="p-3 text-sm min-w-[80px]">{r.opportunity_id}</td>
                       <td className="p-3 text-sm min-w-[160px]">{r.contact_person || "—"}</td>
                       <td className="p-3 text-sm min-w-[180px]">{r.business_name || "—"}</td>
@@ -508,6 +691,28 @@ export default function LeadsPage() {
                             {isRestored && <RotateCcw className="h-3 w-3 text-blue-600" />}
                           </button>
                         )}
+                      </td>
+                      <td className="p-3 text-sm min-w-[180px]">
+                        <Select
+                          value={r.opportunity_owner_employee_id?.toString() || "unassigned"}
+                          onValueChange={(value) => {
+                            if (value !== "unassigned") {
+                              handleAssignSingle(r.opportunity_id, parseInt(value));
+                            }
+                          }}
+                        >
+                          <SelectTrigger className="w-[160px] h-8 text-xs">
+                            <span className="truncate">{r.assigned_to_name || "Unassigned"}</span>
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="unassigned">Unassigned</SelectItem>
+                            {employees.map((emp) => (
+                              <SelectItem key={emp.employee_id} value={emp.employee_id.toString()}>
+                                {emp.employee_name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
                       </td>
                     </tr>
                     );
@@ -664,9 +869,17 @@ export default function LeadsPage() {
                         <p className="text-sm font-medium text-red-900 mb-2">Errors:</p>
                         <div className="bg-white rounded border border-red-200 p-3 max-h-40 overflow-y-auto">
                           <ul className="text-xs text-red-800 space-y-1">
-                            {result.errors.map((error, index) => (
-                              <li key={index}>• {error}</li>
-                            ))}
+                            {result.errors.map((error, index) => {
+                              // Handle both string and object error formats
+                              const errorMsg = typeof error === 'string' 
+                                ? error 
+                                : typeof error === 'object' && error !== null
+                                  ? `Row ${error.row}: ${error.error || 'Unknown error'}`
+                                  : String(error);
+                              return (
+                                <li key={index}>• {errorMsg}</li>
+                              );
+                            })}
                           </ul>
                         </div>
                       </div>

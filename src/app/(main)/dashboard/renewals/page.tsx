@@ -7,6 +7,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -23,6 +24,8 @@ import {
 import { useRouter } from "next/navigation";
 import { BulkImportModal } from "@/components/ui/BulkImportModal";
 import { useAuth } from "@/contexts/AuthContext";
+import { canEditEntity, canBulkAssign } from "@/lib/permissions";
+import { fetchWithAuth } from "@/lib/api";
 
 // ---------------- Constants ----------------
 const CUSTOMERS_PER_PAGE = 25;
@@ -143,12 +146,20 @@ export default function EnergyCustomersPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [supplierFilter, setSupplierFilter] = useState<number | "All">("All");
   const [statusFilter, setStatusFilter] = useState<string | "All">("All");
+  const [service, setService] = useState("electricity");
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showImportModal, setShowImportModal] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
   const [error, setError] = useState<string | null>(null);
   const [selectedCustomers, setSelectedCustomers] = useState<number[]>([]);
+
+  // Lost confirmation modal state
+  const [lostConfirmation, setLostConfirmation] = useState<{
+    isOpen: boolean;
+    customerId: number | null;
+    newStatus: string | null;
+  }>({ isOpen: false, customerId: null, newStatus: null });
 
   const router = useRouter();
   const { user } = useAuth();
@@ -159,7 +170,7 @@ export default function EnergyCustomersPage() {
     fetchSuppliers();
     fetchEmployees();
     fetchStages();
-  }, []);
+  }, [service]);
 
   // Reset page when filters/search change
   useEffect(() => {
@@ -179,7 +190,7 @@ export default function EnergyCustomersPage() {
         return;
       }
 
-      const response = await fetch(`${API_BASE_URL}/energy-clients`, {
+      const response = await fetch(`${API_BASE_URL}/energy-clients?service=${encodeURIComponent(service)}`, {
         headers: { 
           Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json'
@@ -229,15 +240,13 @@ export default function EnergyCustomersPage() {
 
   const fetchEmployees = async () => {
     try {
-      const token = localStorage.getItem("auth_token");
-      const response = await fetch(`${API_BASE_URL}/employees`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      
-      if (response.ok) {
-        const data = await response.json();
-        setEmployees(data);
-      }
+      const employeesBody = await fetchWithAuth("/api/crm/employees");
+      const employeesList = Array.isArray(employeesBody.data)
+        ? employeesBody.data
+        : Array.isArray(employeesBody)
+        ? employeesBody
+        : [];
+      setEmployees(employeesList);
     } catch (err) {
       console.error("❌ Error fetching employees:", err);
     }
@@ -296,21 +305,32 @@ export default function EnergyCustomersPage() {
   }, [filteredCustomers, currentPage]);
 
   // ---------------- Permissions ----------------
-  const canEditCustomer = (customer: EnergyCustomer): boolean => {
-    if (user?.role === "Admin") return true;
-    if (user?.role === "Staff") {
-      return customer.assigned_to_id === user.id;
-    }
-    return false;
-  };
-
-  const canDeleteCustomer = (): boolean => {
-    // Temporarily allow all users (change to: user?.role === "Admin" for production)
-    return true;
-  };
+  // Using shared permission utilities for consistency
+  // Note: canEditEntity checks both assigned_to_id and opportunity_owner_employee_id
 
   // ---------------- Update Status ----------------
   const updateCustomerStatus = async (customerId: number, newStatus: string) => {
+    // Check if user is selecting "Lost" - show confirmation
+    if (newStatus.toLowerCase() === 'lost') {
+      setLostConfirmation({
+        isOpen: true,
+        customerId,
+        newStatus,
+      });
+      return;
+    }
+
+    // Check if user is selecting "Priced" - redirect to priced page
+    if (newStatus.toLowerCase() === 'priced') {
+      router.push('/dashboard/priced');
+      return;
+    }
+
+    // For other statuses, proceed directly
+    await performStatusUpdate(customerId, newStatus);
+  };
+
+  const performStatusUpdate = async (customerId: number, newStatus: string) => {
     try {
       const token = localStorage.getItem("auth_token");
       const res = await fetch(`${API_BASE_URL}/energy-clients/${customerId}`, {
@@ -338,18 +358,20 @@ export default function EnergyCustomersPage() {
 
   // ---------------- Update Assigned To ----------------
   const updateAssignedTo = async (customerId: number, employeeId: number) => {
+    // Check permission before attempting assignment
+    if (!canBulkAssign(user)) {
+      alert("You don't have permission to assign customers. Only administrators can assign customers.");
+      return;
+    }
+
     try {
-      const token = localStorage.getItem("auth_token");
-      const res = await fetch(`${API_BASE_URL}/energy-clients/${customerId}`, {
+      await fetchWithAuth(`/energy-clients/${customerId}`, {
         method: "PUT",
         headers: {
-          Authorization: `Bearer ${token}`,
           "Content-Type": "application/json",
         },
         body: JSON.stringify({ assigned_to_id: employeeId }),
       });
-
-      if (!res.ok) throw new Error("Failed to update assignment");
 
       // Update local state
       const employee = employees.find(e => e.employee_id === employeeId);
@@ -368,7 +390,7 @@ export default function EnergyCustomersPage() {
 
   // ---------------- Delete Customer ----------------
   const deleteCustomer = async (id: number) => {
-    if (!canDeleteCustomer()) {
+    if (!user) {
       alert("You don't have permission to delete clients.");
       return;
     }
@@ -412,7 +434,7 @@ export default function EnergyCustomersPage() {
 
   // ---------------- Bulk Delete ----------------
   const bulkDeleteCustomers = async () => {
-    if (!canDeleteCustomer()) {
+    if (!user) {
       alert("You don't have permission to delete clients.");
       return;
     }
@@ -516,9 +538,37 @@ export default function EnergyCustomersPage() {
 
   return (
     <div className="w-full p-6">
-      <h1 className="mb-6 text-3xl font-bold">
+      <h1 className="mb-6 text-4xl font-semibold tracking-tight text-slate-900">
         Renewals
       </h1>
+
+      {/* Service Tabs */}
+      <div className="mb-6 flex justify-center">
+        <div className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white/80 p-1 shadow-sm backdrop-blur">
+          <button
+            type="button"
+            onClick={() => setService("electricity")}
+            className={`px-8 py-3 rounded-full text-base font-semibold transition-all ${
+              service === "electricity"
+                ? "bg-slate-900 text-white shadow"
+                : "text-slate-700 hover:bg-slate-100"
+            }`}
+          >
+            Electricity
+          </button>
+          <button
+            type="button"
+            onClick={() => setService("water")}
+            className={`px-8 py-3 rounded-full text-base font-semibold transition-all ${
+              service === "water"
+                ? "bg-slate-900 text-white shadow"
+                : "text-slate-700 hover:bg-slate-100"
+            }`}
+          >
+            Water
+          </button>
+        </div>
+      </div>
 
       {/* Error Display */}
       {error && (
@@ -601,7 +651,7 @@ export default function EnergyCustomersPage() {
         </div>
 
         <div className="flex gap-2">
-          {selectedCustomers.length > 0 && canDeleteCustomer() && (
+          {selectedCustomers.length > 0 && user && (
             <Button onClick={bulkDeleteCustomers} variant="destructive">
               <Trash2 className="mr-2 h-4 w-4" />
               Delete Selected ({selectedCustomers.length})
@@ -726,7 +776,7 @@ export default function EnergyCustomersPage() {
                         };
                         
                         menu.appendChild(editBtn);
-                        if (canDeleteCustomer()) {
+                        if (user) {
                           menu.appendChild(deleteBtn);
                         }
                         
@@ -875,11 +925,53 @@ export default function EnergyCustomersPage() {
           isOpen={showImportModal}
           onClose={() => setShowImportModal(false)}
           onImportComplete={fetchCustomers}
-          uploadEndpoint="/clients/import"
+          uploadEndpoint={`/energy-clients/import?service=${encodeURIComponent(service)}`}
           templateEndpoint="/clients/import/template"
           templateFilename="customers_import_template.csv"
         />
       )}
+
+      {/* Lost Confirmation Modal */}
+      <Dialog 
+        open={lostConfirmation.isOpen} 
+        onOpenChange={(open) => {
+          if (!open) {
+            setLostConfirmation({ isOpen: false, customerId: null, newStatus: null });
+          }
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Mark Customer as Lost?</DialogTitle>
+            <DialogDescription>
+              This customer will be marked as lost. You can still view and update it later.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex justify-end gap-3 mt-6">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setLostConfirmation({ isOpen: false, customerId: null, newStatus: null });
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={async () => {
+                const { customerId, newStatus } = lostConfirmation;
+                setLostConfirmation({ isOpen: false, customerId: null, newStatus: null });
+                if (customerId && newStatus) {
+                  await performStatusUpdate(customerId, newStatus);
+                }
+              }}
+            >
+              Mark as Lost
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
     </div>
   );
 }

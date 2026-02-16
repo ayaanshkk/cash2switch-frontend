@@ -123,15 +123,27 @@ export const api = {
       body: JSON.stringify({ stage_id }),
     }),
 
-  importLeads: (formData: FormData) =>
-    fetch(`${DATA_API_ROOT}/api/crm/leads/import`, {
+  importLeads: async (formData: FormData, service?: string) => {
+    const token = localStorage.getItem("auth_token");
+    const previewResp = await fetch(`${DATA_API_ROOT}/crm/leads/import/preview`, {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${localStorage.getItem("auth_token")}`,
-        "X-Tenant-ID": localStorage.getItem("tenant_id") || "1",
+        Authorization: `Bearer ${token}`,
       },
       body: formData,
-    }),
+    });
+    const previewBody = await handleApiResponse(previewResp);
+    const rows = Array.isArray(previewBody?.rows) ? previewBody.rows : [];
+    const confirmResp = await fetch(`${DATA_API_ROOT}/crm/leads/import/confirm${service ? `?service=${encodeURIComponent(service)}` : ""}`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(rows),
+    });
+    return handleApiResponse(confirmResp);
+  },
 
   // RENEWALS
   getRenewals: () => fetchWithAuth("/clients"),
