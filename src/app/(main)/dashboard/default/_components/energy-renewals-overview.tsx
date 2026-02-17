@@ -219,7 +219,7 @@ export function EnergyRenewalsOverview() {
         {/* Total AQ */}
         <Card className="border-purple-300 bg-purple-50/30">
           <CardHeader>
-            <CardDescription>Total Annual Quantity</CardDescription>
+            <CardDescription>Total AQ</CardDescription>
             <CardTitle className="text-3xl font-semibold tabular-nums text-purple-900">
               {formatAQ(stats?.total_aq || 0)} kWh
             </CardTitle>

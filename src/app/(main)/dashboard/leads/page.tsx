@@ -9,11 +9,8 @@ import { useAuth } from "@/contexts/AuthContext";
 import { canBulkAssign } from "@/lib/permissions";
 import { Upload, Download, X, CheckCircle, AlertCircle, FileSpreadsheet, Search, Trash2, Filter, ChevronDown, ChevronFirst, ChevronLast, ChevronLeft, ChevronRight, Plus } from "lucide-react";
 import { Input } from "@/components/ui/input";
-<<<<<<< HEAD
-=======
 import { toast } from "react-hot-toast"; // ✅ ADD THIS IMPORT
 import { useRouter } from "next/navigation";
->>>>>>> origin/dev-ali1
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -190,35 +187,6 @@ export default function LeadsPage() {
     setError(null);
 
     try {
-<<<<<<< HEAD
-      setLoading(true);
-      setError(null);
-      
-      // Fetch stages first
-      console.log("Fetching stages from /api/crm/stages...");
-      const stagesBody = await fetchWithAuth("/api/crm/stages");
-      console.log("Stages response body:", stagesBody);
-      
-      if (stagesBody?.success) {
-        const stagesList = Array.isArray(stagesBody.data) ? stagesBody.data : [];
-        console.log("Stages list parsed:", stagesList);
-        setStages(stagesList);
-        console.log("Stages state updated");
-      } else {
-        console.error("Failed to fetch stages:", stagesBody);
-      }
-      
-      // Fetch leads (exclude Lost stage)
-      const leadsBody = await fetchWithAuth(`/api/crm/leads?exclude_stage=Lost&service=${encodeURIComponent(service)}`);
-      
-      if (!leadsBody?.success) {
-        throw new Error(leadsBody?.message || leadsBody?.error || 'Failed to fetch leads');
-      }
-      
-      const leads = Array.isArray(leadsBody.data) ? leadsBody.data : [];
-      setRows(leads);
-      
-=======
       const employeesBody = await fetchWithAuth("/api/crm/employees");
       const employeesList = Array.isArray(employeesBody.data) ? employeesBody.data : [];
       setEmployees(employeesList);
@@ -234,7 +202,6 @@ export default function LeadsPage() {
       const body = await fetchWithAuth(`/api/crm/leads?exclude_stage=Lost&service=${encodeURIComponent(service)}`);
       const allLeads = Array.isArray(body.data) ? body.data : [];
       setRows(allLeads);
->>>>>>> origin/dev-ali1
     } catch (err: any) {
       console.error("Leads page: fetch error", err);
       setError(err.message || "Failed to load leads");
@@ -245,36 +212,6 @@ export default function LeadsPage() {
   };
 
   useEffect(() => {
-<<<<<<< HEAD
-    if (!authLoading) {
-      loadLeads();
-    }
-  }, [authLoading, service]);
-
-  useEffect(() => {
-    const loadRestored = () => {
-      try {
-        const raw = localStorage.getItem("restored_lead_ids");
-        const ids = new Set<number>((raw ? JSON.parse(raw) : []) as number[]);
-        setRestoredLeadIds(ids);
-      } catch {
-        setRestoredLeadIds(new Set());
-      }
-    };
-    loadRestored();
-    const handler = () => loadRestored();
-    window.addEventListener("restored-leads-updated", handler);
-    window.addEventListener("storage", handler);
-    return () => {
-      window.removeEventListener("restored-leads-updated", handler);
-      window.removeEventListener("storage", handler);
-    };
-  }, []);
-
-  const sortedRows = useMemo(() => {
-    return [...rows].sort((a, b) => {
-      return a.opportunity_id - b.opportunity_id; // Ascending order
-=======
     if (!authLoading) loadLeads();
   }, [authLoading, service]);
 
@@ -283,7 +220,6 @@ export default function LeadsPage() {
       const aDate = new Date(a.created_at || 0).getTime();
       const bDate = new Date(b.created_at || 0).getTime();
       return aDate - bDate;
->>>>>>> origin/dev-ali1
     });
   }, [rows]);
 
@@ -334,7 +270,6 @@ export default function LeadsPage() {
     }
   };
 
-  // Upload file
   const handleUpload = async () => {
     if (!file) return;
 
@@ -347,20 +282,10 @@ export default function LeadsPage() {
       formData.append('file', file);
 
       const token = localStorage.getItem('auth_token');
-<<<<<<< HEAD
-      // ✅ REMOVED X-Tenant-ID - CRM endpoints use JWT tenant
-      
-      const response = await fetch(`${API_BASE_URL}/api/crm/leads/import?service=${encodeURIComponent(service)}`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          // ✅ No X-Tenant-ID for CRM endpoints
-=======
       const previewResponse = await fetch(`${API_BASE_URL}/api/crm/leads/import/preview`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
->>>>>>> origin/dev-ali1
         },
         body: formData,
       });
@@ -420,16 +345,15 @@ export default function LeadsPage() {
     }
   };
 
-  // Download template - FIXED VERSION with X-Tenant-ID header
   const handleDownloadTemplate = async () => {
     try {
       const token = localStorage.getItem('auth_token');
-      // ✅ REMOVED X-Tenant-ID - CRM endpoints use JWT tenant
+      const tenantId = localStorage.getItem('tenant_id') || '1';
       
       const response = await fetch(`${API_BASE_URL}/api/crm/leads/import/template`, {
         headers: {
           'Authorization': `Bearer ${token}`,
-          // ✅ No X-Tenant-ID for CRM endpoints
+          'X-Tenant-ID': tenantId,
         },
       });
 
@@ -453,7 +377,6 @@ export default function LeadsPage() {
     }
   };
 
-  // Reset modal
   const handleCloseModal = () => {
     setFile(null);
     setResult(null);
@@ -476,16 +399,14 @@ export default function LeadsPage() {
     );
   };
 
-  // Delete single lead
   const deleteLead = async (opportunityId: number) => {
     if (!window.confirm("Are you sure you want to delete this lead?")) return;
 
     try {
-      const resp = await fetchWithAuth(`/api/crm/leads/${opportunityId}`, {
+      // ✅ fetchWithAuth already returns parsed JSON
+      await fetchWithAuth(`/api/crm/leads/${opportunityId}`, {
         method: 'DELETE',
       });
-      
-      if (!resp.ok) throw new Error("Failed to delete lead");
 
       setRows(prev => prev.filter(r => r.opportunity_id !== opportunityId));
       setSelectedLeads(prev => prev.filter(id => id !== opportunityId));
@@ -493,14 +414,13 @@ export default function LeadsPage() {
         setCurrentPage(prev => prev - 1);
       }
       
-      alert("Lead deleted successfully");
+      toast.success("Lead deleted successfully");
     } catch (err) {
       console.error("Delete error:", err);
-      alert("Error deleting lead");
+      toast.error("Error deleting lead");
     }
   };
 
-  // Bulk delete leads
   const bulkDeleteLeads = async () => {
     if (selectedLeads.length === 0) {
       alert("Please select leads to delete");
@@ -526,43 +446,21 @@ export default function LeadsPage() {
         setCurrentPage(prev => prev - 1);
       }
       
-      alert(`Successfully deleted ${deletePromises.length} lead(s)`);
+      toast.success(`Successfully deleted ${deletePromises.length} lead(s)`);
     } catch (err) {
       console.error("Bulk delete error:", err);
-      alert("Error deleting some leads");
+      toast.error("Error deleting some leads");
     }
   };
 
-<<<<<<< HEAD
-  // Get status label
-  const getStatusLabel = (status: string | undefined): string => {
-    if (!status) return "—";
-    const option = STATUS_OPTIONS.find(opt => opt === status);
-    return option || status;
-=======
   const getSupplierName = (supplierId: number | undefined | null): string => {
     if (!supplierId) return "—";
     const supplier = suppliers.find((s) => s.supplier_id === supplierId);
     return supplier?.supplier_name || "—";
->>>>>>> origin/dev-ali1
   };
 
-  const normalizeStatus = (stageName?: string | null): string => {
-    if (!stageName) return "Not Called";
-    if (stageName.toLowerCase() === "lead") return "Not Called";
-    return stageName;
-  };
-
-  // 4. UPDATE filteredRows to include status filter:
   const filteredRows = useMemo(() => {
-<<<<<<< HEAD
-    let filtered = sortedRows;
-    
-    // Apply search filter
-    if (searchTerm) {
-=======
     return sortedRows.filter((row) => {
->>>>>>> origin/dev-ali1
       const term = searchTerm.toLowerCase();
       const matchesSearch =
         (row.business_name || "").toLowerCase().includes(term) ||
@@ -596,162 +494,19 @@ export default function LeadsPage() {
       });
       return;
     }
-<<<<<<< HEAD
-    
-    // Apply status filter
-    if (statusFilter !== "All") {
-      filtered = filtered.filter(row => normalizeStatus(row.stage_name) === statusFilter);
-=======
 
     // Check if user is selecting "Priced" - redirect to priced page
     if (newStatus.toLowerCase() === 'priced') {
       router.push('/dashboard/priced');
       return;
->>>>>>> origin/dev-ali1
     }
 
-<<<<<<< HEAD
-  // Handle status change
-  const handleStatusChange = async (opportunityId: number, newStageName: string) => {
-    
-    // Get the stage_id for the selected stage name using the stage map
-    const selectedStageId = stageMap[newStageName];
-
-    if (!selectedStageId) {
-      setStatusError(`Unable to update: stage "${newStageName}" not found. Please refresh the page.`);
-      setTimeout(() => setStatusError(null), 5000);
-      return;
-    }
-
-    // Check if user is selecting "Lost" - show confirmation
-    if (newStageName.toLowerCase() === 'lost') {
-      setLostConfirmation({
-        isOpen: true,
-        opportunityId,
-        stageName: newStageName,
-        stageId: selectedStageId
-      });
-      return;
-    }
-
-    // For other statuses, proceed directly
-    await performStatusUpdate(opportunityId, newStageName, selectedStageId);
-  };
-
-  const performStatusUpdate = async (opportunityId: number, newStageName: string, stageId: number) => {
-    setUpdatingStatus(prev => ({ ...prev, [opportunityId]: true }));
-    setStatusError(null);
-=======
     // For other statuses, proceed directly
     await performStatusUpdate(opportunityId, newStatus);
   };
->>>>>>> origin/dev-ali1
 
   const performStatusUpdate = async (opportunityId: number, newStatus: string) => {
     try {
-<<<<<<< HEAD
-      console.log(`🔄 Updating lead ${opportunityId} to stage: ${newStageName} (ID: ${stageId})`);
-      
-      const body = await fetchWithAuth(`/api/crm/leads/${opportunityId}/status`, {
-        method: 'PATCH',
-        body: JSON.stringify({ stage_id: stageId }), // ✅ Send stage_id, not stage_name
-      });
-
-      console.log("✅ Update response:", body);
-
-      if (!body?.success) {
-        throw new Error(body?.message || body?.error || 'Failed to update status');
-      }
-
-      const updatedLead = body?.data;
-
-      // If status was Lost, remove from list
-      if (newStageName.toLowerCase() === 'lost') {
-        setRows(prevRows => prevRows.filter(row => row.opportunity_id !== opportunityId));
-        setSelectedLeads(prev => prev.filter(id => id !== opportunityId));
-        showToast('Lead moved to Recycle Bin', 'success');
-      } else if (newStageName.toLowerCase() === 'priced') {
-        setRows(prevRows => prevRows.filter(row => row.opportunity_id !== opportunityId));
-        setSelectedLeads(prev => prev.filter(id => id !== opportunityId));
-        showToast('Lead moved to Priced page', 'success');
-      } else {
-        // Update in place
-        setRows(prevRows =>
-          prevRows.map(row =>
-            row.opportunity_id === opportunityId
-              ? {
-                  ...row,
-                  ...(updatedLead || {}),
-                  stage_name: updatedLead?.stage_name || newStageName,
-                  stage_id: updatedLead?.stage_id ?? stageId,
-                }
-              : row
-          )
-        );
-        showToast('Status updated successfully', 'success');
-      }
-    } catch (err: any) {
-      console.error('❌ Status update error:', err);
-      setStatusError(err.message || 'Failed to update status');
-      showToast(err.message || 'Failed to update status', 'error');
-      setTimeout(() => setStatusError(null), 5000);
-    } finally {
-      setUpdatingStatus(prev => ({ ...prev, [opportunityId]: false }));
-    }
-  };
-
-  // Add this helper function near the top of the component (after imports)
-  const showToast = (message: string, type: 'success' | 'error') => {
-    const bgColor = type === 'success' 
-      ? 'bg-green-50 border-green-200 text-green-700' 
-      : 'bg-red-50 border-red-200 text-red-700';
-    
-    const toast = document.createElement('div');
-    toast.className = `fixed top-4 right-4 ${bgColor} px-4 py-3 rounded-lg shadow-lg z-50 border`;
-    toast.textContent = message;
-    document.body.appendChild(toast);
-    
-    setTimeout(() => {
-      if (document.body.contains(toast)) {
-        document.body.removeChild(toast);
-      }
-    }, 3000);
-  };
-
-  // Get color classes for stage by name
-  const getStageColor = (stageName?: string | null): string => {
-    if (!stageName) return 'bg-gray-100 text-gray-700 border-gray-200';
-    const s = stageName.toLowerCase().trim();
-    switch (s) {
-      case 'not called':
-        return 'bg-amber-100 text-amber-700 border-amber-200';
-      case 'called':
-        return 'bg-blue-100 text-blue-700 border-blue-200';
-      case 'priced':
-        return 'bg-green-100 text-green-700 border-green-200';
-      case 'lost':
-        return 'bg-red-100 text-red-700 border-red-200';
-      default:
-        return 'bg-gray-100 text-gray-700 border-gray-200';
-    }
-  };
-
-  // Get dot color for dropdown items
-  const getDotColor = (stageName: string): string => {
-    const s = stageName.toLowerCase().trim();
-    switch (s) {
-      case 'not called':
-        return 'bg-amber-500';
-      case 'called':
-        return 'bg-blue-500';
-      case 'priced':
-        return 'bg-green-500';
-      case 'lost':
-        return 'bg-red-500';
-      default:
-        return 'bg-gray-500';
-    }
-=======
       await fetchWithAuth(`/api/crm/leads/${opportunityId}/status`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
@@ -826,7 +581,6 @@ export default function LeadsPage() {
         </div>
       </div>
     );
->>>>>>> origin/dev-ali1
   };
 
   return (
@@ -861,7 +615,6 @@ export default function LeadsPage() {
         </div>
       </div>
 
-      {/* Error Display */}
       {error && (
         <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg flex items-start gap-3">
           <AlertCircle className="h-5 w-5 text-red-600 flex-shrink-0 mt-0.5" />
@@ -880,36 +633,8 @@ export default function LeadsPage() {
         </div>
       )}
 
-      {/* Service Tabs */}
-      <div className="mb-4 flex items-center gap-2">
-        <button
-          type="button"
-          onClick={() => setService("electricity")}
-          className={`px-4 py-2 rounded-md text-sm font-medium border transition-colors ${
-            service === "electricity"
-              ? "bg-blue-600 text-white border-blue-600"
-              : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50"
-          }`}
-        >
-          Electricity
-        </button>
-        <button
-          type="button"
-          onClick={() => setService("water")}
-          className={`px-4 py-2 rounded-md text-sm font-medium border transition-colors ${
-            service === "water"
-              ? "bg-blue-600 text-white border-blue-600"
-              : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50"
-          }`}
-        >
-          Water
-        </button>
-      </div>
-
-      {/* Search and Filter Bar */}
       <div className="mb-6 flex flex-wrap gap-3 justify-between">
         <div className="flex flex-wrap gap-3">
-          {/* Search Input */}
           <div className="relative w-64">
             <Search className="text-muted-foreground absolute top-2.5 left-2 h-4 w-4" />
             <Input
@@ -920,7 +645,6 @@ export default function LeadsPage() {
             />
           </div>
 
-          {/* Status Filter */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="outline">
@@ -956,17 +680,10 @@ export default function LeadsPage() {
               <DropdownMenuItem onClick={() => setStatusFilter("All")}>
                 All Status
               </DropdownMenuItem>
-<<<<<<< HEAD
-              {STATUS_OPTIONS.map(status => (
-                <DropdownMenuItem 
-                  key={status} 
-                  onClick={() => setStatusFilter(status)}
-=======
               {STATUS_OPTIONS.map((status) => (
                 <DropdownMenuItem
                   key={status.value}
                   onClick={() => setStatusFilter(status.value)}
->>>>>>> origin/dev-ali1
                 >
                   {status.label}
                 </DropdownMenuItem>
@@ -975,7 +692,6 @@ export default function LeadsPage() {
           </DropdownMenu>
         </div>
 
-        {/* Action Buttons */}
         <div className="flex gap-2">
           {selectedLeads.length > 0 && (
             <Button onClick={bulkDeleteLeads} variant="destructive">
@@ -1007,7 +723,6 @@ export default function LeadsPage() {
         </div>
       </div>
 
-      {/* Table */}
       <div className="overflow-hidden rounded-lg border border-gray-200 bg-white">
         {isLoading ? (
           <div className="px-6 py-12 text-center">
@@ -1035,7 +750,6 @@ export default function LeadsPage() {
             <table className="w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
                 <tr>
-                  {/* Checkbox Column */}
                   <th className="px-3 py-3 text-left w-10">
                     <input
                       type="checkbox"
@@ -1115,7 +829,6 @@ export default function LeadsPage() {
                         setTimeout(() => document.addEventListener('click', closeMenu), 0);
                       }}
                     >
-                      {/* Checkbox */}
                       <td className="px-3 py-3 align-top" onClick={(e) => e.stopPropagation()}>
                         <input
                           type="checkbox"
@@ -1125,53 +838,34 @@ export default function LeadsPage() {
                         />
                       </td>
 
-                      {/* ID */}
                       <td className="px-2 py-3 text-sm font-medium text-gray-900 border-r-2 border-gray-300 align-top">
                         {r.opportunity_id}
                       </td>
 
-                      {/* Contact Person */}
                       <td className="px-3 py-3 text-sm text-gray-700 align-top">
                         <div className="break-words max-w-[120px] leading-tight">
                           {r.contact_person || "—"}
                         </div>
                       </td>
 
-                      {/* Business Name */}
                       <td className="px-3 py-3 text-sm text-gray-900 align-top">
                         <div className="break-words max-w-[160px] leading-tight">
                           {r.business_name || "—"}
                         </div>
                       </td>
 
-                      {/* Phone */}
                       <td className="px-3 py-3 text-sm text-gray-900 align-top">
                         <div className="whitespace-nowrap">
                           {r.tel_number || "—"}
                         </div>
                       </td>
 
-<<<<<<< HEAD
-                      {/* Email */}
-                      <td className="px-3 py-3 text-sm text-gray-900 align-top">
-                        <div className="break-words max-w-[160px] leading-tight">
-                          {r.email || "—"}
-                        </div>
-                      </td>
-
-                      {/* MPAN/MPR */}
-=======
->>>>>>> origin/dev-ali1
                       <td className="px-3 py-3 text-xs font-mono text-gray-900 align-top">
                         <div className="break-all max-w-[120px] leading-tight">
                           {r.mpan_mpr || "—"}
                         </div>
                       </td>
 
-<<<<<<< HEAD
-                      {/* Start Date */}
-                      <td className="px-3 py-3 text-xs text-gray-700 align-top">
-=======
                       <td className="px-3 py-3 text-xs text-gray-900 align-top">
                         <div className="break-words max-w-[120px] leading-tight">
                           {r.supplier_name || getSupplierName(r.supplier_id)}
@@ -1179,59 +873,15 @@ export default function LeadsPage() {
                       </td>
 
                       <td className="px-3 py-3 text-xs text-gray-900 text-right align-top">
->>>>>>> origin/dev-ali1
                         <div className="whitespace-nowrap">
                           {formatUsage(r.annual_usage)}
                         </div>
                       </td>
 
-                      {/* End Date */}
                       <td className="px-3 py-3 text-xs text-gray-700 align-top">
                         <div className="whitespace-nowrap">{formatDate(r.start_date)}</div>
                       </td>
 
-<<<<<<< HEAD
-                      {/* Status Dropdown */}
-                      <td className="px-3 py-3 align-top">
-                        {editingStatusId === r.opportunity_id ? (
-                          <Select
-                            value={normalizedStageName}
-                            onValueChange={(value) => {
-                              handleStatusChange(r.opportunity_id, value);
-                              setEditingStatusId(null);
-                            }}
-                            onOpenChange={(open) => {
-                              if (!open) setEditingStatusId(null);
-                            }}
-                            disabled={updatingStatus[r.opportunity_id] || false}
-                            open={editingStatusId === r.opportunity_id}
-                          >
-                            <SelectTrigger className={`h-7 text-xs w-full max-w-[150px] ${getStageColor(normalizedStageName)}`}>
-                              <span className="truncate">{normalizedStageName}</span>
-                            </SelectTrigger>
-                            <SelectContent>
-                              {STATUS_OPTIONS.map((status) => (
-                                <SelectItem key={status} value={status}>
-                                  <div className="flex items-center gap-2">
-                                    <div className={`w-2 h-2 rounded-full ${getDotColor(status)}`} />
-                                    {status}
-                                  </div>
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        ) : (
-                          <button
-                            onClick={() => setEditingStatusId(r.opportunity_id)}
-                            disabled={updatingStatus[r.opportunity_id]}
-                            className={`px-3 py-1 rounded-md text-xs font-medium border ${getStageColor(normalizedStageName)} hover:opacity-80 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center gap-1`}
-                          >
-                            <span className="truncate">{normalizedStageName}</span>
-                            <ChevronDown className="h-3 w-3 opacity-60" />
-                            {isRestored && <RotateCcw className="h-3 w-3 text-blue-600" />}
-                          </button>
-                        )}
-=======
                       <td className="px-3 py-3 text-xs text-gray-700 align-top">
                         <div className="whitespace-nowrap">{formatDate(r.end_date)}</div>
                       </td>
@@ -1280,7 +930,6 @@ export default function LeadsPage() {
                             ))}
                           </SelectContent>
                         </Select>
->>>>>>> origin/dev-ali1
                       </td>
                     </tr>
                   );
@@ -1293,7 +942,7 @@ export default function LeadsPage() {
         {!isLoading && !error && filteredRows.length > 0 && <PaginationControls />}
       </div>
 
-      {/* Import Leads Modal - Keep as is */}
+      {/* Import Modal - Keep as is */}
       <Dialog open={importModalOpen} onOpenChange={(open) => {
         setImportModalOpen(open);
         if (!open) handleCloseModal();
@@ -1307,7 +956,6 @@ export default function LeadsPage() {
           </DialogHeader>
 
           <div className="space-y-6">
-            {/* Download Template */}
             <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
               <div className="flex items-start gap-3">
                 <FileSpreadsheet className="h-5 w-5 text-blue-600 flex-shrink-0 mt-0.5" />
@@ -1329,7 +977,6 @@ export default function LeadsPage() {
               </div>
             </div>
 
-            {/* File Upload Area */}
             <div
               className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors ${
                 isDragging
@@ -1387,7 +1034,6 @@ export default function LeadsPage() {
               )}
             </div>
 
-            {/* Upload Progress */}
             {isUploading && (
               <div className="space-y-2">
                 <div className="flex justify-between text-sm">
@@ -1403,7 +1049,6 @@ export default function LeadsPage() {
               </div>
             )}
 
-            {/* Upload Result */}
             {result && (
               <div
                 className={`p-4 rounded-lg border ${
@@ -1432,7 +1077,6 @@ export default function LeadsPage() {
                       )}
                     </div>
 
-                    {/* Show errors */}
                     {result.errors && result.errors.length > 0 && (
                       <div className="mt-3">
                         <p className="text-sm font-medium text-red-900 mb-2">Errors:</p>
@@ -1458,7 +1102,6 @@ export default function LeadsPage() {
               </div>
             )}
 
-            {/* Action Buttons */}
             <div className="flex justify-end gap-3">
               <Button variant="outline" onClick={handleCloseModal}>
                 Cancel
@@ -1481,7 +1124,6 @@ export default function LeadsPage() {
               </Button>
             </div>
 
-            {/* Instructions */}
             <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
               <h4 className="text-sm font-medium text-gray-900 mb-2">Required Columns:</h4>
               <ul className="text-xs text-gray-700 space-y-1">
