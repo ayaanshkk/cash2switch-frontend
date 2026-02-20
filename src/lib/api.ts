@@ -130,9 +130,11 @@ export const api = {
   uploadDocument: async (formData: FormData) => {
     const token = localStorage.getItem("auth_token");
     const tenantId = localStorage.getItem("tenant_id") || "1";
+
     if (!token) throw new Error("Not authenticated");
 
     const url = `${DATA_API_ROOT}/api/crm/documents/upload`;
+    
     console.log("📡 Uploading document to:", url);
 
     const response = await fetch(url, {
@@ -140,14 +142,18 @@ export const api = {
       headers: {
         Authorization: `Bearer ${token}`,
         "X-Tenant-ID": tenantId,
+        // ✅ Don't set Content-Type - let browser set it with boundary
       },
       body: formData,
     });
 
+    // ✅ Check if response is OK before parsing
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
+      console.error("Upload failed:", errorData);
       throw new Error(errorData.message || errorData.error || `Upload failed: ${response.status}`);
     }
+
     return response.json();
   },
 

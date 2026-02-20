@@ -33,6 +33,11 @@ interface RenewalCustomer {
   assigned_to_name: string;
 }
 
+// ✅ Add props interface
+interface RenewalsTableProps {
+  employeeId?: number;
+}
+
 const getUrgencyColor = (days: number) => {
   if (days <= 30) return "text-red-600 bg-red-50 border-red-200";
   if (days <= 60) return "text-orange-600 bg-orange-50 border-orange-200";
@@ -56,23 +61,30 @@ const getStatusColor = (status: string) => {
   }
 };
 
-export function RenewalsTable() {
+// ✅ Accept employeeId prop
+export function RenewalsTable({ employeeId }: RenewalsTableProps = {}) {
   const router = useRouter();
   const [renewals, setRenewals] = useState<RenewalCustomer[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     fetchRenewals();
-  }, []);
+  }, [employeeId]); // ✅ Re-fetch when employeeId changes
 
   const fetchRenewals = async () => {
     try {
       setLoading(true);
       const token = localStorage.getItem("auth_token");
 
-      const response = await fetch(`${API_BASE_URL}/energy-renewals`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      // ✅ Add employee filter if provided
+      const employeeParam = employeeId ? `&employee_id=${employeeId}` : '';
+
+      const response = await fetch(
+        `${API_BASE_URL}/energy-renewals?days=90${employeeParam}`,
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      );
 
       if (response.ok) {
         const data = await response.json();
@@ -246,9 +258,14 @@ export function RenewalsTable() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Upcoming Renewals</CardTitle>
+        <CardTitle>
+          {employeeId ? 'My Renewals' : 'Upcoming Renewals'}
+        </CardTitle>
         <CardDescription>
-          Customers with contracts expiring in the next 90 days
+          {employeeId 
+            ? 'Your assigned contracts expiring in the next 90 days'
+            : 'All contracts expiring in the next 90 days'
+          }
         </CardDescription>
         <CardAction>
           <div className="flex items-center gap-2">

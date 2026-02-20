@@ -29,6 +29,11 @@ interface SupplierBreakdown {
   total_value: number;
 }
 
+interface EnergyRenewalsOverviewProps {
+  userRole?: string;
+  employeeId?: number;
+}
+
 const supplierColors = [
   "var(--chart-1)",
   "var(--chart-2)", 
@@ -52,7 +57,7 @@ const chartConfig = {
   },
 };
 
-export function EnergyRenewalsOverview() {
+export function EnergyRenewalsOverview({ userRole, employeeId }: EnergyRenewalsOverviewProps = {}) {
   const [stats, setStats] = useState<RenewalStats | null>(null);
   const [supplierData, setSupplierData] = useState<SupplierBreakdown[]>([]);
   const [loading, setLoading] = useState(true);
@@ -66,8 +71,11 @@ export function EnergyRenewalsOverview() {
       setLoading(true);
       const token = localStorage.getItem("auth_token");
 
+      // ✅ Add employee filter for salespeople
+      const employeeParam = employeeId ? `?employee_id=${employeeId}` : '';
+
       // Fetch renewal statistics
-      const statsRes = await fetch(`${API_BASE_URL}/energy-renewals/stats`, {
+      const statsRes = await fetch(`${API_BASE_URL}/energy-renewals/stats${employeeParam}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
 
@@ -77,7 +85,7 @@ export function EnergyRenewalsOverview() {
       }
 
       // Fetch supplier breakdown
-      const supplierRes = await fetch(`${API_BASE_URL}/energy-renewals/supplier-breakdown`, {
+      const supplierRes = await fetch(`${API_BASE_URL}/energy-renewals/supplier-breakdown${employeeParam}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
 

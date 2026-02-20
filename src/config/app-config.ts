@@ -3,12 +3,12 @@ import packageJson from "../../package.json";
 const currentYear = new Date().getFullYear();
 
 export const APP_CONFIG = {
-  name: "Business Gas",
+  name: "Business Rates Solutions",
   version: packageJson.version,
-  copyright: `© ${currentYear}, Business Gas.`,
+  copyright: `© ${currentYear}, Business Rates Solutions.`,
   meta: {
-    title: "Business Gas",
-    description: "Business Gas",
+    title: "Business Rates Solutions",
+    description: "Business Rates Solutions",
   },
   // ✅ Add your base path here
   basePath: "/streemlyne",

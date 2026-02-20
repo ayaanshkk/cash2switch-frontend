@@ -8,16 +8,16 @@ import { ChevronLeft, ChevronRight, Loader2, RefreshCw, ExternalLink } from "luc
 import { api } from "@/lib/api";
 import { format } from "date-fns";
 
-interface Renewal {
+interface Deadline {
   id: string;
   customer_id: number;
   type: string;
   title: string;
-  name: string;
-  mpan: string;
-  supplier: string;
-  contract_start_date: string;
-  contract_end_date: string;
+  name: string;                   // business name
+  voa_reference: string;          // was: mpan
+  billing_authority: string;      // was: supplier
+  case_opened_date: string;       // was: contract_start_date
+  appeal_deadline: string;        // was: contract_end_date
   reminder_date: string;
   address: string;
   postcode: string;
@@ -25,100 +25,98 @@ interface Renewal {
   email: string;
   phone: string;
   service_title: string;
-  rates: string;
+  current_rv?: string;            // rateable value
+  proposed_rv?: string;
+  projected_saving?: string;
+  case_stage?: string;            // check / challenge / appeal / resolved / lost
   notes: string;
   display_date: string;
   display_type: string;
   status: string;
+  days_until_deadline?: number;
 }
 
 export default function CalendarPage() {
   const { user } = useAuth();
-  const [renewals, setRenewals] = useState<Renewal[]>([]);
+  const [deadlines, setDeadlines] = useState<Deadline[]>([]);
   const [loading, setLoading] = useState(true);
   const [currentDate, setCurrentDate] = useState(new Date());
-  const [selectedRenewal, setSelectedRenewal] = useState<Renewal | null>(null);
+  const [selectedDeadline, setSelectedDeadline] = useState<Deadline | null>(null);
   const [showDetailDialog, setShowDetailDialog] = useState(false);
 
   const formatDateKey = (date: Date | string) => {
     if (typeof date === "string") return date;
     const yyyy = date.getFullYear();
-    const mm = String(date.getMonth() + 1).padStart(2, "0");
-    const dd = String(date.getDate()).padStart(2, "0");
+    const mm   = String(date.getMonth() + 1).padStart(2, "0");
+    const dd   = String(date.getDate()).padStart(2, "0");
     return `${yyyy}-${mm}-${dd}`;
   };
 
   const calendarDays = useMemo(() => {
-    const year = currentDate.getFullYear();
+    const year  = currentDate.getFullYear();
     const month = currentDate.getMonth();
-    const firstDay = new Date(year, month, 1);
+    const firstDay       = new Date(year, month, 1);
     const firstDayOfWeek = firstDay.getDay();
-    const lastDay = new Date(year, month + 1, 0).getDate();
-    const daysFromPrevMonth = firstDayOfWeek === 0 ? 6 : firstDayOfWeek - 1;
-    const days: Date[] = [];
+    const lastDay        = new Date(year, month + 1, 0).getDate();
+    const daysFromPrev   = firstDayOfWeek === 0 ? 6 : firstDayOfWeek - 1;
+    const days: Date[]   = [];
 
-    for (let i = daysFromPrevMonth; i > 0; i--) {
-      days.push(new Date(year, month, 1 - i));
-    }
-    for (let day = 1; day <= lastDay; day++) {
-      days.push(new Date(year, month, day));
-    }
-    const remainingDays = 35 - days.length;
-    for (let day = 1; day <= remainingDays; day++) {
-      days.push(new Date(year, month + 1, day));
-    }
+    for (let i = daysFromPrev; i > 0; i--)     days.push(new Date(year, month, 1 - i));
+    for (let d = 1; d <= lastDay; d++)          days.push(new Date(year, month, d));
+    for (let d = 1; d <= 35 - days.length; d++) days.push(new Date(year, month + 1, d));
+
     return days;
   }, [currentDate]);
 
-  const renewalsByDate = useMemo(() => {
-    const dateMap: Record<string, Renewal[]> = {};
-    
-    for (const renewal of renewals) {
-      if (renewal.display_date) {
-        const dateKey = formatDateKey(renewal.display_date);
-        if (!dateMap[dateKey]) dateMap[dateKey] = [];
-        dateMap[dateKey].push(renewal);
+  const deadlinesByDate = useMemo(() => {
+    const dateMap: Record<string, Deadline[]> = {};
+    for (const deadline of deadlines) {
+      if (deadline.display_date) {
+        const key = formatDateKey(deadline.display_date);
+        if (!dateMap[key]) dateMap[key] = [];
+        dateMap[key].push(deadline);
       }
     }
-    
     return dateMap;
-  }, [renewals]);
+  }, [deadlines]);
 
-  const loadRenewals = async () => {
+  const loadDeadlines = async () => {
     try {
       setLoading(true);
       const result = await api.getCalendarRenewals();
-      setRenewals(result.data || []);
+      setDeadlines(result.data || []);
     } catch (err) {
-      console.error("Error loading renewals:", err);
+      console.error("Error loading deadlines:", err);
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    if (user) {
-      loadRenewals();
-    }
+    if (user) loadDeadlines();
   }, [user]);
 
   const navigateMonth = (direction: "prev" | "next") => {
-    const newDate = new Date(currentDate);
-    newDate.setMonth(newDate.getMonth() + (direction === "prev" ? -1 : 1));
-    setCurrentDate(newDate);
+    const d = new Date(currentDate);
+    d.setMonth(d.getMonth() + (direction === "prev" ? -1 : 1));
+    setCurrentDate(d);
   };
 
-  const getRenewalsForDate = (date: Date) => {
-    const dateKey = formatDateKey(date);
-    return renewalsByDate[dateKey] || [];
+  const getDeadlinesForDate = (date: Date) =>
+    deadlinesByDate[formatDateKey(date)] || [];
+
+  // Colour-code by urgency: ≤30 days = red, ≤60 = amber, else blue
+  const getDeadlineColor = (deadline: Deadline) => {
+    const days = deadline.days_until_deadline;
+    if (days !== undefined && days !== null) {
+      if (days <= 30) return "bg-red-100 text-red-800 border-red-300";
+      if (days <= 60) return "bg-orange-100 text-orange-800 border-orange-300";
+    }
+    return "bg-blue-100 text-blue-800 border-blue-300";
   };
 
-  const getRenewalColor = () => {
-    return "bg-orange-100 text-orange-800 border-orange-300";
-  };
-
-  const openCustomerDetails = (customerId: number) => {
-    window.open(`/dashboard/renewals/${customerId}`, '_blank', 'noopener,noreferrer');
+  const openCaseDetails = (customerId: number) => {
+    window.open(`/dashboard/rates-clients/${customerId}`, "_blank", "noopener,noreferrer");
   };
 
   if (!user) {
@@ -134,33 +132,47 @@ export default function CalendarPage() {
       {/* Header */}
       <div className="mb-6 flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold">Renewals Calendar</h1>
+          <h1 className="text-3xl font-bold">Appeal Deadlines Calendar</h1>
           <p className="text-muted-foreground mt-1">
-            View contract renewal reminders (365 days before contract end)
+            Appeal deadlines and follow-up reminders (90 days before deadline)
           </p>
         </div>
-        <Button onClick={loadRenewals} disabled={loading} variant="outline" size="sm">
-          <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+        <Button onClick={loadDeadlines} disabled={loading} variant="outline" size="sm">
+          <RefreshCw className={`h-4 w-4 mr-2 ${loading ? "animate-spin" : ""}`} />
           Refresh
         </Button>
       </div>
 
+      {/* Urgency legend */}
+      <div className="mb-4 flex items-center gap-4 text-xs">
+        <span className="flex items-center gap-1">
+          <span className="inline-block h-3 w-3 rounded-full bg-red-400" />
+          Urgent (≤30 days)
+        </span>
+        <span className="flex items-center gap-1">
+          <span className="inline-block h-3 w-3 rounded-full bg-orange-400" />
+          Warning (31–60 days)
+        </span>
+        <span className="flex items-center gap-1">
+          <span className="inline-block h-3 w-3 rounded-full bg-blue-400" />
+          Upcoming
+        </span>
+      </div>
+
       {/* Navigation */}
-      <div className="mb-4 flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={() => navigateMonth("prev")}>
-            <ChevronLeft className="h-4 w-4" />
-          </Button>
-          <Button variant="outline" size="sm" onClick={() => setCurrentDate(new Date())}>
-            Today
-          </Button>
-          <Button variant="outline" size="sm" onClick={() => navigateMonth("next")}>
-            <ChevronRight className="h-4 w-4" />
-          </Button>
-          <h2 className="ml-4 text-xl font-semibold">
-            {currentDate.toLocaleDateString("en-GB", { month: "long", year: "numeric" })}
-          </h2>
-        </div>
+      <div className="mb-4 flex items-center gap-2">
+        <Button variant="outline" size="sm" onClick={() => navigateMonth("prev")}>
+          <ChevronLeft className="h-4 w-4" />
+        </Button>
+        <Button variant="outline" size="sm" onClick={() => setCurrentDate(new Date())}>
+          Today
+        </Button>
+        <Button variant="outline" size="sm" onClick={() => navigateMonth("next")}>
+          <ChevronRight className="h-4 w-4" />
+        </Button>
+        <h2 className="ml-4 text-xl font-semibold">
+          {currentDate.toLocaleDateString("en-GB", { month: "long", year: "numeric" })}
+        </h2>
       </div>
 
       {/* Calendar */}
@@ -175,8 +187,8 @@ export default function CalendarPage() {
         <div className="grid grid-cols-7">
           {calendarDays.map((day, idx) => {
             const isCurrentMonth = day.getMonth() === currentDate.getMonth();
-            const isToday = day.toDateString() === new Date().toDateString();
-            const dayRenewals = getRenewalsForDate(day);
+            const isToday        = day.toDateString() === new Date().toDateString();
+            const dayDeadlines   = getDeadlinesForDate(day);
 
             return (
               <div
@@ -191,24 +203,21 @@ export default function CalendarPage() {
                   </span>
                 </div>
                 <div className="space-y-1">
-                  {dayRenewals.slice(0, 3).map((renewal) => (
+                  {dayDeadlines.slice(0, 3).map((deadline) => (
                     <div
-                      key={`${renewal.id}-${renewal.display_date}`}
-                      onClick={() => {
-                        setSelectedRenewal(renewal);
-                        setShowDetailDialog(true);
-                      }}
-                      className={`cursor-pointer rounded border px-2 py-1 text-xs hover:shadow-md transition-shadow ${getRenewalColor()}`}
+                      key={`${deadline.id}-${deadline.display_date}`}
+                      onClick={() => { setSelectedDeadline(deadline); setShowDetailDialog(true); }}
+                      className={`cursor-pointer rounded border px-2 py-1 text-xs hover:shadow-md transition-shadow ${getDeadlineColor(deadline)}`}
                     >
-                      <div className="font-medium truncate">{renewal.name}</div>
+                      <div className="font-medium truncate">{deadline.name}</div>
                       <div className="text-xs opacity-75 truncate">
-                        {renewal.mpan}
+                        {deadline.voa_reference || deadline.billing_authority}
                       </div>
                     </div>
                   ))}
-                  {dayRenewals.length > 3 && (
+                  {dayDeadlines.length > 3 && (
                     <div className="text-xs text-gray-500">
-                      +{dayRenewals.length - 3} more
+                      +{dayDeadlines.length - 3} more
                     </div>
                   )}
                 </div>
@@ -222,76 +231,106 @@ export default function CalendarPage() {
       <Dialog open={showDetailDialog} onOpenChange={setShowDetailDialog}>
         <DialogContent className="max-w-2xl">
           <DialogHeader>
-            <DialogTitle>Customer Details</DialogTitle>
+            <DialogTitle>Case Details</DialogTitle>
           </DialogHeader>
-          {selectedRenewal && (
+          {selectedDeadline && (
             <div className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <p className="text-sm font-medium text-gray-500">Customer Name</p>
-                  <p className="text-base font-semibold">{selectedRenewal.name}</p>
+                  <p className="text-sm font-medium text-gray-500">Business Name</p>
+                  <p className="text-base font-semibold">{selectedDeadline.name}</p>
                 </div>
                 <div>
-                  <p className="text-sm font-medium text-gray-500">MPAN Number</p>
-                  <p className="text-base font-semibold">{selectedRenewal.mpan || 'N/A'}</p>
+                  <p className="text-sm font-medium text-gray-500">VOA Reference</p>
+                  <p className="text-base font-semibold">{selectedDeadline.voa_reference || "N/A"}</p>
                 </div>
                 <div>
-                  <p className="text-sm font-medium text-gray-500">Supplier</p>
-                  <p>{selectedRenewal.supplier || 'N/A'}</p>
+                  <p className="text-sm font-medium text-gray-500">Billing Authority</p>
+                  <p>{selectedDeadline.billing_authority || "N/A"}</p>
                 </div>
                 <div>
-                  <p className="text-sm font-medium text-gray-500">Service</p>
-                  <p>{selectedRenewal.service_title || 'N/A'}</p>
+                  <p className="text-sm font-medium text-gray-500">Case Stage</p>
+                  <p className="capitalize">{selectedDeadline.case_stage || "N/A"}</p>
                 </div>
                 <div>
-                  <p className="text-sm font-medium text-gray-500">Contract End Date</p>
-                  <p>{selectedRenewal.contract_end_date ? format(new Date(selectedRenewal.contract_end_date), "dd MMM yyyy") : 'N/A'}</p>
+                  <p className="text-sm font-medium text-gray-500">Current RV</p>
+                  <p>{selectedDeadline.current_rv ? `£${Number(selectedDeadline.current_rv).toLocaleString()}` : "N/A"}</p>
                 </div>
                 <div>
-                  <p className="text-sm font-medium text-gray-500">Reminder Date</p>
-                  <p className="font-semibold text-orange-600">
-                    {selectedRenewal.reminder_date ? format(new Date(selectedRenewal.reminder_date), "dd MMM yyyy") : 'N/A'}
+                  <p className="text-sm font-medium text-gray-500">Proposed RV</p>
+                  <p>{selectedDeadline.proposed_rv ? `£${Number(selectedDeadline.proposed_rv).toLocaleString()}` : "N/A"}</p>
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-gray-500">Case Opened</p>
+                  <p>{selectedDeadline.case_opened_date
+                    ? format(new Date(selectedDeadline.case_opened_date), "dd MMM yyyy")
+                    : "N/A"}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-gray-500">Appeal Deadline</p>
+                  <p className={`font-semibold ${
+                    (selectedDeadline.days_until_deadline ?? 999) <= 30
+                      ? "text-red-600"
+                      : (selectedDeadline.days_until_deadline ?? 999) <= 60
+                        ? "text-orange-600"
+                        : "text-gray-900"
+                  }`}>
+                    {selectedDeadline.appeal_deadline
+                      ? format(new Date(selectedDeadline.appeal_deadline), "dd MMM yyyy")
+                      : "N/A"}
+                    {selectedDeadline.days_until_deadline !== undefined && (
+                      <span className="ml-2 text-sm font-normal">
+                        ({selectedDeadline.days_until_deadline} days)
+                      </span>
+                    )}
                   </p>
                 </div>
                 <div>
                   <p className="text-sm font-medium text-gray-500">Contact</p>
-                  <p>{selectedRenewal.contact || 'N/A'}</p>
+                  <p>{selectedDeadline.contact || "N/A"}</p>
                 </div>
                 <div>
                   <p className="text-sm font-medium text-gray-500">Phone</p>
-                  <p>{selectedRenewal.phone || 'N/A'}</p>
+                  <p>{selectedDeadline.phone || "N/A"}</p>
                 </div>
                 <div className="col-span-2">
                   <p className="text-sm font-medium text-gray-500">Email</p>
-                  <p>{selectedRenewal.email || 'N/A'}</p>
+                  <p>{selectedDeadline.email || "N/A"}</p>
                 </div>
                 <div className="col-span-2">
-                  <p className="text-sm font-medium text-gray-500">Address</p>
-                  <p>{selectedRenewal.address || 'N/A'}</p>
-                  {selectedRenewal.postcode && <p className="text-sm text-gray-600">{selectedRenewal.postcode}</p>}
+                  <p className="text-sm font-medium text-gray-500">Property Address</p>
+                  <p>{selectedDeadline.address || "N/A"}</p>
+                  {selectedDeadline.postcode && (
+                    <p className="text-sm text-gray-600">{selectedDeadline.postcode}</p>
+                  )}
                 </div>
-                {selectedRenewal.rates && (
-                  <div>
-                    <p className="text-sm font-medium text-gray-500">Rates</p>
-                    <p>{selectedRenewal.rates}</p>
+                {selectedDeadline.projected_saving && (
+                  <div className="col-span-2">
+                    <p className="text-sm font-medium text-gray-500">Projected Annual Saving</p>
+                    <p className="text-green-700 font-semibold">
+                      £{Number(selectedDeadline.projected_saving).toLocaleString()}
+                    </p>
                   </div>
                 )}
               </div>
-              {selectedRenewal.notes && (
+
+              {selectedDeadline.notes && (
                 <div>
                   <p className="text-sm font-medium text-gray-500">Notes</p>
-                  <p className="text-sm mt-1">{selectedRenewal.notes}</p>
+                  <p className="text-sm mt-1">{selectedDeadline.notes}</p>
                 </div>
               )}
+
               <div className="flex justify-between items-center pt-4 border-t">
                 <Button variant="outline" onClick={() => setShowDetailDialog(false)}>
                   Close
                 </Button>
-                <Button 
-                  onClick={() => openCustomerDetails(selectedRenewal.customer_id)}
+                <Button
+                  onClick={() => openCaseDetails(selectedDeadline.customer_id)}
                   className="gap-2"
                 >
-                  View Full Details
+                  View Full Case
                   <ExternalLink className="h-4 w-4" />
                 </Button>
               </div>
