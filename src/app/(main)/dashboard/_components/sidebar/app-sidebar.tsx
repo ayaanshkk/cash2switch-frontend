@@ -78,7 +78,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           <SidebarMenuItem>
             <SidebarMenuButton asChild className="flex items-center gap-1.5 px-2">
               <a href="#">
-                <Image src="/images/cash2switch.png" alt="Logo" width={65} height={65} />
+                <Image src="/images/brs.png" alt="Logo" width={65} height={65} />
                 <span className="text-base font-semibold">{APP_CONFIG.name}</span>
               </a>
             </SidebarMenuButton>

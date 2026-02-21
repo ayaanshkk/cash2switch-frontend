@@ -78,13 +78,11 @@ export const api = {
     return data;
   },
 
-  // CLIENTS / RENEWALS
-  getCustomers: () => fetchWithAuth("/clients"),
-  getRenewals: () => fetchWithAuth("/clients"),
+  // CLIENTS
+  getRatesClients: () => fetchWithAuth("/api/crm/rates-clients"),
 
-  // ✅ LEADS - matches your crm_routes blueprint
-  getLeads: (service?: string) =>
-    fetchWithAuth(`/api/crm/leads${service ? `?service=${encodeURIComponent(service)}` : ""}`),
+  // CASES (Opportunity_Details — CCA pipeline)
+  getLeads: () => fetchWithAuth("/api/crm/leads?exclude_stage=Lost"),
 
   updateLeadStatus: (id: number, stage_id: number) =>
     fetchWithAuth(`/api/crm/leads/${id}/status`, {
@@ -92,7 +90,7 @@ export const api = {
       body: JSON.stringify({ stage_id }),
     }),
 
-  importLeads: async (formData: FormData, service?: string) => {
+  importLeads: async (formData: FormData) => {
     const token = localStorage.getItem("auth_token");
     const tenantId = localStorage.getItem("tenant_id") || "1";
     const previewResp = await fetch(`${DATA_API_ROOT}/api/crm/leads/import/preview`, {
@@ -105,26 +103,20 @@ export const api = {
     });
     const previewBody = await handleApiResponse(previewResp);
     const rows = Array.isArray(previewBody?.rows) ? previewBody.rows : [];
-    const confirmResp = await fetch(
-      `${DATA_API_ROOT}/api/crm/leads/import/confirm${service ? `?service=${encodeURIComponent(service)}` : ""}`,
-      {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "X-Tenant-ID": tenantId,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(rows),
-      }
-    );
+    const confirmResp = await fetch(`${DATA_API_ROOT}/api/crm/leads/import/confirm`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "X-Tenant-ID": tenantId,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(rows),
+    });
     return handleApiResponse(confirmResp);
   },
 
-  // ✅ EMPLOYEES - matches your crm_routes blueprint  
-  getEmployees: () => fetchWithAuth("/employees"),
-
-  // ASSIGNMENTS
-  getAssignments: () => fetchWithAuth("/assignments"),
+  // EMPLOYEES
+  getEmployees: () => fetchWithAuth("/api/crm/employees"),
 
   // DOCUMENTS
   uploadDocument: async (formData: FormData) => {
@@ -134,7 +126,7 @@ export const api = {
     if (!token) throw new Error("Not authenticated");
 
     const url = `${DATA_API_ROOT}/api/crm/documents/upload`;
-    
+
     console.log("📡 Uploading document to:", url);
 
     const response = await fetch(url, {
@@ -142,12 +134,11 @@ export const api = {
       headers: {
         Authorization: `Bearer ${token}`,
         "X-Tenant-ID": tenantId,
-        // ✅ Don't set Content-Type - let browser set it with boundary
+        // Don't set Content-Type — let browser set it with boundary
       },
       body: formData,
     });
 
-    // ✅ Check if response is OK before parsing
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
       console.error("Upload failed:", errorData);
@@ -159,15 +150,13 @@ export const api = {
 
   getDocuments: () => fetchWithAuth("/api/crm/documents"),
 
-  deleteDocument: (publicId: string) =>
+  // Uses pathname (Vercel Blob) instead of public_id (Cloudinary)
+  deleteDocument: (pathname: string) =>
     fetchWithAuth("/api/crm/documents", {
       method: "DELETE",
-      body: JSON.stringify({ public_id: publicId }),
+      body: JSON.stringify({ pathname }),
     }),
 
-  // CALENDAR
-  getContractSchedule: () => fetchWithAuth("/api/calendar/contracts"),
-  getCalendarClients: () => fetchWithAuth("/api/calendar/clients"),
-  getCalendarEmployees: () => fetchWithAuth("/api/calendar/employees"),
-  getCalendarRenewals: () => fetchWithAuth("/api/calendar/renewals"),
+  // CALENDAR — appeal deadlines (90-day window)
+  getCalendarDeadlines: () => fetchWithAuth("/api/calendar/deadlines"),
 };

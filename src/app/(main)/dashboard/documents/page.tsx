@@ -198,7 +198,7 @@ export default function DocumentsPage() {
     <div className="w-full p-6">
       <div className="flex justify-between items-center mb-6">
         <div>
-          <h1 className="text-3xl font-bold">Case Documents</h1>
+          <h1 className="text-3xl font-bold">Documents</h1>
           <p className="text-muted-foreground mt-1">
             VOA letters, rates bills, appeal submissions, evidence and client correspondence
           </p>
