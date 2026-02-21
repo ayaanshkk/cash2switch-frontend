@@ -139,7 +139,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         // ✅ Save to localStorage
         localStorage.setItem("auth_token", data.token);
         localStorage.setItem("auth_user", JSON.stringify(data.user));
-        localStorage.setItem("user_role", data.user.role); // ✅ ADD THIS LINE
+        localStorage.setItem("user_role", data.user.role);
+        // ✅ CRITICAL: Save tenant_id from response
+        if (data.user?.tenant_id) {
+          localStorage.setItem("tenant_id", data.user.tenant_id.toString());
+          console.log("💾 Tenant ID saved:", data.user.tenant_id);
+        }
 
         // ✅ Save to cookie (for middleware)
         setCookie("auth-token", data.token, 7);

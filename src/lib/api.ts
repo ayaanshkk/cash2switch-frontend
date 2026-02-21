@@ -1,162 +1,157 @@
 // ================= BASE CONFIG =================
-
-// Frontend base path (Vercel subpath support)
-const BASE_PATH = process.env.NEXT_PUBLIC_BASE_PATH || "";
-
-// Backend URL (Render in production, localhost in dev)
-const BACKEND_URL =
-  process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
-
-// Next.js routes ONLY for auth
-const AUTH_API_ROOT = `${BASE_PATH}/api`;
-
-// All data endpoints go directly to backend
-const DATA_API_ROOT = BACKEND_URL;
+// In browser: use /backend-api (proxied by Next.js) to avoid CORS / "Failed to fetch"
+// On server: use explicit backend URL
+const BACKEND_URL = process.env.NEXT_PUBLIC_API_URL || process.env.NEXT_PUBLIC_BACKEND_URL || "http://127.0.0.1:5000";
+export const API_BASE_URL =
+  typeof window !== "undefined"
+    ? "/backend-api"  // Same-origin proxy - avoids CORS
+    : BACKEND_URL;
 
 if (typeof window !== "undefined") {
-  console.log("🌐 API CONFIG:", { AUTH_API_ROOT, DATA_API_ROOT });
+  console.log("🌐 API_BASE_URL:", API_BASE_URL);
 }
 
-// ================= HELPERS =================
+// ================= BACKEND CALLS =================
+export async function fetchWithAuth(url: string, options: RequestInit = {}) {
+  const token = localStorage.getItem("auth_token") || localStorage.getItem("token");
+  const tenantId = localStorage.getItem("tenant_id");
 
-async function fetchWithTimeout(url: string, options: RequestInit = {}, timeout = 30000) {
-  const controller = new AbortController();
-  const id = setTimeout(() => controller.abort(), timeout);
+  const isFormData =
+    typeof FormData !== "undefined" &&
+    options.body instanceof FormData;
 
-  try {
-    const res = await fetch(url, { ...options, signal: controller.signal });
-    clearTimeout(id);
-    return res;
-  } catch (err: any) {
-    clearTimeout(id);
-    if (err.name === "AbortError") {
-      throw new Error("Server timeout (cold start)");
-    }
-    throw err;
+  const headers: Record<string, string> = {
+    ...(options.headers as Record<string, string>),
+  };
+
+  if (!isFormData && !headers["Content-Type"]) {
+    headers["Content-Type"] = "application/json";
   }
-}
 
-async function handleApiResponse(response: Response) {
+  if (token) headers["Authorization"] = `Bearer ${token}`;
+  if (tenantId) headers["X-Tenant-ID"] = tenantId;
+
+  // prepend backend url unless already absolute
+  const fullUrl = url.startsWith("http") ? url : `${API_BASE_URL}${url}`;
+
+  const response = await fetch(fullUrl, {
+    ...options,
+    headers,
+  });
+
   const contentType = response.headers.get("content-type");
+  const data = contentType?.includes("application/json") ? await response.json() : response;
 
   if (!response.ok) {
-    if (contentType?.includes("application/json")) {
-      const data = await response.json();
-      throw new Error(data.message || data.error || "API error");
-    }
-    throw new Error(`Request failed: ${response.status}`);
+    const msg =
+      typeof data === "object" && (data?.message || data?.error)
+        ? (data.message || data.error)
+        : `Request failed: ${response.status}`;
+    throw new Error(msg);
   }
-
-  if (contentType?.includes("application/json")) {
-    return response.json();
-  }
-
-  return { success: true };
+  return data;
 }
 
-// ================= AUTH CALLS (NEXT ROUTES) =================
+// ================= PUBLIC CALLS (no auth required) =================
+export async function fetchPublic(url: string, options: RequestInit = {}) {
+  const isFormData =
+    typeof FormData !== "undefined" &&
+    options.body instanceof FormData;
 
-export async function fetchPublic(path: string, options: RequestInit = {}) {
-  const url = `${AUTH_API_ROOT}${path}`;
-  return fetch(url, {
-    headers: { "Content-Type": "application/json", ...options.headers },
+  const headers: Record<string, string> = {
+    ...(options.headers as Record<string, string>),
+  };
+
+  if (!isFormData && !headers["Content-Type"]) {
+    headers["Content-Type"] = "application/json";
+  }
+
+  const fullUrl = url.startsWith("http") ? url : `${API_BASE_URL}${url}`;
+
+  const response = await fetch(fullUrl, {
     ...options,
+    headers,
   });
-}
 
-// ================= BACKEND CALLS =================
+  // For login endpoint, return Response object so caller can check status
+  if (url.includes("/auth/login")) {
+    return response;
+  }
 
-// ================= BACKEND CALLS =================
-
-export async function fetchWithAuth(path: string, options: RequestInit = {}) {
-  const token = localStorage.getItem("auth_token");
-  const tenantId = localStorage.getItem("tenant_id") || "1";
-
-  if (!token) throw new Error("Not authenticated");
-
-  // IMPORTANT: path MUST NOT start with /api
-  const url = `${DATA_API_ROOT}${path}`;
-
-  console.log("📡 BACKEND CALL:", url);
-
-  // ✅ FIX: Properly merge headers - custom headers should not overwrite auth headers
-  const defaultHeaders = {
-    "Content-Type": "application/json",
-    Authorization: `Bearer ${token}`,
-    "X-Tenant-ID": tenantId,
-  };
-
-  // ✅ Merge options.headers AFTER default headers, but preserve auth headers
-  const mergedHeaders = {
-    ...defaultHeaders,
-    ...(options.headers || {}),
-  };
-
-  const response = await fetchWithTimeout(
-    url,
-    {
-      ...options,
-      headers: mergedHeaders,
-    },
-    30000
-  );
-
-  return handleApiResponse(response);
+  // Parse JSON automatically for other endpoints
+  const contentType = response.headers.get("content-type");
+  if (contentType?.includes("application/json")) {
+    return await response.json();
+  }
+  return response;
 }
 
 // ================= API METHODS =================
-
 export const api = {
   // AUTH
   async login(username: string, password: string, tenant_id: number = 1) {
     const res = await fetchPublic("/auth/login", {
       method: "POST",
       body: JSON.stringify({ username, password, tenant_id }),
+      headers: { "Content-Type": "application/json" },
     });
-
-    const data = await handleApiResponse(res);
-
     localStorage.setItem("tenant_id", tenant_id.toString());
-    return data;
+    return res;
   },
 
-  // CLIENTS
+  // CLIENTS / RENEWALS
   getCustomers: () => fetchWithAuth("/clients"),
+  getRenewals: () => fetchWithAuth("/clients"),
 
-  // LEADS
-  getLeads: () => fetchWithAuth("/crm/leads"),
+  // ✅ LEADS - matches your crm_routes blueprint
+  getLeads: (service?: string) =>
+    fetchWithAuth(`/api/crm/leads${service ? `?service=${encodeURIComponent(service)}` : ""}`),
 
   updateLeadStatus: (id: number, stage_id: number) =>
-    fetchWithAuth(`/crm/leads/${id}/status`, {
+    fetchWithAuth(`/api/crm/leads/${id}/status`, {
       method: "PATCH",
       body: JSON.stringify({ stage_id }),
     }),
 
   importLeads: async (formData: FormData, service?: string) => {
-    const token = localStorage.getItem("auth_token");
-    const previewResp = await fetch(`${DATA_API_ROOT}/crm/leads/import/preview`, {
+    const previewBody = await fetchWithAuth("/api/crm/leads/import/preview", {
       method: "POST",
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
       body: formData,
     });
-    const previewBody = await handleApiResponse(previewResp);
     const rows = Array.isArray(previewBody?.rows) ? previewBody.rows : [];
-    const confirmResp = await fetch(`${DATA_API_ROOT}/crm/leads/import/confirm${service ? `?service=${encodeURIComponent(service)}` : ""}`, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(rows),
-    });
-    return handleApiResponse(confirmResp);
+    return fetchWithAuth(
+      `/api/crm/leads/import/confirm${service ? `?service=${encodeURIComponent(service)}` : ""}`,
+      {
+        method: "POST",
+        body: JSON.stringify(rows),
+      }
+    );
   },
 
-  // RENEWALS
-  getRenewals: () => fetchWithAuth("/clients"),
+  // ✅ EMPLOYEES - matches your crm_routes blueprint  
+  getEmployees: () => fetchWithAuth("/employees"),
 
   // ASSIGNMENTS
   getAssignments: () => fetchWithAuth("/assignments"),
+
+  // DOCUMENTS
+  uploadDocument: (formData: FormData) => 
+    fetchWithAuth("/api/crm/documents/upload", {
+      method: "POST",
+      body: formData,
+    }),
+
+  getDocuments: () => fetchWithAuth("/api/crm/documents"),
+
+  deleteDocument: (publicId: string) =>
+    fetchWithAuth("/api/crm/documents", {
+      method: "DELETE",
+      body: JSON.stringify({ public_id: publicId }),
+    }),
+
+  // CALENDAR
+  getContractSchedule: () => fetchWithAuth("/api/calendar/contracts"),
+  getCalendarClients: () => fetchWithAuth("/api/calendar/clients"),
+  getCalendarEmployees: () => fetchWithAuth("/api/calendar/employees"),
+  getCalendarRenewals: () => fetchWithAuth("/api/calendar/renewals"),
 };

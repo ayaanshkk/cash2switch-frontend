@@ -93,7 +93,9 @@ interface Employee {
 interface Stage {
   stage_id: number;
   stage_name: string;
-  description?: string;
+  stage_description?: string;
+  preceding_stage_id?: number | null;
+  stage_type?: string;
 }
 
 // ---------------- Utility functions ----------------
@@ -135,6 +137,21 @@ const getStatusLabel = (status: string | undefined): string => {
   if (!status) return "—";
   const option = STATUS_OPTIONS.find(opt => opt.value === status);
   return option?.label || status;
+};
+
+// Map status value to stage_id using API-fetched stages (SINGLE SOURCE OF TRUTH)
+const getStageIdFromStatus = (status: string, stagesList: Stage[]): number => {
+  const match = stagesList.find(
+    (s) => s.stage_name.toLowerCase() === status.toLowerCase()
+  );
+
+  if (!match) {
+    throw new Error(
+      `Stage "${status}" not found in Stage_Master. Cannot update status without valid stage ID.`
+    );
+  }
+
+  return match.stage_id;
 };
 
 // ---------------- Component ----------------
@@ -183,35 +200,11 @@ export default function EnergyCustomersPage() {
     setError(null);
     
     try {
-      const token = localStorage.getItem("auth_token");
-      if (!token) {
-        setError("No authentication token found. Please log in.");
-        setIsLoading(false);
-        return;
-      }
-
-      const response = await fetch(`${API_BASE_URL}/energy-clients?service=${encodeURIComponent(service)}`, {
-        headers: { 
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        let errorMessage = "Failed to fetch clients";
-        try {
-          const errorJson = JSON.parse(errorText);
-          errorMessage = errorJson.error || errorJson.message || errorMessage;
-        } catch {
-          errorMessage = errorText || errorMessage;
-        }
-        throw new Error(errorMessage);
-      }
-
-      const data = await response.json();
+      // ✅ Use fetchWithAuth - automatically includes Authorization and X-Tenant-ID headers
+      const response = await fetchWithAuth(`/energy-clients?service=${encodeURIComponent(service)}`);
+      // Handle both { data: [...] } and direct array responses
+      const data = Array.isArray(response) ? response : (response?.data || []);
       setAllCustomers(data);
-
     } catch (err) {
       console.error("❌ Error fetching clients:", err);
       const errorMessage = err instanceof Error ? err.message : "Unknown error occurred";
@@ -224,23 +217,20 @@ export default function EnergyCustomersPage() {
 
   const fetchSuppliers = async () => {
     try {
-      const token = localStorage.getItem("auth_token");
-      const response = await fetch(`${API_BASE_URL}/suppliers`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      
-      if (response.ok) {
-        const data = await response.json();
-        setSuppliers(data);
-      }
+      // ✅ Use fetchWithAuth - automatically includes Authorization and X-Tenant-ID headers
+      const response = await fetchWithAuth("/suppliers");
+      // Handle both { data: [...] } and direct array responses
+      const data = Array.isArray(response) ? response : (response?.data || []);
+      setSuppliers(data);
     } catch (err) {
       console.error("❌ Error fetching suppliers:", err);
+      setSuppliers([]);
     }
   };
 
   const fetchEmployees = async () => {
     try {
-      const employeesBody = await fetchWithAuth("/api/crm/employees");
+      const employeesBody = await fetchWithAuth("/employees");
       const employeesList = Array.isArray(employeesBody.data)
         ? employeesBody.data
         : Array.isArray(employeesBody)
@@ -254,17 +244,15 @@ export default function EnergyCustomersPage() {
 
   const fetchStages = async () => {
     try {
-      const token = localStorage.getItem("auth_token");
-      const response = await fetch(`${API_BASE_URL}/stages`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      
-      if (response.ok) {
-        const data = await response.json();
-        setStages(data);
-      }
+      // ✅ Use fetchWithAuth - automatically includes Authorization and X-Tenant-ID headers
+      // Fetch from SAME endpoint as Leads page - /api/crm/stages
+      const response = await fetchWithAuth("/api/crm/stages");
+      // Handle both { data: [...] } and direct array responses
+      const stagesList = Array.isArray(response) ? response : (response?.data || []);
+      setStages(stagesList);
     } catch (err) {
       console.error("❌ Error fetching stages:", err);
+      setStages([]);
     }
   };
 
@@ -310,7 +298,7 @@ export default function EnergyCustomersPage() {
 
   // ---------------- Update Status ----------------
   const updateCustomerStatus = async (customerId: number, newStatus: string) => {
-    // Check if user is selecting "Lost" - show confirmation
+    // Check if user is selecting "Lost" - show confirmation first
     if (newStatus.toLowerCase() === 'lost') {
       setLostConfirmation({
         isOpen: true,
@@ -320,39 +308,50 @@ export default function EnergyCustomersPage() {
       return;
     }
 
-    // Check if user is selecting "Priced" - redirect to priced page
-    if (newStatus.toLowerCase() === 'priced') {
+    // Call performStatusUpdate for ALL statuses (including Priced)
+    // Redirect to priced page happens AFTER successful API response
+    const ok = await performStatusUpdate(customerId, newStatus);
+    
+    // Only redirect to /dashboard/priced after successful status update
+    if (ok && newStatus.toLowerCase() === 'priced') {
       router.push('/dashboard/priced');
-      return;
     }
-
-    // For other statuses, proceed directly
-    await performStatusUpdate(customerId, newStatus);
   };
 
-  const performStatusUpdate = async (customerId: number, newStatus: string) => {
+  const performStatusUpdate = async (customerId: number, newStatus: string): Promise<boolean> => {
     try {
-      const token = localStorage.getItem("auth_token");
-      const res = await fetch(`${API_BASE_URL}/energy-clients/${customerId}`, {
+      // Ensure stages are loaded before mapping status to stage_id
+      if (!stages || stages.length === 0) {
+        console.error("Stages not loaded");
+        alert("Stages are not loaded. Cannot update status.");
+        return false;
+      }
+
+      // Map status value to stage_id using API-fetched stages (throws if not found)
+      const stageId = getStageIdFromStatus(newStatus, stages);
+      
+      await fetchWithAuth(`/energy-clients/${customerId}`, {
         method: "PUT",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ status: newStatus }),
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ stage_id: stageId, status: newStatus }),
       });
 
-      if (!res.ok) throw new Error("Failed to update status");
+      // Update local state: remove from list when Lost (goes to recycle bin)
+      if (newStatus.toLowerCase() === "lost") {
+        setAllCustomers((prev) => prev.filter((c) => c.id !== customerId));
+      } else {
+        setAllCustomers((prev) =>
+          prev.map((c) =>
+            c.id === customerId ? { ...c, status: newStatus, stage_id: stageId } : c
+          )
+        );
+      }
 
-      // Update local state
-      setAllCustomers((prev) =>
-        prev.map((c) =>
-          c.id === customerId ? { ...c, status: newStatus } : c
-        )
-      );
-    } catch (err) {
+      return true;
+    } catch (err: any) {
       console.error("Status update error:", err);
-      alert("Error updating status");
+      alert(err?.message || "Error updating status");
+      return false;
     }
   };
 
@@ -365,23 +364,37 @@ export default function EnergyCustomersPage() {
     }
 
     try {
-      await fetchWithAuth(`/energy-clients/${customerId}`, {
+      const res = await fetchWithAuth(`/energy-clients/${customerId}`, {
         method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ assigned_to_id: employeeId }),
       });
 
-      // Update local state
-      const employee = employees.find(e => e.employee_id === employeeId);
-      setAllCustomers((prev) =>
-        prev.map((c) =>
-          c.id === customerId 
-            ? { ...c, assigned_to_id: employeeId, assigned_to_name: employee?.employee_name } 
-            : c
-        )
-      );
+      // Use server response so assigned_to_name is correct (from backend join)
+      const updated = res?.customer ?? res;
+      if (updated && (updated.id === customerId || updated.client_id === customerId)) {
+        setAllCustomers((prev) =>
+          prev.map((c) =>
+            c.id === customerId
+              ? {
+                  ...c,
+                  assigned_to_id: updated.assigned_to_id ?? employeeId,
+                  assigned_to_name: updated.assigned_to_name ?? (employees.find((e) => Number(e.employee_id) === Number(employeeId))?.employee_name ?? null),
+                }
+              : c
+          )
+        );
+      } else {
+        // Fallback: update from local employees list or refetch
+        const employee = employees.find((e) => Number(e.employee_id) === Number(employeeId));
+        setAllCustomers((prev) =>
+          prev.map((c) =>
+            c.id === customerId
+              ? { ...c, assigned_to_id: employeeId, assigned_to_name: employee?.employee_name ?? null }
+              : c
+          )
+        );
+      }
     } catch (err) {
       console.error("Assignment update error:", err);
       alert("Error updating assignment");
@@ -397,14 +410,11 @@ export default function EnergyCustomersPage() {
     if (!window.confirm("Are you sure you want to delete this client and all related records?")) return;
 
     try {
-      const token = localStorage.getItem("auth_token");
-      const res = await fetch(`${API_BASE_URL}/energy-clients/${id}`, {
+      // ✅ Use fetchWithAuth - automatically includes Authorization and X-Tenant-ID headers
+      await fetchWithAuth(`/energy-clients/${id}`, {
         method: "DELETE",
-        headers: { Authorization: `Bearer ${token}` },
       });
       
-      if (!res.ok) throw new Error("Failed to delete client");
-
       setAllCustomers((prev) => prev.filter((c) => c.id !== id));
       setSelectedCustomers((prev) => prev.filter((cid) => cid !== id));
       
@@ -449,11 +459,10 @@ export default function EnergyCustomersPage() {
     }
 
     try {
-      const token = localStorage.getItem("auth_token");
+      // ✅ Use fetchWithAuth - automatically includes Authorization and X-Tenant-ID headers
       const deletePromises = selectedCustomers.map(id =>
-        fetch(`${API_BASE_URL}/energy-clients/${id}`, {
+        fetchWithAuth(`/energy-clients/${id}`, {
           method: "DELETE",
-          headers: { Authorization: `Bearer ${token}` },
         })
       );
 
@@ -925,9 +934,9 @@ export default function EnergyCustomersPage() {
           isOpen={showImportModal}
           onClose={() => setShowImportModal(false)}
           onImportComplete={fetchCustomers}
-          uploadEndpoint={`/energy-clients/import?service=${encodeURIComponent(service)}`}
-          templateEndpoint="/clients/import/template"
-          templateFilename="customers_import_template.csv"
+          uploadEndpoint={`/import/energy-customers?service=${encodeURIComponent(service)}`}
+          templateEndpoint="/import/template"
+          templateFilename="energy_customers_import_template.xlsx"
         />
       )}
 

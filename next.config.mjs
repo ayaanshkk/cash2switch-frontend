@@ -36,13 +36,19 @@ const nextConfig = {
   },
   
   // ====================================================
-  // REWRITES: /auth/* → /api/auth/*
+  // REWRITES
   // ====================================================
   async rewrites() {
+    const backendUrl = process.env.LOCAL_BACKEND_URL || 'http://127.0.0.1:5000';
     return [
       {
         source: '/auth/:path*',
         destination: '/api/auth/:path*',
+      },
+      // Proxy API to backend (avoids CORS / "Failed to fetch" in dev)
+      {
+        source: '/backend-api/:path*',
+        destination: `${backendUrl}/:path*`,
       },
     ];
   },

@@ -4,6 +4,7 @@
 import React, { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { fetchPublic } from "@/lib/api";
 
 export function RegisterForm() {
   const router = useRouter();
@@ -47,16 +48,14 @@ export function RegisterForm() {
 
     setLoading(true);
     try {
-      const res = await fetch("/auth/register", {
+      const data = await fetchPublic("/auth/register", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
+        headers: { "Content-Type": "application/json" },
       });
 
-      const data = await res.json();
-
-      if (!res.ok) {
-        setError(data.error || "Registration failed");
+      if (!data) {
+        setError("Registration failed");
         setLoading(false);
         return;
       }

@@ -1,14 +1,13 @@
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useRef, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { fetchWithAuth } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { canBulkAssign } from "@/lib/permissions";
-import { Search, Trash2, Filter, ChevronDown, ChevronFirst, ChevronLast, ChevronLeft, ChevronRight, Plus, Upload, AlertCircle } from "lucide-react";
-import { BulkImportModal } from "@/components/ui/BulkImportModal";
+import { Upload, Download, X, CheckCircle, AlertCircle, FileSpreadsheet, Search, Trash2, Filter, ChevronDown, ChevronFirst, ChevronLast, ChevronLeft, ChevronRight, Plus } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { toast } from "react-hot-toast"; // ✅ ADD THIS IMPORT
 import { useRouter } from "next/navigation";
@@ -43,11 +42,13 @@ interface Employee {
   phone: string | null;
 }
 
-interface Stage {
+type Stage = {
   stage_id: number;
   stage_name: string;
-  description?: string;
-}
+  stage_description?: string;
+  preceding_stage_id?: number | null;
+  stage_type?: string;
+};
 
 type LeadRow = {
   opportunity_id: number;
@@ -67,6 +68,15 @@ type LeadRow = {
   opportunity_owner_employee_id: number | null;
   assigned_to_name: string | null;
 };
+
+interface ImportResult {
+  success: boolean;
+  message: string;
+  total_rows: number;
+  successful: number;
+  failed: number;
+  errors?: string[];
+}
 
 const formatDate = (dateString: string | null | undefined): string => {
   if (!dateString) return "—";
@@ -119,18 +129,40 @@ const getLeadStatusValue = (stageName?: string | null): string => {
   return stageName;
 };
 
+const getStageIdFromStatus = (status: string, stagesList: Stage[]): number => {
+  // Match status string (case-insensitive) against API-fetched stages
+  // This is the ONLY source of truth for stage mapping - no fallbacks or defaults
+  const match = stagesList.find(
+    (s) => s.stage_name.toLowerCase() === status.toLowerCase()
+  );
+
+  if (!match) {
+    // Throw error instead of silently defaulting to 1
+    // This prevents data corruption from invalid stage mappings
+    throw new Error(
+      `Stage "${status}" not found in Stage_Master. Cannot update status without valid stage ID.`
+    );
+  }
+
+  return match.stage_id;
+};
+
 export default function LeadsPage() {
   const { loading: authLoading, user } = useAuth();
   const router = useRouter();
   const [rows, setRows] = useState<LeadRow[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [suppliers, setSuppliers] = useState<{ supplier_id: number; supplier_name: string }[]>([]);
-  const [stages, setStages] = useState<Stage[]>([]);
   const [error, setError] = useState<string | null>(null);
   
-  // Modal states
-  const [showImportModal, setShowImportModal] = useState(false);
-  const [showCreateModal, setShowCreateModal] = useState(false);
+  // Import modal state
+  const [importModalOpen, setImportModalOpen] = useState(false);
+  const [file, setFile] = useState<File | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [result, setResult] = useState<ImportResult | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedLeads, setSelectedLeads] = useState<number[]>([]);
   const [supplierFilter, setSupplierFilter] = useState<number | "All">("All");
@@ -139,6 +171,9 @@ export default function LeadsPage() {
 
   const [isLoading, setIsLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
+  const [updatingRows, setUpdatingRows] = useState<Set<number>>(new Set());
+  const [stages, setStages] = useState<Stage[]>([]);
+  const [stagesLoading, setStagesLoading] = useState(true);
 
   // Lost confirmation modal state
   const [lostConfirmation, setLostConfirmation] = useState<{
@@ -158,6 +193,9 @@ export default function LeadsPage() {
       return;
     }
 
+    const employee = employees.find((e) => Number(e.employee_id) === Number(employeeId));
+    const assignedName = employee?.employee_name ?? null;
+
     try {
       await fetchWithAuth("/api/crm/leads/assign", {
         method: "PATCH",
@@ -168,6 +206,14 @@ export default function LeadsPage() {
         })
       });
 
+      // Update UI immediately so assigned name shows without waiting for refetch
+      setRows((prev) =>
+        prev.map((r) =>
+          r.opportunity_id === leadId
+            ? { ...r, opportunity_owner_employee_id: employeeId, assigned_to_name: assignedName }
+            : r
+        )
+      );
       toast.success("Lead assigned successfully");
       await loadLeads();
     } catch (err: any) {
@@ -176,19 +222,18 @@ export default function LeadsPage() {
     }
   };
 
-  const fetchStages = async () => {
+  const loadStages = async () => {
+    setStagesLoading(true);
     try {
-      const token = localStorage.getItem("auth_token");
-      const response = await fetch(`${API_BASE_URL}/stages`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      
-      if (response.ok) {
-        const data = await response.json();
-        setStages(data);
-      }
-    } catch (err) {
-      console.error("Error fetching stages:", err);
+      const body = await fetchWithAuth("/api/crm/stages");
+      const stagesList = Array.isArray(body.data) ? body.data : [];
+      setStages(stagesList);
+    } catch (err: any) {
+      console.error("Failed to load stages:", err);
+      toast.error("Failed to load stages. Status updates will not work.");
+      setStages([]);
+    } finally {
+      setStagesLoading(false);
     }
   };
 
@@ -201,13 +246,9 @@ export default function LeadsPage() {
       const employeesList = Array.isArray(employeesBody.data) ? employeesBody.data : [];
       setEmployees(employeesList);
 
-      const suppliersResp = await fetch(`${API_BASE_URL}/suppliers`, {
-        headers: { Authorization: `Bearer ${localStorage.getItem("auth_token")}` },
-      });
-      if (suppliersResp.ok) {
-        const suppliersData = await suppliersResp.json();
-        setSuppliers(Array.isArray(suppliersData) ? suppliersData : []);
-      }
+      const suppliersResp = await fetchWithAuth("/suppliers");
+      const suppliersList = Array.isArray(suppliersResp) ? suppliersResp : (suppliersResp?.data || []);
+      setSuppliers(suppliersList);
 
       const body = await fetchWithAuth(`/api/crm/leads?exclude_stage=Lost&service=${encodeURIComponent(service)}`);
       const allLeads = Array.isArray(body.data) ? body.data : [];
@@ -223,8 +264,8 @@ export default function LeadsPage() {
 
   useEffect(() => {
     if (!authLoading) {
+      loadStages();
       loadLeads();
-      fetchStages();
     }
   }, [authLoading, service]);
 
@@ -235,6 +276,169 @@ export default function LeadsPage() {
       return aDate - bDate;
     });
   }, [rows]);
+
+  // File validation and selection
+  const validateAndSetFile = (selectedFile: File) => {
+    const validExtensions = ['.xlsx', '.xls', '.csv'];
+    const extension = selectedFile.name.toLowerCase().slice(selectedFile.name.lastIndexOf('.'));
+    
+    if (!validExtensions.includes(extension)) {
+      alert('Please upload a valid Excel (.xlsx, .xls) or CSV (.csv) file');
+      return;
+    }
+    
+    if (selectedFile.size > 10 * 1024 * 1024) { // 10MB limit
+      alert('File size must be less than 10MB');
+      return;
+    }
+    
+    setFile(selectedFile);
+    setResult(null);
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const selectedFile = e.target.files?.[0];
+    if (selectedFile) {
+      validateAndSetFile(selectedFile);
+    }
+  };
+
+  // Drag and drop handlers
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+    
+    const droppedFile = e.dataTransfer.files[0];
+    if (droppedFile) {
+      validateAndSetFile(droppedFile);
+    }
+  };
+
+  const handleUpload = async () => {
+    if (!file) return;
+
+    setIsUploading(true);
+    setUploadProgress(0);
+    setResult(null);
+
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+
+      const token = localStorage.getItem('auth_token');
+      const previewResponse = await fetch(`${API_BASE_URL}/api/crm/leads/import/preview`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+        body: formData,
+      });
+
+      const previewData = await previewResponse.json();
+
+      if (!previewResponse.ok) {
+        throw new Error(previewData.error || 'Preview failed');
+      }
+
+      const previewRows = Array.isArray(previewData.rows) ? previewData.rows : [];
+      const validRows = previewRows.filter((r: { is_valid?: boolean }) => r.is_valid === true);
+      const confirmResponse = await fetch(`${API_BASE_URL}/api/crm/leads/import/confirm?service=${encodeURIComponent(service)}`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(validRows),
+      });
+
+      const confirmData = await confirmResponse.json();
+
+      if (!confirmResponse.ok) {
+        throw new Error(confirmData.error || 'Import failed');
+      }
+
+      const totalRows = Number(previewData.total_rows || previewRows.length || 0);
+      const invalidRows = Number(previewData.invalid_rows || 0);
+      const skippedRows = Number(confirmData.skipped || 0);
+      const insertedRows = Number(confirmData.inserted || 0);
+
+      setResult({
+        success: Boolean(confirmData.success),
+        message: confirmData.message || 'Import complete',
+        total_rows: totalRows,
+        successful: insertedRows,
+        failed: invalidRows + skippedRows,
+        errors: confirmData.reasons || confirmData.errors || [],
+      });
+
+      if (insertedRows > 0) {
+        await loadLeads();
+      }
+
+    } catch (error) {
+      console.error('Upload error:', error);
+      setResult({
+        success: false,
+        message: error instanceof Error ? error.message : 'Upload failed',
+        total_rows: 0,
+        successful: 0,
+        failed: 1,
+      });
+    } finally {
+      setIsUploading(false);
+      setUploadProgress(0);
+    }
+  };
+
+  const handleDownloadTemplate = async () => {
+    try {
+      const token = localStorage.getItem('auth_token');
+      const tenantId = localStorage.getItem('tenant_id') || '1';
+      
+      const response = await fetch(`${API_BASE_URL}/api/crm/leads/import/template`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'X-Tenant-ID': tenantId,
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to download template');
+      }
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'leads_import_template.xlsx';
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+
+    } catch (error) {
+      console.error('Template download error:', error);
+      alert('Failed to download template');
+    }
+  };
+
+  const handleCloseModal = () => {
+    setFile(null);
+    setResult(null);
+    setIsUploading(false);
+    setUploadProgress(0);
+    setImportModalOpen(false);
+  };
 
   const handleSelectAll = () => {
     if (selectedLeads.length === paginatedRows.length) {
@@ -346,32 +550,72 @@ export default function LeadsPage() {
       return;
     }
 
-    // Check if user is selecting "Priced" - redirect to priced page
-    if (newStatus.toLowerCase() === 'priced') {
-      router.push('/dashboard/priced');
-      return;
-    }
+    // For all other statuses (including "Priced"), call performStatusUpdate first
+    const ok = await performStatusUpdate(opportunityId, newStatus);
 
-    // For other statuses, proceed directly
-    await performStatusUpdate(opportunityId, newStatus);
+    // Only redirect to /dashboard/priced after successful status update
+    if (ok && newStatus.toLowerCase() === 'priced') {
+      router.push('/dashboard/priced');
+    }
   };
 
-  const performStatusUpdate = async (opportunityId: number, newStatus: string) => {
+  const performStatusUpdate = async (opportunityId: number, newStatus: string): Promise<boolean> => {
     try {
-      await fetchWithAuth(`/api/crm/leads/${opportunityId}/status`, {
+      // Safety check: cannot map status to stage_id without loaded stages
+      if (stagesLoading) {
+        toast.error("Stages are still loading. Please wait and try again.");
+        return false;
+      }
+
+      if (stages.length === 0) {
+        toast.error("No stages available. Cannot update status. Please refresh the page.");
+        return false;
+      }
+
+      // Prevent double-click by marking row as updating
+      setUpdatingRows((prev) => new Set(prev).add(opportunityId));
+
+      // Get stage_id from API-fetched stages list (throws if not found)
+      const stageId = getStageIdFromStatus(newStatus, stages);
+
+      const res = await fetchWithAuth(`/api/crm/leads/${opportunityId}/status`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status: newStatus }),
+        body: JSON.stringify({ stage_id: stageId }),
       });
 
-      setRows((prev) =>
-        prev.map((row) =>
-          row.opportunity_id === opportunityId ? { ...row, stage_name: newStatus } : row
-        )
-      );
-    } catch (err) {
-      console.error("Status update error:", err);
-      toast.error("Error updating status");
+      // Check if response contains stage_id or stage_name (top-level or nested in data)
+      const returnedStageId = res?.stage_id ?? res?.data?.stage_id;
+      const returnedStageName = res?.stage_name ?? res?.data?.stage_name;
+
+      // Remove from list when Lost (goes to recycle bin); otherwise update or refetch
+      if (newStatus.toLowerCase() === "lost") {
+        setRows((prev) => prev.filter((r) => r.opportunity_id !== opportunityId));
+        setSelectedLeads((prev) => prev.filter((id) => id !== opportunityId));
+      } else if (returnedStageId || returnedStageName) {
+        setRows((prev) =>
+          prev.map((row) =>
+            row.opportunity_id === opportunityId
+              ? { ...row, stage_name: returnedStageName || newStatus, stage_id: returnedStageId || stageId }
+              : row
+          )
+        );
+      } else {
+        await loadLeads();
+      }
+
+      toast.success("Status updated successfully");
+      return true;
+    } catch (err: any) {
+      toast.error(err?.message || "Error updating status");
+      return false;
+    } finally {
+      // Re-enable dropdown
+      setUpdatingRows((prev) => {
+        const updated = new Set(prev);
+        updated.delete(opportunityId);
+        return updated;
+      });
     }
   };
 
@@ -552,7 +796,8 @@ export default function LeadsPage() {
           )}
           <Button 
             onClick={() => {
-              setShowImportModal(true);
+              handleCloseModal();
+              setImportModalOpen(true);
               toast('Leads can only be added via import');
             }}
             variant="outline"
@@ -562,7 +807,8 @@ export default function LeadsPage() {
           </Button>
           <Button
             onClick={() => {
-              setShowImportModal(true);
+              handleCloseModal();
+              setImportModalOpen(true);
               toast('Leads can only be added via import');
             }}
           >
@@ -596,7 +842,7 @@ export default function LeadsPage() {
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full divide-y divide-gray-200">
+            <table className="w-full min-w-[1280px] divide-y divide-gray-200">
               <thead className="bg-gray-50">
                 <tr>
                   <th className="px-3 py-3 text-left w-10">
@@ -739,8 +985,9 @@ export default function LeadsPage() {
                         <Select
                           value={statusValue}
                           onValueChange={(value) => updateLeadStatus(r.opportunity_id, value)}
+                          disabled={updatingRows.has(r.opportunity_id)}
                         >
-                          <SelectTrigger className="h-7 text-xs w-full max-w-[150px]">
+                          <SelectTrigger className="h-7 text-xs w-full max-w-[150px]" disabled={updatingRows.has(r.opportunity_id)}>
                             <SelectValue placeholder="Set status">
                               {statusValue ? (
                                 <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-semibold ${getStatusColor(statusValue)}`}>
@@ -791,16 +1038,204 @@ export default function LeadsPage() {
         {!isLoading && !error && filteredRows.length > 0 && <PaginationControls />}
       </div>
 
-      {showImportModal && (
-        <BulkImportModal
-          isOpen={showImportModal}
-          onClose={() => setShowImportModal(false)}
-          onImportComplete={loadLeads}
-          uploadEndpoint={`/api/crm/leads/import?service=${encodeURIComponent(service)}`}
-          templateEndpoint="/api/crm/leads/import/template"
-          templateFilename="leads_import_template.xlsx"
-        />
-      )}
+      {/* Import Modal - Keep as is */}
+      <Dialog open={importModalOpen} onOpenChange={(open) => {
+        setImportModalOpen(open);
+        if (!open) handleCloseModal();
+      }}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Bulk Import Leads</DialogTitle>
+            <DialogDescription>
+              Upload an Excel or CSV file to import multiple leads at once
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-6">
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+              <div className="flex items-start gap-3">
+                <FileSpreadsheet className="h-5 w-5 text-blue-600 flex-shrink-0 mt-0.5" />
+                <div className="flex-1">
+                  <h3 className="text-sm font-medium text-blue-900">Need a template?</h3>
+                  <p className="mt-1 text-sm text-blue-700">
+                    Download our Excel template with the correct column headers and example data.
+                  </p>
+                  <Button
+                    onClick={handleDownloadTemplate}
+                    variant="outline"
+                    size="sm"
+                    className="mt-3"
+                  >
+                    <Download className="mr-2 h-4 w-4" />
+                    Download Template
+                  </Button>
+                </div>
+              </div>
+            </div>
+
+            <div
+              className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors ${
+                isDragging
+                  ? 'border-blue-500 bg-blue-50'
+                  : file
+                  ? 'border-green-500 bg-green-50'
+                  : 'border-gray-300 bg-gray-50'
+              }`}
+              onDragOver={handleDragOver}
+              onDragLeave={handleDragLeave}
+              onDrop={handleDrop}
+            >
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".xlsx,.xls,.csv"
+                onChange={handleFileChange}
+                className="hidden"
+              />
+
+              {file ? (
+                <div className="flex items-center justify-center gap-3">
+                  <FileSpreadsheet className="h-8 w-8 text-green-600" />
+                  <div className="text-left">
+                    <p className="text-sm font-medium text-gray-900">{file.name}</p>
+                    <p className="text-xs text-gray-500">
+                      {(file.size / 1024).toFixed(2)} KB
+                    </p>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setFile(null)}
+                    className="ml-4"
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                </div>
+              ) : (
+                <>
+                  <Upload className="mx-auto h-12 w-12 text-gray-400 mb-4" />
+                  <p className="text-sm font-medium text-gray-900 mb-2">
+                    Drop your file here or click to browse
+                  </p>
+                  <p className="text-xs text-gray-500 mb-4">
+                    Supports .xlsx, .xls, and .csv files (max 10MB)
+                  </p>
+                  <Button
+                    variant="outline"
+                    onClick={() => fileInputRef.current?.click()}
+                  >
+                    Select File
+                  </Button>
+                </>
+              )}
+            </div>
+
+            {isUploading && (
+              <div className="space-y-2">
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-700">Uploading...</span>
+                  <span className="text-gray-500">{uploadProgress}%</span>
+                </div>
+                <div className="w-full bg-gray-200 rounded-full h-2">
+                  <div
+                    className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+                    style={{ width: `${uploadProgress}%` }}
+                  />
+                </div>
+              </div>
+            )}
+
+            {result && (
+              <div
+                className={`p-4 rounded-lg border ${
+                  result.success && result.failed === 0
+                    ? 'bg-green-50 border-green-200'
+                    : result.successful > 0
+                    ? 'bg-yellow-50 border-yellow-200'
+                    : 'bg-red-50 border-red-200'
+                }`}
+              >
+                <div className="flex items-start gap-3">
+                  {result.success && result.failed === 0 ? (
+                    <CheckCircle className="h-5 w-5 text-green-600 flex-shrink-0 mt-0.5" />
+                  ) : (
+                    <AlertCircle className="h-5 w-5 text-yellow-600 flex-shrink-0 mt-0.5" />
+                  )}
+                  <div className="flex-1">
+                    <h3 className="text-sm font-medium text-gray-900">
+                      Import Results
+                    </h3>
+                    <div className="mt-2 space-y-1 text-sm">
+                      <p>Total rows processed: <span className="font-medium">{result.total_rows}</span></p>
+                      <p className="text-green-700">Successful: <span className="font-medium">{result.successful}</span></p>
+                      {result.failed > 0 && (
+                        <p className="text-red-700">Failed: <span className="font-medium">{result.failed}</span></p>
+                      )}
+                    </div>
+
+                    {result.errors && result.errors.length > 0 && (
+                      <div className="mt-3">
+                        <p className="text-sm font-medium text-red-900 mb-2">Errors:</p>
+                        <div className="bg-white rounded border border-red-200 p-3 max-h-40 overflow-y-auto">
+                          <ul className="text-xs text-red-800 space-y-1">
+                            {result.errors.map((error, index) => {
+                              const err = error as any;
+                              const errorMsg = typeof error === 'string'
+                                ? error
+                                : typeof err === 'object' && err !== null
+                                  ? `Row ${err.row ?? '?'}: ${err.message || err.reason || err.error || 'Unknown error'}${err.details ? ` (${err.details})` : ''}`
+                                  : String(error);
+                              return (
+                                <li key={index}>• {errorMsg}</li>
+                              );
+                            })}
+                          </ul>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            <div className="flex justify-end gap-3">
+              <Button variant="outline" onClick={handleCloseModal}>
+                Cancel
+              </Button>
+              <Button
+                onClick={handleUpload}
+                disabled={!file || isUploading}
+              >
+                {isUploading ? (
+                  <>
+                    <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-solid border-current border-r-transparent mr-2"></span>
+                    Uploading...
+                  </>
+                ) : (
+                  <>
+                    <Upload className="mr-2 h-4 w-4" />
+                    Upload & Import
+                  </>
+                )}
+              </Button>
+            </div>
+
+            <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
+              <h4 className="text-sm font-medium text-gray-900 mb-2">Required Columns:</h4>
+              <ul className="text-xs text-gray-700 space-y-1">
+                <li>• <strong>Business Name</strong> (required)</li>
+                <li>• <strong>Contact Person</strong> (recommended)</li>
+                <li>• <strong>Tel Number</strong> (recommended)</li>
+                <li>• Email, MPAN/MPR (optional)</li>
+                <li>• Start Date, End Date (optional)</li>
+              </ul>
+              <p className="mt-3 text-xs text-gray-600">
+                Note: Leads will be imported with default status and can be updated later.
+              </p>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Lost Confirmation Modal */}
       <Dialog 
