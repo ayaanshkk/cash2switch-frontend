@@ -390,7 +390,7 @@ export default function EnergyCustomersPage() {
         setAllCustomers((prev) =>
           prev.map((c) =>
             c.id === customerId
-              ? { ...c, assigned_to_id: employeeId, assigned_to_name: employee?.employee_name ?? null }
+              ? { ...c, assigned_to_id: employeeId, assigned_to_name: employee?.employee_name }
               : c
           )
         );
