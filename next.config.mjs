@@ -5,7 +5,7 @@ const nextConfig = {
   // ====================================================
   // basePath: '/streemlyne',
   // assetPrefix: '/streemlyne/',
-  trailingSlash: true,
+  trailingSlash: false,
   
   // ====================================================
   // ESLINT & COMPILER
@@ -40,9 +40,15 @@ const nextConfig = {
   // ====================================================
   async rewrites() {
     return [
-      // Backend API proxy - routes /backend-api/* to your Flask backend
+      // Backend API proxy - REMOVE trailing slashes before sending to backend
       {
-        source: '/backend-api/:path*',
+        source: '/backend-api/:path*/',  // ← Matches with trailing slash
+        destination: process.env.NEXT_PUBLIC_BACKEND_URL 
+          ? `${process.env.NEXT_PUBLIC_BACKEND_URL}/:path*`  // ← Sends WITHOUT trailing slash
+          : 'http://127.0.0.1:5000/:path*',
+      },
+      {
+        source: '/backend-api/:path*',  // ← Matches without trailing slash
         destination: process.env.NEXT_PUBLIC_BACKEND_URL 
           ? `${process.env.NEXT_PUBLIC_BACKEND_URL}/:path*`
           : 'http://127.0.0.1:5000/:path*',
