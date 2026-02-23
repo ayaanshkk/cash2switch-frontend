@@ -357,18 +357,25 @@ export function BulkImportModal({ isOpen, onClose, onImportComplete, uploadEndpo
           <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
             <h4 className="text-sm font-medium text-gray-900 mb-2">Required Columns:</h4>
             <ul className="text-xs text-gray-700 space-y-1">
-              <li>• <strong>Business Name</strong> (required)</li>
-              <li>• <strong>Tel Number</strong> (required)</li>
-              <li>• Contact Person, Email, Address (optional)</li>
-              <li>• Site Address, MPAN/MPR, Supplier (optional)</li>
-              <li>• Annual Usage, Start Date, End Date (optional)</li>
+              <li>• <strong>Client Name</strong> (required) - Business/Company name</li>
+              <li>• <strong>Tel No</strong> (required) - Primary phone number</li>
+            </ul>
+            <h4 className="text-sm font-medium text-gray-900 mb-2 mt-4">Optional Columns:</h4>
+            <ul className="text-xs text-gray-700 space-y-1">
+              <li>• Trading Name, Main Contact, Position</li>
+              <li>• Mobile No, Email</li>
+              <li>• Address Line 1/2/3, Town, County, Postcode</li>
+              <li>• Mpan Top, Mpan Bottom, Supplier</li>
+              <li>• Annual Usage, Start Date, Contract End</li>
+              <li>• Stand Charge, Rate 1/2/3</li>
+              <li>• Bank Name, Ac Number, Sort Code</li>
             </ul>
             <p className="mt-3 text-xs text-gray-600">
-              Note: Status, Callback, and Assigned To will be set to defaults and can be updated later.
+              💡 <strong>Tip:</strong> Download the template to see the exact column format with example data. The system will auto-create suppliers if they don't exist.
             </p>
           </div>
         </div>
       </DialogContent>
     </Dialog>
   );
-}
+}  
