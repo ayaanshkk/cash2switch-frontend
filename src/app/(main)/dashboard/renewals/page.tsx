@@ -360,7 +360,7 @@ export default function EnergyCustomersPage() {
     // ✅ Platform Admin and Tenant Super Admin can assign to anyone
     // ✅ Individual users can assign to themselves
     const isAdmin = user?.role === "Platform Admin" || user?.role === "Tenant Super Admin";
-    const isSelfAssignment = user?.employee_id === employeeId;
+    const isSelfAssignment = user?.id === employeeId;  // ✅ Changed from employee_id to id
     
     if (!isAdmin && !isSelfAssignment) {
       alert("You can only assign customers to yourself. Only administrators can assign to other team members.");
