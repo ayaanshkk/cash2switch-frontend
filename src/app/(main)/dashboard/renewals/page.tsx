@@ -357,9 +357,13 @@ export default function EnergyCustomersPage() {
 
   // ---------------- Update Assigned To ----------------
   const updateAssignedTo = async (customerId: number, employeeId: number) => {
-    // Check permission before attempting assignment
-    if (!canBulkAssign(user)) {
-      alert("You don't have permission to assign customers. Only administrators can assign customers.");
+    // ✅ Platform Admin and Tenant Super Admin can assign to anyone
+    // ✅ Individual users can assign to themselves
+    const isAdmin = user?.role === "Platform Admin" || user?.role === "Tenant Super Admin";
+    const isSelfAssignment = user?.employee_id === employeeId;
+    
+    if (!isAdmin && !isSelfAssignment) {
+      alert("You can only assign customers to yourself. Only administrators can assign to other team members.");
       return;
     }
 
