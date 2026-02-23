@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { TrendingUp, TrendingDown, AlertTriangle, CheckCircle2 } from "lucide-react";
+import { TrendingUp, TrendingDown, AlertTriangle, CheckCircle2, Zap } from "lucide-react";
 import { Bar, BarChart, XAxis, Cell, Pie, PieChart, LabelList } from "recharts";
 
 import { Badge } from "@/components/ui/badge";
@@ -12,10 +12,11 @@ import { formatCurrency, cn } from "@/lib/utils";
 const API_BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
 
 interface RenewalStats {
-  total_renewals_30_days: number;
-  total_renewals_60_days: number;
-  total_renewals_90_days: number;
+  total_renewals_30_60_days: number;
+  total_renewals_61_90_days: number;
+  total_renewals_90_plus_days: number;
   total_revenue_at_risk: number;
+  total_aq: number;
   contacted_count: number;
   not_contacted_count: number;
   renewed_count: number;
@@ -26,6 +27,11 @@ interface SupplierBreakdown {
   supplier_name: string;
   renewal_count: number;
   total_value: number;
+}
+
+interface EnergyRenewalsOverviewProps {
+  userRole?: string;
+  employeeId?: number;
 }
 
 const supplierColors = [
@@ -51,7 +57,7 @@ const chartConfig = {
   },
 };
 
-export function EnergyRenewalsOverview() {
+export function EnergyRenewalsOverview({ userRole, employeeId }: EnergyRenewalsOverviewProps = {}) {
   const [stats, setStats] = useState<RenewalStats | null>(null);
   const [supplierData, setSupplierData] = useState<SupplierBreakdown[]>([]);
   const [loading, setLoading] = useState(true);
@@ -65,8 +71,11 @@ export function EnergyRenewalsOverview() {
       setLoading(true);
       const token = localStorage.getItem("auth_token");
 
+      // ✅ Add employee filter for salespeople
+      const employeeParam = employeeId ? `?employee_id=${employeeId}` : '';
+
       // Fetch renewal statistics
-      const statsRes = await fetch(`${API_BASE_URL}/energy-renewals/stats`, {
+      const statsRes = await fetch(`${API_BASE_URL}/energy-renewals/stats${employeeParam}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
 
@@ -76,7 +85,7 @@ export function EnergyRenewalsOverview() {
       }
 
       // Fetch supplier breakdown
-      const supplierRes = await fetch(`${API_BASE_URL}/energy-renewals/supplier-breakdown`, {
+      const supplierRes = await fetch(`${API_BASE_URL}/energy-renewals/supplier-breakdown${employeeParam}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
 
@@ -100,9 +109,9 @@ export function EnergyRenewalsOverview() {
   }
 
   const renewalsByPeriod = [
-    { period: "30 Days", renewals: stats?.total_renewals_30_days || 0 },
-    { period: "60 Days", renewals: stats?.total_renewals_60_days || 0 },
-    { period: "90 Days", renewals: stats?.total_renewals_90_days || 0 },
+    { period: "30-60 Days", renewals: stats?.total_renewals_30_60_days || 0 },
+    { period: "61-90 Days", renewals: stats?.total_renewals_61_90_days || 0 },
+    { period: "90+ Days", renewals: stats?.total_renewals_90_plus_days || 0 },
   ];
 
   const contactStatus = [
@@ -114,16 +123,25 @@ export function EnergyRenewalsOverview() {
     ? ((stats.renewed_count / (stats.renewed_count + stats.lost_count + stats.contacted_count + stats.not_contacted_count)) * 100).toFixed(1)
     : "0";
 
+  const formatAQ = (aq: number) => {
+    if (aq >= 1000000) {
+      return `${(aq / 1000000).toFixed(1)}M`;
+    } else if (aq >= 1000) {
+      return `${(aq / 1000).toFixed(0)}K`;
+    }
+    return aq.toString();
+  };
+
   return (
     <div className="space-y-4">
       {/* Top Stats Cards */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        {/* Renewals Due - 30 Days */}
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5">
+        {/* Renewals Due - 30-60 Days */}
         <Card className="border-orange-300 bg-orange-50/30">
           <CardHeader>
-            <CardDescription>Renewals Due (30 Days)</CardDescription>
+            <CardDescription>Renewals Due (30-60 Days)</CardDescription>
             <CardTitle className="text-3xl font-semibold tabular-nums text-orange-900">
-              {stats?.total_renewals_30_days || 0}
+              {stats?.total_renewals_30_60_days || 0}
             </CardTitle>
             <CardAction>
               <Badge variant="outline" className="bg-orange-100 text-orange-700 border-orange-300">
@@ -136,16 +154,16 @@ export function EnergyRenewalsOverview() {
             <div className="line-clamp-1 flex gap-2 font-medium text-orange-800">
               Immediate action required
             </div>
-            <div className="text-orange-600 text-xs">Contact customers within 7 days</div>
+            <div className="text-orange-600 text-xs">Contact customers now</div>
           </CardFooter>
         </Card>
 
-        {/* Renewals Due - 60 Days */}
+        {/* Renewals Due - 61-90 Days */}
         <Card className="border-yellow-300 bg-yellow-50/30">
           <CardHeader>
-            <CardDescription>Renewals Due (60 Days)</CardDescription>
+            <CardDescription>Renewals Due (61-90 Days)</CardDescription>
             <CardTitle className="text-3xl font-semibold tabular-nums text-yellow-900">
-              {stats?.total_renewals_60_days || 0}
+              {stats?.total_renewals_61_90_days || 0}
             </CardTitle>
             <CardAction>
               <Badge variant="outline" className="bg-yellow-100 text-yellow-700 border-yellow-300">
@@ -162,12 +180,12 @@ export function EnergyRenewalsOverview() {
           </CardFooter>
         </Card>
 
-        {/* Renewals Due - 90 Days */}
+        {/* Renewals Due - 90+ Days */}
         <Card className="border-blue-300 bg-blue-50/30">
           <CardHeader>
-            <CardDescription>Renewals Due (90 Days)</CardDescription>
+            <CardDescription>Renewals Due (90+ Days)</CardDescription>
             <CardTitle className="text-3xl font-semibold tabular-nums text-blue-900">
-              {stats?.total_renewals_90_days || 0}
+              {stats?.total_renewals_90_plus_days || 0}
             </CardTitle>
             <CardAction>
               <Badge variant="outline" className="bg-blue-100 text-blue-700 border-blue-300">
@@ -203,6 +221,28 @@ export function EnergyRenewalsOverview() {
               Total contract value expiring
             </div>
             <div className="text-red-600 text-xs">Protect revenue stream</div>
+          </CardFooter>
+        </Card>
+
+        {/* Total AQ */}
+        <Card className="border-purple-300 bg-purple-50/30">
+          <CardHeader>
+            <CardDescription>Total AQ</CardDescription>
+            <CardTitle className="text-3xl font-semibold tabular-nums text-purple-900">
+              {formatAQ(stats?.total_aq || 0)} kWh
+            </CardTitle>
+            <CardAction>
+              <Badge variant="outline" className="bg-purple-100 text-purple-700 border-purple-300">
+                <Zap className="h-3 w-3" />
+                Energy
+              </Badge>
+            </CardAction>
+          </CardHeader>
+          <CardFooter className="flex-col items-start gap-1.5 text-sm">
+            <div className="line-clamp-1 flex gap-2 font-medium text-purple-800">
+              Total consumption at risk
+            </div>
+            <div className="text-purple-600 text-xs">Annual energy usage</div>
           </CardFooter>
         </Card>
       </div>
