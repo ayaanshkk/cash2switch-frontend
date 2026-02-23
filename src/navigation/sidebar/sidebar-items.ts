@@ -32,7 +32,9 @@ import {
   Phone,
   BadgeDollarSign,
   FolderOpen,
-  Trash2, // ✅ Added for Recycle Bin
+  Trash2,
+  File,
+  UserPlus,
 } from "lucide-react";
 
 export interface NavSubItem {
@@ -64,55 +66,74 @@ export interface NavGroup {
   items: NavMainItem[];
 }
 
-// Define all sidebar items with role permissions (Admin/Staff only)
+// Define all sidebar items with role permissions
 const allSidebarItems: NavGroup[] = [
   {
     id: 1,
-    label: "Dashboard",
     items: [
       {
         title: "Dashboard",
         url: "/dashboard/default",
         icon: Home,
-        roles: ["admin", "staff"],
+        roles: ["platform admin", "salesperson"],
       },
       {
         title: "Renewals",
         url: "/dashboard/renewals",
         icon: Users,
-        roles: ["admin", "staff"],
+        roles: ["platform admin", "salesperson"],
       },
       {
         title: "Leads",
         url: "/dashboard/leads",
         icon: Phone,
-        roles: ["admin", "staff"],
+        roles: ["platform admin", "salesperson"],
       },
       {
         title: "Priced",
         url: "/dashboard/priced",
         icon: BadgeDollarSign,
-        roles: ["admin", "staff"],
+        roles: ["platform admin", "salesperson"],
+        isNew: true,
+      },
+      {
+        title: "Calendar",
+        url: "/dashboard/calendar",
+        icon: Calendar,
+        roles: ["platform admin", "salesperson"],
         isNew: true,
       },
       {
         title: "Documents",
-        url: "/dashboard/documents",
+        url: "/dashboard/documents/all", // Changed from /dashboard/documents
         icon: FolderOpen,
-        roles: ["admin", "staff"],
-        isNew: true,
+        roles: ["platform admin", "salesperson"],
+        subItems: [
+          {
+            title: "All Documents",
+            url: "/dashboard/documents/all",
+            icon: File,
+            roles: ["platform admin", "salesperson"],
+          },
+          {
+            title: "New Connections",
+            url: "/dashboard/documents/new-connections",
+            icon: UserPlus,
+            roles: ["platform admin", "salesperson"],
+          },
+        ],
       },
       {
-        title: "Recycle Bin", // ✅ Separate page (removed from Leads sub-items)
+        title: "Recycle Bin",
         url: "/dashboard/recycle-bin",
         icon: Trash2,
-        roles: ["admin", "staff"],
+        roles: ["platform admin", "salesperson"],
       },
       {
         title: "Settings",
         url: "/dashboard/settings",
         icon: Settings,
-        roles: ["admin", "staff"],
+        roles: ["platform admin", "salesperson"],
       },
     ],
   },
@@ -120,16 +141,20 @@ const allSidebarItems: NavGroup[] = [
 
 // Filter sidebar items based on user role and optionally set notification badge
 export const getSidebarItems = (userRole: string, notificationCount?: number): NavGroup[] => {
-  // Normalize role: Manager/Admin -> admin, Staff -> staff
-  const normalizedRole = userRole?.toLowerCase() || '';
-  const roleMap: Record<string, string[]> = {
-    'manager': ['admin', 'staff'],
-    'admin': ['admin', 'staff'],
-    'staff': ['staff'],
-  };
+  // Normalize role to lowercase for comparison
+  const normalizedRole = userRole?.toLowerCase().trim() || '';
   
-  // Get allowed roles for this user
-  const allowedRoles = roleMap[normalizedRole] || ['admin', 'staff'];
+  // Check if user has platform admin role
+  const isPlatformAdmin = normalizedRole.includes('platform') && normalizedRole.includes('admin');
+  const isSalesperson = normalizedRole.includes('salesperson') || normalizedRole.includes('sales');
+  
+  // Determine allowed roles
+  let allowedRoles: string[] = [];
+  if (isPlatformAdmin) {
+    allowedRoles = ['platform admin', 'salesperson']; // Admin sees everything
+  } else if (isSalesperson) {
+    allowedRoles = ['salesperson'];
+  }
   
   return allSidebarItems
     .map((group) => ({
@@ -137,7 +162,7 @@ export const getSidebarItems = (userRole: string, notificationCount?: number): N
       items: group.items
         .filter((item) => {
           if (!item.roles || item.roles.length === 0) return true;
-          return item.roles.some(role => allowedRoles.includes(role));
+          return item.roles.some(role => allowedRoles.includes(role.toLowerCase()));
         })
         .map((item) => {
           if (item.title === "Notifications" && notificationCount !== undefined && notificationCount > 0) {
@@ -152,7 +177,7 @@ export const getSidebarItems = (userRole: string, notificationCount?: number): N
               ...item,
               subItems: item.subItems.filter((subItem) => {
                 if (!subItem.roles || subItem.roles.length === 0) return true;
-                return subItem.roles.some(role => allowedRoles.includes(role));
+                return subItem.roles.some(role => allowedRoles.includes(role.toLowerCase()));
               }),
             };
           }
@@ -163,5 +188,5 @@ export const getSidebarItems = (userRole: string, notificationCount?: number): N
     .filter((group) => group.items.length > 0);
 };
 
-// For backwards compatibility, export default items (Admin view shows all)
-export const sidebarItems = getSidebarItems("Admin");
+// For backwards compatibility, export default items (Platform Admin view shows all)
+export const sidebarItems = getSidebarItems("Platform Admin");
