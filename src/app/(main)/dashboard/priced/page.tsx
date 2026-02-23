@@ -2,9 +2,8 @@
 
 import { useState, useEffect } from 'react';
 import { toast } from 'react-hot-toast';
-import { fetchWithAuth } from '@/lib/api';
 
-interface PricedItem {
+interface PricedLead {
   opportunity_id: number;
   client_id: number;
   business_name: string;
@@ -20,219 +19,196 @@ interface PricedItem {
   opportunity_value: number;
   assigned_to_name: string;
   created_at: string;
-  source_type?: string;
+}
+
+interface PricedStats {
+  total_priced: number;
+  total_value: number;
+  by_employee: {
+    [key: string]: {
+      count: number;
+      total_value: number;
+    };
+  };
 }
 
 const Priced = () => {
-  const [leads, setLeads] = useState<PricedItem[]>([]);
-  const [renewals, setRenewals] = useState<PricedItem[]>([]);
+  const [leads, setLeads] = useState<PricedLead[]>([]);
+  const [stats, setStats] = useState<PricedStats | null>(null);
   const [loading, setLoading] = useState(true);
+  const [selectedLeads, setSelectedLeads] = useState<number[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
-  const [activeTab, setActiveTab] = useState<'all' | 'leads' | 'renewals'>('all');
+
+  const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:5000';
+  const tenantId = localStorage.getItem('tenant_id') || '1';
+  const token = localStorage.getItem('token');
 
   useEffect(() => {
-    fetchPricedItems();
+    fetchPricedLeads();
+    fetchStats();
   }, []);
 
-  const fetchPricedItems = async () => {
+  const fetchPricedLeads = async () => {
     try {
       setLoading(true);
       
-      const data = await fetchWithAuth('/api/crm/priced');
+      const response = await fetch(`${BACKEND_URL}/api/crm/priced`, {
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Tenant-ID': tenantId,
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      const data = await response.json();
       
       if (data.success) {
-        setLeads(data.leads || []);
-        setRenewals(data.renewals || []);
+        setLeads(data.data);
       } else {
-        toast.error(data.error || 'Failed to fetch priced items');
+        toast.error(data.error || 'Failed to fetch priced leads');
       }
     } catch (error) {
-      console.error('Error fetching priced items:', error);
-      toast.error('Failed to fetch priced items');
+      console.error('Error fetching priced leads:', error);
+      toast.error('Failed to fetch priced leads');
     } finally {
       setLoading(false);
     }
   };
 
-  const moveToLeads = async (item: PricedItem) => {
-    const isRenewal = item.source_type === 'renewal';
-    const confirmMessage = isRenewal 
-      ? 'Move this renewal back to Renewals page?'
-      : 'Move this lead back to Leads page?';
-    
-    if (!confirm(confirmMessage)) {
+  const fetchStats = async () => {
+    try {
+      const response = await fetch(`${BACKEND_URL}/api/crm/priced/stats`, {
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Tenant-ID': tenantId,
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      const data = await response.json();
+      
+      if (data.success) {
+        setStats(data);
+      }
+    } catch (error) {
+      console.error('Error fetching stats:', error);
+    }
+  };
+
+  const moveToLeads = async (opportunityId: number) => {
+    if (!confirm('Move this lead back to Leads page?')) {
       return;
     }
 
     try {
-      if (isRenewal) {
-        // Update Client_Master's Opportunity status back to 'called'
-        const response = await fetch(
-          `${process.env.NEXT_PUBLIC_BACKEND_URL}/energy-clients/${item.client_id}`,
-          {
-            method: 'PUT',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
-            },
-            body: JSON.stringify({ status: 'called' })
+      const response = await fetch(
+        `${BACKEND_URL}/api/crm/priced/${opportunityId}/move-to-leads`,
+        {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Tenant-ID': tenantId,
+            'Authorization': `Bearer ${token}`
           }
-        );
-
-        const data = await response.json();
-        
-        if (data.success) {
-          toast.success('Renewal moved back to Renewals page');
-          fetchPricedItems();
-        } else {
-          toast.error(data.error || 'Failed to move renewal');
         }
+      );
+
+      const data = await response.json();
+      
+      if (data.success) {
+        toast.success('Lead moved back to Leads page');
+        fetchPricedLeads();
+        fetchStats();
       } else {
-        // Update Opportunity_Details stage back to 'Called'
-        const calledStageResponse = await fetchWithAuth('/api/crm/stages');
-        const calledStage = calledStageResponse.data?.find(
-          (s: any) => s.stage_name.toLowerCase() === 'called'
-        );
-        
-        if (!calledStage) {
-          toast.error('Called stage not found');
-          return;
-        }
-
-        const updateResponse = await fetchWithAuth(
-          `/api/crm/leads/${item.opportunity_id}/status`,
-          {
-            method: 'PATCH',
-            body: JSON.stringify({ stage_id: calledStage.stage_id })
-          }
-        );
-        
-        if (updateResponse.success) {
-          toast.success('Lead moved back to Leads page');
-          fetchPricedItems();
-        } else {
-          toast.error(updateResponse.error || 'Failed to move lead');
-        }
+        toast.error(data.error || 'Failed to move lead');
       }
     } catch (error) {
-      console.error('Error moving item:', error);
-      toast.error('Failed to move item');
+      console.error('Error moving lead:', error);
+      toast.error('Failed to move lead');
     }
   };
 
-  const getFilteredItems = (): PricedItem[] => {
-    let items: PricedItem[] = [];
-    
-    if (activeTab === 'all') {
-      items = [...leads, ...renewals];
-    } else if (activeTab === 'leads') {
-      items = leads;
+  const handleSelectLead = (opportunityId: number) => {
+    setSelectedLeads(prev => 
+      prev.includes(opportunityId)
+        ? prev.filter(id => id !== opportunityId)
+        : [...prev, opportunityId]
+    );
+  };
+
+  const handleSelectAll = () => {
+    if (selectedLeads.length === filteredLeads.length) {
+      setSelectedLeads([]);
     } else {
-      items = renewals;
+      setSelectedLeads(filteredLeads.map(lead => lead.opportunity_id));
     }
-    
-    if (searchTerm) {
-      const term = searchTerm.toLowerCase();
-      items = items.filter(item => 
-        item.business_name?.toLowerCase().includes(term) ||
-        item.contact_person?.toLowerCase().includes(term) ||
-        item.tel_number?.includes(term) ||
-        item.email?.toLowerCase().includes(term)
-      );
-    }
-    
-    return items;
   };
 
-  const filteredItems = getFilteredItems();
-  const totalLeads = leads.length;
-  const totalRenewals = renewals.length;
-  const total = totalLeads + totalRenewals;
+  const filteredLeads = leads.filter(lead => {
+    const matchesSearch = 
+      lead.business_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      lead.contact_person?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      lead.tel_number?.includes(searchTerm) ||
+      lead.email?.toLowerCase().includes(searchTerm.toLowerCase());
+    
+    return matchesSearch;
+  });
+
+  const formatCurrency = (value: number) => {
+    return new Intl.NumberFormat('en-GB', {
+      style: 'currency',
+      currency: 'GBP'
+    }).format(value || 0);
+  };
 
   const formatDate = (dateString: string) => {
     if (!dateString) return '—';
     return new Date(dateString).toLocaleDateString('en-GB');
   };
 
-  // ✅ Format phone number - remove .0 decimal
-  const formatPhone = (phone: string) => {
-    if (!phone) return '—';
-    // Remove .0 at the end if it exists
-    return phone.replace(/\.0$/, '');
-  };
-
   return (
     <div className="min-h-screen bg-gray-50 p-6">
       {/* Header */}
       <div className="mb-6">
-        <h1 className="text-3xl font-bold text-gray-900">Priced</h1>
+        <h1 className="text-3xl font-bold text-gray-900">Priced Leads</h1>
         <p className="text-gray-600 mt-1">
           Customers who have received price quotes
         </p>
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
-        <div className="bg-white rounded-lg shadow p-6">
-          <div className="text-sm text-gray-600 mb-1">Total Priced</div>
-          <div className="text-3xl font-bold text-blue-600">{total}</div>
+      {stats && (
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+          <div className="bg-white rounded-lg shadow p-6">
+            <div className="text-sm text-gray-600 mb-1">Total Priced Leads</div>
+            <div className="text-3xl font-bold text-blue-600">
+              {stats.total_priced}
+            </div>
+          </div>
+          
+          <div className="bg-white rounded-lg shadow p-6">
+            <div className="text-sm text-gray-600 mb-1">Total Value</div>
+            <div className="text-3xl font-bold text-green-600">
+              {formatCurrency(stats.total_value)}
+            </div>
+          </div>
+          
+          <div className="bg-white rounded-lg shadow p-6">
+            <div className="text-sm text-gray-600 mb-1">Average Value</div>
+            <div className="text-3xl font-bold text-purple-600">
+              {formatCurrency(stats.total_value / stats.total_priced)}
+            </div>
+          </div>
         </div>
-        
-        <div className="bg-white rounded-lg shadow p-6">
-          <div className="text-sm text-gray-600 mb-1">Leads</div>
-          <div className="text-3xl font-bold text-green-600">{totalLeads}</div>
-        </div>
-        
-        <div className="bg-white rounded-lg shadow p-6">
-          <div className="text-sm text-gray-600 mb-1">Renewals</div>
-          <div className="text-3xl font-bold text-purple-600">{totalRenewals}</div>
-        </div>
-      </div>
+      )}
 
-      {/* Tabs - ✅ Changed to black */}
-      <div className="mb-4 flex items-center gap-2">
-        <button
-          type="button"
-          onClick={() => setActiveTab('all')}
-          className={`px-4 py-2 rounded-md text-sm font-medium border transition-colors ${
-            activeTab === 'all'
-              ? 'bg-gray-900 text-white border-gray-900'
-              : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
-          }`}
-        >
-          All ({total})
-        </button>
-        <button
-          type="button"
-          onClick={() => setActiveTab('leads')}
-          className={`px-4 py-2 rounded-md text-sm font-medium border transition-colors ${
-            activeTab === 'leads'
-              ? 'bg-gray-900 text-white border-gray-900'
-              : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
-          }`}
-        >
-          Leads ({totalLeads})
-        </button>
-        <button
-          type="button"
-          onClick={() => setActiveTab('renewals')}
-          className={`px-4 py-2 rounded-md text-sm font-medium border transition-colors ${
-            activeTab === 'renewals'
-              ? 'bg-gray-900 text-white border-gray-900'
-              : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
-          }`}
-        >
-          Renewals ({totalRenewals})
-        </button>
-      </div>
-
-      {/* Search */}
+      {/* Filters */}
       <div className="bg-white rounded-lg shadow p-4 mb-6">
         <div className="flex flex-col md:flex-row gap-4">
           <div className="flex-1">
             <input
               type="text"
-              placeholder="Search by name, phone, email..."
+              placeholder="Search leads..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -240,7 +216,7 @@ const Priced = () => {
           </div>
           
           <button
-            onClick={fetchPricedItems}
+            onClick={fetchPricedLeads}
             className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
           >
             Refresh
@@ -248,17 +224,17 @@ const Priced = () => {
         </div>
       </div>
 
-      {/* Table - ✅ Restructured columns */}
+      {/* Table */}
       <div className="bg-white rounded-lg shadow overflow-hidden">
         {loading ? (
           <div className="flex justify-center items-center h-64">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
           </div>
-        ) : filteredItems.length === 0 ? (
+        ) : filteredLeads.length === 0 ? (
           <div className="text-center py-12">
-            <div className="text-gray-400 text-xl mb-2">No priced items found</div>
+            <div className="text-gray-400 text-xl mb-2">No priced leads found</div>
             <p className="text-gray-500">
-              Items with "Priced" status will appear here
+              Leads with "Priced" status will appear here
             </p>
           </div>
         ) : (
@@ -266,23 +242,31 @@ const Priced = () => {
             <table className="w-full">
               <thead className="bg-gray-50 border-b border-gray-200">
                 <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    ID
+                  <th className="px-6 py-3 text-left">
+                    <input
+                      type="checkbox"
+                      checked={selectedLeads.length === filteredLeads.length}
+                      onChange={handleSelectAll}
+                      className="w-4 h-4 text-blue-600 rounded"
+                    />
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Name
+                    ID
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Business Name
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    MPAN Number
+                    Contact Person
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Phone
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Email ID
+                    Email
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Value
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Assigned To
@@ -291,74 +275,51 @@ const Priced = () => {
                     Date
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Type
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Actions
                   </th>
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
-                {filteredItems.map((item, index) => (
-                  <tr key={`${item.source_type}-${item.opportunity_id}`} className="hover:bg-gray-50">
-                    {/* ✅ ID - Chronological numbering */}
-                    <td className="px-6 py-4 text-sm text-gray-900">
-                      {index + 1}
+                {filteredLeads.map((lead) => (
+                  <tr key={lead.opportunity_id} className="hover:bg-gray-50">
+                    <td className="px-6 py-4">
+                      <input
+                        type="checkbox"
+                        checked={selectedLeads.includes(lead.opportunity_id)}
+                        onChange={() => handleSelectLead(lead.opportunity_id)}
+                        className="w-4 h-4 text-blue-600 rounded"
+                      />
                     </td>
-                    
-                    {/* ✅ Name (Contact Person) */}
                     <td className="px-6 py-4 text-sm text-gray-900">
-                      {item.contact_person || '—'}
+                      {lead.opportunity_id}
                     </td>
-                    
-                    {/* ✅ Business Name */}
                     <td className="px-6 py-4 text-sm font-medium text-gray-900">
-                      {item.business_name}
+                      {lead.business_name}
                     </td>
-                    
-                    {/* ✅ MPAN Number - Only show for renewals */}
                     <td className="px-6 py-4 text-sm text-gray-900">
-                      {item.source_type === 'renewal' ? (item.mpan_mpr || '—') : '—'}
+                      {lead.contact_person}
                     </td>
-                    
-                    {/* ✅ Phone - Removed .0 decimal */}
                     <td className="px-6 py-4 text-sm text-gray-900">
-                      {formatPhone(item.tel_number)}
+                      {lead.tel_number || '—'}
                     </td>
-                    
-                    {/* ✅ Email ID */}
                     <td className="px-6 py-4 text-sm text-gray-900">
-                      {item.email || '—'}
+                      {lead.email || '—'}
                     </td>
-                    
-                    {/* ✅ Assigned To */}
+                    <td className="px-6 py-4 text-sm text-gray-900 font-medium">
+                      {formatCurrency(lead.opportunity_value)}
+                    </td>
                     <td className="px-6 py-4 text-sm text-gray-900">
-                      {item.assigned_to_name || 'Unassigned'}
+                      {lead.assigned_to_name || 'Unassigned'}
                     </td>
-                    
-                    {/* ✅ Date */}
                     <td className="px-6 py-4 text-sm text-gray-500">
-                      {formatDate(item.created_at)}
+                      {formatDate(lead.created_at)}
                     </td>
-                    
-                    {/* ✅ Type */}
-                    <td className="px-6 py-4 text-sm">
-                      <span className={`inline-flex rounded-full px-2 py-1 text-xs font-semibold ${
-                        item.source_type === 'renewal' 
-                          ? 'bg-purple-100 text-purple-800'
-                          : 'bg-green-100 text-green-800'
-                      }`}>
-                        {item.source_type === 'renewal' ? 'Renewal' : 'Lead'}
-                      </span>
-                    </td>
-                    
-                    {/* ✅ Actions */}
                     <td className="px-6 py-4 text-sm">
                       <button
-                        onClick={() => moveToLeads(item)}
-                        className="text-blue-600 hover:text-blue-800 font-medium whitespace-nowrap"
+                        onClick={() => moveToLeads(lead.opportunity_id)}
+                        className="text-blue-600 hover:text-blue-800 font-medium"
                       >
-                        Move Back
+                        Move to Leads
                       </button>
                     </td>
                   </tr>
@@ -368,6 +329,23 @@ const Priced = () => {
           </div>
         )}
       </div>
+
+      {/* Selected Actions */}
+      {selectedLeads.length > 0 && (
+        <div className="fixed bottom-6 left-1/2 transform -translate-x-1/2 bg-white shadow-lg rounded-lg p-4 border border-gray-200">
+          <div className="flex items-center gap-4">
+            <span className="text-sm text-gray-600">
+              {selectedLeads.length} lead{selectedLeads.length > 1 ? 's' : ''} selected
+            </span>
+            <button
+              onClick={() => setSelectedLeads([])}
+              className="px-4 py-2 text-sm text-gray-600 hover:text-gray-800"
+            >
+              Clear
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
