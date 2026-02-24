@@ -17,59 +17,56 @@ export default function DashboardPage() {
       {isPlatformAdmin ? (
         /* ============================================
            PLATFORM ADMIN DASHBOARD VIEW
-           - Team Performance Grid (all staff)
-           - Overall Company Stats (all renewals)
-           - Renewals Table (all data)
+           - Team Performance Grid (all staff performance)
+           - Overall Company Stats (ALL renewals)
+           - All Renewals Table (entire company)
            ============================================ */
         <>
-          {/* Page Header */}
           <div className="space-y-2">
             <h1 className="text-3xl font-bold tracking-tight">
-              Renewals Dashboard
+              Company Dashboard
             </h1>
             <p className="text-muted-foreground">
-              Monitor and manage upcoming contract renewals for your energy customers
+              Monitor team performance and manage all company renewals
             </p>
           </div>
 
-          {/* Team Performance Grid - Click to see individual stats */}
+          {/* Team Performance Grid - Shows all salespeople */}
           <StaffPerformanceGrid />
 
-          {/* Overall Company Stats - Admin sees ALL data */}
+          {/* ✅ Company-wide Stats - NO filter, show ALL data */}
           <EnergyRenewalsOverview 
             userRole={user?.role} 
-            employeeId={undefined} // No filter - show all
+            employeeId={undefined} // ✅ undefined = no filter = ALL company data
           />
 
-          {/* Renewals Table - All renewals */}
-          <RenewalsTable />
+          {/* ✅ All Company Renewals */}
+          <RenewalsTable employeeId={undefined} /> {/* ✅ Show all renewals */}
         </>
       ) : (
         /* ============================================
            SALESPERSON DASHBOARD VIEW
-           - Personal Performance Stats Only
-           - Their Own Renewals Only
-           - No Team Performance Grid
+           - Personal Performance Stats ONLY
+           - Their Own Renewals ONLY
            ============================================ */
         <>
-          {/* Page Header */}
           <div className="space-y-2">
             <h1 className="text-3xl font-bold tracking-tight">
               My Performance Dashboard
             </h1>
             <p className="text-muted-foreground">
-              Track your personal renewal performance and manage your customers
+              Track your personal renewal performance and customers
             </p>
           </div>
 
-          {/* Personal Performance Stats - Salesperson sees ONLY their own data */}
+          {/* ✅ Personal Stats - Filter by their employee_id */}
           <EnergyRenewalsOverview 
             userRole={user?.role} 
-            employeeId={user?.id} // ✅ Filter by their employee_id
+            employeeId={user?.employee_id}
           />
 
-          {/* Renewals Table - Only their assigned renewals */}
-          <RenewalsTable employeeId={user?.id} />
+          {/* ✅ Only their assigned renewals */}
+          <RenewalsTable employeeId={user?.employee_id} />
         </>
       )}
     </div>
