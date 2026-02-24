@@ -7,6 +7,7 @@ import { fetchPublic, fetchWithAuth } from "@/lib/api";
 interface User {
   name: any;
   id: number;
+  employee_id: number;
   email: string;
   first_name: string;
   last_name: string;
