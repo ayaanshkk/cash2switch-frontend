@@ -80,19 +80,26 @@ interface EnergyCustomer {
   assigned_to_name?: string;
   assigned_to_id?: number;
   created_at?: string;
+  standing_charge?: number;
+  aggregator?: string;
+  rate_1?: number;
+  
   // Banking details
   bank_name?: string;
   bank_sort_code?: string;
   bank_account_number?: string;
+  
   // Trading details
   trading_type?: string;
   trading_number?: string;
+  
   // Additional charges
   night_charge?: number;
   eve_weekend_charge?: number;
   other_charges_1?: number;
   other_charges_2?: number;
   other_charges_3?: number;
+  
   // Other fields
   meter_ref?: string;
   payment_type?: string;
@@ -100,6 +107,33 @@ interface EnergyCustomer {
   uplift?: number;
   term_sold?: number;
   comments?: string;
+  
+  // ✅ NEW FIELDS FROM CLIENT SHEET
+  // Contact fields
+  position?: string;
+  company_number?: string;
+  date_of_birth?: string;
+  
+  // Site fields
+  site_name?: string;
+  month_sold?: string;
+  house_name?: string;
+  house_number?: string;
+  door_number?: string;
+  town?: string;
+  county?: string;
+  
+  // Contract fields
+  old_supplier_name?: string;
+  old_supplier_id?: number;
+  net_notch?: number;
+  rate_2?: number;
+  rate_3?: number;
+  comms_paid?: number;
+  
+  // Banking/Home fields
+  charity_ltd_company_number?: string;
+  partner_details?: string;
 }
 
 interface Employee {
@@ -582,11 +616,6 @@ export default function EnergyCustomerDetailsPage() {
                   <Edit className="mr-2 h-4 w-4" />
                   Edit
                 </Button>
-                {/* Commented out - not needed for renewal database
-                <Button className="bg-gray-700 hover:bg-gray-800">Place to Sales Agent</Button>
-                <Button className="bg-green-600 hover:bg-green-700">Move to resolved</Button>
-                <Button className="bg-orange-600 hover:bg-orange-700">Send to callback</Button>
-                */}
               </>
             )}
           </div>
@@ -633,9 +662,9 @@ export default function EnergyCustomerDetailsPage() {
                   />
                 </div>
 
-                {/* Name */}
+                {/* Client Name (Person) */}
                 <div>
-                  <label className="text-sm font-medium text-gray-700">Name</label>
+                  <label className="text-sm font-medium text-gray-700">Client Name</label>
                   <Input
                     value={displayCustomer.contact_person || ""}
                     onChange={(e) => handleUpdateField("contact_person", e.target.value)}
@@ -644,9 +673,9 @@ export default function EnergyCustomerDetailsPage() {
                   />
                 </div>
 
-                {/* Business Name */}
+                {/* Business Name (Trading Name) */}
                 <div>
-                  <label className="text-sm font-medium text-gray-700">Business Name</label>
+                  <label className="text-sm font-medium text-gray-700">Trading Name</label>
                   <Input
                     value={displayCustomer.business_name || ""}
                     onChange={(e) => handleUpdateField("business_name", e.target.value)}
@@ -655,12 +684,12 @@ export default function EnergyCustomerDetailsPage() {
                   />
                 </div>
 
-                {/* Contact Person */}
+                {/* Position */}
                 <div>
-                  <label className="text-sm font-medium text-gray-700">Contact Person</label>
+                  <label className="text-sm font-medium text-gray-700">Position</label>
                   <Input
-                    value={displayCustomer.contact_person || ""}
-                    onChange={(e) => handleUpdateField("contact_person", e.target.value)}
+                    value={displayCustomer.position || ""}
+                    onChange={(e) => handleUpdateField("position", e.target.value)}
                     disabled={!isEditing}
                     className="mt-1"
                   />
@@ -679,18 +708,35 @@ export default function EnergyCustomerDetailsPage() {
                   />
                 </div>
 
-                {/* Tel Number 2 */}
-                <div>
-                  <label className="text-sm font-medium text-gray-700">Tel Number 2</label>
-                  <Input disabled className="mt-1 bg-gray-50" placeholder="—" />
-                </div>
-
                 {/* Email */}
                 <div>
                   <label className="text-sm font-medium text-gray-700">Email</label>
                   <Input
                     value={displayCustomer.email || ""}
                     onChange={(e) => handleUpdateField("email", e.target.value)}
+                    disabled={!isEditing}
+                    className="mt-1"
+                  />
+                </div>
+
+                {/* Company Number */}
+                <div>
+                  <label className="text-sm font-medium text-gray-700">Company Number</label>
+                  <Input
+                    value={displayCustomer.company_number || ""}
+                    onChange={(e) => handleUpdateField("company_number", e.target.value)}
+                    disabled={!isEditing}
+                    className="mt-1"
+                  />
+                </div>
+
+                {/* Date of Birth */}
+                <div>
+                  <label className="text-sm font-medium text-gray-700">Date of Birth</label>
+                  <Input
+                    type="date"
+                    value={displayCustomer.date_of_birth?.split("T")[0] || ""}
+                    onChange={(e) => handleUpdateField("date_of_birth", e.target.value)}
                     disabled={!isEditing}
                     className="mt-1"
                   />
@@ -752,10 +798,36 @@ export default function EnergyCustomerDetailsPage() {
                   />
                 </div>
 
-                {/* Data Source */}
+                {/* Old Supplier */}
                 <div>
-                  <label className="text-sm font-medium text-gray-700">Data Source</label>
-                  <Input disabled className="mt-1 bg-gray-50" placeholder="—" />
+                  <label className="text-sm font-medium text-gray-700">Old Supplier</label>
+                  <Input
+                    value={displayCustomer.old_supplier_name || ""}
+                    disabled
+                    className="mt-1 bg-gray-50"
+                  />
+                </div>
+
+                {/* Site Name */}
+                <div>
+                  <label className="text-sm font-medium text-gray-700">Site Name</label>
+                  <Input
+                    value={displayCustomer.site_name || ""}
+                    onChange={(e) => handleUpdateField("site_name", e.target.value)}
+                    disabled={!isEditing}
+                    className="mt-1"
+                  />
+                </div>
+
+                {/* Month Sold */}
+                <div>
+                  <label className="text-sm font-medium text-gray-700">Month Sold</label>
+                  <Input
+                    value={displayCustomer.month_sold || ""}
+                    onChange={(e) => handleUpdateField("month_sold", e.target.value)}
+                    disabled={!isEditing}
+                    className="mt-1"
+                  />
                 </div>
 
                 {/* MPAN/MPR */}
@@ -769,15 +841,15 @@ export default function EnergyCustomerDetailsPage() {
                   />
                 </div>
 
-                {/* Top Line */}
+                {/* Data Source */}
                 <div>
-                  <label className="text-sm font-medium text-gray-700">Top Line</label>
+                  <label className="text-sm font-medium text-gray-700">Data Source</label>
                   <Input disabled className="mt-1 bg-gray-50" placeholder="—" />
                 </div>
 
                 {/* Annual Usage */}
                 <div>
-                  <label className="text-sm font-medium text-gray-700">Annual Usage</label>
+                  <label className="text-sm font-medium text-gray-700">Annual Usage (kWh)</label>
                   <Input
                     type="number"
                     value={displayCustomer.annual_usage || ""}
@@ -812,7 +884,7 @@ export default function EnergyCustomerDetailsPage() {
 
                 {/* End Date */}
                 <div>
-                  <label className="text-sm font-medium text-gray-700">End Date</label>
+                  <label className="text-sm font-medium text-gray-700">Contract End</label>
                   <Input
                     type="date"
                     value={displayCustomer.end_date?.split("T")[0] || ""}
@@ -824,7 +896,7 @@ export default function EnergyCustomerDetailsPage() {
 
                 {/* Term Sold */}
                 <div>
-                  <label className="text-sm font-medium text-gray-700">Term Sold</label>
+                  <label className="text-sm font-medium text-gray-700">Term Sold (Months)</label>
                   <Input
                     type="number"
                     value={displayCustomer.term_sold || ""}
@@ -833,6 +905,45 @@ export default function EnergyCustomerDetailsPage() {
                     className="mt-1"
                   />
                 </div>
+
+                {/* Net Notch */}
+                <div>
+                  <label className="text-sm font-medium text-gray-700">Net Notch</label>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    value={displayCustomer.net_notch || ""}
+                    onChange={(e) => handleUpdateField("net_notch", parseFloat(e.target.value))}
+                    disabled={!isEditing}
+                    className="mt-1"
+                  />
+                </div>
+
+                {/* Comms Paid */}
+                <div>
+                  <label className="text-sm font-medium text-gray-700">Comms Paid (£)</label>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    value={displayCustomer.comms_paid || ""}
+                    onChange={(e) => handleUpdateField("comms_paid", parseFloat(e.target.value))}
+                    disabled={!isEditing}
+                    className="mt-1"
+                  />
+                </div>
+
+                {/* Aggregator */}
+                <div>
+                  <label className="text-sm font-medium text-gray-700">Aggregator</label>
+                  <Input
+                    value={displayCustomer.aggregator || ""}
+                    onChange={(e) => handleUpdateField("aggregator", e.target.value)}
+                    disabled={!isEditing}
+                    className="mt-1"
+                  />
+                </div>
+
+                {/* Documents Section */}
                 <div className="md:col-span-2 border-t pt-6 mt-6">
                   <div className="flex items-center justify-between mb-4">
                     <label className="text-sm font-medium text-gray-700">Documents</label>
@@ -928,13 +1039,34 @@ export default function EnergyCustomerDetailsPage() {
                 {/* House Name */}
                 <div>
                   <label className="text-sm font-medium text-gray-700">House Name</label>
-                  <Input disabled className="mt-1 bg-gray-50" placeholder="—" />
+                  <Input
+                    value={displayCustomer.house_name || ""}
+                    onChange={(e) => handleUpdateField("house_name", e.target.value)}
+                    disabled={!isEditing}
+                    className="mt-1"
+                  />
+                </div>
+
+                {/* House Number */}
+                <div>
+                  <label className="text-sm font-medium text-gray-700">House Number</label>
+                  <Input
+                    value={displayCustomer.house_number || ""}
+                    onChange={(e) => handleUpdateField("house_number", e.target.value)}
+                    disabled={!isEditing}
+                    className="mt-1"
+                  />
                 </div>
 
                 {/* Door Number */}
                 <div>
                   <label className="text-sm font-medium text-gray-700">Door Number</label>
-                  <Input disabled className="mt-1 bg-gray-50" placeholder="—" />
+                  <Input
+                    value={displayCustomer.door_number || ""}
+                    onChange={(e) => handleUpdateField("door_number", e.target.value)}
+                    disabled={!isEditing}
+                    className="mt-1"
+                  />
                 </div>
 
                 {/* Street */}
@@ -951,19 +1083,23 @@ export default function EnergyCustomerDetailsPage() {
                 {/* Town */}
                 <div>
                   <label className="text-sm font-medium text-gray-700">Town</label>
-                  <Input disabled className="mt-1 bg-gray-50" placeholder="—" />
-                </div>
-
-                {/* Locality */}
-                <div>
-                  <label className="text-sm font-medium text-gray-700">Locality</label>
-                  <Input disabled className="mt-1 bg-gray-50" placeholder="—" />
+                  <Input
+                    value={displayCustomer.town || ""}
+                    onChange={(e) => handleUpdateField("town", e.target.value)}
+                    disabled={!isEditing}
+                    className="mt-1"
+                  />
                 </div>
 
                 {/* County */}
                 <div>
                   <label className="text-sm font-medium text-gray-700">County</label>
-                  <Input disabled className="mt-1 bg-gray-50" placeholder="—" />
+                  <Input
+                    value={displayCustomer.county || ""}
+                    onChange={(e) => handleUpdateField("county", e.target.value)}
+                    disabled={!isEditing}
+                    className="mt-1"
+                  />
                 </div>
 
                 {/* Post Code */}
@@ -988,7 +1124,7 @@ export default function EnergyCustomerDetailsPage() {
               <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
                 {/* Standing Charge */}
                 <div>
-                  <label className="text-sm font-medium text-gray-700">Standing Charge</label>
+                  <label className="text-sm font-medium text-gray-700">Standing Charge (£)</label>
                   <Input
                     type="number"
                     step="0.01"
@@ -999,14 +1135,40 @@ export default function EnergyCustomerDetailsPage() {
                   />
                 </div>
 
-                {/* Unit Charge */}
+                {/* Rate 1 (Unit Charge) */}
                 <div>
-                  <label className="text-sm font-medium text-gray-700">Unit Charge</label>
+                  <label className="text-sm font-medium text-gray-700">Rate 1 (p/kWh)</label>
                   <Input
                     type="number"
-                    step="0.01"
+                    step="0.0001"
                     value={displayCustomer.unit_rate || ""}
                     onChange={(e) => handleUpdateField("unit_rate", parseFloat(e.target.value))}
+                    disabled={!isEditing}
+                    className="mt-1"
+                  />
+                </div>
+
+                {/* Rate 2 */}
+                <div>
+                  <label className="text-sm font-medium text-gray-700">Rate 2 (p/kWh)</label>
+                  <Input
+                    type="number"
+                    step="0.0001"
+                    value={displayCustomer.rate_2 || ""}
+                    onChange={(e) => handleUpdateField("rate_2", parseFloat(e.target.value))}
+                    disabled={!isEditing}
+                    className="mt-1"
+                  />
+                </div>
+
+                {/* Rate 3 */}
+                <div>
+                  <label className="text-sm font-medium text-gray-700">Rate 3 (p/kWh)</label>
+                  <Input
+                    type="number"
+                    step="0.0001"
+                    value={displayCustomer.rate_3 || ""}
+                    onChange={(e) => handleUpdateField("rate_3", parseFloat(e.target.value))}
                     disabled={!isEditing}
                     className="mt-1"
                   />
@@ -1096,28 +1258,6 @@ export default function EnergyCustomerDetailsPage() {
               </h2>
 
               <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
-                {/* Trading Type */}
-                <div>
-                  <label className="text-sm font-medium text-gray-700">Trading Type</label>
-                  <Input
-                    value={displayCustomer.trading_type || ""}
-                    onChange={(e) => handleUpdateField("trading_type", e.target.value)}
-                    disabled={!isEditing}
-                    className="mt-1"
-                  />
-                </div>
-
-                {/* Trading Number */}
-                <div>
-                  <label className="text-sm font-medium text-gray-700">Trading Number</label>
-                  <Input
-                    value={displayCustomer.trading_number || ""}
-                    onChange={(e) => handleUpdateField("trading_number", e.target.value)}
-                    disabled={!isEditing}
-                    className="mt-1"
-                  />
-                </div>
-
                 {/* Bank Name */}
                 <div>
                   <label className="text-sm font-medium text-gray-700">Bank Name</label>
@@ -1129,27 +1269,50 @@ export default function EnergyCustomerDetailsPage() {
                   />
                 </div>
 
-                {/* Bank Sort Code */}
+                {/* Account Number */}
                 <div>
-                  <label className="text-sm font-medium text-gray-700">Bank Sort Code</label>
+                  <label className="text-sm font-medium text-gray-700">Account Number</label>
                   <Input
-                    value={displayCustomer.bank_sort_code || ""}
-                    onChange={(e) => handleUpdateField("bank_sort_code", e.target.value)}
+                    value={displayCustomer.account_number || ""}
+                    onChange={(e) => handleUpdateField("account_number", e.target.value)}
                     disabled={!isEditing}
                     className="mt-1"
                   />
                 </div>
 
-                {/* Bank Account Number */}
+                {/* Sort Code */}
                 <div>
-                  <label className="text-sm font-medium text-gray-700">
-                    Bank Account Number
-                  </label>
+                  <label className="text-sm font-medium text-gray-700">Sort Code</label>
                   <Input
-                    value={displayCustomer.bank_account_number || ""}
-                    onChange={(e) => handleUpdateField("bank_account_number", e.target.value)}
+                    value={displayCustomer.sort_code || ""}
+                    onChange={(e) => handleUpdateField("sort_code", e.target.value)}
                     disabled={!isEditing}
                     className="mt-1"
+                    placeholder="XX-XX-XX"
+                  />
+                </div>
+
+                {/* Charity/Ltd Company Number */}
+                <div>
+                  <label className="text-sm font-medium text-gray-700">Charity/Ltd Company Number</label>
+                  <Input
+                    value={displayCustomer.charity_ltd_company_number || ""}
+                    onChange={(e) => handleUpdateField("charity_ltd_company_number", e.target.value)}
+                    disabled={!isEditing}
+                    className="mt-1"
+                  />
+                </div>
+
+                {/* Partner Details */}
+                <div className="md:col-span-2">
+                  <label className="text-sm font-medium text-gray-700">Partner Details</label>
+                  <Textarea
+                    value={displayCustomer.partner_details || ""}
+                    onChange={(e) => handleUpdateField("partner_details", e.target.value)}
+                    disabled={!isEditing}
+                    className="mt-1"
+                    rows={3}
+                    placeholder="Enter partner details..."
                   />
                 </div>
               </div>
@@ -1168,17 +1331,6 @@ export default function EnergyCustomerDetailsPage() {
                   <Input
                     value={displayCustomer.meter_ref || ""}
                     onChange={(e) => handleUpdateField("meter_ref", e.target.value)}
-                    disabled={!isEditing}
-                    className="mt-1"
-                  />
-                </div>
-
-                {/* Aggregator */}
-                <div>
-                  <label className="text-sm font-medium text-gray-700">Aggregator</label>
-                  <Input
-                    value={displayCustomer.aggregator || ""}
-                    onChange={(e) => handleUpdateField("aggregator", e.target.value)}
                     disabled={!isEditing}
                     className="mt-1"
                   />
@@ -1219,8 +1371,7 @@ export default function EnergyCustomerDetailsPage() {
         <h3 className="mb-4 text-lg font-semibold text-gray-900">Action</h3>
 
         <div className="space-y-4">
-          {/* Assign To - Accessible to all roles for now */}
-          {/* {user?.role === "Admin" && ( */}
+          {/* Assign To */}
           <div>
             <label className="text-sm font-medium text-gray-700">Assign to:</label>
             <Select
@@ -1239,10 +1390,8 @@ export default function EnergyCustomerDetailsPage() {
               </SelectContent>
             </Select>
           </div>
-          {/* )} */}
 
-          {/* Call Back Parameter - Accessible to all roles */}
-          {/* {(user?.role === "Admin" || user?.role === "Staff") && ( */}
+          {/* Call Back Parameter */}
           <div>
             <label className="text-sm font-medium text-gray-700">
               Call back parameter: <span className="text-red-500">*</span>
@@ -1260,10 +1409,8 @@ export default function EnergyCustomerDetailsPage() {
               </SelectContent>
             </Select>
           </div>
-          {/* )} */}
 
-          {/* Follow up on - Accessible to all roles */}
-          {/* {(user?.role === "Admin" || user?.role === "Staff") && ( */}
+          {/* Follow up on */}
           <div>
             <label className="text-sm font-medium text-gray-700">
               Follow up on: <span className="text-red-500">*</span>
@@ -1278,10 +1425,8 @@ export default function EnergyCustomerDetailsPage() {
               Enter datetime in European London (UTC+00:00) timezone.
             </p>
           </div>
-          {/* )} */}
 
-          {/* Comment - Accessible to all roles */}
-          {/* {(user?.role === "Admin" || user?.role === "Staff") && ( */}
+          {/* Comment */}
           <div>
             <label className="text-sm font-medium text-gray-700">
               Comment: <span className="text-red-500">*</span>
@@ -1294,10 +1439,8 @@ export default function EnergyCustomerDetailsPage() {
               onChange={(e) => setActionComment(e.target.value)}
             />
           </div>
-          {/* )} */}
 
-          {/* Update Button - Accessible to all roles */}
-          {/* {(user?.role === "Admin" || user?.role === "Staff") && ( */}
+          {/* Update Button */}
           <Button
             className="w-full bg-black hover:bg-gray-800"
             onClick={handleActionUpdate}
@@ -1312,7 +1455,6 @@ export default function EnergyCustomerDetailsPage() {
               "Update"
             )}
           </Button>
-          {/* )} */}
         </div>
 
         {/* History Section */}

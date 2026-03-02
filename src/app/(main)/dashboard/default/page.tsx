@@ -8,18 +8,28 @@ import { RenewalsTable } from "./_components/renewals-table";
 export default function DashboardPage() {
   const { user } = useAuth();
 
+  // ✅ DEBUG: Check what data we're passing
+  console.log("🏠 Dashboard Page Debug:", {
+    user_role: user?.role,
+    employee_id: user?.employee_id,
+    full_user: user
+  });
+
   // ✅ Case-insensitive check for Platform Admin
   const userRole = user?.role?.toLowerCase() || '';
   const isPlatformAdmin = userRole.includes('platform') && userRole.includes('admin');
+
+  console.log("🔐 Role Check:", {
+    userRole,
+    isPlatformAdmin,
+    employeeIdToPass: isPlatformAdmin ? undefined : user?.employee_id
+  });
 
   return (
     <div className="flex flex-col gap-6 p-6">
       {isPlatformAdmin ? (
         /* ============================================
            PLATFORM ADMIN DASHBOARD VIEW
-           - Team Performance Grid (all staff performance)
-           - Overall Company Stats (ALL renewals)
-           - All Renewals Table (entire company)
            ============================================ */
         <>
           <div className="space-y-2">
@@ -46,8 +56,6 @@ export default function DashboardPage() {
       ) : (
         /* ============================================
            SALESPERSON DASHBOARD VIEW
-           - Personal Performance Stats ONLY
-           - Their Own Renewals ONLY
            ============================================ */
         <>
           <div className="space-y-2">

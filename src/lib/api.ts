@@ -3,8 +3,8 @@
 // On server: use explicit backend URL
 const BACKEND_URL = process.env.NEXT_PUBLIC_API_URL || process.env.NEXT_PUBLIC_BACKEND_URL || "http://127.0.0.1:5000";
 export const API_BASE_URL =
-  typeof window !== "undefined"
-    ? "/backend-api"  // Same-origin proxy - avoids CORS
+  typeof window !== "undefined" && process.env.NODE_ENV === "production"
+    ? "/backend-api"
     : BACKEND_URL;
 
 if (typeof window !== "undefined") {
