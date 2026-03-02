@@ -443,15 +443,17 @@ export default function EnergyCustomersPage() {
 
   const performStatusUpdate = async (customerId: number, newStatus: string): Promise<boolean> => {
     try {
-      // Ensure stages are loaded before mapping status to stage_id
-      if (!stages || stages.length === 0) {
-        console.error("Stages not loaded");
-        alert("Stages are not loaded. Cannot update status.");
-        return false;
-      }
+      console.log("🔄 performStatusUpdate called:", {
+        customerId,
+        newStatus,
+        stagesAvailable: stages.length > 0,
+        stagesCount: stages.length
+      });
 
-      // Map status value to stage_id using API-fetched stages (throws if not found)
-      const stageId = getStageIdFromStatus(newStatus, stages);
+      // ✅ Get stage_id using hybrid approach (API + fallback)
+      const stageId = getStageIdFromStatus(newStatus, stages.length > 0 ? stages : undefined);
+      
+      console.log("✅ Mapped to stage_id:", stageId);
       
       await fetchWithAuth(`/energy-clients/${customerId}`, {
         method: "PUT",
@@ -481,8 +483,13 @@ export default function EnergyCustomersPage() {
       }
 
       return true;
+      
     } catch (err: any) {
-      console.error("Status update error:", err);
+      console.error("❌ Status update error:", err);
+      console.error("❌ Error details:", {
+        message: err?.message,
+        stack: err?.stack
+      });
       toast.error(`❌ ${err?.message || "Error updating status"}`);
       return false;
     }
@@ -1226,7 +1233,9 @@ export default function EnergyCustomersPage() {
                         <div className="flex items-center gap-1">
                           {customer.client_id}
                           {fromSearch && (
-                            <Info className="h-3 w-3 text-amber-600" title="From team search" />
+                            <span title="From team search" className="inline-flex">
+                              <Info className="h-3 w-3 text-amber-600" />
+                            </span>
                           )}
                         </div>
                       </td>
