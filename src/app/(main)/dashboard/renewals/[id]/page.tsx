@@ -1271,8 +1271,8 @@ export default function EnergyCustomerDetailsPage() {
                 <div>
                   <label className="text-sm font-medium text-gray-700">Account Number</label>
                   <Input
-                    value={displayCustomer.account_number || ""}
-                    onChange={(e) => handleUpdateField("account_number", e.target.value)}
+                    value={displayCustomer.bank_account_number || ""}
+                    onChange={(e) => handleUpdateField("bank_account_number", e.target.value)}
                     disabled={!isEditing}
                     className="mt-1"
                   />
@@ -1282,8 +1282,8 @@ export default function EnergyCustomerDetailsPage() {
                 <div>
                   <label className="text-sm font-medium text-gray-700">Sort Code</label>
                   <Input
-                    value={displayCustomer.sort_code || ""}
-                    onChange={(e) => handleUpdateField("sort_code", e.target.value)}
+                    value={displayCustomer.bank_sort_code || ""}
+                    onChange={(e) => handleUpdateField("bank_sort_code", e.target.value)}
                     disabled={!isEditing}
                     className="mt-1"
                     placeholder="XX-XX-XX"
