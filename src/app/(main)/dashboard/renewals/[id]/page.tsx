@@ -80,7 +80,6 @@ interface EnergyCustomer {
   assigned_to_name?: string;
   assigned_to_id?: number;
   created_at?: string;
-  aggregator?: string;
   rate_1?: number;
   
   // Banking details
