@@ -295,7 +295,7 @@ export default function LeadsPage() {
     try {
       await downloadFileWithAuth(
         `${API_BASE_URL}/api/crm/leads/import/template`,
-        'renewals_import_template.xlsx'
+        'leads_import_template.xlsx'
       );
     } catch (error) {
       alert(error instanceof Error ? error.message : 'Failed to download template');
