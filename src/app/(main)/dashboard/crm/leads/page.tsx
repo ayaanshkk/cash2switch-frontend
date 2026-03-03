@@ -253,33 +253,52 @@ export default function LeadsPage() {
     }
   };
 
-  // Download template
-  const handleDownloadTemplate = async () => {
+  const downloadFileWithAuth = async (url: string, filename: string) => {
     try {
       const token = localStorage.getItem('auth_token');
-      const response = await fetch(`${API_BASE_URL}/api/crm/leads/import/template`, {
+      const tenantId = localStorage.getItem('tenant_id');
+      
+      if (!token) {
+        throw new Error('No authentication token found');
+      }
+      
+      const response = await fetch(url, {
         headers: {
           'Authorization': `Bearer ${token}`,
+          'X-Tenant-ID': tenantId || '',
         },
       });
 
       if (!response.ok) {
-        throw new Error('Failed to download template');
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || `Download failed (${response.status})`);
       }
 
       const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
+      const downloadUrl = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
-      a.href = url;
-      a.download = 'leads_import_template.xlsx';
+      a.href = downloadUrl;
+      a.download = filename;
       document.body.appendChild(a);
       a.click();
-      window.URL.revokeObjectURL(url);
+      window.URL.revokeObjectURL(downloadUrl);
       document.body.removeChild(a);
 
     } catch (error) {
-      console.error('Template download error:', error);
-      alert('Failed to download template');
+      console.error('Download error:', error);
+      throw error;
+    }
+  };
+
+  // Then simplify handleDownloadTemplate
+  const handleDownloadTemplate = async () => {
+    try {
+      await downloadFileWithAuth(
+        `${API_BASE_URL}/api/crm/leads/import/template`,
+        'renewals_import_template.xlsx'
+      );
+    } catch (error) {
+      alert(error instanceof Error ? error.message : 'Failed to download template');
     }
   };
 
