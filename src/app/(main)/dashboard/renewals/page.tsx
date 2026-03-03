@@ -1167,13 +1167,13 @@ export default function EnergyCustomersPage() {
                 </tr>
               ) : (
                 paginatedCustomers.map((customer, idx) => {
-                  const isSelected = selectedCustomers.includes(customer.id);
+                  const isSelected = selectedCustomers.includes(customer.client_id);
                   const displayId = (currentPage - 1) * CUSTOMERS_PER_PAGE + idx + 1;
                   const fromSearch = isFromSearch(customer);
                   
                   return (
                     <tr
-                      key={customer.id}
+                      key={customer.client_id}
                       className={`hover:bg-gray-50 transition-colors cursor-pointer ${
                         isSelected ? 'bg-blue-50' : fromSearch ? 'bg-amber-50' : ''
                       }`}
@@ -1197,7 +1197,7 @@ export default function EnergyCustomersPage() {
                         deleteBtn.className = 'w-full px-4 py-2 text-left text-sm hover:bg-red-50 text-red-600 flex items-center gap-2';
                         deleteBtn.innerHTML = '<svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg> Delete';
                         deleteBtn.onclick = () => {
-                          deleteCustomer(customer.id);
+                          deleteCustomer(customer.client_id);
                           document.body.removeChild(menu);
                         };
                         
@@ -1223,7 +1223,7 @@ export default function EnergyCustomersPage() {
                           type="checkbox"
                           className="rounded border-gray-300 mt-1"
                           checked={isSelected}
-                          onChange={() => handleSelectCustomer(customer.id)}
+                          onChange={() => handleSelectCustomer(customer.client_id)}
                           disabled={fromSearch} // Can't select customers from search
                         />
                       </td>
@@ -1231,7 +1231,7 @@ export default function EnergyCustomersPage() {
                       {/* ID */}
                       <td className="px-2 py-3 text-sm font-medium text-gray-900 border-r-2 border-gray-300 align-top">
                         <div className="flex items-center gap-1">
-                          {customer.client_id}
+                          {customer.id}
                           {fromSearch && (
                             <span title="From team search" className="inline-flex">
                               <Info className="h-3 w-3 text-amber-600" />
@@ -1304,7 +1304,7 @@ export default function EnergyCustomersPage() {
                       <td className="px-3 py-3 align-top" onClick={(e) => e.stopPropagation()}>
                         <Select
                           value={customer.status || ""}
-                          onValueChange={(value) => updateCustomerStatus(customer.id, value)}
+                          onValueChange={(value) => updateCustomerStatus(customer.client_id, value)}
                         >
                           <SelectTrigger className="h-7 text-xs w-full max-w-[150px]">
                             <SelectValue placeholder="Set status">
@@ -1338,7 +1338,7 @@ export default function EnergyCustomersPage() {
                           // Editable dropdown for own customers
                           <Select
                             value={customer.assigned_to_id?.toString() || ""}
-                            onValueChange={(value) => updateAssignedTo(customer.id, parseInt(value))}
+                            onValueChange={(value) => updateAssignedTo(customer.client_id, parseInt(value))}
                           >
                             <SelectTrigger className="h-7 text-xs w-full max-w-[130px]">
                               <SelectValue placeholder="Assign">
