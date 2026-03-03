@@ -1,5 +1,6 @@
 "use client";
 import Image from "next/image";
+import Link from "next/link";
 import { Globe } from "lucide-react";
 import { APP_CONFIG } from "@/config/app-config";
 import { LoginForm } from "../(main)/auth/_components/login-form";
@@ -36,6 +37,16 @@ export default function LoginV2Enhanced() {
 
           <div className="space-y-4">
             <LoginForm />
+            
+            {/* ✅ NEW: Change Password Link */}
+            <div className="text-center">
+              <Link 
+                href="/change-password" 
+                className="text-sm text-black hover:underline"
+              >
+                Change password
+              </Link>
+            </div>
           </div>
         </div>
 
