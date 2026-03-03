@@ -421,9 +421,6 @@ export default function EnergyCustomersPage() {
     return filteredCustomers.slice(startIndex, endIndex);
   }, [filteredCustomers, currentPage]);
 
-  // ---------------- Permissions ----------------
-  // Using shared permission utilities for consistency
-  // Note: canEditEntity checks both assigned_to_id and opportunity_owner_employee_id
 
   // ---------------- Update Status ----------------
   const updateCustomerStatus = async (customerId: number, newStatus: string) => {
@@ -812,6 +809,43 @@ export default function EnergyCustomersPage() {
       alert("❌ Network error during import");
     } finally {
       setBulkImporting(false);
+    }
+  };
+
+  const downloadFileWithAuth = async (url: string, filename: string) => {
+    try {
+      const token = localStorage.getItem('auth_token');
+      const tenantId = localStorage.getItem('tenant_id');
+      
+      if (!token) {
+        throw new Error('No authentication token found');
+      }
+      
+      const response = await fetch(url, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'X-Tenant-ID': tenantId || '',
+        },
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || `Download failed (${response.status})`);
+      }
+
+      const blob = await response.blob();
+      const downloadUrl = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = downloadUrl;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(downloadUrl);
+      document.body.removeChild(a);
+
+    } catch (error) {
+      console.error('Download error:', error);
+      throw error;
     }
   };
 
@@ -1425,11 +1459,15 @@ export default function EnergyCustomersPage() {
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => {
-                  const link = document.createElement('a');
-                  link.href = `${API_BASE_URL}/import/template`;
-                  link.download = 'energy_customers_template.xlsx';
-                  link.click();
+                onClick={async () => {
+                  try {
+                    await downloadFileWithAuth(
+                      `${API_BASE_URL}/import/template`,
+                      'energy_customers_template.xlsx'
+                    );
+                  } catch (error) {
+                    alert(error instanceof Error ? error.message : 'Failed to download template');
+                  }
                 }}
               >
                 Download Template
