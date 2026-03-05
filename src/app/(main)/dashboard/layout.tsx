@@ -16,7 +16,7 @@ import { AccountSwitcher } from "@/app/(main)/dashboard/_components/sidebar/acco
 import { LayoutControls } from "@/app/(main)/dashboard/_components/sidebar/layout-controls";
 import { ThemeSwitcher } from "@/app/(main)/dashboard/_components/sidebar/theme-switcher";
 import ProtectedRoute from "@/contexts/ProtectedRoute";
-import { NotificationProvider } from "@/contexts/NotificationContext"; // ✅ ADD THIS
+import { NotificationProvider } from "@/contexts/NotificationContext"; 
 
 export default async function DashboardLayout({ children }: Readonly<{ children: ReactNode }>) {
   const cookieStore = await cookies();
@@ -36,7 +36,7 @@ export default async function DashboardLayout({ children }: Readonly<{ children:
 
   return (
     <ProtectedRoute>
-      <NotificationProvider> {/* ✅ ADD THIS - Wraps entire dashboard */}
+      <NotificationProvider>
         <SidebarProvider defaultOpen={defaultOpen}>
           <AppSidebar variant={sidebarVariant} collapsible={sidebarCollapsible} />
           <SidebarInset

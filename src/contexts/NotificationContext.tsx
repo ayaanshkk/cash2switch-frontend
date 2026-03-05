@@ -19,6 +19,7 @@ type Notification = {
 type NotificationContextType = {
   notifications: Notification[];
   unreadCount: number;
+  loading: boolean;
   fetchNotifications: () => Promise<void>;
   markAsRead: (id: string) => Promise<void>;
   markAllAsRead: () => Promise<void>;
@@ -32,6 +33,7 @@ const NotificationContext = createContext<NotificationContextType | undefined>(u
 export function NotificationProvider({ children }: { children: ReactNode }) {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [loading, setLoading] = useState(true);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const previousUnreadCountRef = useRef<number>(0);
 
@@ -43,6 +45,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
 
   const fetchNotifications = useCallback(async () => {
     try {
+      setLoading(true)
       const token = localStorage.getItem("auth_token");
       if (!token) return;
 
@@ -82,6 +85,8 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
       }
     } catch (error) {
       console.error("Failed to fetch notifications:", error);
+    } finally {
+      setLoading(false);
     }
   }, []);
 
@@ -197,6 +202,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
       value={{
         notifications,
         unreadCount,
+        loading,
         fetchNotifications,
         markAsRead,
         markAllAsRead,

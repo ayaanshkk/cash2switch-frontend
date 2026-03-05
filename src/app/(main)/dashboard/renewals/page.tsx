@@ -314,18 +314,19 @@ export default function EnergyCustomersPage() {
   };
 
   const fetchEmployeeStats = useCallback(async () => {
-    if (!isAdmin) return; 
+    if (!isAdmin) return;
 
     try {
       const response = await fetchWithAuth(
         `/energy-clients/stats-by-employee?service=${service}`
       );
       
+      // ✅ FIX: response is already parsed JSON, not a fetch Response object
       const data = Array.isArray(response) ? response : (response?.stats || []);
       setEmployeeStats(data);
     } catch (error) {
       console.error("Error fetching employee stats:", error);
-      setEmployeeStats([]);
+      setEmployeeStats([]); 
     }
   }, [service, isAdmin]);
 
@@ -969,6 +970,7 @@ export default function EnergyCustomersPage() {
 
   return (
     <div className="space-y-6">
+      <Toaster position="top-right" />
       {/* ============================================ */}
       {/* HEADER SECTION */}
       {/* ============================================ */}
