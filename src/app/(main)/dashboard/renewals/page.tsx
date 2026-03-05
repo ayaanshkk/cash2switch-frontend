@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useMemo, useCallback } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { 
   Search, Plus, Edit, Trash2, ChevronDown, Filter, AlertCircle, 
   ChevronRight, ChevronLeft, ChevronLast, ChevronFirst, Zap, Building2, Upload, Users, UserCheck, Info
@@ -229,12 +229,6 @@ export default function EnergyCustomersPage() {
   const [selectedCustomers, setSelectedCustomers] = useState<number[]>([]);
   const [searchResults, setSearchResults] = useState<EnergyCustomer[]>([]);
   const [isSearching, setIsSearching] = useState(false);
-  const [employeeStats, setEmployeeStats] = useState<Array<{
-    employee_id: number;
-    employee_name: string;
-    count: number;
-  }>>([]);
-
 
   // Lost confirmation modal state
   const [lostConfirmation, setLostConfirmation] = useState<{
@@ -254,10 +248,6 @@ export default function EnergyCustomersPage() {
     fetchSuppliers();
     fetchEmployees();
     fetchStages();
-
-    if (isAdmin) {
-      fetchEmployeeStats();
-    }
   }, [service]);
 
   // Reset page when filters/search change
@@ -312,23 +302,6 @@ export default function EnergyCustomersPage() {
       console.error("❌ Error fetching employees:", err);
     }
   };
-
-  const fetchEmployeeStats = useCallback(async () => {
-    if (!isAdmin) return;
-
-    try {
-      const response = await fetchWithAuth(
-        `/energy-clients/stats-by-employee?service=${service}`
-      );
-      
-      // ✅ FIX: response is already parsed JSON, not a fetch Response object
-      const data = Array.isArray(response) ? response : (response?.stats || []);
-      setEmployeeStats(data);
-    } catch (error) {
-      console.error("Error fetching employee stats:", error);
-      setEmployeeStats([]); 
-    }
-  }, [service, isAdmin]);
 
   const fetchStages = async () => {
     try {
@@ -946,146 +919,40 @@ export default function EnergyCustomersPage() {
     );
   };
 
-  // Stats Card Component
-  function StatsCard({ title, value, icon: Icon, color }: { 
-    title: string; 
-    value: number; 
-    icon: any; 
-    color: string;
-  }) {
-    return (
-      <div className="bg-white rounded-lg border p-6 shadow-sm">
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="text-sm font-medium text-gray-600">{title}</p>
-            <p className={`text-3xl font-bold mt-2 ${color}`}>{value.toLocaleString()}</p>
-          </div>
-          <div className={`p-3 rounded-full bg-opacity-10 ${color.replace('text-', 'bg-')}`}>
-            <Icon className={`h-8 w-8 ${color}`} />
-          </div>
-        </div>
-      </div>
-    );
-  }
-
   return (
-    <div className="space-y-6">
-      <Toaster position="top-right" />
-      {/* ============================================ */}
-      {/* HEADER SECTION */}
-      {/* ============================================ */}
-      <div className="space-y-4">
-        {/* Top Row: Title and Action Buttons */}
-        <div className="flex items-center justify-between">
-          <h1 className="text-3xl font-bold text-black">Renewals</h1>
-          
-          {/* Action Buttons */}
-          <div className="flex items-center gap-3">
-            {(user?.role === "Platform Admin" || user?.role === "Tenant Super Admin") && (
-              <Button 
-                onClick={deleteAllAndReset}
-                variant="destructive"
-                className="bg-red-600 hover:bg-red-700"
-              >
-                <Trash2 className="mr-2 h-4 w-4" />
-                Delete All & Reset
-              </Button>
-            )}
-            
-            <Button
-              variant="outline"
-              onClick={async () => {
-                try {
-                  await downloadFileWithAuth(
-                    `${API_BASE_URL}/import/template`,
-                    'energy_customers_template.xlsx'
-                  );
-                } catch (error) {
-                  alert(error instanceof Error ? error.message : 'Failed to download template');
-                }
-              }}
-              className="flex items-center gap-2 border-black text-black hover:bg-gray-100"
-            >
-              <Upload className="h-4 w-4" />
-              Download Template
-            </Button>
-            
-            <Button
-              onClick={() => setShowImportModal(true)}
-              className="flex items-center gap-2 bg-black text-white hover:bg-gray-800"
-            >
-              <Upload className="h-4 w-4" />
-              Bulk Import
-            </Button>
-            
-            <Button
-              onClick={() => setShowCreateModal(true)}
-              className="flex items-center gap-2 bg-black text-white hover:bg-gray-800"
-            >
-              <Plus className="h-4 w-4" />
-              Add Customer
-            </Button>
-          </div>
-        </div>
+    <div className="w-full p-6">
+    <Toaster position="top-right" />
+      <h1 className="mb-6 text-4xl font-semibold tracking-tight text-slate-900">
+        Renewals
+      </h1>
 
-        {/* Service Tabs Row (Under Heading) */}
-        <div className="flex items-center gap-2 bg-gray-100 p-1 rounded-lg w-fit">
+      {/* Service Tabs */}
+      <div className="mb-6 flex justify-center">
+        <div className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white/80 p-1 shadow-sm backdrop-blur">
           <button
+            type="button"
             onClick={() => setService("utilities")}
-            className={`px-6 py-2.5 text-sm font-semibold rounded-md transition-all ${
+            className={`px-8 py-3 rounded-full text-base font-semibold transition-all ${
               service === "utilities"
-                ? "bg-black text-white shadow-sm"
-                : "text-gray-700 hover:text-black hover:bg-gray-200"
+                ? "bg-slate-900 text-white shadow"
+                : "text-slate-700 hover:bg-slate-100"
             }`}
           >
             Utilities
           </button>
           <button
+            type="button"
             onClick={() => setService("water")}
-            className={`px-6 py-2.5 text-sm font-semibold rounded-md transition-all ${
+            className={`px-8 py-3 rounded-full text-base font-semibold transition-all ${
               service === "water"
-                ? "bg-black text-white shadow-sm"
-                : "text-gray-700 hover:text-black hover:bg-gray-200"
+                ? "bg-slate-900 text-white shadow"
+                : "text-slate-700 hover:bg-slate-100"
             }`}
           >
             Water
           </button>
         </div>
       </div>
-
-      {/* ============================================ */}
-      {/* STATS CARDS - ROLE-BASED VISIBILITY */}
-      {/* ============================================ */}
-      {isAdmin ? (
-        // Platform Admin sees: Total + All Salespeople
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          <StatsCard
-            title="Total Renewals (All)"
-            value={allCustomers.length}
-            icon={Users}
-            color="text-black"
-          />
-          {employeeStats.map((stat) => (
-            <StatsCard
-              key={stat.employee_id}
-              title={stat.employee_name}
-              value={stat.count}
-              icon={UserCheck}
-              color="text-blue-600"
-            />
-          ))}
-        </div>
-      ) : (
-        // Salesperson sees: Only their count
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <StatsCard
-            title="My Renewals"
-            value={allCustomers.length}
-            icon={Users}
-            color="text-black"
-          />
-        </div>
-      )}
 
       {/* Error Display */}
       {error && (
