@@ -50,6 +50,7 @@ const STATUS_OPTIONS = [
 interface EnergyCustomer {
   id: number;
   client_id: number;
+  display_id?: number;
   name: string;
   business_name: string;
   contact_person: string;
@@ -229,6 +230,12 @@ export default function EnergyCustomersPage() {
   const [selectedCustomers, setSelectedCustomers] = useState<number[]>([]);
   const [searchResults, setSearchResults] = useState<EnergyCustomer[]>([]);
   const [isSearching, setIsSearching] = useState(false);
+  const [employeeStats, setEmployeeStats] = useState<{
+  employee_id: number;
+  employee_name: string;
+  count: number;
+  max_display_id?: number;
+}[]>([]);
 
   // Lost confirmation modal state
   const [lostConfirmation, setLostConfirmation] = useState<{
@@ -242,13 +249,17 @@ export default function EnergyCustomersPage() {
 
   const isAdmin = user?.role === "Platform Admin" || user?.role === "Tenant Super Admin";
 
-  // Fetch data initially
   useEffect(() => {
     fetchCustomers();
     fetchSuppliers();
     fetchEmployees();
     fetchStages();
-  }, [service]);
+    
+    // ✅ Fetch stats if admin
+    if (isAdmin) {
+      fetchEmployeeStats();
+    }
+  }, [service, isAdmin]);
 
   // Reset page when filters/search change
   useEffect(() => {
@@ -316,6 +327,21 @@ export default function EnergyCustomersPage() {
     } catch (err) {
       console.error("❌ Error fetching stages:", err);
       setStages([]);
+    }
+  };
+
+  const fetchEmployeeStats = async () => {
+    try {
+      const response = await fetchWithAuth(`/energy-clients/stats-by-employee?service=${encodeURIComponent(service)}`);
+      const stats = Array.isArray(response.stats) ? response.stats : [];
+      
+      // Only show employees with count > 0
+      const nonZeroStats = stats.filter((stat: any) => stat.count > 0);
+      
+      setEmployeeStats(nonZeroStats);
+    } catch (err) {
+      console.error("❌ Error fetching employee stats:", err);
+      setEmployeeStats([]);
     }
   };
 
@@ -954,6 +980,54 @@ export default function EnergyCustomersPage() {
         </div>
       </div>
 
+      {isAdmin && employeeStats.length > 0 && (
+        <div className="mb-6">
+          <h2 className="text-sm font-medium text-gray-700 mb-3">Team Overview</h2>
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
+            {employeeStats.map((stat) => (
+              <div
+                key={stat.employee_id}
+                className="bg-white border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow"
+              >
+                <div className="flex items-center gap-2 mb-2">
+                  <Users className="h-4 w-4 text-blue-600" />
+                  <span className="text-xs font-medium text-gray-500 truncate">
+                    {stat.employee_name}
+                  </span>
+                </div>
+                <div className="flex items-baseline gap-2">
+                  <span className="text-2xl font-bold text-gray-900">
+                    {stat.count}
+                  </span>
+                  <span className="text-xs text-gray-500">
+                    customer{stat.count !== 1 ? 's' : ''}
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* ✅ NEW: Salesperson Stats Card - Non-Admin Only */}
+      {!isAdmin && (
+        <div className="mb-6">
+          <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-lg p-4">
+            <div className="flex items-center gap-3">
+              <div className="bg-blue-600 p-2 rounded-lg">
+                <Users className="h-5 w-5 text-white" />
+              </div>
+              <div>
+                <p className="text-sm text-gray-600">Your Customers</p>
+                <p className="text-2xl font-bold text-gray-900">
+                  {allCustomers.length}
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Error Display */}
       {error && (
         <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg flex items-start gap-3">
@@ -1265,7 +1339,7 @@ export default function EnergyCustomersPage() {
                       {/* ID */}
                       <td className="px-2 py-3 text-sm font-medium text-gray-900 border-r-2 border-gray-300 align-top">
                         <div className="flex items-center gap-1">
-                          {customer.id}
+                          {customer.display_id || customer.id}  {/* ✅ NEW: Show display_id */}
                           {fromSearch && (
                             <span title="From team search" className="inline-flex">
                               <Info className="h-3 w-3 text-amber-600" />
