@@ -105,7 +105,7 @@ const allSidebarItems: NavGroup[] = [
       },
       {
         title: "Documents",
-        url: "/dashboard/documents/all", // Changed from /dashboard/documents
+        url: "/dashboard/documents/all",
         icon: FolderOpen,
         roles: ["platform admin", "salesperson"],
         subItems: [
@@ -128,6 +128,13 @@ const allSidebarItems: NavGroup[] = [
         url: "/dashboard/recycle-bin",
         icon: Trash2,
         roles: ["platform admin", "salesperson"],
+      },
+      {
+        title: "Notifications",
+        url: "/dashboard/notifications",
+        icon: Bell,
+        roles: ["platform admin", "salesperson"],
+        isNew: true,
       },
       {
         title: "Settings",
@@ -165,6 +172,7 @@ export const getSidebarItems = (userRole: string, notificationCount?: number): N
           return item.roles.some(role => allowedRoles.includes(role.toLowerCase()));
         })
         .map((item) => {
+          // ✅ UPDATED: Apply notification badge to Notifications menu item
           if (item.title === "Notifications" && notificationCount !== undefined && notificationCount > 0) {
             return {
               ...item,

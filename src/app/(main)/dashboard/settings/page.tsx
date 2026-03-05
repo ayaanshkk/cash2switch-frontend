@@ -64,11 +64,11 @@ export default function SettingsPage() {
   // State management
   const [activeTab, setActiveTab] = useState("company");
   const [companySettings, setCompanySettings] = useState<CompanySettings>({
-    name: "Aztec Interiors",
-    address: "127 Barkby Road, Leicester",
-    postcode: "LE4 9LG",
-    phone: "0116 276 4516",
-    website: "www.aztecinteriors.co.uk",
+    name: "Business Gas",
+    address: "Studio 1 - 3, Morledge Street, Leicester",
+    postcode: "LE1 1TA",
+    phone: "0203 752 9755",
+    website: "www.switchmyutility.co.uk",
   });
 
   const [users, setUsers] = useState<UserSettings[]>([]);
