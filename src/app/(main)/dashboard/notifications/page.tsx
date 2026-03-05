@@ -1,12 +1,12 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
-import { Bell, Check, CheckCheck, Filter, Search, Trash2, X, ExternalLink, FileText } from 'lucide-react';
+import { Bell, Check, CheckCheck, Filter, Search, Trash2, X, ExternalLink, AlertCircle } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import {
   DropdownMenu,
@@ -24,12 +24,10 @@ interface Notification {
   read: boolean;
   dismissed: boolean;
   created_at: string;
-  customer_id?: string;
-  job_id?: string;
-  checklist_id?: string;
-  form_submission_id?: number;
-  form_type?: string;
-  moved_by?: string;
+  client_id?: number;
+  contract_id?: number;
+  notification_type: string;
+  priority: string;
 }
 
 const NotificationsPage = () => {
@@ -46,52 +44,18 @@ const NotificationsPage = () => {
     markAllAsRead,
     deleteNotification,
     clearAllNotifications,
-    fetchAllNotifications,
+    fetchNotifications,
   } = useNotifications();
 
   useEffect(() => {
-    fetchAllNotifications();
-  }, [fetchAllNotifications]);
+    fetchNotifications();
+  }, [fetchNotifications]);
 
-  const parseNotificationMessage = (message: string) => {
-    const parts = message.split('\n');
-    const mainMessage = parts[0];
-    const changes = parts.slice(1).filter(c => c.trim());
-    
-    return { mainMessage, changes };
-  };
-
-  const renderChange = (change: string) => {
-    const trimmed = change.trim();
-    
-    if (trimmed.startsWith('✅')) {
-      return <span className="text-green-600 font-medium">{trimmed}</span>;
-    } else if (trimmed.startsWith('❌')) {
-      return <span className="text-red-600 font-medium">{trimmed}</span>;
-    } else if (trimmed.startsWith('➕')) {
-      return <span className="text-blue-600 font-medium">{trimmed}</span>;
-    } else if (trimmed.startsWith('➖')) {
-      return <span className="text-orange-600 font-medium">{trimmed}</span>;
-    } else if (trimmed.startsWith('✏️')) {
-      return <span className="text-purple-600 font-medium">{trimmed}</span>;
-    } else if (trimmed.startsWith('•')) {
-      return <span className="text-gray-700 ml-2">{trimmed}</span>;
-    }
-    
-    return <span className="text-gray-700">{trimmed}</span>;
-  };
-
-  const getNotificationIcon = (message: string, form_type?: string) => {
-    if (message.includes('Invoice') || message.includes('💰')) return '💰';
-    if (message.includes('Receipt') || message.includes('🧾')) return '🧾';
-    if (message.includes('Checklist') || message.includes('📋')) return '📋';
-    if (message.includes('stage') || message.includes('🔄')) return '🔄';
-    if (message.includes('Delivery') || message.includes('🚚')) return '🚚';
-    if (message.includes('Complete') || message.includes('🎉')) return '🎉';
-    if (message.includes('Accepted') || message.includes('✅')) return '✅';
-    if (message.includes('Production') || message.includes('🏭')) return '🏭';
-    if (message.includes('Installation') || message.includes('🔧')) return '🔧';
-    return '🔔';
+  const getNotificationIcon = (notification: Notification) => {
+    if (notification.priority === 'urgent') return '🚨';
+    if (notification.notification_type === 'contract_expiry') return '⏰';
+    if (notification.notification_type === 'renewal_reminder') return '🔔';
+    return '📋';
   };
 
   const deleteAllRead = async () => {
@@ -152,10 +116,10 @@ const NotificationsPage = () => {
           <div>
             <h1 className="text-3xl font-bold tracking-tight flex items-center gap-3">
               <Bell className="h-8 w-8" />
-              All Notifications
+              Notifications
             </h1>
             <p className="text-muted-foreground mt-1">
-              Complete notification history with detailed changes
+              Contract expiry reminders and renewal notifications
             </p>
           </div>
           <div className="flex gap-2">
@@ -181,7 +145,7 @@ const NotificationsPage = () => {
                   <Trash2 className="h-4 w-4 mr-2" />
                   Delete All Read
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={fetchAllNotifications}>
+                <DropdownMenuItem onClick={fetchNotifications}>
                   <Bell className="h-4 w-4 mr-2" />
                   Refresh
                 </DropdownMenuItem>
@@ -256,10 +220,9 @@ const NotificationsPage = () => {
         <ScrollArea className="h-[calc(100vh-320px)]">
           <div className="space-y-3">
             {filteredNotifications.map((notification: Notification) => {
-              const { mainMessage, changes } = parseNotificationMessage(notification.message);
-              const icon = getNotificationIcon(notification.message, notification.form_type);
+              const icon = getNotificationIcon(notification);
               const isSelected = selectedNotifications.has(notification.id);
-              const hasChanges = changes.length > 0;
+              const isUrgent = notification.priority === 'urgent';
 
               return (
                 <Card
@@ -267,7 +230,7 @@ const NotificationsPage = () => {
                   className={`transition-all hover:shadow-md ${
                     !notification.read ? 'border-l-4 border-l-primary bg-primary/5' : ''
                   } ${isSelected ? 'ring-2 ring-primary' : ''} ${
-                    notification.dismissed ? 'opacity-60' : ''
+                    isUrgent ? 'border-l-4 border-l-red-500 bg-red-50' : ''
                   }`}
                 >
                   <CardContent className="p-4">
@@ -292,33 +255,14 @@ const NotificationsPage = () => {
                           <div className="flex-1">
                             <div className="flex items-center gap-2">
                               <p className={`text-sm ${!notification.read ? 'font-semibold' : ''}`}>
-                                {mainMessage}
+                                {notification.message}
                               </p>
-                              {notification.dismissed && (
-                                <Badge variant="outline" className="text-xs">
-                                  Hidden from sidebar
+                              {isUrgent && (
+                                <Badge variant="destructive" className="text-xs">
+                                  Urgent
                                 </Badge>
                               )}
                             </div>
-                            
-                            {/* Display detailed changes */}
-                            {hasChanges && (
-                              <div className="mt-3 space-y-2 bg-gradient-to-br from-gray-50 to-gray-100 p-4 rounded-lg border border-gray-200 shadow-sm">
-                                <div className="flex items-center gap-2 mb-2">
-                                  <FileText className="h-4 w-4 text-gray-600" />
-                                  <p className="text-xs font-semibold text-gray-700 uppercase tracking-wide">
-                                    Changes Made:
-                                  </p>
-                                </div>
-                                <ul className="space-y-1.5">
-                                  {changes.map((change, idx) => (
-                                    <li key={idx} className="text-sm leading-relaxed">
-                                      {renderChange(change)}
-                                    </li>
-                                  ))}
-                                </ul>
-                              </div>
-                            )}
                           </div>
                           {!notification.read && (
                             <div className="flex-shrink-0 w-2 h-2 bg-primary rounded-full mt-1.5" />
@@ -332,65 +276,21 @@ const NotificationsPage = () => {
                               addSuffix: true,
                             })}
                           </span>
-                          {notification.moved_by && (
-                            <>
-                              <span>•</span>
-                              <span>By: {notification.moved_by}</span>
-                            </>
-                          )}
+                          <span>•</span>
+                          <span className="capitalize">{notification.notification_type.replace('_', ' ')}</span>
                         </div>
 
                         {/* Action Links */}
                         <div className="flex items-center gap-2 pt-1 flex-wrap">
-                          {notification.customer_id && (
+                          {notification.client_id && (
                             <Button
                               variant="outline"
                               size="sm"
-                              onClick={() => router.push(`/dashboard/clients/${notification.customer_id}`)}
+                              onClick={() => router.push(`/dashboard/renewals/${notification.client_id}`)}
                               className="h-8"
                             >
                               <ExternalLink className="h-3 w-3 mr-1" />
-                              View Client
-                            </Button>
-                          )}
-                          
-                          {notification.job_id && (
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => router.push(`/dashboard/jobs/${notification.job_id}`)}
-                              className="h-8"
-                            >
-                              <ExternalLink className="h-3 w-3 mr-1" />
-                              View Job
-                            </Button>
-                          )}
-                          
-                          {notification.form_submission_id && (
-                            <Button
-                              variant="default"
-                              size="sm"
-                              onClick={() => {
-                                router.push(`/checklist-view?id=${notification.form_submission_id}`);
-                              }}
-                              className="h-8 bg-blue-600 hover:bg-blue-700 text-white"
-                            >
-                              <FileText className="h-3 w-3 mr-1" />
-                              View {notification.form_type ? notification.form_type.charAt(0).toUpperCase() + notification.form_type.slice(1) : 'Checklist'}
-                            </Button>
-                          )}
-                          
-                          {notification.checklist_id && !notification.form_submission_id && (
-                            <Button
-                              variant="default"
-                              size="sm"
-                              onClick={() => {
-                                router.push(`/checklist-view?id=${notification.checklist_id}`);
-                              }}
-                              className="h-8 bg-purple-600 hover:bg-purple-700 text-white"
-                            >
-                              <FileText className="h-3 w-3 mr-1" />
-                              View Checklist
+                              View Customer Details
                             </Button>
                           )}
                         </div>
@@ -414,7 +314,7 @@ const NotificationsPage = () => {
                           size="sm"
                           onClick={() => deleteNotification(notification.id)}
                           className="h-8 w-8 p-0 hover:bg-destructive/10 hover:text-destructive"
-                          title="Delete notification permanently"
+                          title="Delete notification"
                         >
                           <X className="h-4 w-4" />
                         </Button>
