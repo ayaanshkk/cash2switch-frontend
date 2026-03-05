@@ -39,15 +39,18 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
 
   // Initialize loud notification sound
   useEffect(() => {
-    audioRef.current = new Audio('/notification-sound.mp3');  // Add loud sound file
+    audioRef.current = new Audio('/notification-sound.mp3');
     audioRef.current.volume = 1.0; // Maximum volume
   }, []);
 
   const fetchNotifications = useCallback(async () => {
     try {
-      setLoading(true)
+      setLoading(true);
       const token = localStorage.getItem("auth_token");
-      if (!token) return;
+      if (!token) {
+        setLoading(false);
+        return;
+      }
 
       const response = await fetch(`${API_BASE_URL}/notifications/production`, {
         headers: {
