@@ -4,6 +4,7 @@ import { useEffect, useState, useMemo } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ChevronLeft, ChevronRight, Loader2, RefreshCw, ExternalLink } from "lucide-react";
 import { api } from "@/lib/api";
 import { format } from "date-fns";
@@ -30,6 +31,13 @@ interface Renewal {
   display_date: string;
   display_type: string;
   status: string;
+  assigned_to?: string;
+}
+
+interface Employee {
+  employee_id: number;
+  employee_name: string;
+  email: string;
 }
 
 export default function CalendarPage() {
@@ -39,10 +47,37 @@ export default function CalendarPage() {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedRenewal, setSelectedRenewal] = useState<Renewal | null>(null);
   const [showDetailDialog, setShowDetailDialog] = useState(false);
+  
+  // ✅ NEW: Employee filter states
+  const [employees, setEmployees] = useState<Employee[]>([]);
+  const [selectedEmployeeId, setSelectedEmployeeId] = useState<number | undefined>(undefined);
+  const [isAdmin, setIsAdmin] = useState(false);
+
+  // Check if user is admin
+  useEffect(() => {
+    if (user) {
+      const adminRoles = ['Platform Admin', 'Tenant Super Admin'];
+      setIsAdmin(adminRoles.includes(user.role || ''));
+    }
+  }, [user]);
+
+  // Load employees for admin
+  useEffect(() => {
+    const loadEmployees = async () => {
+      if (isAdmin) {
+        try {
+          const result = await api.getEmployees();
+          setEmployees(result || []);
+        } catch (error) {
+          console.error("Error loading employees:", error);
+        }
+      }
+    };
+    loadEmployees();
+  }, [isAdmin]);
 
   const formatDateKey = (date: Date | string) => {
     if (typeof date === "string") {
-      // Normalize "2026-03-27" or "2026-03-27T00:00:00" to "2026-03-27"
       const ymd = date.slice(0, 10);
       return /^\d{4}-\d{2}-\d{2}$/.test(ymd) ? ymd : date;
     }
@@ -91,7 +126,7 @@ export default function CalendarPage() {
   const loadRenewals = async () => {
     try {
       setLoading(true);
-      const result = await api.getCalendarRenewals();
+      const result = await api.getCalendarRenewals(selectedEmployeeId);
       setRenewals(result.data || []);
     } catch (err) {
       console.error("Error loading renewals:", err);
@@ -104,7 +139,7 @@ export default function CalendarPage() {
     if (user) {
       loadRenewals();
     }
-  }, [user]);
+  }, [user, selectedEmployeeId]);
 
   const navigateMonth = (direction: "prev" | "next") => {
     const newDate = new Date(currentDate);
@@ -146,12 +181,35 @@ export default function CalendarPage() {
             View all customers contract end dates
           </p>
         </div>
-        <Button onClick={loadRenewals} disabled={loading} variant="outline" size="sm">
-          <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
-          Refresh
-        </Button>
+        <div className="flex items-center gap-3">
+          {/* ✅ Employee Filter Dropdown (Admin Only) */}
+          {isAdmin && (
+            <Select
+              value={selectedEmployeeId?.toString() || "all"}
+              onValueChange={(value) => setSelectedEmployeeId(value === "all" ? undefined : parseInt(value))}
+            >
+              <SelectTrigger className="w-[200px]">
+                <SelectValue placeholder="All Salespeople" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Salespeople</SelectItem>
+                {employees.map((emp) => (
+                  <SelectItem key={emp.employee_id} value={emp.employee_id.toString()}>
+                    {emp.employee_name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+          
+          <Button onClick={loadRenewals} disabled={loading} variant="outline" size="sm">
+            <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+            Refresh
+          </Button>
+        </div>
       </div>
 
+      {/* Rest of the calendar code stays the same */}
       {/* Navigation */}
       <div className="mb-4 flex items-center justify-between">
         <div className="flex items-center gap-2">
@@ -170,7 +228,7 @@ export default function CalendarPage() {
         </div>
       </div>
 
-      {/* Calendar */}
+      {/* Calendar Grid - same as before */}
       <div className="rounded-lg border">
         <div className="grid grid-cols-7 border-b bg-gray-50">
           {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((day) => (
@@ -225,7 +283,7 @@ export default function CalendarPage() {
         </div>
       </div>
 
-      {/* Detail Dialog */}
+      {/* Detail Dialog - same as before */}
       <Dialog open={showDetailDialog} onOpenChange={setShowDetailDialog}>
         <DialogContent className="max-w-2xl">
           <DialogHeader>
@@ -282,6 +340,13 @@ export default function CalendarPage() {
                   <div>
                     <p className="text-sm font-medium text-gray-500">Rates</p>
                     <p>{selectedRenewal.rates}</p>
+                  </div>
+                )}
+                {/* ✅ Show assigned salesperson */}
+                {selectedRenewal.assigned_to && (
+                  <div>
+                    <p className="text-sm font-medium text-gray-500">Assigned To</p>
+                    <p>{selectedRenewal.assigned_to}</p>
                   </div>
                 )}
               </div>

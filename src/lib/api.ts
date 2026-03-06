@@ -153,5 +153,14 @@ export const api = {
   getContractSchedule: () => fetchWithAuth("/api/calendar/contracts"),
   getCalendarClients: () => fetchWithAuth("/api/calendar/clients"),
   getCalendarEmployees: () => fetchWithAuth("/api/calendar/employees"),
-  getCalendarRenewals: () => fetchWithAuth("/api/calendar/renewals"),
+  
+  // ✅ UPDATED: Add employee_id parameter for admin filtering
+  getCalendarRenewals: (employeeId?: number) => {
+    const params = new URLSearchParams();
+    if (employeeId) {
+      params.append('employee_id', employeeId.toString());
+    }
+    const url = `/api/calendar/renewals${params.toString() ? '?' + params.toString() : ''}`;
+    return fetchWithAuth(url);
+  },
 };
