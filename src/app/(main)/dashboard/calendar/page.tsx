@@ -11,8 +11,6 @@ import { format } from "date-fns";
 interface Renewal {
   id: string;
   customer_id: number;
-  type: 'contract_end' | 'callback';
-  display_type: string;
   type: string;
   title: string;
   name: string;
