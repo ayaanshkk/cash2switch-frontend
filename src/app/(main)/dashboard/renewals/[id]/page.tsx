@@ -358,8 +358,7 @@ export default function EnergyCustomerDetailsPage() {
     const token = localStorage.getItem("auth_token");
 
     try {
-      // In a real implementation, you would update the customer record
-      // and possibly create a history/activity log entry
+      // ✅ UPDATE: Save callback date and comment
       const response = await fetch(`${API_BASE_URL}/energy-clients/${id}`, {
         method: "PUT",
         headers: {
@@ -368,9 +367,8 @@ export default function EnergyCustomerDetailsPage() {
         },
         body: JSON.stringify({
           status: customer.status,
-          // Add follow_up_date and comments to your database schema if needed
-          // follow_up_date: followUpDate,
-          // action_comment: actionComment,
+          callback_date: followUpDate,  // ✅ Add this
+          interaction_notes: actionComment,  // ✅ Add this
         }),
       });
 
@@ -379,7 +377,7 @@ export default function EnergyCustomerDetailsPage() {
         // Clear the form
         setFollowUpDate("");
         setActionComment("");
-        // Optionally reload customer data to get updated history
+        // Reload to see updated data
         loadCustomerData();
       } else {
         alert("Failed to update action");

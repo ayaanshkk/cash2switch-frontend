@@ -230,6 +230,7 @@ export default function EnergyCustomersPage() {
   const [selectedCustomers, setSelectedCustomers] = useState<number[]>([]);
   const [searchResults, setSearchResults] = useState<EnergyCustomer[]>([]);
   const [isSearching, setIsSearching] = useState(false);
+  const [isSelectAllChecked, setIsSelectAllChecked] = useState(false);
   const [employeeStats, setEmployeeStats] = useState<{
   employee_id: number;
   employee_name: string;
@@ -596,17 +597,29 @@ export default function EnergyCustomersPage() {
 
   // ---------------- Selection Handlers ----------------
   const handleSelectAll = () => {
-    if (selectedCustomers.length === paginatedCustomers.length) {
+    if (isSelectAllChecked) {
+      // Deselect all
       setSelectedCustomers([]);
+      setIsSelectAllChecked(false);
     } else {
-      setSelectedCustomers(paginatedCustomers.map(c => c.id));
+      // Select all visible customers
+      const allIds = filteredCustomers.map(c => c.id);
+      setSelectedCustomers(allIds);
+      setIsSelectAllChecked(true);
     }
   };
 
   const handleSelectCustomer = (id: number) => {
-    setSelectedCustomers(prev => 
-      prev.includes(id) ? prev.filter(cid => cid !== id) : [...prev, id]
-    );
+    setSelectedCustomers(prev => {
+      const newSelection = prev.includes(id)
+        ? prev.filter(customerId => customerId !== id)
+        : [...prev, id];
+      
+      // Update select-all checkbox state
+      setIsSelectAllChecked(newSelection.length === filteredCustomers.length);
+      
+      return newSelection;
+    });
   };
 
   const bulkAssignToEmployee = async (employeeId: number, employeeName: string) => {
@@ -659,54 +672,59 @@ export default function EnergyCustomersPage() {
     };
 
   // ---------------- Bulk Delete ----------------
-  const bulkDeleteCustomers = async () => {
-    if (!user) {
-      alert("You don't have permission to delete clients.");
-      return;
+const bulkDeleteCustomers = async () => {
+  if (!user) {
+    alert("You don't have permission to delete clients.");
+    return;
+  }
+  
+  if (selectedCustomers.length === 0) {
+    alert("Please select customers to delete");
+    return;
+  }
+
+  if (!window.confirm(`Are you sure you want to delete ${selectedCustomers.length} client(s) and all related records?`)) {
+    return;
+  }
+
+  try {
+    // ✅ FIX: Map selectedCustomers (which are display IDs) to actual client_ids
+    const customerIdsToDelete = selectedCustomers
+      .map(displayId => allCustomers.find(c => c.id === displayId)?.client_id)
+      .filter((id): id is number => id !== undefined);
+
+    const deletePromises = customerIdsToDelete.map(clientId =>
+      fetchWithAuth(`/energy-clients/${clientId}`, { // ✅ Use client_id
+        method: "DELETE",
+      })
+    );
+
+    await Promise.all(deletePromises);
+
+    setAllCustomers((prev) => prev.filter((c) => !selectedCustomers.includes(c.id)));
+    setSelectedCustomers([]);
+    
+    // ✅ Check if all customers are deleted
+    const remainingCustomers = allCustomers.filter((c) => !selectedCustomers.includes(c.id));
+    
+    if (remainingCustomers.length === 0) {
+      // Reset sequence when all customers are deleted
+      try {
+        await fetchWithAuth('/energy-clients/reset-sequence', {
+          method: 'POST',
+        });
+        toast.success('✅ Sequence reset successfully');
+      } catch (resetErr) {
+        console.error('⚠️ Error resetting sequence:', resetErr);
+      }
     }
     
-    if (selectedCustomers.length === 0) {
-      alert("Please select customers to delete");
-      return;
-    }
-
-    if (!window.confirm(`Are you sure you want to delete ${selectedCustomers.length} client(s) and all related records?`)) {
-      return;
-    }
-
-    try {
-      const deletePromises = selectedCustomers.map(id =>
-        fetchWithAuth(`/energy-clients/${id}`, {
-          method: "DELETE",
-        })
-      );
-
-      await Promise.all(deletePromises);
-
-      setAllCustomers((prev) => prev.filter((c) => !selectedCustomers.includes(c.id)));
-      setSelectedCustomers([]);
-      
-      // ✅ Check if all customers are deleted
-      const remainingCustomers = allCustomers.filter((c) => !selectedCustomers.includes(c.id));
-      
-      if (remainingCustomers.length === 0) {
-        // Reset sequence when all customers are deleted
-        try {
-          await fetchWithAuth('/energy-clients/reset-sequence', {
-            method: 'POST',
-          });
-          toast.success('✅ Sequence reset successfully');
-        } catch (resetErr) {
-          console.error('⚠️ Error resetting sequence:', resetErr);
-        }
-      }
-      
-      alert(`Successfully deleted ${deletePromises.length} client(s)`);
-    } catch (err) {
-      console.error("Bulk delete error:", err);
-      alert("Error deleting some customers");
-    }
-  };
+    alert(`Successfully deleted ${deletePromises.length} client(s)`);
+  } catch (err) {
+    console.error("Bulk delete error:", err);
+    alert("Error deleting some customers");
+  }
+};
 
   const deleteAllAndReset = async () => {
     if (!user) {
@@ -714,10 +732,19 @@ export default function EnergyCustomersPage() {
       return;
     }
 
-    // ✅ Get total count before any filtering
-    const totalCount = allCustomers.length;
+    // ✅ CHANGED: Use selectedCustomers if any are selected, otherwise all customers
+    const customersToDelete = selectedCustomers.length > 0 
+      ? allCustomers.filter(c => selectedCustomers.includes(c.id))
+      : allCustomers;
     
-    const confirmMessage = `⚠️ WARNING: This will DELETE ALL ${totalCount} energy customers and RESET the ID numbering to start from 1.\n\nThis action CANNOT be undone!\n\nType "DELETE ALL" to confirm:`;
+    const totalCount = customersToDelete.length;
+    
+    if (totalCount === 0) {
+      alert("No customers to delete");
+      return;
+    }
+    
+    const confirmMessage = `⚠️ WARNING: This will DELETE ${totalCount} energy customer(s) and RESET the ID numbering to start from 1.\n\nThis action CANNOT be undone!\n\nType "DELETE ALL" to confirm:`;
     
     const confirmation = prompt(confirmMessage);
     
@@ -729,20 +756,14 @@ export default function EnergyCustomersPage() {
     try {
       setIsLoading(true);
       
-      // Get all customer IDs
-      const allIds = allCustomers.map(c => c.id);
+      // Get all customer client_ids to delete
+      const allClientIds = customersToDelete.map(c => c.client_id);
       
-      if (allIds.length === 0) {
-        alert("No customers to delete");
-        setIsLoading(false);
-        return;
-      }
-
-      toast.success(`🗑️ Deleting ${allIds.length} customers...`);
+      toast.success(`🗑️ Deleting ${allClientIds.length} customers...`);
 
       // Delete all customers
-      const deletePromises = allIds.map(id =>
-        fetchWithAuth(`/energy-clients/${id}`, {
+      const deletePromises = allClientIds.map(clientId =>
+        fetchWithAuth(`/energy-clients/${clientId}`, {
           method: "DELETE",
         })
       );
@@ -760,8 +781,9 @@ export default function EnergyCustomersPage() {
 
       setAllCustomers([]);
       setSelectedCustomers([]);
+      setIsSelectAllChecked(false);
       
-      alert(`✅ Successfully deleted ${allIds.length} customers and reset ID numbering to 1.\n\nYou can now upload your new file.`);
+      alert(`✅ Successfully deleted ${allClientIds.length} customers and reset ID numbering to 1.\n\nYou can now upload your new file.`);
       
     } catch (err) {
       console.error("Delete all error:", err);
@@ -1170,21 +1192,21 @@ export default function EnergyCustomersPage() {
 
         <div className="flex gap-2">
           {selectedCustomers.length > 0 && user && (
-            <Button onClick={bulkDeleteCustomers} variant="destructive">
-              <Trash2 className="mr-2 h-4 w-4" />
-              Delete Selected ({selectedCustomers.length})
-            </Button>
-          )}
-          
-          {(user?.role === "Platform Admin" || user?.role === "Tenant Super Admin") && (
-            <Button 
-              onClick={deleteAllAndReset}
-              variant="destructive"
-              className="bg-red-600 hover:bg-red-700"
-            >
-              <Trash2 className="mr-2 h-4 w-4" />
-              Delete All & Reset
-            </Button>
+            <>
+              <Button onClick={bulkDeleteCustomers} variant="destructive">
+                <Trash2 className="mr-2 h-4 w-4" />
+                Delete Selected ({selectedCustomers.length})
+              </Button>
+              
+              <Button 
+                onClick={deleteAllAndReset}
+                variant="destructive"
+                className="bg-red-600 hover:bg-red-700"
+              >
+                <Trash2 className="mr-2 h-4 w-4" />
+                Delete All & Reset
+              </Button>
+            </>
           )}
           
           <Button onClick={() => setShowImportModal(true)} variant="outline">
@@ -1275,7 +1297,7 @@ export default function EnergyCustomersPage() {
                 </tr>
               ) : (
                 paginatedCustomers.map((customer, idx) => {
-                  const isSelected = selectedCustomers.includes(customer.client_id);
+                  const isSelected = selectedCustomers.includes(customer.id);
                   const displayId = (currentPage - 1) * CUSTOMERS_PER_PAGE + idx + 1;
                   const fromSearch = isFromSearch(customer);
                   
@@ -1331,7 +1353,7 @@ export default function EnergyCustomersPage() {
                           type="checkbox"
                           className="rounded border-gray-300 mt-1"
                           checked={isSelected}
-                          onChange={() => handleSelectCustomer(customer.client_id)}
+                          onChange={() => handleSelectCustomer(customer.id)}
                           disabled={fromSearch} // Can't select customers from search
                         />
                       </td>

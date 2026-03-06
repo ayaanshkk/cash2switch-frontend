@@ -11,6 +11,8 @@ import { format } from "date-fns";
 interface Renewal {
   id: string;
   customer_id: number;
+  type: 'contract_end' | 'callback';
+  display_type: string;
   type: string;
   title: string;
   name: string;
@@ -117,8 +119,11 @@ export default function CalendarPage() {
     return renewalsByDate[dateKey] || [];
   };
 
-  const getRenewalColor = () => {
-    return "bg-orange-100 text-orange-800 border-orange-300";
+  const getRenewalColor = (renewal: Renewal) => {
+    if (renewal.type === 'callback') {
+      return "bg-blue-100 text-blue-800 border-blue-300";  
+    }
+    return "bg-orange-100 text-orange-800 border-orange-300";  
   };
 
   const openCustomerDetails = (customerId: number) => {
@@ -202,11 +207,11 @@ export default function CalendarPage() {
                         setSelectedRenewal(renewal);
                         setShowDetailDialog(true);
                       }}
-                      className={`cursor-pointer rounded border px-2 py-1 text-xs hover:shadow-md transition-shadow ${getRenewalColor()}`}
+                      className={`cursor-pointer rounded border px-2 py-1 text-xs hover:shadow-md transition-shadow ${getRenewalColor(renewal)}`}
                     >
                       <div className="font-medium truncate">{renewal.name}</div>
                       <div className="text-xs opacity-75 truncate">
-                        {renewal.mpan}
+                        {renewal.type === 'callback' ? 'Callback' : renewal.mpan}
                       </div>
                     </div>
                   ))}
