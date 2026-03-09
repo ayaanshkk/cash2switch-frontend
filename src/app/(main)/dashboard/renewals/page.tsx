@@ -28,6 +28,8 @@ import { canEditEntity, canBulkAssign } from "@/lib/permissions";
 import { fetchWithAuth } from "@/lib/api";
 import { Badge } from "@/components/ui/badge";
 import { toast, Toaster } from 'react-hot-toast';
+// import { useTaskProgress } from '@/hooks/useTaskProgress';
+// import { ProgressDialog } from '@/components/ui/ProgressDialog';
 
 // ---------------- Constants ----------------
 const CUSTOMERS_PER_PAGE = 25;
@@ -79,25 +81,25 @@ interface EnergyCustomer {
   
   created_at: string;
 
-  // Contact fields
+  // ✅ NEW Contact fields
   position?: string;
   company_number?: string;
   date_of_birth?: string;
   
-  // Site fields
+  // ✅ NEW Site fields
   site_name?: string;
   month_sold?: string;
   house_name?: string;
   house_number?: string;
   
-  // Contract fields
+  // ✅ NEW Contract fields
   old_supplier_name?: string;
   net_notch?: number;
   rate_2?: number;
   rate_3?: number;
   comms_paid?: number;
   
-  // Banking fields
+  // ✅ NEW Banking fields
   charity_ltd_company_number?: string;
   partner_details?: string;
   home_door_number?: string;
@@ -167,7 +169,7 @@ const getStatusLabel = (status: string | undefined): string => {
   return option?.label || status;
 };
 
-// HYBRID: Hardcoded as fallback, API as source of truth
+// ✅ HYBRID: Hardcoded as fallback, API as source of truth
 const STATUS_TO_STAGE_FALLBACK: Record<string, number> = {
   'called': 1,
   'not_answered': 2,
@@ -181,6 +183,7 @@ const STATUS_TO_STAGE_FALLBACK: Record<string, number> = {
 };
 
 const getStageIdFromStatus = (status: string, stagesList?: Stage[]): number => {
+  // ✅ Try API-fetched stages first
   if (stagesList && stagesList.length > 0) {
     const match = stagesList.find(
       (s) => s.stage_name.toLowerCase() === status.toLowerCase()
@@ -191,6 +194,7 @@ const getStageIdFromStatus = (status: string, stagesList?: Stage[]): number => {
     }
   }
 
+  // ✅ Fallback to hardcoded mapping
   const stageId = STATUS_TO_STAGE_FALLBACK[status.toLowerCase()];
   
   if (!stageId) {
@@ -218,7 +222,8 @@ export default function EnergyCustomersPage() {
   const [assignToEmployee, setAssignToEmployee] = useState<number | null>(null);
   const [bulkImportResult, setBulkImportResult] = useState<{
     success: boolean;
-    successful: number; // ✅ CHANGED from imported_count to successful
+    successful: number;
+    // imported_count: number;
     errors: string[];
     assigned_to?: string;
   } | null>(null);
@@ -228,13 +233,16 @@ export default function EnergyCustomersPage() {
   const [selectedCustomers, setSelectedCustomers] = useState<number[]>([]);
   const [searchResults, setSearchResults] = useState<EnergyCustomer[]>([]);
   const [isSearching, setIsSearching] = useState(false);
+  const [importTaskId, setImportTaskId] = useState<string | null>(null);
+  const [assignTaskId, setAssignTaskId] = useState<string | null>(null);
+  const [showProgressDialog, setShowProgressDialog] = useState(false);
   const [isSelectAllChecked, setIsSelectAllChecked] = useState(false);
   const [employeeStats, setEmployeeStats] = useState<{
-    employee_id: number;
-    employee_name: string;
-    count: number;
-    max_display_id?: number;
-  }[]>([]);
+  employee_id: number;
+  employee_name: string;
+  count: number;
+  max_display_id?: number;
+}[]>([]);
 
   // Lost confirmation modal state
   const [lostConfirmation, setLostConfirmation] = useState<{
@@ -254,6 +262,7 @@ export default function EnergyCustomersPage() {
     fetchEmployees();
     fetchStages();
     
+    // ✅ Fetch stats if admin
     if (isAdmin) {
       fetchEmployeeStats();
     }
@@ -270,7 +279,9 @@ export default function EnergyCustomersPage() {
     setError(null);
     
     try {
+      // ✅ Use fetchWithAuth - automatically includes Authorization and X-Tenant-ID headers
       const response = await fetchWithAuth(`/energy-clients?service=${encodeURIComponent(service)}`);
+      // Handle both { data: [...] } and direct array responses
       const data = Array.isArray(response) ? response : (response?.data || []);
       setAllCustomers(data);
     } catch (err) {
@@ -285,7 +296,9 @@ export default function EnergyCustomersPage() {
 
   const fetchSuppliers = async () => {
     try {
+      // ✅ Use fetchWithAuth - automatically includes Authorization and X-Tenant-ID headers
       const response = await fetchWithAuth("/suppliers");
+      // Handle both { data: [...] } and direct array responses
       const data = Array.isArray(response) ? response : (response?.data || []);
       setSuppliers(data);
     } catch (err) {
@@ -310,10 +323,12 @@ export default function EnergyCustomersPage() {
 
   const fetchStages = async () => {
     try {
+      // ✅ Use the correct endpoint from customer_routes.py
       const response = await fetchWithAuth("/stages");
+      // Handle both { data: [...] } and direct array responses
       const stagesList = Array.isArray(response) ? response : (response?.data || []);
       
-      console.log("✅ Stages loaded:", stagesList);
+      console.log("✅ Stages loaded:", stagesList);  // Debug log
       
       setStages(stagesList);
     } catch (err) {
@@ -327,6 +342,7 @@ export default function EnergyCustomersPage() {
       const response = await fetchWithAuth(`/energy-clients/stats-by-employee?service=${encodeURIComponent(service)}`);
       const stats = Array.isArray(response.stats) ? response.stats : [];
       
+      // Only show employees with count > 0
       const nonZeroStats = stats.filter((stat: any) => stat.count > 0);
       
       setEmployeeStats(nonZeroStats);
@@ -336,9 +352,11 @@ export default function EnergyCustomersPage() {
     }
   };
 
-  // Search across all customers (debounced)
+
+  // ✅ NEW: Search across all customers (debounced)
   useEffect(() => {
     const searchAllCustomers = async () => {
+      // Only search if user is NOT admin and has typed at least 2 characters
       const isAdmin = user?.role === "Platform Admin" || user?.role === "Tenant Super Admin";
       
       if (isAdmin || !searchTerm || searchTerm.length < 2) {
@@ -362,22 +380,27 @@ export default function EnergyCustomersPage() {
       }
     };
 
+    // Debounce search
     const timeoutId = setTimeout(searchAllCustomers, 300);
     return () => clearTimeout(timeoutId);
   }, [searchTerm, service, user]);
 
+  // ✅ ISSUE 1 FIXED: Sort customers in ASCENDING order (oldest first, newest at bottom)
   const sortedCustomers = useMemo(() => {
     const isAdmin = user?.role === "Platform Admin" || user?.role === "Tenant Super Admin";
     
+    // Admin sees all customers from regular fetch
     if (isAdmin) {
       return [...allCustomers].sort((a, b) => {
         const aDate = new Date(a.created_at).getTime();
         const bDate = new Date(b.created_at).getTime();
-        return aDate - bDate;
+        return aDate - bDate; // ASCENDING order
       });
     }
     
+    // Salesperson: combine their assigned customers + search results
     if (searchTerm && searchResults.length > 0) {
+      // Merge: their assigned customers + search results (avoid duplicates)
       const assignedIds = new Set(allCustomers.map(c => c.client_id));
       const uniqueSearchResults = searchResults.filter(c => !assignedIds.has(c.client_id));
       
@@ -388,6 +411,7 @@ export default function EnergyCustomersPage() {
       });
     }
     
+    // Default: only their assigned customers
     return [...allCustomers].sort((a, b) => {
       const aDate = new Date(a.created_at).getTime();
       const bDate = new Date(b.created_at).getTime();
@@ -395,6 +419,7 @@ export default function EnergyCustomersPage() {
     });
   }, [allCustomers, searchResults, searchTerm, user]);
 
+  // ✅ Apply filters (rest remains the same)
   const filteredCustomers = useMemo(() => {
     return sortedCustomers.filter((customer) => {
       const term = searchTerm.toLowerCase();
@@ -429,8 +454,10 @@ export default function EnergyCustomersPage() {
     return filteredCustomers.slice(startIndex, endIndex);
   }, [filteredCustomers, currentPage]);
 
+
   // ---------------- Update Status ----------------
   const updateCustomerStatus = async (customerId: number, newStatus: string) => {
+    // Check if user is selecting "Lost" - show confirmation first
     if (newStatus.toLowerCase() === 'lost') {
       setLostConfirmation({
         isOpen: true,
@@ -440,6 +467,7 @@ export default function EnergyCustomersPage() {
       return;
     }
 
+    // Call performStatusUpdate for ALL statuses
     const ok = await performStatusUpdate(customerId, newStatus);
   };
 
@@ -452,6 +480,7 @@ export default function EnergyCustomersPage() {
         stagesCount: stages.length
       });
 
+      // ✅ Get stage_id using hybrid approach (API + fallback)
       const stageId = getStageIdFromStatus(newStatus, stages.length > 0 ? stages : undefined);
       
       console.log("✅ Mapped to stage_id:", stageId);
@@ -462,15 +491,18 @@ export default function EnergyCustomersPage() {
         body: JSON.stringify({ stage_id: stageId, status: newStatus }),
       });
 
+      // ✅ Remove from list for BOTH "Lost" and "Priced"
       if (newStatus.toLowerCase() === "lost" || newStatus.toLowerCase() === "priced") {
         setAllCustomers((prev) => prev.filter((c) => c.id !== customerId));
         
+        // ✅ Show appropriate success message
         if (newStatus.toLowerCase() === "priced") {
           toast.success("✅ Customer moved to Priced page");
         } else {
           toast.success("🗑️ Customer moved to recycle bin");
         }
       } else {
+        // For other statuses, just update the status in place
         setAllCustomers((prev) =>
           prev.map((c) =>
             c.id === customerId ? { ...c, status: newStatus, stage_id: stageId } : c
@@ -495,8 +527,10 @@ export default function EnergyCustomersPage() {
 
   // ---------------- Update Assigned To ----------------
   const updateAssignedTo = async (customerId: number, employeeId: number) => {
+    // ✅ Platform Admin and Tenant Super Admin can assign to anyone
+    // ✅ Individual users can assign to themselves
     const isAdmin = user?.role === "Platform Admin" || user?.role === "Tenant Super Admin";
-    const isSelfAssignment = user?.id === employeeId;
+    const isSelfAssignment = user?.id === employeeId;  // ✅ Changed from employee_id to id
     
     if (!isAdmin && !isSelfAssignment) {
       alert("You can only assign customers to yourself. Only administrators can assign to other team members.");
@@ -510,6 +544,7 @@ export default function EnergyCustomersPage() {
         body: JSON.stringify({ assigned_to_id: employeeId }),
       });
 
+      // Use server response so assigned_to_name is correct (from backend join)
       const updated = res?.customer ?? res;
       if (updated && (updated.id === customerId || updated.client_id === customerId)) {
         setAllCustomers((prev) =>
@@ -524,6 +559,7 @@ export default function EnergyCustomersPage() {
           )
         );
       } else {
+        // Fallback: update from local employees list or refetch
         const employee = employees.find((e) => Number(e.employee_id) === Number(employeeId));
         setAllCustomers((prev) =>
           prev.map((c) =>
@@ -548,6 +584,7 @@ export default function EnergyCustomersPage() {
     if (!window.confirm("Are you sure you want to delete this client and all related records?")) return;
 
     try {
+      // ✅ Use fetchWithAuth - automatically includes Authorization and X-Tenant-ID headers
       await fetchWithAuth(`/energy-clients/${id}`, {
         method: "DELETE",
       });
@@ -567,9 +604,11 @@ export default function EnergyCustomersPage() {
   // ---------------- Selection Handlers ----------------
   const handleSelectAll = () => {
     if (isSelectAllChecked) {
+      // Deselect all
       setSelectedCustomers([]);
       setIsSelectAllChecked(false);
     } else {
+      // Select all visible customers
       const allIds = filteredCustomers.map(c => c.id);
       setSelectedCustomers(allIds);
       setIsSelectAllChecked(true);
@@ -582,13 +621,14 @@ export default function EnergyCustomersPage() {
         ? prev.filter(customerId => customerId !== id)
         : [...prev, id];
       
+      // Update select-all checkbox state
       setIsSelectAllChecked(newSelection.length === filteredCustomers.length);
       
       return newSelection;
     });
   };
 
-  // ✅ OPTIMIZED: Bulk assign using new endpoint
+  // ✅ FIXED: Bulk assign now uses client_id consistently
   const bulkAssignToEmployee = async (employeeId: number, employeeName: string) => {
     if (selectedCustomers.length === 0) {
       alert("Please select customers to assign");
@@ -607,7 +647,7 @@ export default function EnergyCustomersPage() {
 
       console.log(`🚀 Bulk assigning ${customerIdsToAssign.length} clients to ${employeeName}`);
 
-      // ✅ Use optimized endpoint
+      // ✅ Call optimized synchronous endpoint
       const response = await fetchWithAuth('/api/bulk-assign-optimized', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -617,6 +657,7 @@ export default function EnergyCustomersPage() {
         }),
       });
 
+      // ✅ Handle immediate response
       if (response.success) {
         toast.success(`✅ ${response.updated_count} clients assigned to ${response.employee_name}`);
         
@@ -628,7 +669,6 @@ export default function EnergyCustomersPage() {
         setSelectedCustomers([]);
         setIsSelectAllChecked(false);
         
-        // Refresh stats if admin
         if (isAdmin) {
           fetchEmployeeStats();
         }
@@ -640,56 +680,59 @@ export default function EnergyCustomersPage() {
   };
 
   // ---------------- Bulk Delete ----------------
-  const bulkDeleteCustomers = async () => {
-    if (!user) {
-      alert("You don't have permission to delete clients.");
-      return;
+const bulkDeleteCustomers = async () => {
+  if (!user) {
+    alert("You don't have permission to delete clients.");
+    return;
+  }
+  
+  if (selectedCustomers.length === 0) {
+    alert("Please select customers to delete");
+    return;
+  }
+
+  if (!window.confirm(`Are you sure you want to delete ${selectedCustomers.length} client(s) and all related records?`)) {
+    return;
+  }
+
+  try {
+    // ✅ FIX: Map selectedCustomers (which are display IDs) to actual client_ids
+    const customerIdsToDelete = selectedCustomers
+      .map(displayId => allCustomers.find(c => c.id === displayId)?.client_id)
+      .filter((id): id is number => id !== undefined);
+
+    const deletePromises = customerIdsToDelete.map(clientId =>
+      fetchWithAuth(`/energy-clients/${clientId}`, { // ✅ Use client_id
+        method: "DELETE",
+      })
+    );
+
+    await Promise.all(deletePromises);
+
+    setAllCustomers((prev) => prev.filter((c) => !selectedCustomers.includes(c.id)));
+    setSelectedCustomers([]);
+    
+    // ✅ Check if all customers are deleted
+    const remainingCustomers = allCustomers.filter((c) => !selectedCustomers.includes(c.id));
+    
+    if (remainingCustomers.length === 0) {
+      // Reset sequence when all customers are deleted
+      try {
+        await fetchWithAuth('/energy-clients/reset-sequence', {
+          method: 'POST',
+        });
+        toast.success('✅ Sequence reset successfully');
+      } catch (resetErr) {
+        console.error('⚠️ Error resetting sequence:', resetErr);
+      }
     }
     
-    if (selectedCustomers.length === 0) {
-      alert("Please select customers to delete");
-      return;
-    }
-
-    if (!window.confirm(`Are you sure you want to delete ${selectedCustomers.length} client(s) and all related records?`)) {
-      return;
-    }
-
-    try {
-      const customerIdsToDelete = selectedCustomers
-        .map(displayId => allCustomers.find(c => c.id === displayId)?.client_id)
-        .filter((id): id is number => id !== undefined);
-
-      const deletePromises = customerIdsToDelete.map(clientId =>
-        fetchWithAuth(`/energy-clients/${clientId}`, {
-          method: "DELETE",
-        })
-      );
-
-      await Promise.all(deletePromises);
-
-      setAllCustomers((prev) => prev.filter((c) => !selectedCustomers.includes(c.id)));
-      setSelectedCustomers([]);
-      
-      const remainingCustomers = allCustomers.filter((c) => !selectedCustomers.includes(c.id));
-      
-      if (remainingCustomers.length === 0) {
-        try {
-          await fetchWithAuth('/energy-clients/reset-sequence', {
-            method: 'POST',
-          });
-          toast.success('✅ Sequence reset successfully');
-        } catch (resetErr) {
-          console.error('⚠️ Error resetting sequence:', resetErr);
-        }
-      }
-      
-      alert(`Successfully deleted ${deletePromises.length} client(s)`);
-    } catch (err) {
-      console.error("Bulk delete error:", err);
-      alert("Error deleting some customers");
-    }
-  };
+    alert(`Successfully deleted ${deletePromises.length} client(s)`);
+  } catch (err) {
+    console.error("Bulk delete error:", err);
+    alert("Error deleting some customers");
+  }
+};
 
   const deleteAllAndReset = async () => {
     if (!user) {
@@ -697,6 +740,7 @@ export default function EnergyCustomersPage() {
       return;
     }
 
+    // ✅ CHANGED: Use selectedCustomers if any are selected, otherwise all customers
     const customersToDelete = selectedCustomers.length > 0 
       ? allCustomers.filter(c => selectedCustomers.includes(c.id))
       : allCustomers;
@@ -720,10 +764,12 @@ export default function EnergyCustomersPage() {
     try {
       setIsLoading(true);
       
+      // Get all customer client_ids to delete
       const allClientIds = customersToDelete.map(c => c.client_id);
       
       toast.success(`🗑️ Deleting ${allClientIds.length} customers...`);
 
+      // Delete all customers
       const deletePromises = allClientIds.map(clientId =>
         fetchWithAuth(`/energy-clients/${clientId}`, {
           method: "DELETE",
@@ -734,6 +780,7 @@ export default function EnergyCustomersPage() {
 
       toast.success("✅ All customers deleted, resetting sequence...");
 
+      // Reset sequence
       await fetchWithAuth('/energy-clients/reset-sequence', {
         method: 'POST',
       });
@@ -754,14 +801,29 @@ export default function EnergyCustomersPage() {
     }
   };
 
-  // ✅ OPTIMIZED: Bulk import handler
+  const { taskProgress } = useTaskProgress(
+    importTaskId || assignTaskId,
+    // onComplete
+    (result) => {
+      console.log('✅ Task complete:', result);
+      fetchCustomers(); // Refresh customer list
+      setShowProgressDialog(true); // Keep dialog open to show results
+    },
+    // onError
+    (error) => {
+      console.error('❌ Task failed:', error);
+      toast.error(`Task failed: ${error}`);
+      setShowProgressDialog(true);
+    }
+  );
+
   const handleBulkImport = async () => {
     if (!bulkImportFile) {
       alert("Please select a file");
       return;
     }
 
-    setBulkImporting(true);
+    setBulkImporting(true);  // ✅ Show loading spinner
     setBulkImportResult(null);
 
     try {
@@ -775,24 +837,23 @@ export default function EnergyCustomersPage() {
 
       console.log(`🚀 Starting optimized bulk import for service: ${service}`);
 
-      // ✅ Use optimized import endpoint (note: removed /api prefix to match your backend)
+      // ✅ Call optimized synchronous endpoint
       const res = await fetch(
         `${API_BASE_URL}/api/import/energy-customers?service=${encodeURIComponent(service)}`,
         {
           method: "POST",
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
+          headers: { Authorization: `Bearer ${token}` },
           body: formData,
         }
       );
 
       const data = await res.json();
 
+      // ✅ Handle immediate response (no task_id, just results)
       if (res.ok && data.success) {
         setBulkImportResult({
           success: true,
-          successful: data.successful, // ✅ Use 'successful' field
+          successful: data.successful,  // ✅ Use 'successful' field
           errors: data.errors || [],
           assigned_to: data.assigned_to,
         });
@@ -802,7 +863,6 @@ export default function EnergyCustomersPage() {
         // Refresh customer list
         await fetchCustomers();
         
-        // Refresh stats if admin
         if (isAdmin) {
           await fetchEmployeeStats();
         }
@@ -827,7 +887,7 @@ export default function EnergyCustomersPage() {
         errors: ['Network error occurred'],
       });
     } finally {
-      setBulkImporting(false);
+      setBulkImporting(false);  // ✅ Hide loading spinner
     }
   };
 
@@ -868,6 +928,7 @@ export default function EnergyCustomersPage() {
     }
   };
 
+  // Get supplier name from ID
   const getSupplierName = (supplierId: number | undefined): string => {
     if (!supplierId) return "—";
     const supplier = suppliers.find(s => s.supplier_id === supplierId);
@@ -936,7 +997,7 @@ export default function EnergyCustomersPage() {
 
   return (
     <div className="w-full p-6">
-      <Toaster position="top-right" />
+    <Toaster position="top-right" />
       <h1 className="mb-6 text-4xl font-semibold tracking-tight text-slate-900">
         Renewals
       </h1>
@@ -998,6 +1059,7 @@ export default function EnergyCustomersPage() {
         </div>
       )}
 
+      {/* ✅ NEW: Salesperson Stats Card - Non-Admin Only */}
       {!isAdmin && (
         <div className="mb-6">
           <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-lg p-4">
@@ -1016,6 +1078,7 @@ export default function EnergyCustomersPage() {
         </div>
       )}
 
+      {/* Error Display */}
       {error && (
         <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg flex items-start gap-3">
           <AlertCircle className="h-5 w-5 text-red-600 flex-shrink-0 mt-0.5" />
@@ -1034,6 +1097,7 @@ export default function EnergyCustomersPage() {
         </div>
       )}
 
+      {/* ✅ NEW: Bulk Assign Bar - Shows when customers are selected */}
       {selectedCustomers.length > 0 && (user?.role === "Platform Admin" || user?.role === "Tenant Super Admin") && (
         <div className="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
           <div className="flex items-center justify-between">
@@ -1057,6 +1121,7 @@ export default function EnergyCustomersPage() {
             </Button>
           </div>
           
+          {/* Salesperson Buttons */}
           <div className="mt-4 flex flex-wrap gap-2">
             {employees.map((employee) => (
               <Button
@@ -1184,19 +1249,279 @@ export default function EnergyCustomersPage() {
         </div>
       </div>
 
-      {/* Table - keeping your existing table code */}
-      <div className="overflow-hidden rounded-lg border border-gray-200 bg-white">
+        {/* Responsive table wrapper */}
+        <div className="overflow-hidden rounded-lg border border-gray-200 bg-white">
         <div className="overflow-x-auto">
           <table className="w-full divide-y divide-gray-200">
-            {/* Your existing table structure - unchanged for brevity */}
-            {/* ... rest of table code ... */}
+            <thead className="bg-gray-50">
+              <tr>
+                <th className="px-3 py-3 text-left w-10">
+                  <input
+                    type="checkbox"
+                    className="rounded border-gray-300"
+                    checked={selectedCustomers.length === paginatedCustomers.length && paginatedCustomers.length > 0}
+                    onChange={handleSelectAll}
+                  />
+                </th>
+                <th className="px-2 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase w-16 border-r-2 border-gray-300">
+                  ID
+                </th>
+                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase w-32">
+                  Client Name
+                </th>
+                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase w-44">
+                  Trading Name
+                </th>
+                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase w-28">
+                  Tel No
+                </th>
+                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase w-32">
+                  MPAN
+                </th>
+                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase w-32">
+                  Supplier
+                </th>
+                <th className="px-3 py-3 text-right text-xs font-medium tracking-wider text-gray-500 uppercase w-24">
+                  Annual Usage
+                </th>
+                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase w-24">
+                  Start Date
+                </th>
+                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase w-24">
+                  Contract End
+                </th>
+                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase w-40">
+                  Status
+                </th>
+                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase w-36">
+                  Assigned To
+                </th>
+              </tr>
+            </thead>
+
+            <tbody className="divide-y divide-gray-200 bg-white">
+              {isLoading ? (
+                <tr>
+                  <td colSpan={12} className="px-6 py-12 text-center">
+                    <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-current border-r-transparent text-gray-600"></div>
+                    <p className="mt-4 text-gray-500">Loading renewals...</p>
+                  </td>
+                </tr>
+              ) : error ? (
+                <tr>
+                  <td colSpan={12} className="px-6 py-12 text-center text-gray-500">
+                    <AlertCircle className="h-12 w-12 text-red-400 mx-auto mb-3" />
+                    <p className="text-lg text-red-600">Failed to load renewals</p>
+                    <p className="mt-2 text-sm">{error}</p>
+                  </td>
+                </tr>
+              ) : paginatedCustomers.length === 0 ? (
+                <tr>
+                  <td colSpan={12} className="px-6 py-12 text-center text-gray-500">
+                    <Zap className="h-12 w-12 text-gray-400 mx-auto mb-3" />
+                    <p className="text-lg">No clients found.</p>
+                    <p className="mt-2 text-sm">Create your first client to get started!</p>
+                  </td>
+                </tr>
+              ) : (
+                paginatedCustomers.map((customer, idx) => {
+                  const isSelected = selectedCustomers.includes(customer.id);
+                  const displayId = (currentPage - 1) * CUSTOMERS_PER_PAGE + idx + 1;
+                  const fromSearch = isFromSearch(customer);
+                  
+                  return (
+                    <tr
+                      key={customer.client_id}
+                      className={`hover:bg-gray-50 transition-colors cursor-pointer ${
+                        isSelected ? 'bg-blue-50' : fromSearch ? 'bg-amber-50' : ''
+                      }`}
+                      onClick={() => router.push(`/dashboard/renewals/${customer.client_id}`)}
+                      onContextMenu={(e) => {
+                        e.preventDefault();
+                        const menu = document.createElement('div');
+                        menu.className = 'fixed bg-white border border-gray-300 rounded-md shadow-lg z-50 py-1';
+                        menu.style.left = `${e.pageX}px`;
+                        menu.style.top = `${e.pageY}px`;
+                        
+                        const editBtn = document.createElement('button');
+                        editBtn.className = 'w-full px-4 py-2 text-left text-sm hover:bg-gray-100 flex items-center gap-2';
+                        editBtn.innerHTML = '<svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg> Edit';
+                        editBtn.onclick = () => {
+                          router.push(`/dashboard/renewals/${customer.client_id}/edit`);
+                          document.body.removeChild(menu);
+                        };
+                        
+                        const deleteBtn = document.createElement('button');
+                        deleteBtn.className = 'w-full px-4 py-2 text-left text-sm hover:bg-red-50 text-red-600 flex items-center gap-2';
+                        deleteBtn.innerHTML = '<svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg> Delete';
+                        deleteBtn.onclick = () => {
+                          deleteCustomer(customer.client_id);
+                          document.body.removeChild(menu);
+                        };
+                        
+                        menu.appendChild(editBtn);
+                        if (user) {
+                          menu.appendChild(deleteBtn);
+                        }
+                        
+                        document.body.appendChild(menu);
+                        
+                        const closeMenu = (e: MouseEvent) => {
+                          if (!menu.contains(e.target as Node)) {
+                            document.body.removeChild(menu);
+                            document.removeEventListener('click', closeMenu);
+                          }
+                        };
+                        setTimeout(() => document.addEventListener('click', closeMenu), 0);
+                      }}
+                    >
+                      {/* Checkbox */}
+                      <td className="px-3 py-3 align-top" onClick={(e) => e.stopPropagation()}>
+                        <input
+                          type="checkbox"
+                          className="rounded border-gray-300 mt-1"
+                          checked={isSelected}
+                          onChange={() => handleSelectCustomer(customer.id)}
+                          disabled={fromSearch}
+                        />
+                      </td>
+
+                      {/* ID */}
+                      <td className="px-2 py-3 text-sm font-medium text-gray-900 border-r-2 border-gray-300 align-top">
+                        <div className="flex items-center gap-1">
+                          {customer.display_id || customer.id}
+                          {fromSearch && (
+                            <span title="From team search" className="inline-flex">
+                              <Info className="h-3 w-3 text-amber-600" />
+                            </span>
+                          )}
+                        </div>
+                      </td>
+
+                      {/* Name */}
+                      <td className="px-3 py-3 text-sm text-gray-700 align-top">
+                        <div className="break-words max-w-[120px] leading-tight">
+                          {customer.contact_person}
+                          {fromSearch && (
+                            <Badge variant="outline" className="mt-1 text-xs bg-amber-100 text-amber-800 border-amber-300">
+                              {customer.assigned_to_name || 'Other team'}
+                            </Badge>
+                          )}
+                        </div>
+                      </td>
+
+                      {/* Business Name */}
+                      <td className="px-3 py-3 text-sm text-gray-900 align-top">
+                        <div className="flex items-start gap-1">
+                          <span className="break-words max-w-[160px] leading-tight">
+                            {customer.business_name}
+                          </span>
+                        </div>
+                      </td>
+
+                      {/* Phone */}
+                      <td className="px-3 py-3 text-sm text-gray-900 align-top">
+                        <div className="whitespace-nowrap">
+                          {customer.phone ? String(customer.phone).replace(/\.0$/, '') : '—'}
+                        </div>
+                      </td>
+
+                      {/* MPAN/MPR */}
+                      <td className="px-3 py-3 text-xs font-mono text-gray-900 align-top">
+                        <div className="break-all max-w-[120px] leading-tight">
+                          {customer.mpan_mpr || "—"}
+                        </div>
+                      </td>
+
+                      {/* Supplier */}
+                      <td className="px-3 py-3 text-xs text-gray-900 align-top">
+                        <div className="break-words max-w-[120px] leading-tight">
+                          {customer.supplier_name || "—"}
+                        </div>
+                      </td>
+
+                      {/* Usage */}
+                      <td className="px-3 py-3 text-xs text-gray-900 text-right align-top">
+                        <div className="whitespace-nowrap">
+                          {customer.annual_usage ? customer.annual_usage.toLocaleString() : "—"}
+                        </div>
+                      </td>
+
+                      {/* Start Date */}
+                      <td className="px-3 py-3 text-xs text-gray-700 align-top">
+                        <div className="whitespace-nowrap">{formatDate(customer.start_date)}</div>
+                      </td>
+
+                      {/* End Date */}
+                      <td className="px-3 py-3 text-xs text-gray-700 align-top">
+                        <div className="whitespace-nowrap">{formatDate(customer.end_date)}</div>
+                      </td>
+
+                      {/* Status Dropdown */}
+                      <td className="px-3 py-3 align-top" onClick={(e) => e.stopPropagation()}>
+                        <Select
+                          value={customer.status || ""}
+                          onValueChange={(value) => updateCustomerStatus(customer.client_id, value)}
+                        >
+                          <SelectTrigger className="h-7 text-xs w-full max-w-[150px]">
+                            <SelectValue placeholder="Set status">
+                              {customer.status ? (
+                                <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-semibold ${getStatusColor(customer.status)}`}>
+                                  {getStatusLabel(customer.status)}
+                                </span>
+                              ) : (
+                                "—"
+                              )}
+                            </SelectValue>
+                          </SelectTrigger>
+                          <SelectContent>
+                            {STATUS_OPTIONS.map((option) => (
+                              <SelectItem key={option.value} value={option.value}>
+                                {option.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </td>
+
+                      {/* Assigned To */}
+                      <td className="px-3 py-3 align-top" onClick={(e) => e.stopPropagation()}>
+                        {fromSearch ? (
+                          <div className="text-xs text-amber-700 font-medium px-2 py-1 bg-amber-100 rounded">
+                            {customer.assigned_to_name || 'Unassigned'}
+                          </div>
+                        ) : (
+                          <Select
+                            value={customer.assigned_to_id?.toString() || ""}
+                            onValueChange={(value) => updateAssignedTo(customer.client_id, parseInt(value))}
+                          >
+                            <SelectTrigger className="h-7 text-xs w-full max-w-[130px]">
+                              <SelectValue placeholder="Assign">
+                                <span className="truncate text-xs">{customer.assigned_to_name || "—"}</span>
+                              </SelectValue>
+                            </SelectTrigger>
+                            <SelectContent>
+                              {employees.map((employee) => (
+                                <SelectItem key={employee.employee_id} value={employee.employee_id.toString()}>
+                                  {employee.employee_name}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        )}
+                      </td>
+
+                    </tr>
+                  );
+                })
+              )}
+            </tbody>
           </table>
         </div>
 
-        {!isLoading && !error && filteredCustomers.length > 0 && <PaginationControls />}
+      {!isLoading && !error && filteredCustomers.length > 0 && <PaginationControls />}
       </div>
 
-      {/* Import Modal */}
       <Dialog open={showImportModal} onOpenChange={setShowImportModal}>
         <DialogContent className="max-w-2xl">
           <DialogHeader>
@@ -1207,6 +1532,7 @@ export default function EnergyCustomersPage() {
           </DialogHeader>
 
           <div className="space-y-4">
+            {/* File Upload */}
             <div>
               <label className="block text-sm font-medium mb-2">
                 Select Excel File
@@ -1219,6 +1545,7 @@ export default function EnergyCustomersPage() {
               />
             </div>
 
+            {/* Assignment Dropdown */}
             <div>
               <label className="block text-sm font-medium mb-2">
                 Assign To (Optional)
@@ -1244,6 +1571,7 @@ export default function EnergyCustomersPage() {
               </p>
             </div>
 
+            {/* Template Download */}
             <div className="bg-blue-50 border border-blue-200 rounded-md p-4">
               <h4 className="font-medium text-sm mb-2">📥 Download Template</h4>
               <p className="text-xs text-gray-600 mb-2">
@@ -1267,6 +1595,7 @@ export default function EnergyCustomersPage() {
               </Button>
             </div>
 
+            {/* Import Results */}
             {bulkImportResult && (
               <div
                 className={`rounded-md p-4 ${
@@ -1300,6 +1629,28 @@ export default function EnergyCustomersPage() {
               </div>
             )}
 
+            {/* ✅ Progress Dialog
+            <ProgressDialog
+              open={showProgressDialog}
+              onOpenChange={setShowProgressDialog}
+              title={importTaskId ? "Importing Customers" : "Assigning Customers"}
+              progress={taskProgress?.progress || 0}
+              status={taskProgress?.status || 'Starting...'}
+              state={taskProgress?.state || 'PENDING'}
+              successful={taskProgress?.successful}
+              errors={taskProgress?.errors}
+              currentBatch={taskProgress?.current_batch}
+              totalBatches={taskProgress?.total_batches}
+              result={taskProgress?.result}
+              error={taskProgress?.error}
+              onComplete={() => {
+                setImportTaskId(null);
+                setAssignTaskId(null);
+                setShowProgressDialog(false);
+              }}
+            /> */}
+
+            {/* Action Buttons */}
             <div className="flex justify-end gap-2 pt-4">
               <Button
                 variant="outline"
