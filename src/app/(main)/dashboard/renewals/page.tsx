@@ -28,6 +28,8 @@ import { canEditEntity, canBulkAssign } from "@/lib/permissions";
 import { fetchWithAuth } from "@/lib/api";
 import { Badge } from "@/components/ui/badge";
 import { toast, Toaster } from 'react-hot-toast';
+import { useTaskProgress } from '@/hooks/useTaskProgress';
+import { ProgressDialog } from '@/components/ui/ProgressDialog';
 
 // ---------------- Constants ----------------
 const CUSTOMERS_PER_PAGE = 25;
@@ -230,6 +232,9 @@ export default function EnergyCustomersPage() {
   const [selectedCustomers, setSelectedCustomers] = useState<number[]>([]);
   const [searchResults, setSearchResults] = useState<EnergyCustomer[]>([]);
   const [isSearching, setIsSearching] = useState(false);
+  const [importTaskId, setImportTaskId] = useState<string | null>(null);
+  const [assignTaskId, setAssignTaskId] = useState<string | null>(null);
+  const [showProgressDialog, setShowProgressDialog] = useState(false);
   const [isSelectAllChecked, setIsSelectAllChecked] = useState(false);
   const [employeeStats, setEmployeeStats] = useState<{
   employee_id: number;
@@ -622,54 +627,41 @@ export default function EnergyCustomersPage() {
     });
   };
 
-  const bulkAssignToEmployee = async (employeeId: number, employeeName: string) => {
-      if (selectedCustomers.length === 0) {
-        alert("Please select customers to assign");
-        return;
+  // ✅ FIXED: Bulk assign now uses client_id consistently
+  const bulkAssignToEmployeeAsync = async (employeeId: number, employeeName: string) => {
+    if (selectedCustomers.length === 0) {
+      alert("Please select customers to assign");
+      return;
+    }
+
+    if (!window.confirm(`Assign ${selectedCustomers.length} client(s) to ${employeeName}?`)) {
+      return;
+    }
+
+    try {
+      const customerIdsToAssign = selectedCustomers
+        .map(displayId => allCustomers.find(c => c.id === displayId)?.client_id)
+        .filter((id): id is number => id !== undefined);
+
+      const response = await fetchWithAuth('/api/bulk-assign-async', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          client_ids: customerIdsToAssign,
+          employee_id: employeeId,
+        }),
+      });
+
+      if (response.task_id) {
+        setAssignTaskId(response.task_id);
+        setShowProgressDialog(true);
+        toast.success(`Assignment of ${customerIdsToAssign.length} clients started!`);
       }
-
-      if (!window.confirm(`Assign ${selectedCustomers.length} client(s) to ${employeeName}?`)) {
-        return;
-      }
-
-      try {
-        const response = await fetchWithAuth('/energy-clients/bulk-assign', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            client_ids: selectedCustomers,
-            employee_id: employeeId,
-          }),
-        });
-
-        // Update local state - remove assigned customers from view if current user is not admin
-        const isAdmin = user?.role === "Platform Admin" || user?.role === "Tenant Super Admin";
-        
-        if (isAdmin) {
-          // Admin can see all - just update assigned_to
-          setAllCustomers((prev) =>
-            prev.map((c) =>
-              selectedCustomers.includes(c.id)
-                ? { ...c, assigned_to_id: employeeId, assigned_to_name: employeeName }
-                : c
-            )
-          );
-        } else {
-          // Non-admin: remove from their view
-          setAllCustomers((prev) => prev.filter((c) => !selectedCustomers.includes(c.id)));
-        }
-
-        setSelectedCustomers([]);
-        
-        alert(response.message || `Successfully assigned ${selectedCustomers.length} clients to ${employeeName}`);
-        
-        // Refresh to get updated data
-        await fetchCustomers();
-      } catch (err) {
-        console.error("Bulk assign error:", err);
-        alert("Error assigning customers");
-      }
-    };
+    } catch (err) {
+      console.error("Bulk assign error:", err);
+      toast.error("❌ Error assigning customers");
+    }
+  };
 
   // ---------------- Bulk Delete ----------------
 const bulkDeleteCustomers = async () => {
@@ -793,70 +785,64 @@ const bulkDeleteCustomers = async () => {
     }
   };
 
+  const { taskProgress } = useTaskProgress(
+    importTaskId || assignTaskId,
+    // onComplete
+    (result) => {
+      console.log('✅ Task complete:', result);
+      fetchCustomers(); // Refresh customer list
+      setShowProgressDialog(true); // Keep dialog open to show results
+    },
+    // onError
+    (error) => {
+      console.error('❌ Task failed:', error);
+      toast.error(`Task failed: ${error}`);
+      setShowProgressDialog(true);
+    }
+  );
+
   const handleBulkImport = async () => {
     if (!bulkImportFile) {
       alert("Please select a file");
       return;
     }
 
-    setBulkImporting(true);
-    setBulkImportResult(null);
-
     try {
       const token = localStorage.getItem("auth_token");
       const formData = new FormData();
-      formData.append("file", bulkImportFile);
+      formData.append('file', bulkImportFile);
       
-      // ✅ Add assigned employee ID if selected
       if (assignToEmployee) {
-        formData.append("assigned_employee_id", assignToEmployee.toString());
+        formData.append('assigned_employee_id', assignToEmployee.toString());
       }
 
-      const res = await fetch(`${API_BASE_URL}/import/energy-customers?service=${encodeURIComponent(service)}`, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-        body: formData,
-      });
+      // ✅ Call async endpoint
+      const res = await fetch(
+        `${API_BASE_URL}/api/import/energy-customers-async?service=${encodeURIComponent(service)}`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+          body: formData,
+        }
+      );
 
       const data = await res.json();
 
-      if (res.ok) {
-        setBulkImportResult({
-          success: true,
-          imported_count: data.successful,
-          errors: data.errors || [],
-          assigned_to: data.assigned_to,
-        });
+      if (res.ok && data.task_id) {
+        // Start tracking the task
+        setImportTaskId(data.task_id);
+        setShowProgressDialog(true);
+        setShowImportModal(false); // Close import modal
         
-        // ✅ Show success message with assignment info
-        const assignmentMsg = data.assigned_to 
-          ? ` and assigned to ${data.assigned_to}`
-          : '';
-        
-        alert(`✅ Successfully imported ${data.successful} customers${assignmentMsg}!`);
-        
-        // Refresh the customer list
-        await fetchCustomers();
-        
-        // Reset form
-        setBulkImportFile(null);
-        setAssignToEmployee(null);
-        setShowImportModal(false);
+        toast.success('Import started! You can continue working.');
       } else {
-        setBulkImportResult({
-          success: false,
-          imported_count: 0,
-          errors: [data.error || "Import failed"],
-        });
-        alert(`❌ Import failed: ${data.error}`);
+        toast.error(data.error || 'Failed to start import');
       }
     } catch (error) {
-      console.error("Error during bulk import:", error);
-      alert("❌ Network error during import");
-    } finally {
-      setBulkImporting(false);
+      console.error("Error starting import:", error);
+      toast.error("Network error during import");
     }
   };
 
@@ -903,9 +889,6 @@ const bulkDeleteCustomers = async () => {
     const supplier = suppliers.find(s => s.supplier_id === supplierId);
     return supplier?.supplier_name || "—";
   };
-
-  // ✅ ADD THIS DEBUG LINE
-  console.log('✅ handleBulkImport exists:', typeof handleBulkImport === 'function');
 
   // Pagination Component
   const PaginationControls = () => {
@@ -1101,7 +1084,7 @@ const bulkDeleteCustomers = async () => {
                 variant="outline"
                 size="sm"
                 className="hover:bg-blue-100 hover:border-blue-400"
-                onClick={() => bulkAssignToEmployee(employee.employee_id, employee.employee_name)}
+                onClick={() => bulkAssignToEmployeeAsync(employee.employee_id, employee.employee_name)}
               >
                 <Users className="h-4 w-4 mr-2" />
                 Assign to {employee.employee_name}
@@ -1221,7 +1204,7 @@ const bulkDeleteCustomers = async () => {
         </div>
       </div>
 
-        {/* ✅ ISSUE 3 FIXED: Compact table - removed horizontal scroll, optimized column widths */}
+        {/* Responsive table wrapper */}
         <div className="overflow-hidden rounded-lg border border-gray-200 bg-white">
         <div className="overflow-x-auto">
           <table className="w-full divide-y divide-gray-200">
@@ -1354,14 +1337,14 @@ const bulkDeleteCustomers = async () => {
                           className="rounded border-gray-300 mt-1"
                           checked={isSelected}
                           onChange={() => handleSelectCustomer(customer.id)}
-                          disabled={fromSearch} // Can't select customers from search
+                          disabled={fromSearch}
                         />
                       </td>
 
                       {/* ID */}
                       <td className="px-2 py-3 text-sm font-medium text-gray-900 border-r-2 border-gray-300 align-top">
                         <div className="flex items-center gap-1">
-                          {customer.display_id || customer.id}  {/* ✅ NEW: Show display_id */}
+                          {customer.display_id || customer.id}
                           {fromSearch && (
                             <span title="From team search" className="inline-flex">
                               <Info className="h-3 w-3 text-amber-600" />
@@ -1370,7 +1353,7 @@ const bulkDeleteCustomers = async () => {
                         </div>
                       </td>
 
-                      {/* Name - WRAPPED TEXT */}
+                      {/* Name */}
                       <td className="px-3 py-3 text-sm text-gray-700 align-top">
                         <div className="break-words max-w-[120px] leading-tight">
                           {customer.contact_person}
@@ -1382,10 +1365,9 @@ const bulkDeleteCustomers = async () => {
                         </div>
                       </td>
 
-                      {/* Business Name - WRAPPED TEXT WITH ICON */}
+                      {/* Business Name */}
                       <td className="px-3 py-3 text-sm text-gray-900 align-top">
                         <div className="flex items-start gap-1">
-                          {/* <Building2 className="h-3 w-3 text-gray-400 flex-shrink-0 mt-0.5" /> */}
                           <span className="break-words max-w-[160px] leading-tight">
                             {customer.business_name}
                           </span>
@@ -1406,7 +1388,7 @@ const bulkDeleteCustomers = async () => {
                         </div>
                       </td>
 
-                      {/* Supplier - WRAPPED TEXT */}
+                      {/* Supplier */}
                       <td className="px-3 py-3 text-xs text-gray-900 align-top">
                         <div className="break-words max-w-[120px] leading-tight">
                           {customer.supplier_name || "—"}
@@ -1457,15 +1439,13 @@ const bulkDeleteCustomers = async () => {
                         </Select>
                       </td>
 
-                      {/* Assigned To - Show who it's actually assigned to */}
+                      {/* Assigned To */}
                       <td className="px-3 py-3 align-top" onClick={(e) => e.stopPropagation()}>
                         {fromSearch ? (
-                          // Read-only for search results
                           <div className="text-xs text-amber-700 font-medium px-2 py-1 bg-amber-100 rounded">
                             {customer.assigned_to_name || 'Unassigned'}
                           </div>
                         ) : (
-                          // Editable dropdown for own customers
                           <Select
                             value={customer.assigned_to_id?.toString() || ""}
                             onValueChange={(value) => updateAssignedTo(customer.client_id, parseInt(value))}
@@ -1520,20 +1500,20 @@ const bulkDeleteCustomers = async () => {
               />
             </div>
 
-            {/* ✅ ASSIGNMENT DROPDOWN */}
+            {/* Assignment Dropdown */}
             <div>
               <label className="block text-sm font-medium mb-2">
                 Assign To (Optional)
               </label>
               <Select
-                value={assignToEmployee?.toString() || "0"}  // ✅ Changed from "" to "0"
-                onValueChange={(value) => setAssignToEmployee(value === "0" ? null : Number(value))}  // ✅ Check for "0" instead of empty string
+                value={assignToEmployee?.toString() || "0"}
+                onValueChange={(value) => setAssignToEmployee(value === "0" ? null : Number(value))}
               > 
                 <SelectTrigger className="w-full">
                   <SelectValue placeholder="Keep unassigned (Admin only)" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="0">Keep unassigned (Admin only)</SelectItem>  {/* ✅ Use "0" instead */}
+                  <SelectItem value="0">Keep unassigned (Admin only)</SelectItem>
                   {employees.map((emp) => (
                     <SelectItem key={emp.employee_id} value={emp.employee_id.toString()}>
                       {emp.employee_name}
@@ -1603,6 +1583,27 @@ const bulkDeleteCustomers = async () => {
                 )}
               </div>
             )}
+
+            {/* ✅ Progress Dialog */}
+            <ProgressDialog
+              open={showProgressDialog}
+              onOpenChange={setShowProgressDialog}
+              title={importTaskId ? "Importing Customers" : "Assigning Customers"}
+              progress={taskProgress?.progress || 0}
+              status={taskProgress?.status || 'Starting...'}
+              state={taskProgress?.state || 'PENDING'}
+              successful={taskProgress?.successful}
+              errors={taskProgress?.errors}
+              currentBatch={taskProgress?.current_batch}
+              totalBatches={taskProgress?.total_batches}
+              result={taskProgress?.result}
+              error={taskProgress?.error}
+              onComplete={() => {
+                setImportTaskId(null);
+                setAssignTaskId(null);
+                setShowProgressDialog(false);
+              }}
+            />
 
             {/* Action Buttons */}
             <div className="flex justify-end gap-2 pt-4">

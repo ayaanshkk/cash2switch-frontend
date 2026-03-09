@@ -5,17 +5,15 @@ export const useCurrentUser = () => {
 
   if (!user) return null;
 
-  // Transform your auth user data to match the expected format
+  // ✅ Transform to match what your backend actually sends
   return {
     id: user.id.toString(),
-    name: user.full_name || `${user.first_name} ${user.last_name}`,
-    username: user.email,
+    name: user.name,  // ✅ Backend sends this as employee_name
+    username: user.username,
     email: user.email || "",
-    avatar: `/avatars/default.png`, // You can add avatar field to your User model later
+    avatar: `/avatars/default.png`,
     role: user.role,
-    department: user.department,
     phone: user.phone,
-    first_name: user.first_name,
-    last_name: user.last_name,
+    tenant_id: user.tenant_id,
   };
 };

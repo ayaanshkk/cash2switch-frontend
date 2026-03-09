@@ -149,7 +149,7 @@ export const api = {
       body: JSON.stringify({ public_id: publicId }),
     }),
 
-  // CALENDAR
+  // CALENDAR - ✅ All calendar routes are under /api/calendar
   getContractSchedule: () => fetchWithAuth("/api/calendar/contracts"),
   getCalendarClients: () => fetchWithAuth("/api/calendar/clients"),
   getCalendarEmployees: () => fetchWithAuth("/api/calendar/employees"),
@@ -157,10 +157,11 @@ export const api = {
   // ✅ UPDATED: Add employee_id parameter for admin filtering
   getCalendarRenewals: (employeeId?: number) => {
     const params = new URLSearchParams();
-    if (employeeId) {
+    if (employeeId !== undefined) {  // ✅ Changed to check for undefined explicitly
       params.append('employee_id', employeeId.toString());
     }
     const url = `/api/calendar/renewals${params.toString() ? '?' + params.toString() : ''}`;
+    console.log("📡 Calendar API URL:", url);  // ✅ Debug log
     return fetchWithAuth(url);
   },
 };

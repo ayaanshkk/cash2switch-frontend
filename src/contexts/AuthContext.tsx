@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { fetchPublic, fetchWithAuth } from "@/lib/api";
 
 interface User {
-  name: any;
+  name: string;
   id: number;
   employee_id: number;
   email: string;
