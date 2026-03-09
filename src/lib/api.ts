@@ -2,10 +2,7 @@
 // In browser: use /backend-api (proxied by Next.js) to avoid CORS / "Failed to fetch"
 // On server: use explicit backend URL
 const BACKEND_URL = process.env.NEXT_PUBLIC_API_URL || process.env.NEXT_PUBLIC_BACKEND_URL || "http://127.0.0.1:5000";
-export const API_BASE_URL =
-  typeof window !== "undefined" && process.env.NODE_ENV === "production"
-    ? "/backend-api"
-    : BACKEND_URL;
+export const API_BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://127.0.0.1:5000";
 
 if (typeof window !== "undefined") {
   console.log("🌐 API_BASE_URL:", API_BASE_URL);
