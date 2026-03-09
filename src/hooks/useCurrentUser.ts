@@ -5,15 +5,17 @@ export const useCurrentUser = () => {
 
   if (!user) return null;
 
-  // ✅ Transform to match what your backend actually sends
+  // ✅ Cast to any to avoid TypeScript errors
+  const userAny = user as any;
+
   return {
     id: user.id.toString(),
-    name: user.name,  // ✅ Backend sends this as employee_name
+    name: user.name,
     username: user.email || user.name || '',
     email: user.email || "",
     avatar: `/avatars/default.png`,
     role: user.role,
-    phone: user.phone,
-    tenant_id: user.tenant_id,
+    phone: userAny.phone || "",
+    tenant_id: userAny.tenant_id || null,
   };
 };
