@@ -53,13 +53,15 @@ export default function CalendarPage() {
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [selectedEmployeeId, setSelectedEmployeeId] = useState<number | undefined>(undefined);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [loadingEmployees, setLoadingEmployees] = useState(false);
 
   // Check if user is admin
   useEffect(() => {
     if (user) {
       const adminRoles = ['Platform Admin', 'Tenant Super Admin'];
-      setIsAdmin(adminRoles.includes(user.role || ''));
-      console.log("✅ User role:", user.role, "isAdmin:", adminRoles.includes(user.role || ''));
+      const isUserAdmin = adminRoles.includes(user.role || '');
+      setIsAdmin(isUserAdmin);
+      console.log("✅ User role:", user.role, "isAdmin:", isUserAdmin);
     }
   }, [user]);
 
@@ -67,21 +69,33 @@ export default function CalendarPage() {
   useEffect(() => {
     const loadEmployees = async () => {
       if (isAdmin) {
+        setLoadingEmployees(true);
         try {
-          console.log("📊 Loading employees...");
+          console.log("📊 Loading employees for dropdown...");
           const response = await api.getCalendarEmployees();
           
-          console.log("✅ Employees response:", response);
+          console.log("✅ Employees raw response:", response);
           
-          // Handle both { data: [...] } and direct array responses
-          const employeesList = Array.isArray(response) 
-            ? response 
-            : (response?.data || []);
+          // Handle different response formats
+          let employeesList: Employee[] = [];
+          
+          if (Array.isArray(response)) {
+            employeesList = response;
+          } else if (response?.data && Array.isArray(response.data)) {
+            employeesList = response.data;
+          } else if (response?.success && response?.data && Array.isArray(response.data)) {
+            employeesList = response.data;
+          }
+          
+          console.log("✅ Parsed employees list:", employeesList);
+          console.log("✅ Number of employees:", employeesList.length);
           
           setEmployees(employeesList);
-          console.log("✅ Loaded employees:", employeesList);
         } catch (error) {
           console.error("❌ Error loading employees:", error);
+          setEmployees([]);
+        } finally {
+          setLoadingEmployees(false);
         }
       }
     };
@@ -213,25 +227,38 @@ export default function CalendarPage() {
         <div className="flex items-center gap-3">
           {/* ✅ Employee Filter Dropdown (Admin Only) */}
           {isAdmin && (
-            <Select
-              value={selectedEmployeeId?.toString() || "all"}
-              onValueChange={(value) => {
-                console.log("🔄 Employee filter changed:", value);
-                setSelectedEmployeeId(value === "all" ? undefined : parseInt(value));
-              }}
-            >
-              <SelectTrigger className="w-[200px]">
-                <SelectValue placeholder="All Salespeople" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Salespeople</SelectItem>
-                {employees.map((emp) => (
-                  <SelectItem key={emp.id} value={emp.id.toString()}>
-                    {emp.full_name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <div className="flex flex-col gap-1">
+              <Select
+                value={selectedEmployeeId?.toString() || "all"}
+                onValueChange={(value) => {
+                  console.log("🔄 Employee filter changed:", value);
+                  setSelectedEmployeeId(value === "all" ? undefined : parseInt(value));
+                }}
+                disabled={loadingEmployees}
+              >
+                <SelectTrigger className="w-[200px]">
+                  <SelectValue placeholder="All Salespeople" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Salespeople</SelectItem>
+                  {employees.map((emp) => (
+                    <SelectItem key={emp.id} value={emp.id.toString()}>
+                      {emp.full_name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {/* ✅ Debug info - remove in production */}
+              {loadingEmployees && (
+                <span className="text-xs text-gray-500">Loading salespeople...</span>
+              )}
+              {!loadingEmployees && employees.length === 0 && (
+                <span className="text-xs text-red-500">No salespeople found</span>
+              )}
+              {!loadingEmployees && employees.length > 0 && (
+                <span className="text-xs text-gray-500">{employees.length} salesperson(s)</span>
+              )}
+            </div>
           )}
           
           <Button onClick={loadRenewals} disabled={loading} variant="outline" size="sm">

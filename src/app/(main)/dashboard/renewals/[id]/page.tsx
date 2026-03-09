@@ -8,15 +8,11 @@ import { Textarea } from "@/components/ui/textarea";
 import {
   ArrowLeft,
   Edit,
-  Phone,
-  Mail,
-  Building2,
   Loader2,
   AlertCircle,
   Save,
   X,
   MapPin,
-  Zap,
   Calendar,
   User,
   DollarSign,
@@ -36,6 +32,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
 
@@ -51,10 +55,16 @@ const TABS = [
 
 // Status options
 const STATUS_OPTIONS = [
-  { value: "called", label: "Called" },
-  { value: "not_answered", label: "Not Answered" },
-  { value: "priced", label: "Priced" },
-  { value: "lost", label: "Lost" },
+  { value: "Callback", label: "Callback" },
+  { value: "Called", label: "Called" },
+  { value: "Not Answered", label: "Not Answered" },
+  { value: "Priced", label: "Priced" },
+  { value: "Lost", label: "Lost" },
+  { value: "Lost COT", label: "Lost COT" },
+  { value: "Already Renewed", label: "Already Renewed" },
+  { value: "Invalid Number", label: "Invalid Number" },
+  { value: "Meter De-energised", label: "Meter De-energised" },
+  { value: "Broker in Place", label: "Broker in Place" },
 ];
 
 interface EnergyCustomer {
@@ -82,23 +92,19 @@ interface EnergyCustomer {
   created_at?: string;
   rate_1?: number;
   
-  // Banking details
   bank_name?: string;
   bank_sort_code?: string;
   bank_account_number?: string;
   
-  // Trading details
   trading_type?: string;
   trading_number?: string;
   
-  // Additional charges
   night_charge?: number;
   eve_weekend_charge?: number;
   other_charges_1?: number;
   other_charges_2?: number;
   other_charges_3?: number;
   
-  // Other fields
   meter_ref?: string;
   payment_type?: string;
   aggregator?: string;
@@ -106,13 +112,10 @@ interface EnergyCustomer {
   term_sold?: number;
   comments?: string;
   
-  // ✅ NEW FIELDS FROM CLIENT SHEET
-  // Contact fields
   position?: string;
   company_number?: string;
   date_of_birth?: string;
   
-  // Site fields
   site_name?: string;
   month_sold?: string;
   house_name?: string;
@@ -121,7 +124,6 @@ interface EnergyCustomer {
   town?: string;
   county?: string;
   
-  // Contract fields
   old_supplier_name?: string;
   old_supplier_id?: number;
   net_notch?: number;
@@ -129,7 +131,6 @@ interface EnergyCustomer {
   rate_3?: number;
   comms_paid?: number;
   
-  // Banking/Home fields
   charity_ltd_company_number?: string;
   partner_details?: string;
 }
@@ -138,6 +139,15 @@ interface Employee {
   employee_id: number;
   employee_name: string;
   email: string;
+}
+
+interface InteractionHistory {
+  interaction_id: number;
+  interaction_type: string;
+  contact_date?: string;
+  reminder_date?: string;
+  notes?: string;
+  created_at?: string;
 }
 
 const formatDate = (dateString?: string) => {
@@ -152,25 +162,6 @@ const formatDate = (dateString?: string) => {
   } catch {
     return "—";
   }
-};
-
-const getStatusColor = (status?: string) => {
-  switch (status) {
-    case "called":
-    case "priced":
-      return "bg-green-100 text-green-800";
-    case "not_answered":
-      return "bg-yellow-100 text-yellow-800";
-    case "lost":
-      return "bg-red-100 text-red-800";
-    default:
-      return "bg-gray-100 text-gray-800";
-  }
-};
-
-const getStatusLabel = (status?: string) => {
-  const option = STATUS_OPTIONS.find((opt) => opt.value === status);
-  return option ? option.label : status || "—";
 };
 
 export default function EnergyCustomerDetailsPage() {
@@ -188,16 +179,22 @@ export default function EnergyCustomerDetailsPage() {
   const [isSaving, setIsSaving] = useState(false);
   const [editedCustomer, setEditedCustomer] = useState<Partial<EnergyCustomer>>({});
   
-  // Action panel state
-  const [followUpDate, setFollowUpDate] = useState("");
-  const [actionComment, setActionComment] = useState("");
-  const [isUpdatingAction, setIsUpdatingAction] = useState(false);
   const [uploadedDocuments, setUploadedDocuments] = useState<string[]>([]);
   const [isUploadingDocument, setIsUploadingDocument] = useState(false);
+  const [showCallbackModal, setShowCallbackModal] = useState(false);
+  const [callbackStatus, setCallbackStatus] = useState("");
+  const [callbackDate, setCallbackDate] = useState("");
+  const [callbackNotes, setCallbackNotes] = useState("");
+  const [isSold, setIsSold] = useState<string>("");
+  const [isSubmittingCallback, setIsSubmittingCallback] = useState(false);
+  const [callbackError, setCallbackError] = useState("");
+  const [history, setHistory] = useState<InteractionHistory[]>([]);
+  const [loadingHistory, setLoadingHistory] = useState(false);
 
   useEffect(() => {
     loadCustomerData();
     loadEmployees();
+    loadHistory();
   }, [id]);
 
   const loadCustomerData = async () => {
@@ -216,7 +213,7 @@ export default function EnergyCustomerDetailsPage() {
       const data = await response.json();
       setCustomer(data);
       setEditedCustomer(data);
-      if (data.document_details) {  // ✅ Correct
+      if (data.document_details) {
         try {
           const docs = JSON.parse(data.document_details);
           setUploadedDocuments(Array.isArray(docs) ? docs : []);
@@ -244,6 +241,134 @@ export default function EnergyCustomerDetailsPage() {
       }
     } catch (error) {
       console.error("Error loading employees:", error);
+    }
+  };
+
+  const loadHistory = async () => {
+    setLoadingHistory(true);
+    const token = localStorage.getItem("auth_token");
+    
+    try {
+      const response = await fetch(`${API_BASE_URL}/energy-clients/${id}/history`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        setHistory(data.interactions || []);
+      }
+    } catch (error) {
+      console.error("Error loading history:", error);
+    } finally {
+      setLoadingHistory(false);
+    }
+  };
+
+  const statusConfig: Record<string, { requiresDate: boolean; requiresSold: boolean; deletesRecord: boolean }> = {
+    "Callback": { requiresDate: true, requiresSold: false, deletesRecord: false },
+    "Called": { requiresDate: true, requiresSold: false, deletesRecord: false },
+    "Not Answered": { requiresDate: true, requiresSold: false, deletesRecord: false },
+    "Priced": { requiresDate: false, requiresSold: true, deletesRecord: false },
+    "Lost": { requiresDate: true, requiresSold: false, deletesRecord: false },
+    "Lost COT": { requiresDate: false, requiresSold: false, deletesRecord: true },
+    "Already Renewed": { requiresDate: true, requiresSold: false, deletesRecord: false },
+    "Invalid Number": { requiresDate: false, requiresSold: false, deletesRecord: true },
+    "Meter De-energised": { requiresDate: false, requiresSold: false, deletesRecord: true },
+    "Broker in Place": { requiresDate: true, requiresSold: false, deletesRecord: false },
+  };
+
+  const isDateRequired = () => {
+    if (!callbackStatus) return false;
+    
+    const config = statusConfig[callbackStatus];
+    if (!config) return false;
+    
+    if (config.requiresSold) {
+      return isSold === "yes";
+    }
+    
+    return config.requiresDate;
+  };
+
+  const handleOpenCallbackModal = () => {
+    setCallbackStatus("");
+    setCallbackDate("");
+    setCallbackNotes("");
+    setIsSold("");
+    setCallbackError("");
+    setShowCallbackModal(true);
+  };
+
+  const handleSubmitCallback = async () => {
+    setCallbackError("");
+
+    if (!callbackStatus) {
+      setCallbackError("Please select a status");
+      return;
+    }
+
+    const config = statusConfig[callbackStatus];
+
+    if (config?.requiresSold && !isSold) {
+      setCallbackError("Please select if the contract was sold");
+      return;
+    }
+
+    if (isDateRequired() && !callbackDate) {
+      setCallbackError("Please select a callback date");
+      return;
+    }
+
+    setIsSubmittingCallback(true);
+
+    try {
+      const token = localStorage.getItem("auth_token");
+
+      const payload: any = {
+        status: callbackStatus,
+        notes: callbackNotes,
+      };
+
+      if (isDateRequired() && callbackDate) {
+        payload.callback_date = callbackDate;
+      }
+
+      if (config?.requiresSold) {
+        payload.is_sold = isSold === "yes";
+      }
+
+      const response = await fetch(`${API_BASE_URL}/energy-clients/${id}/callback`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(payload),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Failed to save callback");
+      }
+
+      const data = await response.json();
+
+      if (data.deleted) {
+        alert("✅ Record removed from renewals list");
+        router.push("/dashboard/renewals");
+      } else if (data.moved_to_priced) {
+        alert("✅ Moved to Priced page");
+        router.push("/dashboard/priced");
+      } else {
+        alert("✅ Callback saved successfully");
+        setShowCallbackModal(false);
+        loadCustomerData();
+        loadHistory();
+      }
+    } catch (err: any) {
+      setCallbackError(err.message || "Failed to save callback");
+    } finally {
+      setIsSubmittingCallback(false);
     }
   };
 
@@ -289,26 +414,6 @@ export default function EnergyCustomerDetailsPage() {
     setEditedCustomer((prev) => ({ ...prev, [field]: value }));
   };
 
-  const updateStatus = async (newStatus: string) => {
-    const token = localStorage.getItem("auth_token");
-    try {
-      const response = await fetch(`${API_BASE_URL}/energy-clients/${id}`, {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ status: newStatus }),
-      });
-
-      if (response.ok) {
-        setCustomer((prev) => (prev ? { ...prev, status: newStatus } : null));
-      }
-    } catch (error) {
-      console.error("Error updating status:", error);
-    }
-  };
-
   const updateAssignedTo = async (employeeId: number) => {
     const token = localStorage.getItem("auth_token");
     try {
@@ -338,68 +443,10 @@ export default function EnergyCustomerDetailsPage() {
     }
   };
 
-  const handleActionUpdate = async () => {
-    if (!customer?.status) {
-      alert("Please select a callback parameter");
-      return;
-    }
-
-    if (!followUpDate) {
-      alert("Please select a follow-up date");
-      return;
-    }
-
-    if (!actionComment.trim()) {
-      alert("Please enter a comment");
-      return;
-    }
-
-    setIsUpdatingAction(true);
-    const token = localStorage.getItem("auth_token");
-
-    try {
-      // ✅ UPDATE: Save callback date and comment
-      const response = await fetch(`${API_BASE_URL}/energy-clients/${id}`, {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          status: customer.status,
-          callback_date: followUpDate,  // ✅ Add this
-          interaction_notes: actionComment,  // ✅ Add this
-        }),
-      });
-
-      if (response.ok) {
-        alert("✅ Action updated successfully!");
-        // Clear the form
-        setFollowUpDate("");
-        setActionComment("");
-        // Reload to see updated data
-        loadCustomerData();
-      } else {
-        alert("Failed to update action");
-      }
-    } catch (error) {
-      console.error("Error updating action:", error);
-      alert("Network error: Could not update action");
-    } finally {
-      setIsUpdatingAction(false);
-    }
-  };
-
   const handleDocumentUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = event.target.files;
-    if (!files || files.length === 0) {
-      console.log("No files selected");
-      return;
-    }
+    if (!files || files.length === 0) return;
 
-    console.log("=== STARTING UPLOAD ===");
-    console.log("Files selected:", files.length);
-    
     setIsUploadingDocument(true);
 
     try {
@@ -408,23 +455,14 @@ export default function EnergyCustomerDetailsPage() {
         alert("No authentication token found. Please log in again.");
         return;
       }
-      console.log("Auth token found:", token.substring(0, 20) + "...");
       
       const formData = new FormData();
       
-      // Append all selected files
-      Array.from(files).forEach((file, index) => {
+      Array.from(files).forEach((file) => {
         formData.append("documents", file);
-        console.log(`File ${index + 1}:`, {
-          name: file.name,
-          size: file.size,
-          type: file.type
-        });
       });
       
       formData.append("client_id", id);
-      console.log("Client ID:", id);
-      console.log("Upload URL:", `${API_BASE_URL}/upload-documents`);
 
       const response = await fetch(`${API_BASE_URL}/upload-documents`, {
         method: "POST",
@@ -434,14 +472,8 @@ export default function EnergyCustomerDetailsPage() {
         body: formData,
       });
 
-      console.log("Response status:", response.status);
-      console.log("Response headers:", Object.fromEntries(response.headers.entries()));
-
       if (!response.ok) {
         const errorText = await response.text();
-        console.error("Upload failed - Response:", errorText);
-        
-        // Try to parse as JSON for better error message
         try {
           const errorJson = JSON.parse(errorText);
           alert(`Failed to upload: ${errorJson.error || errorJson.message || errorText}`);
@@ -452,44 +484,24 @@ export default function EnergyCustomerDetailsPage() {
       }
 
       const result = await response.json();
-      console.log("Upload successful - Result:", result);
 
       if (!result.file_paths || result.file_paths.length === 0) {
-        console.error("No file paths in result:", result);
         alert("Upload succeeded but no file paths were returned");
         return;
       }
 
       const newDocuments = result.file_paths;
-      console.log("New documents:", newDocuments);
-      
       const updatedDocuments = [...uploadedDocuments, ...newDocuments];
       setUploadedDocuments(updatedDocuments);
-      console.log("Updated documents list:", updatedDocuments);
 
-      // Update the customer record with new document details
-      console.log("Updating database...");
       await updateDocumentDetails(updatedDocuments);
       
       alert(`✅ ${newDocuments.length} document(s) uploaded successfully!`);
-      console.log("=== UPLOAD COMPLETE ===");
       
     } catch (error: unknown) {
-      console.error("=== UPLOAD ERROR ===");
-      
-      if (error instanceof Error) {
-        console.error("Error type:", error.constructor.name);
-        console.error("Error message:", error.message);
-        console.error("Full error:", error);
-      } else {
-        console.error("Unknown error type:", typeof error);
-        console.error("Error value:", error);
-      }
-      
       alert(`Network error: ${error instanceof Error ? error.message : 'Could not upload documents'}`);
     } finally {
       setIsUploadingDocument(false);
-      // Reset file input
       if (event.target) {
         event.target.value = "";
       }
@@ -522,7 +534,6 @@ export default function EnergyCustomerDetailsPage() {
     const updatedDocuments = uploadedDocuments.filter((_, index) => index !== docIndex);
     setUploadedDocuments(updatedDocuments);
     
-    // Update the customer record
     await updateDocumentDetails(updatedDocuments);
     
     alert("✅ Document removed successfully!");
@@ -532,11 +543,6 @@ export default function EnergyCustomerDetailsPage() {
     return path.split("/").pop() || path;
   };
 
-  const canEdit = (): boolean => {
-    return true; // Adjust based on your permission logic
-  };
-
-  // Loading state
   if (loading) {
     return (
       <div className="flex h-screen items-center justify-center bg-gray-50">
@@ -548,7 +554,6 @@ export default function EnergyCustomerDetailsPage() {
     );
   }
 
-  // Error state
   if (error || !customer) {
     return (
       <div className="flex h-screen items-center justify-center bg-gray-50">
@@ -566,6 +571,7 @@ export default function EnergyCustomerDetailsPage() {
   }
 
   const displayCustomer = isEditing ? editedCustomer : customer;
+  const currentConfig = callbackStatus ? statusConfig[callbackStatus] : null;
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -1362,7 +1368,122 @@ export default function EnergyCustomerDetailsPage() {
         </div>
       </div>
 
-      {/* Action Panel (Right Side) */}
+      {/* ✅ CALLBACK MODAL */}
+      <Dialog open={showCallbackModal} onOpenChange={setShowCallbackModal}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Add Callback</DialogTitle>
+            <DialogDescription>
+              Record customer interaction and set follow-up
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-4">
+            {callbackError && (
+              <Alert variant="destructive">
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription>{callbackError}</AlertDescription>
+              </Alert>
+            )}
+
+            {/* Status Selection */}
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Status *</label>
+              <Select 
+                value={callbackStatus} 
+                onValueChange={(value) => {
+                  setCallbackStatus(value);
+                  setCallbackDate("");
+                  setIsSold("");
+                  setCallbackError("");
+                }}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select status" />
+                </SelectTrigger>
+                <SelectContent>
+                  {STATUS_OPTIONS.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Conditional "Sold?" Question for Priced Status */}
+            {currentConfig?.requiresSold && (
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Was it sold? *</label>
+                <Select value={isSold} onValueChange={setIsSold}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="yes">Yes - Sold</SelectItem>
+                    <SelectItem value="no">No - Move to Priced page</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
+            {/* Conditional Date Picker */}
+            {isDateRequired() && (
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Callback Date *</label>
+                <Input
+                  type="date"
+                  value={callbackDate}
+                  onChange={(e) => setCallbackDate(e.target.value)}
+                />
+              </div>
+            )}
+
+            {/* Deletion Warning */}
+            {currentConfig?.deletesRecord && (
+              <Alert>
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription>
+                  <strong>Warning:</strong> This will permanently remove the record from the renewals list.
+                </AlertDescription>
+              </Alert>
+            )}
+
+            {/* Notes */}
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Notes (Optional)</label>
+              <Textarea
+                placeholder="Add any additional notes..."
+                value={callbackNotes}
+                onChange={(e) => setCallbackNotes(e.target.value)}
+                rows={3}
+              />
+            </div>
+          </div>
+
+          <div className="flex justify-end gap-2">
+            <Button 
+              variant="outline" 
+              onClick={() => setShowCallbackModal(false)} 
+              disabled={isSubmittingCallback}
+            >
+              Cancel
+            </Button>
+            <Button onClick={handleSubmitCallback} disabled={isSubmittingCallback}>
+              {isSubmittingCallback ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Saving...
+                </>
+              ) : (
+                "Save Callback"
+              )}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+{/* ✅ SIMPLE ACTION PANEL (Right Side) - Direct Form, No Modal */}
       <div className="fixed right-0 top-0 h-full w-80 border-l border-gray-200 bg-gray-50 p-6 overflow-y-auto">
         <h3 className="mb-4 text-lg font-semibold text-gray-900">Action</h3>
 
@@ -1387,12 +1508,20 @@ export default function EnergyCustomerDetailsPage() {
             </Select>
           </div>
 
-          {/* Call Back Parameter */}
+          {/* Status Selection */}
           <div>
             <label className="text-sm font-medium text-gray-700">
-              Call back parameter: <span className="text-red-500">*</span>
+              Status: <span className="text-red-500">*</span>
             </label>
-            <Select value={customer.status || ""} onValueChange={updateStatus}>
+            <Select 
+              value={callbackStatus} 
+              onValueChange={(value) => {
+                setCallbackStatus(value);
+                setCallbackDate("");
+                setIsSold("");
+                setCallbackError("");
+              }}
+            >
               <SelectTrigger className="mt-1">
                 <SelectValue placeholder="Select status" />
               </SelectTrigger>
@@ -1406,57 +1535,126 @@ export default function EnergyCustomerDetailsPage() {
             </Select>
           </div>
 
-          {/* Follow up on */}
-          <div>
-            <label className="text-sm font-medium text-gray-700">
-              Follow up on: <span className="text-red-500">*</span>
-            </label>
-            <Input
-              type="date"
-              className="mt-1"
-              value={followUpDate}
-              onChange={(e) => setFollowUpDate(e.target.value)}
-            />
-            <p className="mt-1 text-xs text-gray-500">
-              Enter datetime in European London (UTC+00:00) timezone.
-            </p>
-          </div>
+          {/* Conditional "Sold?" for Priced Status */}
+          {currentConfig?.requiresSold && (
+            <div>
+              <label className="text-sm font-medium text-gray-700">
+                Was it sold? <span className="text-red-500">*</span>
+              </label>
+              <Select value={isSold} onValueChange={setIsSold}>
+                <SelectTrigger className="mt-1">
+                  <SelectValue placeholder="Select" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="yes">Yes - Sold</SelectItem>
+                  <SelectItem value="no">No - Move to Priced</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          )}
 
-          {/* Comment */}
+          {/* Conditional Date Picker */}
+          {isDateRequired() && (
+            <div>
+              <label className="text-sm font-medium text-gray-700">
+                Callback Date: <span className="text-red-500">*</span>
+              </label>
+              <Input
+                type="date"
+                className="mt-1"
+                value={callbackDate}
+                onChange={(e) => setCallbackDate(e.target.value)}
+              />
+            </div>
+          )}
+
+          {/* Deletion Warning */}
+          {currentConfig?.deletesRecord && (
+            <Alert className="mt-2">
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>
+                <strong>Warning:</strong> This will permanently delete the record.
+              </AlertDescription>
+            </Alert>
+          )}
+
+          {/* Notes */}
           <div>
-            <label className="text-sm font-medium text-gray-700">
-              Comment: <span className="text-red-500">*</span>
-            </label>
+            <label className="text-sm font-medium text-gray-700">Notes:</label>
             <Textarea
               className="mt-1"
-              rows={4}
-              placeholder="Enter comment..."
-              value={actionComment}
-              onChange={(e) => setActionComment(e.target.value)}
+              rows={3}
+              placeholder="Add notes..."
+              value={callbackNotes}
+              onChange={(e) => setCallbackNotes(e.target.value)}
             />
           </div>
 
-          {/* Update Button */}
+          {/* Error Display */}
+          {callbackError && (
+            <Alert variant="destructive">
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>{callbackError}</AlertDescription>
+            </Alert>
+          )}
+
+          {/* Save Button */}
           <Button
             className="w-full bg-black hover:bg-gray-800"
-            onClick={handleActionUpdate}
-            disabled={isUpdatingAction}
+            onClick={handleSubmitCallback}
+            disabled={isSubmittingCallback}
           >
-            {isUpdatingAction ? (
+            {isSubmittingCallback ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Updating...
+                Saving...
               </>
             ) : (
-              "Update"
+              "Save Callback"
             )}
           </Button>
         </div>
 
-        {/* History Section */}
+        {/* ✅ History Section */}
         <div className="mt-8">
-          <h3 className="mb-2 text-lg font-semibold text-gray-900">History</h3>
-          <p className="text-sm text-gray-500">Not Found</p>
+          <h3 className="mb-3 text-lg font-semibold text-gray-900">History</h3>
+          
+          {loadingHistory ? (
+            <div className="flex items-center justify-center py-4">
+              <Loader2 className="h-5 w-5 animate-spin text-gray-400" />
+            </div>
+          ) : history.length === 0 ? (
+            <p className="text-sm text-gray-500">No interactions yet</p>
+          ) : (
+            <div className="space-y-3">
+              {history.map((interaction) => (
+                <div 
+                  key={interaction.interaction_id} 
+                  className="p-3 bg-white border border-gray-200 rounded-lg text-sm"
+                >
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="font-semibold text-gray-900">
+                      {interaction.interaction_type}
+                    </span>
+                    <span className="text-xs text-gray-500">
+                      {formatDate(interaction.created_at)}
+                    </span>
+                  </div>
+                  
+                  {interaction.notes && (
+                    <p className="text-gray-600 text-xs mb-2">{interaction.notes}</p>
+                  )}
+                  
+                  {interaction.reminder_date && (
+                    <div className="flex items-center gap-1 text-xs text-purple-700">
+                      <Calendar className="h-3 w-3" />
+                      <span>Callback: {formatDate(interaction.reminder_date)}</span>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
     </div>

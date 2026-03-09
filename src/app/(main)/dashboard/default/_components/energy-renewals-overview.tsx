@@ -1,10 +1,10 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { TrendingUp, TrendingDown, AlertTriangle, CheckCircle2, Zap, Users, ChevronRight } from "lucide-react";
+import { TrendingUp, TrendingDown, AlertTriangle, AlertCircle, CheckCircle2, Zap, Users, ChevronRight } from "lucide-react";
 import { Bar, BarChart, XAxis, Cell, Pie, PieChart, LabelList } from "recharts";
 import { useRouter } from "next/navigation";
-
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardAction, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
@@ -19,10 +19,17 @@ import {
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
 
+interface Employee {
+  employee_id: number;
+  employee_name: string;
+  email: string;
+}
+
 interface RenewalStats {
   total_renewals_30_60_days: number;
   total_renewals_61_90_days: number;
   total_renewals_90_plus_days: number;
+  expired_contracts: number;
   total_revenue_at_risk: number;
   total_aq: number;
   contacted_count: number;
@@ -114,6 +121,10 @@ export function EnergyRenewalsOverview({ userRole, employeeId }: EnergyRenewalsO
   const [salesPerformance, setSalesPerformance] = useState<SalespersonPerformance[]>([]);
   const [loading, setLoading] = useState(true);
   
+  // ✅ Employee states
+  const [employees, setEmployees] = useState<Employee[]>([]);
+  const [modalEmployeeFilter, setModalEmployeeFilter] = useState<number | undefined>(undefined);
+  
   // Modal states
   const [showPeriodModal, setShowPeriodModal] = useState(false);
   const [showSalesModal, setShowSalesModal] = useState(false);
@@ -123,6 +134,23 @@ export function EnergyRenewalsOverview({ userRole, employeeId }: EnergyRenewalsO
   const [showAQModal, setShowAQModal] = useState(false);
   const [aqBreakdown, setAQBreakdown] = useState<AQBreakdownResponse | null>(null);
   const [aqModalLoading, setAQModalLoading] = useState(false);
+
+  // ✅ Load employees function
+  const loadEmployees = async () => {
+    try {
+      const token = localStorage.getItem("auth_token");
+      const res = await fetch(`${API_BASE_URL}/employees`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        console.log("✅ Loaded employees:", data);
+        setEmployees(data);
+      }
+    } catch (error) {
+      console.error("Error loading employees:", error);
+    }
+  };
 
   const fetchAQBreakdown = async () => {
     setAQModalLoading(true);
@@ -149,6 +177,7 @@ export function EnergyRenewalsOverview({ userRole, employeeId }: EnergyRenewalsO
   useEffect(() => {
     fetchRenewalStats();
     fetchSalesPerformance('month');
+    loadEmployees(); // ✅ Load employees on mount
   }, []);
 
   const fetchRenewalStats = async () => {
@@ -156,49 +185,25 @@ export function EnergyRenewalsOverview({ userRole, employeeId }: EnergyRenewalsO
       setLoading(true);
       const token = localStorage.getItem("auth_token");
 
-      // ✅ DEBUG: What are we filtering by?
-      console.log("📊 Fetching Stats with Filter:", {
-        userRole,
-        employeeId,
-        isFiltered: employeeId !== undefined,
-        filterType: employeeId ? `Salesperson (ID: ${employeeId})` : 'All Company Data'
-      });
-
-      // ✅ Add employee filter for salespeople
       const employeeParam = employeeId ? `?employee_id=${employeeId}` : '';
 
-      console.log(`📡 API Call: ${API_BASE_URL}/energy-renewals/stats${employeeParam}`);
-
-      // Fetch renewal statistics
       const statsRes = await fetch(`${API_BASE_URL}/energy-renewals/stats${employeeParam}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
 
       if (statsRes.ok) {
         const statsData = await statsRes.json();
-        console.log("✅ Stats Received:", {
-          total_renewals_30_60_days: statsData.total_renewals_30_60_days,
-          total_renewals_61_90_days: statsData.total_renewals_61_90_days,
-          total_renewals_90_plus_days: statsData.total_renewals_90_plus_days,
-          total_aq: statsData.total_aq,
-          contacted_count: statsData.contacted_count,
-          not_contacted_count: statsData.not_contacted_count,
-          renewed_count: statsData.renewed_count,
-          lost_count: statsData.lost_count
-        });
         setStats(statsData);
       } else {
         console.error("❌ Stats API failed:", await statsRes.text());
       }
 
-      // Fetch supplier breakdown
       const supplierRes = await fetch(`${API_BASE_URL}/energy-renewals/supplier-breakdown${employeeParam}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
 
       if (supplierRes.ok) {
         const supplierBreakdown = await supplierRes.json();
-        console.log(`✅ Supplier Breakdown: ${supplierBreakdown.length} suppliers`);
         setSupplierData(supplierBreakdown);
       }
     } catch (error) {
@@ -227,11 +232,20 @@ export function EnergyRenewalsOverview({ userRole, employeeId }: EnergyRenewalsO
     }
   };
 
+  // ✅ CRITICAL FIX: Use modalEmployeeFilter instead of employeeId
   const fetchPeriodBreakdown = async (period: string) => {
     setModalLoading(true);
     try {
       const token = localStorage.getItem("auth_token");
-      const employeeParam = employeeId ? `&employee_id=${employeeId}` : '';
+      
+      // ✅ Use modalEmployeeFilter for the dropdown filter
+      const employeeParam = modalEmployeeFilter ? `&employee_id=${modalEmployeeFilter}` : '';
+
+      console.log(`🔍 Fetching breakdown:`, {
+        period,
+        modalEmployeeFilter,
+        url: `${API_BASE_URL}/energy-renewals/period-breakdown?period=${period}${employeeParam}`
+      });
 
       const res = await fetch(
         `${API_BASE_URL}/energy-renewals/period-breakdown?period=${period}${employeeParam}`,
@@ -240,6 +254,7 @@ export function EnergyRenewalsOverview({ userRole, employeeId }: EnergyRenewalsO
 
       if (res.ok) {
         const data = await res.json();
+        console.log(`✅ Received ${data.renewals?.length || 0} renewals`);
         setPeriodBreakdown(data.renewals || []);
         setSelectedPeriod(period);
         setShowPeriodModal(true);
@@ -285,9 +300,9 @@ export function EnergyRenewalsOverview({ userRole, employeeId }: EnergyRenewalsO
 
   return (
       <div className="space-y-4">
-        {/* Top Stats Cards - Make them clickable */}
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5">
-          {/* Renewals Due - 30-60 Days - CLICKABLE */}
+        {/* Top Stats Cards */}
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-6">
+          {/* 30-60 Days */}
           <Card 
             className="border-orange-300 bg-orange-50/30 cursor-pointer hover:shadow-lg transition-shadow"
             onClick={() => fetchPeriodBreakdown('30-60')}
@@ -314,7 +329,7 @@ export function EnergyRenewalsOverview({ userRole, employeeId }: EnergyRenewalsO
             </CardFooter>
           </Card>
 
-          {/* Renewals Due - 61-90 Days - CLICKABLE */}
+          {/* 61-90 Days */}
           <Card 
             className="border-yellow-300 bg-yellow-50/30 cursor-pointer hover:shadow-lg transition-shadow"
             onClick={() => fetchPeriodBreakdown('61-90')}
@@ -341,7 +356,7 @@ export function EnergyRenewalsOverview({ userRole, employeeId }: EnergyRenewalsO
             </CardFooter>
           </Card>
 
-          {/* Renewals Due - 90+ Days - CLICKABLE */}
+          {/* 91-180 Days */}
           <Card 
             className="border-blue-300 bg-blue-50/30 cursor-pointer hover:shadow-lg transition-shadow"
             onClick={() => fetchPeriodBreakdown('91-180')}
@@ -368,25 +383,52 @@ export function EnergyRenewalsOverview({ userRole, employeeId }: EnergyRenewalsO
             </CardFooter>
           </Card>
 
-          {/* Revenue at Risk */}
-          <Card className="border-red-300 bg-red-50/30">
+          {/* Expired Contracts */}
+          <Card 
+            className="border-gray-400 bg-gray-50/50 cursor-pointer hover:shadow-lg transition-shadow"
+            onClick={() => fetchPeriodBreakdown('expired')}
+          >
             <CardHeader>
-              <CardDescription>Revenue at Risk</CardDescription>
-              <CardTitle className="text-3xl font-semibold tabular-nums text-red-900">
-                £{((stats?.total_revenue_at_risk || 0) / 1000).toFixed(0)}K
+              <CardDescription>Expired Contracts</CardDescription>
+              <CardTitle className="text-3xl font-semibold tabular-nums text-gray-900">
+                {stats?.expired_contracts || 0}
               </CardTitle>
               <CardAction>
-                <Badge variant="outline" className="bg-red-100 text-red-700 border-red-300">
-                  <AlertTriangle className="h-3 w-3" />
-                  High Priority
+                <Badge variant="outline" className="bg-gray-200 text-gray-700 border-gray-400">
+                  <AlertCircle className="h-3 w-3" />
+                  Overdue
                 </Badge>
               </CardAction>
             </CardHeader>
             <CardFooter className="flex-col items-start gap-1.5 text-sm">
-              <div className="line-clamp-1 flex gap-2 font-medium text-red-800">
+              <div className="line-clamp-1 flex gap-2 font-medium text-gray-800">
+                Contracts already expired
+              </div>
+              <div className="text-gray-600 text-xs flex items-center gap-1">
+                Click for details <ChevronRight className="h-3 w-3" />
+              </div>
+            </CardFooter>
+          </Card>
+
+          {/* Revenue at Risk - ✅ FIXED LAYOUT */}
+          <Card className="border-red-300 bg-red-50/30">
+            <CardHeader className="pb-2">
+              <CardDescription>Revenue at Risk</CardDescription>
+              <CardTitle className="text-xl font-semibold tabular-nums text-red-900 break-all leading-tight">
+                £{(stats?.total_revenue_at_risk || 0).toLocaleString('en-GB', { 
+                  minimumFractionDigits: 2, 
+                  maximumFractionDigits: 2 
+                })}
+              </CardTitle>
+            </CardHeader>
+            <CardFooter className="flex-col items-start gap-1.5 text-sm pt-2">
+              <Badge variant="outline" className="bg-red-100 text-red-700 border-red-300 mb-2">
+                <AlertTriangle className="h-3 w-3 mr-1" />
+                High Priority
+              </Badge>
+              <div className="line-clamp-2 text-xs font-medium text-red-800">
                 Total contract value expiring
               </div>
-              <div className="text-red-600 text-xs">Protect revenue stream</div>
             </CardFooter>
           </Card>
 
@@ -571,103 +613,142 @@ export function EnergyRenewalsOverview({ userRole, employeeId }: EnergyRenewalsO
           </CardFooter>
         </Card>
         
-        {/* Period Breakdown Modal */}
-        <Dialog open={showPeriodModal} onOpenChange={setShowPeriodModal}>
-          <DialogContent className="max-w-6xl max-h-[80vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle>
-                Renewals Due: {selectedPeriod === '30-60' ? '30-60 Days' : selectedPeriod === '61-90' ? '61-90 Days' : '91-180 Days'}
-              </DialogTitle>
-              <DialogDescription>
-                Detailed breakdown of {periodBreakdown.length} renewals in this period
-              </DialogDescription>
+        {/* ✅ COMPLETELY FIXED Period Breakdown Modal */}
+        <Dialog open={showPeriodModal} onOpenChange={(open) => {
+          setShowPeriodModal(open);
+          if (!open) {
+            setModalEmployeeFilter(undefined);
+          }
+        }}>
+          <DialogContent className="max-w-[98vw] w-[98vw] max-h-[90vh] overflow-hidden flex flex-col">
+            <DialogHeader className="pb-4 border-b flex-shrink-0">
+              <div className="flex items-start justify-between gap-6">
+                <div className="flex-1 min-w-0">
+                  <DialogTitle className="text-2xl font-bold mb-2">
+                    {selectedPeriod === 'expired' ? 'Expired Contracts' :
+                     selectedPeriod === '30-60' ? 'Renewals Due: 30-60 Days' : 
+                     selectedPeriod === '61-90' ? 'Renewals Due: 61-90 Days' : 
+                     'Renewals Due: 91-180 Days'}
+                  </DialogTitle>
+                  <DialogDescription className="text-sm">
+                    Showing {periodBreakdown.length} customer{periodBreakdown.length !== 1 ? 's' : ''} in this period
+                  </DialogDescription>
+                </div>
+                
+                {/* ✅ Salesperson Filter */}
+                <Select
+                  value={modalEmployeeFilter?.toString() || "all"}
+                  onValueChange={(value) => {
+                    const newEmployeeId = value === "all" ? undefined : parseInt(value);
+                    console.log(`🔄 Changing filter from ${modalEmployeeFilter} to ${newEmployeeId}`);
+                    setModalEmployeeFilter(newEmployeeId);
+                    
+                    // ✅ Re-fetch immediately with new filter
+                    setTimeout(() => {
+                      fetchPeriodBreakdown(selectedPeriod);
+                    }, 50);
+                  }}
+                >
+                  <SelectTrigger className="w-[220px] flex-shrink-0">
+                    <SelectValue placeholder="All Salespeople" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Salespeople</SelectItem>
+                    {employees.map((emp) => (
+                      <SelectItem key={emp.employee_id} value={emp.employee_id.toString()}>
+                        {emp.employee_name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             </DialogHeader>
 
-            {modalLoading ? (
-              <div className="flex items-center justify-center py-12">
-                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
-              </div>
-            ) : (
-              <div className="space-y-2">
-                {periodBreakdown.map((renewal) => (
-                  <div
-                    key={renewal.client_id}
-                    className="p-4 border rounded-lg hover:bg-gray-50 cursor-pointer"
-                    onClick={() => router.push(`/dashboard/renewals/${renewal.client_id}`)}
-                  >
-                    <div className="flex items-center justify-between">
-                      <div className="flex-1">
-                        <h4 className="font-semibold">{renewal.business_name}</h4>
-                        <p className="text-sm text-muted-foreground">
-                          {renewal.contact_person} · {renewal.phone}
-                        </p>
-                        <div className="flex items-center gap-4 mt-2 text-sm">
-                          <span>Supplier: {renewal.supplier_name}</span>
-                          <span>MPAN: {renewal.mpan_number}</span>
-                          <span>AQ: {renewal.annual_usage?.toLocaleString()} kWh</span>
+            <div className="flex-1 overflow-y-auto pr-2">
+              {modalLoading ? (
+                <div className="flex items-center justify-center py-16">
+                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+                </div>
+              ) : periodBreakdown.length === 0 ? (
+                <div className="text-center py-16 text-gray-500">
+                  <p className="text-lg">No renewals found for this period</p>
+                </div>
+              ) : (
+                <div className="space-y-3 py-4">
+                  {periodBreakdown.map((renewal) => (
+                    <div
+                      key={renewal.client_id}
+                      className="p-5 border rounded-xl hover:bg-gray-50 hover:shadow-sm cursor-pointer transition-all"
+                      onClick={() => router.push(`/dashboard/renewals/${renewal.client_id}`)}
+                    >
+                      {/* Header Row */}
+                      <div className="flex items-start justify-between gap-4 mb-4">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 mb-2">
+                            <h3 className="text-lg font-bold text-gray-900 truncate">{renewal.business_name}</h3>
+                            <Badge variant="outline" className="text-xs flex-shrink-0">
+                              {renewal.status}
+                            </Badge>
+                          </div>
+                          <p className="text-sm text-gray-600 truncate">
+                            {renewal.contact_person} · {renewal.phone}
+                          </p>
+                        </div>
+                        
+                        <div className="text-right flex-shrink-0">
+                          <p className="text-xl font-bold text-green-700 whitespace-nowrap">
+                            £{renewal.estimated_revenue.toLocaleString('en-GB')}
+                          </p>
+                          <p className="text-xs text-gray-600 mt-1 whitespace-nowrap">
+                            {selectedPeriod === 'expired' 
+                              ? `${Math.abs(renewal.days_until_expiry)} days overdue`
+                              : `In ${renewal.days_until_expiry} days`
+                            }
+                          </p>
                         </div>
                       </div>
-                      <div className="text-right">
-                        <p className="font-semibold text-lg">£{renewal.estimated_revenue.toLocaleString()}</p>
-                        <p className="text-sm text-muted-foreground">{renewal.days_until_expiry} days</p>
-                        <Badge variant="outline" className="mt-1">
-                          {renewal.status}
-                        </Badge>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </DialogContent>
-        </Dialog>
 
-        {/* Sales Performance Modal */}
-        <Dialog open={showSalesModal} onOpenChange={setShowSalesModal}>
-          <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle>Salesperson Performance - Detailed View</DialogTitle>
-              <DialogDescription>
-                Monthly performance metrics for all team members
-              </DialogDescription>
-            </DialogHeader>
-
-            <div className="space-y-4">
-              {salesPerformance.map((sales) => (
-                <Card key={sales.employee_id}>
-                  <CardHeader>
-                    <div className="flex items-center justify-between">
-                      <CardTitle className="text-lg">{sales.employee_name}</CardTitle>
-                      <Badge variant="outline">
-                        {sales.conversion_rate}% conversion
-                      </Badge>
-                    </div>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="grid grid-cols-3 gap-4">
-                      <div className="text-center p-4 bg-blue-50 rounded-lg">
-                        <p className="text-2xl font-bold text-blue-700">{sales.total_contacts}</p>
-                        <p className="text-sm text-blue-600">Total Contacts</p>
-                      </div>
-                      <div className="text-center p-4 bg-green-50 rounded-lg">
-                        <p className="text-2xl font-bold text-green-700">{sales.converted_count}</p>
-                        <p className="text-sm text-green-600">Converted</p>
-                      </div>
-                      <div className="text-center p-4 bg-purple-50 rounded-lg">
-                        <p className="text-2xl font-bold text-purple-700">
-                          £{(sales.total_value_touched / 1000).toFixed(1)}K
-                        </p>
-                        <p className="text-sm text-purple-600">Value Touched</p>
+                      {/* Details - 5 Column Grid - ✅ NO SCROLLING */}
+                      <div className="grid grid-cols-5 gap-4 pt-3 border-t border-gray-100">
+                        <div className="min-w-0">
+                          <p className="text-xs text-gray-500 uppercase mb-1">Supplier</p>
+                          <p className="font-semibold text-sm text-gray-900 truncate">{renewal.supplier_name}</p>
+                        </div>
+                        
+                        <div className="min-w-0">
+                          <p className="text-xs text-gray-500 uppercase mb-1">MPAN</p>
+                          <p className="font-semibold text-sm text-gray-900 font-mono truncate">{renewal.mpan_number}</p>
+                        </div>
+                        
+                        <div className="min-w-0">
+                          <p className="text-xs text-gray-500 uppercase mb-1">Annual Usage</p>
+                          <p className="font-semibold text-sm text-gray-900 truncate">{renewal.annual_usage?.toLocaleString()} kWh</p>
+                        </div>
+                        
+                        <div className="min-w-0">
+                          <p className="text-xs text-gray-500 uppercase mb-1">Contract End</p>
+                          <p className="font-semibold text-sm text-gray-900 truncate">
+                            {renewal.contract_end_date ? new Date(renewal.contract_end_date).toLocaleDateString('en-GB') : 'N/A'}
+                          </p>
+                        </div>
+                        
+                        <div className="min-w-0">
+                          <p className="text-xs text-gray-500 uppercase mb-1">Assigned To</p>
+                          <p className="font-semibold text-sm text-purple-700 flex items-center gap-1 truncate">
+                            <Users className="h-3 w-3 flex-shrink-0" />
+                            <span className="truncate">{renewal.assigned_to}</span>
+                          </p>
+                        </div>
                       </div>
                     </div>
-                  </CardContent>
-                </Card>
-              ))}
+                  ))}
+                </div>
+              )}
             </div>
           </DialogContent>
         </Dialog>
 
-        {/* AQ Breakdown Modal */}
+        {/* AQ Breakdown Modal - unchanged */}
         <Dialog open={showAQModal} onOpenChange={setShowAQModal}>
           <DialogContent className="max-w-[98vw] w-[98vw] max-h-[90vh] overflow-y-auto p-6">
             <DialogHeader className="pb-4">
@@ -683,7 +764,6 @@ export function EnergyRenewalsOverview({ userRole, employeeId }: EnergyRenewalsO
               </div>
             ) : aqBreakdown ? (
               <div className="space-y-6">
-                {/* Summary Cards */}
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                   <Card className="bg-purple-50">
                     <CardHeader className="pb-3">
@@ -719,7 +799,6 @@ export function EnergyRenewalsOverview({ userRole, employeeId }: EnergyRenewalsO
                   </Card>
                 </div>
 
-                {/* Breakdown Table - NO FIXED WIDTHS */}
                 <div className="rounded-lg border bg-white">
                   <div className="overflow-x-auto">
                     <table className="w-full">
