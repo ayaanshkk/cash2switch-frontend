@@ -839,7 +839,7 @@ const bulkDeleteCustomers = async () => {
 
       // ✅ Call optimized synchronous endpoint
       const res = await fetch(
-        `${API_BASE_URL}/api/import/energy-customers?service=${encodeURIComponent(service)}`,
+        `${API_BASE_URL}/import/energy-customers?service=${encodeURIComponent(service)}`,
         {
           method: "POST",
           headers: { Authorization: `Bearer ${token}` },
