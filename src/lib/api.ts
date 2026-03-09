@@ -13,6 +13,12 @@ export async function fetchWithAuth(url: string, options: RequestInit = {}) {
   const token = localStorage.getItem("auth_token") || localStorage.getItem("token");
   const tenantId = localStorage.getItem("tenant_id");
 
+  // ✅ DEBUG: Log tenant_id for troubleshooting
+  if (!tenantId) {
+    console.warn("⚠️ No tenant_id found in localStorage - setting default to '1'");
+    localStorage.setItem("tenant_id", "1");
+  }
+
   const isFormData =
     typeof FormData !== "undefined" &&
     options.body instanceof FormData;
@@ -26,7 +32,8 @@ export async function fetchWithAuth(url: string, options: RequestInit = {}) {
   }
 
   if (token) headers["Authorization"] = `Bearer ${token}`;
-  if (tenantId) headers["X-Tenant-ID"] = tenantId;
+  // ✅ ALWAYS include tenant_id header (use fallback if not in localStorage)
+  headers["X-Tenant-ID"] = tenantId || "1";
 
   // prepend backend url unless already absolute
   const fullUrl = url.startsWith("http") ? url : `${API_BASE_URL}${url}`;
@@ -87,12 +94,20 @@ export async function fetchPublic(url: string, options: RequestInit = {}) {
 export const api = {
   // AUTH
   async login(username: string, password: string, tenant_id: number = 1) {
+    // ✅ Set tenant_id BEFORE making the request
+    localStorage.setItem("tenant_id", tenant_id.toString());
+    console.log("✅ Setting tenant_id:", tenant_id);
+    
     const res = await fetchPublic("/auth/login", {
       method: "POST",
       body: JSON.stringify({ username, password, tenant_id }),
       headers: { "Content-Type": "application/json" },
     });
-    localStorage.setItem("tenant_id", tenant_id.toString());
+    
+    // ✅ Verify tenant_id is still set after login
+    const storedTenantId = localStorage.getItem("tenant_id");
+    console.log("✅ Verified tenant_id after login:", storedTenantId);
+    
     return res;
   },
 

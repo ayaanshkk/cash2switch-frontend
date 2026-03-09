@@ -8,8 +8,8 @@ import { useAuth } from '@/contexts/AuthContext';
 
 interface PricedLead {
   opportunity_id: number;
-  client_id: number;
-  id: number;
+  client_id: number;  
+  id: number;  
   business_name: string;
   contact_person: string;
   phone: string;
@@ -90,34 +90,48 @@ const Priced = () => {
     try {
       setLoading(true);
       
-      // ✅ Use new dedicated endpoint
+      console.log('🔍 Fetching priced leads...');
+      
+      // ✅ Use dedicated endpoint
       const response = await fetchWithAuth('/energy-clients/priced?service=utilities');
       const pricedLeads = Array.isArray(response) ? response : (response?.data || []);
+      
+      console.log('✅ Fetched priced leads:', pricedLeads.length);
+      console.log('✅ First lead:', pricedLeads[0]);
       
       setAllLeads(pricedLeads);
       setLeads(pricedLeads);
       
     } catch (error) {
-      console.error('Error fetching priced leads:', error);
+      console.error('❌ Error fetching priced leads:', error);
       toast.error('Failed to fetch priced leads');
     } finally {
       setLoading(false);
     }
   };
 
-  const moveToRenewals = async (clientId: number, id: number) => {
+  const moveToRenewals = async (lead: PricedLead) => {
     if (!confirm('Move this lead back to Renewals?')) {
       return;
     }
 
     try {
-      // ✅ Update status back to "called"
-      await fetchWithAuth(`/energy-clients/${id}`, {
+      // ✅ CRITICAL: Use the actual database client_id
+      const actualClientId = lead.client_id;
+      
+      console.log('🔄 Moving to renewals:', {
+        displayId: lead.id,
+        actualClientId: actualClientId,
+        businessName: lead.business_name
+      });
+
+      // ✅ Update Misc_Col1 to null to move back to renewals
+      await fetchWithAuth(`/energy-clients/${actualClientId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
-          status: 'called',
-          stage_id: 1
+          status: null,  // Clear the "priced" status
+          stage_id: 1    // Back to first stage
         }),
       });
 
@@ -127,19 +141,28 @@ const Priced = () => {
       fetchPricedLeads();
       
     } catch (error) {
-      console.error('Error moving lead:', error);
+      console.error('❌ Error moving lead:', error);
       toast.error('❌ Failed to move lead');
     }
   };
 
-  const moveToRecycleBin = async (clientId: number, id: number) => {
+  const moveToRecycleBin = async (lead: PricedLead) => {
     if (!confirm('Move this lead to Recycle Bin?')) {
       return;
     }
 
     try {
+      // ✅ CRITICAL: Use the actual database client_id
+      const actualClientId = lead.client_id;
+      
+      console.log('🗑️ Moving to recycle bin:', {
+        displayId: lead.id,
+        actualClientId: actualClientId,
+        businessName: lead.business_name
+      });
+
       // ✅ Update status to "lost"
-      await fetchWithAuth(`/energy-clients/${id}`, {
+      await fetchWithAuth(`/energy-clients/${actualClientId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
@@ -154,7 +177,7 @@ const Priced = () => {
       fetchPricedLeads();
       
     } catch (error) {
-      console.error('Error moving lead:', error);
+      console.error('❌ Error moving lead:', error);
       toast.error('❌ Failed to move lead');
     }
   };
@@ -345,7 +368,7 @@ const Priced = () => {
                       />
                     </td>
                     <td className="px-6 py-4 text-sm text-black">
-                      {lead.client_id}
+                      {lead.id || lead.client_id}
                     </td>
                     <td className="px-6 py-4 text-sm font-medium text-black">
                       {lead.business_name}
@@ -370,18 +393,18 @@ const Priced = () => {
                     </td>
                     <td className="px-6 py-4 text-sm">
                       <div className="flex items-center justify-center gap-2">
-                        {/* ✅ Tick Button - Move to Renewals */}
+                        {/* ✅ Tick Button - Move to Renewals - FIXED: Pass entire lead object */}
                         <button
-                          onClick={() => moveToRenewals(lead.client_id, lead.id)}
+                          onClick={() => moveToRenewals(lead)}
                           className="p-2 bg-black text-white rounded-lg hover:bg-gray-800 transition-colors"
                           title="Move to Renewals"
                         >
                           <Check className="h-4 w-4" />
                         </button>
                         
-                        {/* ❌ Cross Button - Move to Recycle Bin */}
+                        {/* ❌ Cross Button - Move to Recycle Bin - FIXED: Pass entire lead object */}
                         <button
-                          onClick={() => moveToRecycleBin(lead.client_id, lead.id)}
+                          onClick={() => moveToRecycleBin(lead)}
                           className="p-2 bg-gray-200 text-black rounded-lg hover:bg-gray-300 transition-colors"
                           title="Move to Recycle Bin"
                         >

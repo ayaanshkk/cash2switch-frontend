@@ -65,6 +65,7 @@ const STATUS_OPTIONS = [
   { value: "Invalid Number", label: "Invalid Number" },
   { value: "Meter De-energised", label: "Meter De-energised" },
   { value: "Broker in Place", label: "Broker in Place" },
+  { value: "End Date Changed", label: "End Date Changed" },
 ];
 
 interface EnergyCustomer {
@@ -275,6 +276,7 @@ export default function EnergyCustomerDetailsPage() {
     "Invalid Number": { requiresDate: false, requiresSold: false, deletesRecord: true },
     "Meter De-energised": { requiresDate: false, requiresSold: false, deletesRecord: true },
     "Broker in Place": { requiresDate: true, requiresSold: false, deletesRecord: false },
+    "End Date Changed": { requiresDate: true, requiresSold: false, deletesRecord: false },
   };
 
   const isDateRequired = () => {
