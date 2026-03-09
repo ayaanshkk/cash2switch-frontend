@@ -9,7 +9,7 @@ export const useCurrentUser = () => {
   return {
     id: user.id.toString(),
     name: user.name,  // ✅ Backend sends this as employee_name
-    username: user.username,
+    username: user.email || user.name || '',
     email: user.email || "",
     avatar: `/avatars/default.png`,
     role: user.role,
