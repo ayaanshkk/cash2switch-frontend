@@ -374,6 +374,37 @@ export default function EnergyCustomerDetailsPage() {
     }
   };
 
+  const handleDeleteInteraction = async (interactionId: number) => {
+    if (!window.confirm("Are you sure you want to delete this history entry?")) {
+      return;
+    }
+
+    const token = localStorage.getItem("auth_token");
+    
+    try {
+      const response = await fetch(
+        `${API_BASE_URL}/energy-clients/${id}/history/${interactionId}`,
+        {
+          method: "DELETE",
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error("Failed to delete interaction");
+      }
+
+      // Success - refresh history
+      alert("✅ History entry deleted successfully");
+      loadHistory();
+    } catch (error) {
+      console.error("Error deleting interaction:", error);
+      alert("❌ Failed to delete history entry");
+    }
+  };
+
   const handleSave = async () => {
     if (!customer) return;
 
@@ -1485,7 +1516,7 @@ export default function EnergyCustomerDetailsPage() {
         </DialogContent>
       </Dialog>
 
-{/* ✅ SIMPLE ACTION PANEL (Right Side) - Direct Form, No Modal */}
+      {/* ✅ SIMPLE ACTION PANEL (Right Side) - Direct Form, No Modal */}
       <div className="fixed right-0 top-0 h-full w-80 border-l border-gray-200 bg-gray-50 p-6 overflow-y-auto">
         <h3 className="mb-4 text-lg font-semibold text-gray-900">Action</h3>
 
@@ -1617,47 +1648,61 @@ export default function EnergyCustomerDetailsPage() {
           </Button>
         </div>
 
-        {/* ✅ History Section */}
-        <div className="mt-8">
-          <h3 className="mb-3 text-lg font-semibold text-gray-900">History</h3>
-          
-          {loadingHistory ? (
-            <div className="flex items-center justify-center py-4">
-              <Loader2 className="h-5 w-5 animate-spin text-gray-400" />
-            </div>
-          ) : history.length === 0 ? (
-            <p className="text-sm text-gray-500">No interactions yet</p>
-          ) : (
-            <div className="space-y-3">
-              {history.map((interaction) => (
-                <div 
-                  key={interaction.interaction_id} 
-                  className="p-3 bg-white border border-gray-200 rounded-lg text-sm"
-                >
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="font-semibold text-gray-900">
-                      {interaction.interaction_type}
-                    </span>
-                    <span className="text-xs text-gray-500">
-                      {formatDate(interaction.created_at)}
-                    </span>
-                  </div>
-                  
-                  {interaction.notes && (
-                    <p className="text-gray-600 text-xs mb-2">{interaction.notes}</p>
-                  )}
-                  
-                  {interaction.reminder_date && (
-                    <div className="flex items-center gap-1 text-xs text-purple-700">
-                      <Calendar className="h-3 w-3" />
-                      <span>Callback: {formatDate(interaction.reminder_date)}</span>
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
+    {/* ✅ History Section */}
+    <div className="mt-8">
+      <h3 className="mb-3 text-lg font-semibold text-gray-900">History</h3>
+      
+      {loadingHistory ? (
+        <div className="flex items-center justify-center py-4">
+          <Loader2 className="h-5 w-5 animate-spin text-gray-400" />
         </div>
+      ) : history.length === 0 ? (
+        <p className="text-sm text-gray-500">No interactions yet</p>
+      ) : (
+        <div className="space-y-3">
+          {history.map((interaction) => {
+            // ✅ FIX 1: Extract clean notes (remove [Status] prefix)
+            const cleanNotes = interaction.notes?.replace(/^\[.*?\]\s*/, '') || '';
+            
+            return (
+              <div 
+                key={interaction.interaction_id} 
+                className="p-3 bg-white border border-gray-200 rounded-lg text-sm relative group"
+              >
+                {/* ✅ DELETE BUTTON - Shows on hover */}
+                <button
+                  onClick={() => handleDeleteInteraction(interaction.interaction_id)}
+                  className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:bg-red-50 rounded"
+                  title="Delete this entry"
+                >
+                  <Trash2 className="h-4 w-4 text-red-600" />
+                </button>
+
+                {/* ✅ FIX 2: Remove the date on the right - only show status */}
+                <div className="mb-2">
+                  <span className="font-semibold text-gray-900">
+                    {interaction.interaction_type}
+                  </span>
+                </div>
+                
+                {/* ✅ FIX 3: Only show notes if they exist after removing [Status] */}
+                {cleanNotes && (
+                  <p className="text-gray-600 text-xs mb-2 pr-8">{cleanNotes}</p>
+                )}
+                
+                {/* ✅ Show callback date with calendar icon */}
+                {interaction.reminder_date && (
+                  <div className="flex items-center gap-1 text-xs text-purple-700">
+                    <Calendar className="h-3 w-3" />
+                    <span>Callback: {formatDate(interaction.reminder_date)}</span>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
       </div>
     </div>
   );

@@ -15,8 +15,8 @@ export async function fetchWithAuth(url: string, options: RequestInit = {}) {
 
   // ✅ DEBUG: Log tenant_id for troubleshooting
   if (!tenantId) {
-    console.warn("⚠️ No tenant_id found in localStorage - setting default to '1'");
-    localStorage.setItem("tenant_id", "1");
+    console.warn("⚠️ No tenant_id found in localStorage - setting default to '2'");
+    localStorage.setItem("tenant_id", "2");
   }
 
   const isFormData =
@@ -33,7 +33,7 @@ export async function fetchWithAuth(url: string, options: RequestInit = {}) {
 
   if (token) headers["Authorization"] = `Bearer ${token}`;
   // ✅ ALWAYS include tenant_id header (use fallback if not in localStorage)
-  headers["X-Tenant-ID"] = tenantId || "1";
+  headers["X-Tenant-ID"] = tenantId || "2";
 
   // prepend backend url unless already absolute
   const fullUrl = url.startsWith("http") ? url : `${API_BASE_URL}${url}`;
@@ -93,7 +93,7 @@ export async function fetchPublic(url: string, options: RequestInit = {}) {
 // ================= API METHODS =================
 export const api = {
   // AUTH
-  async login(username: string, password: string, tenant_id: number = 1) {
+  async login(username: string, password: string, tenant_id: number = 2) {
     // ✅ Set tenant_id BEFORE making the request
     localStorage.setItem("tenant_id", tenant_id.toString());
     console.log("✅ Setting tenant_id:", tenant_id);
