@@ -801,21 +801,21 @@ const bulkDeleteCustomers = async () => {
     }
   };
 
-  const { taskProgress } = useTaskProgress(
-    importTaskId || assignTaskId,
-    // onComplete
-    (result) => {
-      console.log('✅ Task complete:', result);
-      fetchCustomers(); // Refresh customer list
-      setShowProgressDialog(true); // Keep dialog open to show results
-    },
-    // onError
-    (error) => {
-      console.error('❌ Task failed:', error);
-      toast.error(`Task failed: ${error}`);
-      setShowProgressDialog(true);
-    }
-  );
+  // const { taskProgress } = useTaskProgress(
+  //   importTaskId || assignTaskId,
+  //   // onComplete
+  //   (result) => {
+  //     console.log('✅ Task complete:', result);
+  //     fetchCustomers(); // Refresh customer list
+  //     setShowProgressDialog(true); // Keep dialog open to show results
+  //   },
+  //   // onError
+  //   (error) => {
+  //     console.error('❌ Task failed:', error);
+  //     toast.error(`Task failed: ${error}`);
+  //     setShowProgressDialog(true);
+  //   }
+  // );
 
   const handleBulkImport = async () => {
     if (!bulkImportFile) {
