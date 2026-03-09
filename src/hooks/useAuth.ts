@@ -8,8 +8,9 @@ interface User {
   username?: string;
   full_name?: string;
   role: string;
+  phone?: string;
+  tenant_id?: number;    
 }
-
 export const useAuth = () => {
   const [token, setToken] = useState<string | null>(null);
   const [user, setUser] = useState<User | null>(null);
