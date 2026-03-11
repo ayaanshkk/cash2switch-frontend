@@ -121,7 +121,6 @@ export function EnergyRenewalsOverview({ userRole, employeeId }: EnergyRenewalsO
   const [salesPerformance, setSalesPerformance] = useState<SalespersonPerformance[]>([]);
   const [loading, setLoading] = useState(true);
   
-  // ✅ Employee states
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [modalEmployeeFilter, setModalEmployeeFilter] = useState<number | undefined>(undefined);
   
@@ -135,7 +134,8 @@ export function EnergyRenewalsOverview({ userRole, employeeId }: EnergyRenewalsO
   const [aqBreakdown, setAQBreakdown] = useState<AQBreakdownResponse | null>(null);
   const [aqModalLoading, setAQModalLoading] = useState(false);
 
-  // ✅ Load employees function
+  // ✅ Check if user is admin
+  const isAdmin = userRole === "Platform Admin"
   const loadEmployees = async () => {
     try {
       const token = localStorage.getItem("auth_token");
@@ -157,8 +157,11 @@ export function EnergyRenewalsOverview({ userRole, employeeId }: EnergyRenewalsO
     try {
       const token = localStorage.getItem("auth_token");
       
+      // ✅ Only admins can see full breakdown, salespeople see their own stats
+      const employeeParam = !isAdmin && employeeId ? `?employee_id=${employeeId}` : '';
+      
       const res = await fetch(
-        `${API_BASE_URL}/energy-renewals/aq-breakdown`,
+        `${API_BASE_URL}/energy-renewals/aq-breakdown${employeeParam}`,
         { headers: { Authorization: `Bearer ${token}` } }
       );
 
@@ -177,15 +180,24 @@ export function EnergyRenewalsOverview({ userRole, employeeId }: EnergyRenewalsO
   useEffect(() => {
     fetchRenewalStats();
     fetchSalesPerformance('month');
-    loadEmployees(); // ✅ Load employees on mount
-  }, []);
+    if (isAdmin) {
+      loadEmployees(); // ✅ Only admins need employee list for filters
+    }
+  }, [isAdmin, employeeId]);
 
   const fetchRenewalStats = async () => {
     try {
       setLoading(true);
       const token = localStorage.getItem("auth_token");
 
-      const employeeParam = employeeId ? `?employee_id=${employeeId}` : '';
+      // ✅ CRITICAL: Salespeople ALWAYS filter by their employee_id
+      const employeeParam = !isAdmin && employeeId ? `?employee_id=${employeeId}` : '';
+
+      console.log(`📊 Fetching stats:`, {
+        isAdmin,
+        employeeId,
+        url: `${API_BASE_URL}/energy-renewals/stats${employeeParam}`
+      });
 
       const statsRes = await fetch(`${API_BASE_URL}/energy-renewals/stats${employeeParam}`, {
         headers: { Authorization: `Bearer ${token}` },
@@ -216,7 +228,9 @@ export function EnergyRenewalsOverview({ userRole, employeeId }: EnergyRenewalsO
   const fetchSalesPerformance = async (period: 'week' | 'month') => {
     try {
       const token = localStorage.getItem("auth_token");
-      const employeeParam = employeeId ? `&employee_id=${employeeId}` : '';
+      
+      // ✅ Salespeople see only their own performance
+      const employeeParam = !isAdmin && employeeId ? `&employee_id=${employeeId}` : '';
 
       const res = await fetch(
         `${API_BASE_URL}/energy-renewals/salesperson-performance?period=${period}${employeeParam}`,
@@ -232,18 +246,28 @@ export function EnergyRenewalsOverview({ userRole, employeeId }: EnergyRenewalsO
     }
   };
 
-  // ✅ CRITICAL FIX: Use modalEmployeeFilter instead of employeeId
   const fetchPeriodBreakdown = async (period: string) => {
     setModalLoading(true);
     try {
       const token = localStorage.getItem("auth_token");
       
-      // ✅ Use modalEmployeeFilter for the dropdown filter
-      const employeeParam = modalEmployeeFilter ? `&employee_id=${modalEmployeeFilter}` : '';
+      // ✅ For ADMINS: Use dropdown filter (modalEmployeeFilter)
+      // ✅ For SALESPEOPLE: Always filter by their own employeeId
+      let employeeParam = '';
+      if (!isAdmin && employeeId) {
+        // Salesperson - always show their own customers
+        employeeParam = `&employee_id=${employeeId}`;
+      } else if (isAdmin && modalEmployeeFilter) {
+        // Admin using dropdown filter
+        employeeParam = `&employee_id=${modalEmployeeFilter}`;
+      }
 
       console.log(`🔍 Fetching breakdown:`, {
         period,
+        isAdmin,
+        employeeId,
         modalEmployeeFilter,
+        employeeParam,
         url: `${API_BASE_URL}/energy-renewals/period-breakdown?period=${period}${employeeParam}`
       });
 
@@ -300,6 +324,16 @@ export function EnergyRenewalsOverview({ userRole, employeeId }: EnergyRenewalsO
 
   return (
       <div className="space-y-4">
+        {/* ✅ Show role indicator for clarity */}
+        {!isAdmin && (
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 flex items-center gap-2">
+            <Users className="h-4 w-4 text-blue-600" />
+            <span className="text-sm text-blue-900">
+              Showing your personal renewals dashboard
+            </span>
+          </div>
+        )}
+
         {/* Top Stats Cards */}
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-6">
           {/* 30-60 Days */}
@@ -410,10 +444,12 @@ export function EnergyRenewalsOverview({ userRole, employeeId }: EnergyRenewalsO
             </CardFooter>
           </Card>
 
-          {/* Revenue at Risk - ✅ FIXED LAYOUT */}
+          {/* Revenue at Risk */}
           <Card className="border-red-300 bg-red-50/30">
             <CardHeader className="pb-2">
-              <CardDescription>Revenue at Risk</CardDescription>
+              <CardDescription>
+                {isAdmin ? "Total Revenue at Risk" : "Your Revenue at Risk"}
+              </CardDescription>
               <CardTitle className="text-xl font-semibold tabular-nums text-red-900 break-all leading-tight">
                 £{(stats?.total_revenue_at_risk || 0).toLocaleString('en-GB', { 
                   minimumFractionDigits: 2, 
@@ -427,22 +463,24 @@ export function EnergyRenewalsOverview({ userRole, employeeId }: EnergyRenewalsO
                 High Priority
               </Badge>
               <div className="line-clamp-2 text-xs font-medium text-red-800">
-                Total contract value expiring
+                {isAdmin ? "Total contract value expiring" : "Your contract value expiring"}
               </div>
             </CardFooter>
           </Card>
 
           {/* Total AQ */}
           <Card 
-            className={`border-purple-300 bg-purple-50/30 ${userRole === 'Platform Admin' ? 'cursor-pointer hover:shadow-lg transition-shadow' : ''}`}
+            className={`border-purple-300 bg-purple-50/30 ${isAdmin ? 'cursor-pointer hover:shadow-lg transition-shadow' : ''}`}
             onClick={() => {
-              if (userRole === 'Platform Admin') {
+              if (isAdmin) {
                 fetchAQBreakdown();
               }
             }}
           >
             <CardHeader>
-              <CardDescription>Total AQ</CardDescription>
+              <CardDescription>
+                {isAdmin ? "Total AQ" : "Your Total AQ"}
+              </CardDescription>
               <CardTitle className="text-3xl font-semibold tabular-nums text-purple-900">
                 {formatAQ(stats?.total_aq || 0)} kWh
               </CardTitle>
@@ -455,9 +493,9 @@ export function EnergyRenewalsOverview({ userRole, employeeId }: EnergyRenewalsO
             </CardHeader>
             <CardFooter className="flex-col items-start gap-1.5 text-sm">
               <div className="line-clamp-1 flex gap-2 font-medium text-purple-800">
-                Total consumption at risk
+                {isAdmin ? "Total consumption at risk" : "Your consumption at risk"}
               </div>
-              {userRole === 'Platform Admin' ? (
+              {isAdmin ? (
                 <div className="text-purple-600 text-xs flex items-center gap-1">
                   Click for breakdown <ChevronRight className="h-3 w-3" />
                 </div>
@@ -474,7 +512,9 @@ export function EnergyRenewalsOverview({ userRole, employeeId }: EnergyRenewalsO
           <Card>
             <CardHeader>
               <CardTitle>Renewals by Period</CardTitle>
-              <CardDescription>Upcoming contract expirations</CardDescription>
+              <CardDescription>
+                {isAdmin ? "Upcoming contract expirations" : "Your upcoming expirations"}
+              </CardDescription>
             </CardHeader>
             <CardContent className="h-64">
               <ChartContainer config={chartConfig} className="h-full w-full">
@@ -496,7 +536,9 @@ export function EnergyRenewalsOverview({ userRole, employeeId }: EnergyRenewalsO
           <Card>
             <CardHeader>
               <CardTitle>Contact Status</CardTitle>
-              <CardDescription>Customer engagement progress</CardDescription>
+              <CardDescription>
+                {isAdmin ? "Customer engagement progress" : "Your engagement progress"}
+              </CardDescription>
             </CardHeader>
             <CardContent className="h-64 flex items-center justify-center">
               <ChartContainer config={chartConfig} className="h-full w-full">
@@ -539,7 +581,9 @@ export function EnergyRenewalsOverview({ userRole, employeeId }: EnergyRenewalsO
           <Card>
             <CardHeader>
               <CardTitle>Top Suppliers</CardTitle>
-              <CardDescription>Contracts expiring by supplier</CardDescription>
+              <CardDescription>
+                {isAdmin ? "Contracts expiring by supplier" : "Your contracts by supplier"}
+              </CardDescription>
             </CardHeader>
             <CardContent className="h-64 overflow-y-auto">
               <div className="space-y-3">
@@ -580,7 +624,9 @@ export function EnergyRenewalsOverview({ userRole, employeeId }: EnergyRenewalsO
         <Card>
           <CardHeader>
             <CardTitle>Renewal Performance</CardTitle>
-            <CardDescription>Overall renewal success metrics</CardDescription>
+            <CardDescription>
+              {isAdmin ? "Overall renewal success metrics" : "Your renewal success metrics"}
+            </CardDescription>
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
@@ -613,10 +659,10 @@ export function EnergyRenewalsOverview({ userRole, employeeId }: EnergyRenewalsO
           </CardFooter>
         </Card>
         
-        {/* ✅ COMPLETELY FIXED Period Breakdown Modal */}
+        {/* Period Breakdown Modal */}
         <Dialog open={showPeriodModal} onOpenChange={(open) => {
           setShowPeriodModal(open);
-          if (!open) {
+          if (!open && isAdmin) {
             setModalEmployeeFilter(undefined);
           }
         }}>
@@ -635,32 +681,33 @@ export function EnergyRenewalsOverview({ userRole, employeeId }: EnergyRenewalsO
                   </DialogDescription>
                 </div>
                 
-                {/* ✅ Salesperson Filter */}
-                <Select
-                  value={modalEmployeeFilter?.toString() || "all"}
-                  onValueChange={(value) => {
-                    const newEmployeeId = value === "all" ? undefined : parseInt(value);
-                    console.log(`🔄 Changing filter from ${modalEmployeeFilter} to ${newEmployeeId}`);
-                    setModalEmployeeFilter(newEmployeeId);
-                    
-                    // ✅ Re-fetch immediately with new filter
-                    setTimeout(() => {
-                      fetchPeriodBreakdown(selectedPeriod);
-                    }, 50);
-                  }}
-                >
-                  <SelectTrigger className="w-[220px] flex-shrink-0">
-                    <SelectValue placeholder="All Salespeople" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Salespeople</SelectItem>
-                    {employees.map((emp) => (
-                      <SelectItem key={emp.employee_id} value={emp.employee_id.toString()}>
-                        {emp.employee_name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                {/* ✅ Only show filter dropdown for admins */}
+                {isAdmin && (
+                  <Select
+                    value={modalEmployeeFilter?.toString() || "all"}
+                    onValueChange={(value) => {
+                      const newEmployeeId = value === "all" ? undefined : parseInt(value);
+                      console.log(`🔄 Admin changing filter from ${modalEmployeeFilter} to ${newEmployeeId}`);
+                      setModalEmployeeFilter(newEmployeeId);
+                      
+                      setTimeout(() => {
+                        fetchPeriodBreakdown(selectedPeriod);
+                      }, 50);
+                    }}
+                  >
+                    <SelectTrigger className="w-[220px] flex-shrink-0">
+                      <SelectValue placeholder="All Salespeople" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Salespeople</SelectItem>
+                      {employees.map((emp) => (
+                        <SelectItem key={emp.employee_id} value={emp.employee_id.toString()}>
+                          {emp.employee_name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
               </div>
             </DialogHeader>
 
@@ -681,7 +728,6 @@ export function EnergyRenewalsOverview({ userRole, employeeId }: EnergyRenewalsO
                       className="p-5 border rounded-xl hover:bg-gray-50 hover:shadow-sm cursor-pointer transition-all"
                       onClick={() => router.push(`/dashboard/renewals/${renewal.client_id}`)}
                     >
-                      {/* Header Row */}
                       <div className="flex items-start justify-between gap-4 mb-4">
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 mb-2">
@@ -708,7 +754,6 @@ export function EnergyRenewalsOverview({ userRole, employeeId }: EnergyRenewalsO
                         </div>
                       </div>
 
-                      {/* Details - 5 Column Grid - ✅ NO SCROLLING */}
                       <div className="grid grid-cols-5 gap-4 pt-3 border-t border-gray-100">
                         <div className="min-w-0">
                           <p className="text-xs text-gray-500 uppercase mb-1">Supplier</p>
@@ -748,13 +793,17 @@ export function EnergyRenewalsOverview({ userRole, employeeId }: EnergyRenewalsO
           </DialogContent>
         </Dialog>
 
-        {/* AQ Breakdown Modal - unchanged */}
+        {/* AQ Breakdown Modal */}
         <Dialog open={showAQModal} onOpenChange={setShowAQModal}>
           <DialogContent className="max-w-[98vw] w-[98vw] max-h-[90vh] overflow-y-auto p-6">
             <DialogHeader className="pb-4">
-              <DialogTitle className="text-2xl">AQ Breakdown by Salesperson</DialogTitle>
+              <DialogTitle className="text-2xl">
+                {isAdmin ? "AQ Breakdown by Salesperson" : "Your AQ Breakdown"}
+              </DialogTitle>
               <DialogDescription className="text-base">
-                Total annual quantity (AQ) split across sales team
+                {isAdmin 
+                  ? "Total annual quantity (AQ) split across sales team"
+                  : "Your total annual quantity (AQ)"}
               </DialogDescription>
             </DialogHeader>
 
@@ -791,81 +840,85 @@ export function EnergyRenewalsOverview({ userRole, employeeId }: EnergyRenewalsO
                   </Card>
                   <Card className="bg-orange-50">
                     <CardHeader className="pb-3">
-                      <CardDescription className="text-sm">Salespeople</CardDescription>
+                      <CardDescription className="text-sm">
+                        {isAdmin ? "Salespeople" : "Your Portfolio"}
+                      </CardDescription>
                       <CardTitle className="text-3xl text-orange-900">
-                        {aqBreakdown.salesperson_count}
+                        {isAdmin ? aqBreakdown.salesperson_count : "Active"}
                       </CardTitle>
                     </CardHeader>
                   </Card>
                 </div>
 
-                <div className="rounded-lg border bg-white">
-                  <div className="overflow-x-auto">
-                    <table className="w-full">
-                      <thead className="bg-gray-50 border-b">
-                        <tr>
-                          <th className="px-6 py-4 text-left text-sm font-semibold whitespace-nowrap min-w-[200px]">
-                            Salesperson
-                          </th>
-                          <th className="px-6 py-4 text-right text-sm font-semibold whitespace-nowrap min-w-[120px]">
-                            Customers
-                          </th>
-                          <th className="px-6 py-4 text-right text-sm font-semibold whitespace-nowrap min-w-[150px]">
-                            Total AQ (kWh)
-                          </th>
-                          <th className="px-6 py-4 text-right text-sm font-semibold whitespace-nowrap min-w-[160px]">
-                            Avg AQ/Customer
-                          </th>
-                          <th className="px-6 py-4 text-right text-sm font-semibold whitespace-nowrap min-w-[130px]">
-                            Revenue (£)
-                          </th>
-                          <th className="px-6 py-4 text-right text-sm font-semibold whitespace-nowrap min-w-[250px]">
-                            % of Total AQ
-                          </th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y">
-                        {aqBreakdown.breakdown.map((sales) => {
-                          const aqPercentage = ((sales.total_aq / aqBreakdown.total_aq) * 100).toFixed(1);
-                          
-                          return (
-                            <tr key={sales.employee_id} className="hover:bg-gray-50">
-                              <td className="px-6 py-5 whitespace-nowrap">
-                                <div className="flex items-center gap-3">
-                                  <Users className="h-5 w-5 text-purple-600 flex-shrink-0" />
-                                  <span className="font-medium text-base">{sales.employee_name}</span>
-                                </div>
-                              </td>
-                              <td className="px-6 py-5 text-right text-base whitespace-nowrap">
-                                {sales.customer_count}
-                              </td>
-                              <td className="px-6 py-5 text-right font-semibold text-lg text-purple-900 whitespace-nowrap">
-                                {formatAQ(sales.total_aq)}
-                              </td>
-                              <td className="px-6 py-5 text-right text-base text-gray-700 whitespace-nowrap">
-                                {formatAQ(sales.average_aq_per_customer)}
-                              </td>
-                              <td className="px-6 py-5 text-right font-semibold text-base text-green-700 whitespace-nowrap">
-                                £{(sales.total_revenue / 1000).toFixed(1)}K
-                              </td>
-                              <td className="px-6 py-5 text-right whitespace-nowrap">
-                                <div className="flex items-center justify-end gap-4">
-                                  <div className="w-40 h-4 bg-gray-200 rounded-full overflow-hidden flex-shrink-0">
-                                    <div
-                                      className="h-full bg-purple-600 rounded-full transition-all"
-                                      style={{ width: `${aqPercentage}%` }}
-                                    />
+                {isAdmin && (
+                  <div className="rounded-lg border bg-white">
+                    <div className="overflow-x-auto">
+                      <table className="w-full">
+                        <thead className="bg-gray-50 border-b">
+                          <tr>
+                            <th className="px-6 py-4 text-left text-sm font-semibold whitespace-nowrap min-w-[200px]">
+                              Salesperson
+                            </th>
+                            <th className="px-6 py-4 text-right text-sm font-semibold whitespace-nowrap min-w-[120px]">
+                              Customers
+                            </th>
+                            <th className="px-6 py-4 text-right text-sm font-semibold whitespace-nowrap min-w-[150px]">
+                              Total AQ (kWh)
+                            </th>
+                            <th className="px-6 py-4 text-right text-sm font-semibold whitespace-nowrap min-w-[160px]">
+                              Avg AQ/Customer
+                            </th>
+                            <th className="px-6 py-4 text-right text-sm font-semibold whitespace-nowrap min-w-[130px]">
+                              Revenue (£)
+                            </th>
+                            <th className="px-6 py-4 text-right text-sm font-semibold whitespace-nowrap min-w-[250px]">
+                              % of Total AQ
+                            </th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y">
+                          {aqBreakdown.breakdown.map((sales) => {
+                            const aqPercentage = ((sales.total_aq / aqBreakdown.total_aq) * 100).toFixed(1);
+                            
+                            return (
+                              <tr key={sales.employee_id} className="hover:bg-gray-50">
+                                <td className="px-6 py-5 whitespace-nowrap">
+                                  <div className="flex items-center gap-3">
+                                    <Users className="h-5 w-5 text-purple-600 flex-shrink-0" />
+                                    <span className="font-medium text-base">{sales.employee_name}</span>
                                   </div>
-                                  <span className="text-base font-semibold w-16 text-right">{aqPercentage}%</span>
-                                </div>
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
+                                </td>
+                                <td className="px-6 py-5 text-right text-base whitespace-nowrap">
+                                  {sales.customer_count}
+                                </td>
+                                <td className="px-6 py-5 text-right font-semibold text-lg text-purple-900 whitespace-nowrap">
+                                  {formatAQ(sales.total_aq)}
+                                </td>
+                                <td className="px-6 py-5 text-right text-base text-gray-700 whitespace-nowrap">
+                                  {formatAQ(sales.average_aq_per_customer)}
+                                </td>
+                                <td className="px-6 py-5 text-right font-semibold text-base text-green-700 whitespace-nowrap">
+                                  £{(sales.total_revenue / 1000).toFixed(1)}K
+                                </td>
+                                <td className="px-6 py-5 text-right whitespace-nowrap">
+                                  <div className="flex items-center justify-end gap-4">
+                                    <div className="w-40 h-4 bg-gray-200 rounded-full overflow-hidden flex-shrink-0">
+                                      <div
+                                        className="h-full bg-purple-600 rounded-full transition-all"
+                                        style={{ width: `${aqPercentage}%` }}
+                                      />
+                                    </div>
+                                    <span className="text-base font-semibold w-16 text-right">{aqPercentage}%</span>
+                                  </div>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
                   </div>
-                </div>
+                )}
               </div>
             ) : (
               <p className="text-center py-8 text-gray-500">No data available</p>

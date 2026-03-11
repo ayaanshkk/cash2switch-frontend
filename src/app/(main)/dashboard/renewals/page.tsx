@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { 
   Search, Plus, Edit, Trash2, ChevronDown, Filter, AlertCircle, 
-  ChevronRight, ChevronLeft, ChevronLast, ChevronFirst, Zap, Building2, Upload, Users, UserCheck, Info
+  ChevronRight, ChevronLeft, ChevronLast, ChevronFirst, Zap, Building2, Upload, Users, UserCheck, Info, Loader2
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -28,8 +28,8 @@ import { canEditEntity, canBulkAssign } from "@/lib/permissions";
 import { fetchWithAuth } from "@/lib/api";
 import { Badge } from "@/components/ui/badge";
 import { toast, Toaster } from 'react-hot-toast';
-// import { useTaskProgress } from '@/hooks/useTaskProgress';
-// import { ProgressDialog } from '@/components/ui/ProgressDialog';
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Textarea } from "@/components/ui/textarea";
 
 // ---------------- Constants ----------------
 const CUSTOMERS_PER_PAGE = 25;
@@ -37,16 +37,33 @@ const API_BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:50
 
 // Status options for dropdown
 const STATUS_OPTIONS = [
-  { value: "called", label: "Called" },
-  { value: "not_answered", label: "Not Answered" },
-  { value: "priced", label: "Priced" },
-  { value: "lost", label: "Lost" },
-  { value: "lost_cot", label: "Lost - COT" },
-  { value: "already_renewed_cb_next_year", label: "Already Renewed - CB Next Year" },
-  { value: "invalid_number_need_alternative", label: "Invalid Number - Need alternative" },
-  { value: "meter_de_energised", label: "Meter De-Energised" },
-  { value: "broker_in_place", label: "Broker in Place" },
+  { value: "Callback", label: "Callback" },
+  { value: "Called", label: "Called" },
+  { value: "Not Answered", label: "Not Answered" },
+  { value: "Priced", label: "Priced" },
+  { value: "Lost", label: "Lost" },
+  { value: "Lost COT", label: "Lost COT" },                      
+  { value: "Already Renewed", label: "Already Renewed" },        
+  { value: "Invalid Number", label: "Invalid Number" },         
+  { value: "Meter De-energised", label: "Meter De-energised" }, 
+  { value: "Broker in Place", label: "Broker in Place" },       
+  { value: "End Date Changed", label: "End Date Changed" },     
 ];
+
+// ✅ Status configuration - MUST match customer details page exactly
+const statusConfig: Record<string, { requiresDate: boolean; requiresSold: boolean; deletesRecord: boolean; requiresNotes: boolean }> = {
+  "Callback": { requiresDate: true, requiresSold: false, deletesRecord: false, requiresNotes: false },
+  "Called": { requiresDate: true, requiresSold: false, deletesRecord: false, requiresNotes: false },
+  "Not Answered": { requiresDate: true, requiresSold: false, deletesRecord: false, requiresNotes: false },
+  "Priced": { requiresDate: false, requiresSold: true, deletesRecord: false, requiresNotes: false },
+  "Lost": { requiresDate: true, requiresSold: false, deletesRecord: true, requiresNotes: true },
+  "Lost COT": { requiresDate: false, requiresSold: false, deletesRecord: true, requiresNotes: true },
+  "Already Renewed": { requiresDate: true, requiresSold: false, deletesRecord: false, requiresNotes: false },
+  "Invalid Number": { requiresDate: false, requiresSold: false, deletesRecord: true, requiresNotes: false },
+  "Meter De-energised": { requiresDate: false, requiresSold: false, deletesRecord: true, requiresNotes: false },
+  "Broker in Place": { requiresDate: true, requiresSold: false, deletesRecord: false, requiresNotes: false },
+  "End Date Changed": { requiresDate: true, requiresSold: false, deletesRecord: false, requiresNotes: false },
+};
 
 // ---------------- Types ----------------
 interface EnergyCustomer {
@@ -151,35 +168,45 @@ const getStatusColor = (status: string | undefined): string => {
   if (!status) return "bg-gray-100 text-gray-800";
   
   const statusLower = status.toLowerCase();
-  if (statusLower === 'called' || statusLower === 'priced') {
+  if (statusLower === 'called' || statusLower === 'priced' || statusLower === 'callback') {
     return "bg-green-100 text-green-800";
   }
-  if (statusLower === 'not_answered') {
+  if (statusLower === 'not answered') {
     return "bg-yellow-100 text-yellow-800";
   }
-  if (statusLower === 'lost') {
+  if (statusLower === 'lost' || statusLower === 'lost cot') {
     return "bg-red-100 text-red-800";
   }
   return "bg-gray-100 text-gray-800";
 };
 
+// ✅ UPDATE getStatusLabel function
 const getStatusLabel = (status: string | undefined): string => {
   if (!status) return "—";
+  // Direct match first
   const option = STATUS_OPTIONS.find(opt => opt.value === status);
-  return option?.label || status;
+  if (option) return option.label;
+  
+  // Fallback: case-insensitive match
+  const optionCaseInsensitive = STATUS_OPTIONS.find(
+    opt => opt.value.toLowerCase() === status.toLowerCase()
+  );
+  return optionCaseInsensitive?.label || status;
 };
 
 // ✅ HYBRID: Hardcoded as fallback, API as source of truth
 const STATUS_TO_STAGE_FALLBACK: Record<string, number> = {
-  'called': 1,
-  'not_answered': 2,
-  'priced': 3,
-  'lost': 4,
-  'lost_cot': 5,
-  'already_renewed_cb_next_year': 6,
-  'invalid_number_need_alternative': 7,
-  'meter_de_energised': 8,
-  'broker_in_place': 9,
+  'callback': 1,
+  'called': 2,
+  'not answered': 3,
+  'priced': 4,
+  'lost': 5,
+  'lost cot': 6,
+  'already renewed': 7,
+  'invalid number': 8,
+  'meter de-energised': 9,
+  'broker in place': 10,       
+  'end date changed': 11,      
 };
 
 const getStageIdFromStatus = (status: string, stagesList?: Stage[]): number => {
@@ -223,7 +250,6 @@ export default function EnergyCustomersPage() {
   const [bulkImportResult, setBulkImportResult] = useState<{
     success: boolean;
     successful: number;
-    // imported_count: number;
     errors: string[];
     assigned_to?: string;
   } | null>(null);
@@ -238,18 +264,21 @@ export default function EnergyCustomersPage() {
   const [showProgressDialog, setShowProgressDialog] = useState(false);
   const [isSelectAllChecked, setIsSelectAllChecked] = useState(false);
   const [employeeStats, setEmployeeStats] = useState<{
-  employee_id: number;
-  employee_name: string;
-  count: number;
-  max_display_id?: number;
-}[]>([]);
+    employee_id: number;
+    employee_name: string;
+    count: number;
+    max_display_id?: number;
+  }[]>([]);
 
-  // Lost confirmation modal state
-  const [lostConfirmation, setLostConfirmation] = useState<{
-    isOpen: boolean;
-    customerId: number | null;
-    newStatus: string | null;
-  }>({ isOpen: false, customerId: null, newStatus: null });
+  // ✅ NEW: Callback modal state
+  const [showCallbackModal, setShowCallbackModal] = useState(false);
+  const [selectedCustomerForCallback, setSelectedCustomerForCallback] = useState<number | null>(null);
+  const [callbackStatus, setCallbackStatus] = useState("");
+  const [callbackDate, setCallbackDate] = useState("");
+  const [callbackNotes, setCallbackNotes] = useState("");
+  const [isSold, setIsSold] = useState<string>("");
+  const [isSubmittingCallback, setIsSubmittingCallback] = useState(false);
+  const [callbackError, setCallbackError] = useState("");
 
   const router = useRouter();
   const { user } = useAuth();
@@ -279,9 +308,7 @@ export default function EnergyCustomersPage() {
     setError(null);
     
     try {
-      // ✅ Use fetchWithAuth - automatically includes Authorization and X-Tenant-ID headers
       const response = await fetchWithAuth(`/energy-clients?service=${encodeURIComponent(service)}`);
-      // Handle both { data: [...] } and direct array responses
       const data = Array.isArray(response) ? response : (response?.data || []);
       setAllCustomers(data);
     } catch (err) {
@@ -296,9 +323,7 @@ export default function EnergyCustomersPage() {
 
   const fetchSuppliers = async () => {
     try {
-      // ✅ Use fetchWithAuth - automatically includes Authorization and X-Tenant-ID headers
       const response = await fetchWithAuth("/suppliers");
-      // Handle both { data: [...] } and direct array responses
       const data = Array.isArray(response) ? response : (response?.data || []);
       setSuppliers(data);
     } catch (err) {
@@ -323,13 +348,9 @@ export default function EnergyCustomersPage() {
 
   const fetchStages = async () => {
     try {
-      // ✅ Use the correct endpoint from customer_routes.py
       const response = await fetchWithAuth("/stages");
-      // Handle both { data: [...] } and direct array responses
       const stagesList = Array.isArray(response) ? response : (response?.data || []);
-      
-      console.log("✅ Stages loaded:", stagesList);  // Debug log
-      
+      console.log("✅ Stages loaded:", stagesList);
       setStages(stagesList);
     } catch (err) {
       console.error("❌ Error fetching stages:", err);
@@ -341,10 +362,7 @@ export default function EnergyCustomersPage() {
     try {
       const response = await fetchWithAuth(`/energy-clients/stats-by-employee?service=${encodeURIComponent(service)}`);
       const stats = Array.isArray(response.stats) ? response.stats : [];
-      
-      // Only show employees with count > 0
       const nonZeroStats = stats.filter((stat: any) => stat.count > 0);
-      
       setEmployeeStats(nonZeroStats);
     } catch (err) {
       console.error("❌ Error fetching employee stats:", err);
@@ -352,11 +370,9 @@ export default function EnergyCustomersPage() {
     }
   };
 
-
   // ✅ NEW: Search across all customers (debounced)
   useEffect(() => {
     const searchAllCustomers = async () => {
-      // Only search if user is NOT admin and has typed at least 2 characters
       const isAdmin = user?.role === "Platform Admin" || user?.role === "Tenant Super Admin";
       
       if (isAdmin || !searchTerm || searchTerm.length < 2) {
@@ -380,27 +396,23 @@ export default function EnergyCustomersPage() {
       }
     };
 
-    // Debounce search
     const timeoutId = setTimeout(searchAllCustomers, 300);
     return () => clearTimeout(timeoutId);
   }, [searchTerm, service, user]);
 
-  // ✅ ISSUE 1 FIXED: Sort customers in ASCENDING order (oldest first, newest at bottom)
+  // ✅ Sort customers in ASCENDING order (oldest first, newest at bottom)
   const sortedCustomers = useMemo(() => {
     const isAdmin = user?.role === "Platform Admin" || user?.role === "Tenant Super Admin";
     
-    // Admin sees all customers from regular fetch
     if (isAdmin) {
       return [...allCustomers].sort((a, b) => {
         const aDate = new Date(a.created_at).getTime();
         const bDate = new Date(b.created_at).getTime();
-        return aDate - bDate; // ASCENDING order
+        return aDate - bDate;
       });
     }
     
-    // Salesperson: combine their assigned customers + search results
     if (searchTerm && searchResults.length > 0) {
-      // Merge: their assigned customers + search results (avoid duplicates)
       const assignedIds = new Set(allCustomers.map(c => c.client_id));
       const uniqueSearchResults = searchResults.filter(c => !assignedIds.has(c.client_id));
       
@@ -411,7 +423,6 @@ export default function EnergyCustomersPage() {
       });
     }
     
-    // Default: only their assigned customers
     return [...allCustomers].sort((a, b) => {
       const aDate = new Date(a.created_at).getTime();
       const bDate = new Date(b.created_at).getTime();
@@ -419,7 +430,7 @@ export default function EnergyCustomersPage() {
     });
   }, [allCustomers, searchResults, searchTerm, user]);
 
-  // ✅ Apply filters (rest remains the same)
+  // ✅ Apply filters
   const filteredCustomers = useMemo(() => {
     return sortedCustomers.filter((customer) => {
       const term = searchTerm.toLowerCase();
@@ -454,86 +465,124 @@ export default function EnergyCustomersPage() {
     return filteredCustomers.slice(startIndex, endIndex);
   }, [filteredCustomers, currentPage]);
 
+  // ✅ NEW: Helper function for date requirement
+  const isDateRequired = () => {
+    if (!callbackStatus) return false;
+    
+    const config = statusConfig[callbackStatus];
+    if (!config) return false;
+    
+    if (config.requiresSold) {
+      return isSold === "yes";
+    }
+    
+    return config.requiresDate;
+  };
 
-  // ---------------- Update Status ----------------
+  // ---------------- Update Status (Opens Modal) ----------------
   const updateCustomerStatus = async (customerId: number, newStatus: string) => {
-    // Check if user is selecting "Lost" - show confirmation first
-    if (newStatus.toLowerCase() === 'lost') {
-      setLostConfirmation({
-        isOpen: true,
-        customerId,
-        newStatus,
-      });
+    // ✅ Open modal instead of updating directly
+    setSelectedCustomerForCallback(customerId);
+    setCallbackStatus(newStatus);
+    setCallbackDate("");
+    setCallbackNotes("");
+    setIsSold("");
+    setCallbackError("");
+    setShowCallbackModal(true);
+  };
+
+  // ✅ NEW: Handle callback submission
+  const handleSubmitCallback = async () => {
+    setCallbackError("");
+
+    if (!callbackStatus || !selectedCustomerForCallback) {
+      setCallbackError("Please select a status");
       return;
     }
 
-    // Call performStatusUpdate for ALL statuses
-    const ok = await performStatusUpdate(customerId, newStatus);
-  };
+    const config = statusConfig[callbackStatus];
 
-  const performStatusUpdate = async (customerId: number, newStatus: string): Promise<boolean> => {
+    if (config?.requiresSold && !isSold) {
+      setCallbackError("Please select if the contract was sold");
+      return;
+    }
+
+    if (config?.requiresNotes && !callbackNotes.trim()) {
+      setCallbackError("Please enter the reason why it was lost");
+      return;
+    }
+
+    if (isDateRequired() && !callbackDate) {
+      setCallbackError("Please select a callback date");
+      return;
+    }
+
+    setIsSubmittingCallback(true);
+
     try {
-      console.log("🔄 performStatusUpdate called:", {
-        customerId,
-        newStatus,
-        stagesAvailable: stages.length > 0,
-        stagesCount: stages.length
-      });
+      const payload: any = {
+        status: callbackStatus,
+        notes: callbackNotes,
+      };
 
-      // ✅ Get stage_id using hybrid approach (API + fallback)
-      const stageId = getStageIdFromStatus(newStatus, stages.length > 0 ? stages : undefined);
-      
-      console.log("✅ Mapped to stage_id:", stageId);
-      
-      await fetchWithAuth(`/energy-clients/${customerId}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ stage_id: stageId, status: newStatus }),
-      });
-
-      // ✅ Remove from list for BOTH "Lost" and "Priced"
-      if (newStatus.toLowerCase() === "lost" || newStatus.toLowerCase() === "priced") {
-        setAllCustomers((prev) => prev.filter((c) => c.id !== customerId));
-        
-        // ✅ Show appropriate success message
-        if (newStatus.toLowerCase() === "priced") {
-          toast.success("✅ Customer moved to Priced page");
-        } else {
-          toast.success("🗑️ Customer moved to recycle bin");
-        }
-      } else {
-        // For other statuses, just update the status in place
-        setAllCustomers((prev) =>
-          prev.map((c) =>
-            c.id === customerId ? { ...c, status: newStatus, stage_id: stageId } : c
-          )
-        );
-        
-        toast.success(`✅ Status updated to ${getStatusLabel(newStatus)}`);
+      if (isDateRequired() && callbackDate) {
+        payload.callback_date = callbackDate;
       }
 
-      return true;
-      
-    } catch (err: any) {
-      console.error("❌ Status update error:", err);
-      console.error("❌ Error details:", {
-        message: err?.message,
-        stack: err?.stack
+      if (config?.requiresSold) {
+        payload.is_sold = isSold === "yes";
+      }
+
+      // ✅ Call the callback endpoint (same as customer details page)
+      const response = await fetchWithAuth(`/energy-clients/${selectedCustomerForCallback}/callback`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
       });
-      toast.error(`❌ ${err?.message || "Error updating status"}`);
-      return false;
+
+      if (!response || response.error) {
+        throw new Error(response?.error || "Failed to save callback");
+      }
+
+      // ✅ Handle different responses
+      if (response.moved_to_recycle_bin) {
+        setAllCustomers((prev) => prev.filter((c) => c.client_id !== selectedCustomerForCallback));
+        setSelectedCustomers((prev) => prev.filter((id) => id !== selectedCustomerForCallback));
+        toast.success("🗑️ Moved to recycle bin");
+        setShowCallbackModal(false);
+      } else if (response.moved_to_priced) {
+        setAllCustomers((prev) => prev.filter((c) => c.client_id !== selectedCustomerForCallback));
+        setSelectedCustomers((prev) => prev.filter((id) => id !== selectedCustomerForCallback));
+        toast.success("✅ Moved to Priced page");
+        setShowCallbackModal(false);
+      } else {
+        // ✅ For other statuses, update in place
+        const stageId = getStageIdFromStatus(callbackStatus, stages.length > 0 ? stages : undefined);
+        setAllCustomers((prev) =>
+          prev.map((c) =>
+            c.client_id === selectedCustomerForCallback
+              ? { ...c, status: callbackStatus, stage_id: stageId }
+              : c
+          )
+        );
+        toast.success(`✅ Callback saved successfully`);
+        setShowCallbackModal(false);
+      }
+
+    } catch (err: any) {
+      setCallbackError(err.message || "Failed to save callback");
+    } finally {
+      setIsSubmittingCallback(false);
     }
   };
 
   // ---------------- Update Assigned To ----------------
   const updateAssignedTo = async (customerId: number, employeeId: number) => {
-    // ✅ Platform Admin and Tenant Super Admin can assign to anyone
-    // ✅ Individual users can assign to themselves
     const isAdmin = user?.role === "Platform Admin" || user?.role === "Tenant Super Admin";
-    const isSelfAssignment = user?.id === employeeId;  // ✅ Changed from employee_id to id
+    const isSelfAssignment = user?.id === employeeId;
     
     if (!isAdmin && !isSelfAssignment) {
-      alert("You can only assign customers to yourself. Only administrators can assign to other team members.");
+      toast.error("You can only assign customers to yourself. Only administrators can assign to other team members.");
       return;
     }
 
@@ -544,34 +593,25 @@ export default function EnergyCustomersPage() {
         body: JSON.stringify({ assigned_to_id: employeeId }),
       });
 
-      // Use server response so assigned_to_name is correct (from backend join)
-      const updated = res?.customer ?? res;
-      if (updated && (updated.id === customerId || updated.client_id === customerId)) {
-        setAllCustomers((prev) =>
-          prev.map((c) =>
-            c.id === customerId
-              ? {
-                  ...c,
-                  assigned_to_id: updated.assigned_to_id ?? employeeId,
-                  assigned_to_name: updated.assigned_to_name ?? (employees.find((e) => Number(e.employee_id) === Number(employeeId))?.employee_name ?? null),
-                }
-              : c
-          )
-        );
-      } else {
-        // Fallback: update from local employees list or refetch
-        const employee = employees.find((e) => Number(e.employee_id) === Number(employeeId));
-        setAllCustomers((prev) =>
-          prev.map((c) =>
-            c.id === customerId
-              ? { ...c, assigned_to_id: employeeId, assigned_to_name: employee?.employee_name }
-              : c
-          )
-        );
-      }
+      const employee = employees.find((e) => e.employee_id === employeeId);
+      
+      setAllCustomers((prev) =>
+        prev.map((c) =>
+          c.client_id === customerId
+            ? {
+                ...c,
+                assigned_to_id: employeeId,
+                assigned_to_name: employee?.employee_name || null,
+              }
+            : c
+        )
+      );
+
+      toast.success(`✅ Assigned to ${employee?.employee_name || 'salesperson'}`);
+      
     } catch (err) {
       console.error("Assignment update error:", err);
-      alert("Error updating assignment");
+      toast.error("❌ Error updating assignment");
     }
   };
 
@@ -584,7 +624,6 @@ export default function EnergyCustomersPage() {
     if (!window.confirm("Are you sure you want to delete this client and all related records?")) return;
 
     try {
-      // ✅ Use fetchWithAuth - automatically includes Authorization and X-Tenant-ID headers
       await fetchWithAuth(`/energy-clients/${id}`, {
         method: "DELETE",
       });
@@ -604,11 +643,9 @@ export default function EnergyCustomersPage() {
   // ---------------- Selection Handlers ----------------
   const handleSelectAll = () => {
     if (isSelectAllChecked) {
-      // Deselect all
       setSelectedCustomers([]);
       setIsSelectAllChecked(false);
     } else {
-      // Select all visible customers
       const allIds = filteredCustomers.map(c => c.id);
       setSelectedCustomers(allIds);
       setIsSelectAllChecked(true);
@@ -621,14 +658,13 @@ export default function EnergyCustomersPage() {
         ? prev.filter(customerId => customerId !== id)
         : [...prev, id];
       
-      // Update select-all checkbox state
       setIsSelectAllChecked(newSelection.length === filteredCustomers.length);
       
       return newSelection;
     });
   };
 
-  // ✅ FIXED: Bulk assign now uses client_id consistently
+  // ✅ Bulk assign
   const bulkAssignToEmployee = async (employeeId: number, employeeName: string) => {
     if (selectedCustomers.length === 0) {
       alert("Please select customers to assign");
@@ -640,14 +676,12 @@ export default function EnergyCustomersPage() {
     }
 
     try {
-      // Map display IDs to actual client_ids
       const customerIdsToAssign = selectedCustomers
         .map(displayId => allCustomers.find(c => c.id === displayId)?.client_id)
         .filter((id): id is number => id !== undefined);
 
       console.log(`🚀 Bulk assigning ${customerIdsToAssign.length} clients to ${employeeName}`);
 
-      // ✅ Call optimized synchronous endpoint
       const response = await fetchWithAuth('/api/bulk-assign-optimized', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -657,11 +691,9 @@ export default function EnergyCustomersPage() {
         }),
       });
 
-      // ✅ Handle immediate response
       if (response.success) {
         toast.success(`✅ ${response.updated_count} clients assigned to ${response.employee_name}`);
         
-        // Remove from current view (BOTH admin and non-admin)
         setAllCustomers((prev) => 
           prev.filter((c) => !customerIdsToAssign.includes(c.client_id))
         );
@@ -680,59 +712,56 @@ export default function EnergyCustomersPage() {
   };
 
   // ---------------- Bulk Delete ----------------
-const bulkDeleteCustomers = async () => {
-  if (!user) {
-    alert("You don't have permission to delete clients.");
-    return;
-  }
-  
-  if (selectedCustomers.length === 0) {
-    alert("Please select customers to delete");
-    return;
-  }
-
-  if (!window.confirm(`Are you sure you want to delete ${selectedCustomers.length} client(s) and all related records?`)) {
-    return;
-  }
-
-  try {
-    // ✅ FIX: Map selectedCustomers (which are display IDs) to actual client_ids
-    const customerIdsToDelete = selectedCustomers
-      .map(displayId => allCustomers.find(c => c.id === displayId)?.client_id)
-      .filter((id): id is number => id !== undefined);
-
-    const deletePromises = customerIdsToDelete.map(clientId =>
-      fetchWithAuth(`/energy-clients/${clientId}`, { // ✅ Use client_id
-        method: "DELETE",
-      })
-    );
-
-    await Promise.all(deletePromises);
-
-    setAllCustomers((prev) => prev.filter((c) => !selectedCustomers.includes(c.id)));
-    setSelectedCustomers([]);
-    
-    // ✅ Check if all customers are deleted
-    const remainingCustomers = allCustomers.filter((c) => !selectedCustomers.includes(c.id));
-    
-    if (remainingCustomers.length === 0) {
-      // Reset sequence when all customers are deleted
-      try {
-        await fetchWithAuth('/energy-clients/reset-sequence', {
-          method: 'POST',
-        });
-        toast.success('✅ Sequence reset successfully');
-      } catch (resetErr) {
-        console.error('⚠️ Error resetting sequence:', resetErr);
-      }
+  const bulkDeleteCustomers = async () => {
+    if (!user) {
+      alert("You don't have permission to delete clients.");
+      return;
     }
     
-    alert(`Successfully deleted ${deletePromises.length} client(s)`);
-  } catch (err) {
-    console.error("Bulk delete error:", err);
-    alert("Error deleting some customers");
-  }
-};
+    if (selectedCustomers.length === 0) {
+      alert("Please select customers to delete");
+      return;
+    }
+
+    if (!window.confirm(`Are you sure you want to delete ${selectedCustomers.length} client(s) and all related records?`)) {
+      return;
+    }
+
+    try {
+      const customerIdsToDelete = selectedCustomers
+        .map(displayId => allCustomers.find(c => c.id === displayId)?.client_id)
+        .filter((id): id is number => id !== undefined);
+
+      const deletePromises = customerIdsToDelete.map(clientId =>
+        fetchWithAuth(`/energy-clients/${clientId}`, {
+          method: "DELETE",
+        })
+      );
+
+      await Promise.all(deletePromises);
+
+      setAllCustomers((prev) => prev.filter((c) => !selectedCustomers.includes(c.id)));
+      setSelectedCustomers([]);
+      
+      const remainingCustomers = allCustomers.filter((c) => !selectedCustomers.includes(c.id));
+      
+      if (remainingCustomers.length === 0) {
+        try {
+          await fetchWithAuth('/energy-clients/reset-sequence', {
+            method: 'POST',
+          });
+          toast.success('✅ Sequence reset successfully');
+        } catch (resetErr) {
+          console.error('⚠️ Error resetting sequence:', resetErr);
+        }
+      }
+      
+      alert(`Successfully deleted ${deletePromises.length} client(s)`);
+    } catch (err) {
+      console.error("Bulk delete error:", err);
+      alert("Error deleting some customers");
+    }
+  };
 
   const deleteAllAndReset = async () => {
     if (!user) {
@@ -740,7 +769,6 @@ const bulkDeleteCustomers = async () => {
       return;
     }
 
-    // ✅ CHANGED: Use selectedCustomers if any are selected, otherwise all customers
     const customersToDelete = selectedCustomers.length > 0 
       ? allCustomers.filter(c => selectedCustomers.includes(c.id))
       : allCustomers;
@@ -764,12 +792,10 @@ const bulkDeleteCustomers = async () => {
     try {
       setIsLoading(true);
       
-      // Get all customer client_ids to delete
       const allClientIds = customersToDelete.map(c => c.client_id);
       
       toast.success(`🗑️ Deleting ${allClientIds.length} customers...`);
 
-      // Delete all customers
       const deletePromises = allClientIds.map(clientId =>
         fetchWithAuth(`/energy-clients/${clientId}`, {
           method: "DELETE",
@@ -780,7 +806,6 @@ const bulkDeleteCustomers = async () => {
 
       toast.success("✅ All customers deleted, resetting sequence...");
 
-      // Reset sequence
       await fetchWithAuth('/energy-clients/reset-sequence', {
         method: 'POST',
       });
@@ -801,29 +826,13 @@ const bulkDeleteCustomers = async () => {
     }
   };
 
-  // const { taskProgress } = useTaskProgress(
-  //   importTaskId || assignTaskId,
-  //   // onComplete
-  //   (result) => {
-  //     console.log('✅ Task complete:', result);
-  //     fetchCustomers(); // Refresh customer list
-  //     setShowProgressDialog(true); // Keep dialog open to show results
-  //   },
-  //   // onError
-  //   (error) => {
-  //     console.error('❌ Task failed:', error);
-  //     toast.error(`Task failed: ${error}`);
-  //     setShowProgressDialog(true);
-  //   }
-  // );
-
   const handleBulkImport = async () => {
     if (!bulkImportFile) {
       alert("Please select a file");
       return;
     }
 
-    setBulkImporting(true);  // ✅ Show loading spinner
+    setBulkImporting(true);
     setBulkImportResult(null);
 
     try {
@@ -837,7 +846,6 @@ const bulkDeleteCustomers = async () => {
 
       console.log(`🚀 Starting optimized bulk import for service: ${service}`);
 
-      // ✅ Call optimized synchronous endpoint
       const res = await fetch(
         `${API_BASE_URL}/import/energy-customers?service=${encodeURIComponent(service)}`,
         {
@@ -849,25 +857,22 @@ const bulkDeleteCustomers = async () => {
 
       const data = await res.json();
 
-      // ✅ Handle immediate response (no task_id, just results)
       if (res.ok && data.success) {
         setBulkImportResult({
           success: true,
-          successful: data.successful,  // ✅ Use 'successful' field
+          successful: data.successful,
           errors: data.errors || [],
           assigned_to: data.assigned_to,
         });
 
         toast.success(`✅ Imported ${data.successful} customers successfully!`);
 
-        // Refresh customer list
         await fetchCustomers();
         
         if (isAdmin) {
           await fetchEmployeeStats();
         }
 
-        // Reset file input
         setBulkImportFile(null);
         setAssignToEmployee(null);
       } else {
@@ -887,7 +892,7 @@ const bulkDeleteCustomers = async () => {
         errors: ['Network error occurred'],
       });
     } finally {
-      setBulkImporting(false);  // ✅ Hide loading spinner
+      setBulkImporting(false);
     }
   };
 
@@ -928,7 +933,6 @@ const bulkDeleteCustomers = async () => {
     }
   };
 
-  // Get supplier name from ID
   const getSupplierName = (supplierId: number | undefined): string => {
     if (!supplierId) return "—";
     const supplier = suppliers.find(s => s.supplier_id === supplierId);
@@ -997,7 +1001,7 @@ const bulkDeleteCustomers = async () => {
 
   return (
     <div className="w-full p-6">
-    <Toaster position="top-right" />
+      <Toaster position="top-right" />
       <h1 className="mb-6 text-4xl font-semibold tracking-tight text-slate-900">
         Renewals
       </h1>
@@ -1059,7 +1063,6 @@ const bulkDeleteCustomers = async () => {
         </div>
       )}
 
-      {/* ✅ NEW: Salesperson Stats Card - Non-Admin Only */}
       {!isAdmin && (
         <div className="mb-6">
           <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-lg p-4">
@@ -1078,7 +1081,6 @@ const bulkDeleteCustomers = async () => {
         </div>
       )}
 
-      {/* Error Display */}
       {error && (
         <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg flex items-start gap-3">
           <AlertCircle className="h-5 w-5 text-red-600 flex-shrink-0 mt-0.5" />
@@ -1097,7 +1099,6 @@ const bulkDeleteCustomers = async () => {
         </div>
       )}
 
-      {/* ✅ NEW: Bulk Assign Bar - Shows when customers are selected */}
       {selectedCustomers.length > 0 && (user?.role === "Platform Admin" || user?.role === "Tenant Super Admin") && (
         <div className="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
           <div className="flex items-center justify-between">
@@ -1121,7 +1122,6 @@ const bulkDeleteCustomers = async () => {
             </Button>
           </div>
           
-          {/* Salesperson Buttons */}
           <div className="mt-4 flex flex-wrap gap-2">
             {employees.map((employee) => (
               <Button
@@ -1249,8 +1249,8 @@ const bulkDeleteCustomers = async () => {
         </div>
       </div>
 
-        {/* Responsive table wrapper */}
-        <div className="overflow-hidden rounded-lg border border-gray-200 bg-white">
+      {/* Responsive table wrapper */}
+      <div className="overflow-hidden rounded-lg border border-gray-200 bg-white">
         <div className="overflow-x-auto">
           <table className="w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
@@ -1375,7 +1375,6 @@ const bulkDeleteCustomers = async () => {
                         setTimeout(() => document.addEventListener('click', closeMenu), 0);
                       }}
                     >
-                      {/* Checkbox */}
                       <td className="px-3 py-3 align-top" onClick={(e) => e.stopPropagation()}>
                         <input
                           type="checkbox"
@@ -1386,7 +1385,6 @@ const bulkDeleteCustomers = async () => {
                         />
                       </td>
 
-                      {/* ID */}
                       <td className="px-2 py-3 text-sm font-medium text-gray-900 border-r-2 border-gray-300 align-top">
                         <div className="flex items-center gap-1">
                           {customer.display_id || customer.id}
@@ -1398,7 +1396,6 @@ const bulkDeleteCustomers = async () => {
                         </div>
                       </td>
 
-                      {/* Name */}
                       <td className="px-3 py-3 text-sm text-gray-700 align-top">
                         <div className="break-words max-w-[120px] leading-tight">
                           {customer.contact_person}
@@ -1410,7 +1407,6 @@ const bulkDeleteCustomers = async () => {
                         </div>
                       </td>
 
-                      {/* Business Name */}
                       <td className="px-3 py-3 text-sm text-gray-900 align-top">
                         <div className="flex items-start gap-1">
                           <span className="break-words max-w-[160px] leading-tight">
@@ -1419,45 +1415,38 @@ const bulkDeleteCustomers = async () => {
                         </div>
                       </td>
 
-                      {/* Phone */}
                       <td className="px-3 py-3 text-sm text-gray-900 align-top">
                         <div className="whitespace-nowrap">
                           {customer.phone ? String(customer.phone).replace(/\.0$/, '') : '—'}
                         </div>
                       </td>
 
-                      {/* MPAN/MPR */}
                       <td className="px-3 py-3 text-xs font-mono text-gray-900 align-top">
                         <div className="break-all max-w-[120px] leading-tight">
                           {customer.mpan_mpr || "—"}
                         </div>
                       </td>
 
-                      {/* Supplier */}
                       <td className="px-3 py-3 text-xs text-gray-900 align-top">
                         <div className="break-words max-w-[120px] leading-tight">
                           {customer.supplier_name || "—"}
                         </div>
                       </td>
 
-                      {/* Usage */}
                       <td className="px-3 py-3 text-xs text-gray-900 text-right align-top">
                         <div className="whitespace-nowrap">
                           {customer.annual_usage ? customer.annual_usage.toLocaleString() : "—"}
                         </div>
                       </td>
 
-                      {/* Start Date */}
                       <td className="px-3 py-3 text-xs text-gray-700 align-top">
                         <div className="whitespace-nowrap">{formatDate(customer.start_date)}</div>
                       </td>
 
-                      {/* End Date */}
                       <td className="px-3 py-3 text-xs text-gray-700 align-top">
                         <div className="whitespace-nowrap">{formatDate(customer.end_date)}</div>
                       </td>
 
-                      {/* Status Dropdown */}
                       <td className="px-3 py-3 align-top" onClick={(e) => e.stopPropagation()}>
                         <Select
                           value={customer.status || ""}
@@ -1484,7 +1473,6 @@ const bulkDeleteCustomers = async () => {
                         </Select>
                       </td>
 
-                      {/* Assigned To */}
                       <td className="px-3 py-3 align-top" onClick={(e) => e.stopPropagation()}>
                         {fromSearch ? (
                           <div className="text-xs text-amber-700 font-medium px-2 py-1 bg-amber-100 rounded">
@@ -1510,7 +1498,6 @@ const bulkDeleteCustomers = async () => {
                           </Select>
                         )}
                       </td>
-
                     </tr>
                   );
                 })
@@ -1519,9 +1506,10 @@ const bulkDeleteCustomers = async () => {
           </table>
         </div>
 
-      {!isLoading && !error && filteredCustomers.length > 0 && <PaginationControls />}
+        {!isLoading && !error && filteredCustomers.length > 0 && <PaginationControls />}
       </div>
 
+      {/* ✅ BULK IMPORT MODAL */}
       <Dialog open={showImportModal} onOpenChange={setShowImportModal}>
         <DialogContent className="max-w-2xl">
           <DialogHeader>
@@ -1532,7 +1520,6 @@ const bulkDeleteCustomers = async () => {
           </DialogHeader>
 
           <div className="space-y-4">
-            {/* File Upload */}
             <div>
               <label className="block text-sm font-medium mb-2">
                 Select Excel File
@@ -1545,7 +1532,6 @@ const bulkDeleteCustomers = async () => {
               />
             </div>
 
-            {/* Assignment Dropdown */}
             <div>
               <label className="block text-sm font-medium mb-2">
                 Assign To (Optional)
@@ -1571,7 +1557,6 @@ const bulkDeleteCustomers = async () => {
               </p>
             </div>
 
-            {/* Template Download */}
             <div className="bg-blue-50 border border-blue-200 rounded-md p-4">
               <h4 className="font-medium text-sm mb-2">📥 Download Template</h4>
               <p className="text-xs text-gray-600 mb-2">
@@ -1595,7 +1580,6 @@ const bulkDeleteCustomers = async () => {
               </Button>
             </div>
 
-            {/* Import Results */}
             {bulkImportResult && (
               <div
                 className={`rounded-md p-4 ${
@@ -1629,28 +1613,6 @@ const bulkDeleteCustomers = async () => {
               </div>
             )}
 
-            {/* ✅ Progress Dialog
-            <ProgressDialog
-              open={showProgressDialog}
-              onOpenChange={setShowProgressDialog}
-              title={importTaskId ? "Importing Customers" : "Assigning Customers"}
-              progress={taskProgress?.progress || 0}
-              status={taskProgress?.status || 'Starting...'}
-              state={taskProgress?.state || 'PENDING'}
-              successful={taskProgress?.successful}
-              errors={taskProgress?.errors}
-              currentBatch={taskProgress?.current_batch}
-              totalBatches={taskProgress?.total_batches}
-              result={taskProgress?.result}
-              error={taskProgress?.error}
-              onComplete={() => {
-                setImportTaskId(null);
-                setAssignTaskId(null);
-                setShowProgressDialog(false);
-              }}
-            /> */}
-
-            {/* Action Buttons */}
             <div className="flex justify-end gap-2 pt-4">
               <Button
                 variant="outline"
@@ -1681,47 +1643,109 @@ const bulkDeleteCustomers = async () => {
         </DialogContent>
       </Dialog>
 
-      {/* Lost Confirmation Modal */}
-      <Dialog 
-        open={lostConfirmation.isOpen} 
-        onOpenChange={(open) => {
-          if (!open) {
-            setLostConfirmation({ isOpen: false, customerId: null, newStatus: null });
-          }
-        }}
-      >
-        <DialogContent>
+      {/* ✅ CALLBACK MODAL - Same as customer details page */}
+      <Dialog open={showCallbackModal} onOpenChange={setShowCallbackModal}>
+        <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>Mark Customer as Lost?</DialogTitle>
+            <DialogTitle>Add Callback</DialogTitle>
             <DialogDescription>
-              This customer will be marked as lost. You can still view and update it later.
+              Record customer interaction and set follow-up
             </DialogDescription>
           </DialogHeader>
-          <div className="flex justify-end gap-3 mt-6">
-            <Button
-              variant="outline"
-              onClick={() => {
-                setLostConfirmation({ isOpen: false, customerId: null, newStatus: null });
-              }}
+
+          <div className="space-y-4 py-4">
+            {callbackError && (
+              <Alert variant="destructive">
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription>{callbackError}</AlertDescription>
+              </Alert>
+            )}
+
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Status</label>
+              <div className="p-2 bg-gray-50 rounded border">
+                <span className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${getStatusColor(callbackStatus)}`}>
+                  {getStatusLabel(callbackStatus)}
+                </span>
+              </div>
+            </div>
+
+            {statusConfig[callbackStatus]?.requiresSold && (
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Was it sold? *</label>
+                <Select value={isSold} onValueChange={setIsSold}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="yes">Yes - Sold</SelectItem>
+                    <SelectItem value="no">No - Move to Priced page</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
+            {isDateRequired() && (
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Callback Date *</label>
+                <Input
+                  type="date"
+                  value={callbackDate}
+                  onChange={(e) => setCallbackDate(e.target.value)}
+                />
+              </div>
+            )}
+
+            {statusConfig[callbackStatus]?.deletesRecord && (
+              <Alert>
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription>
+                  <strong>Warning:</strong> This will move the record to the recycle bin.
+                </AlertDescription>
+              </Alert>
+            )}
+
+            <div className="space-y-2">
+              <label className="text-sm font-medium">
+                Notes {statusConfig[callbackStatus]?.requiresNotes && <span className="text-red-500">*</span>}
+              </label>
+              <Textarea
+                placeholder={
+                  statusConfig[callbackStatus]?.requiresNotes 
+                    ? "Enter the reason why it was lost..." 
+                    : "Add any additional notes..."
+                }
+                value={callbackNotes}
+                onChange={(e) => setCallbackNotes(e.target.value)}
+                rows={3}
+              />
+              {statusConfig[callbackStatus]?.requiresNotes && (
+                <p className="text-xs text-gray-500">Required: Please explain why this opportunity was lost</p>
+              )}
+            </div>
+          </div>
+
+          <div className="flex justify-end gap-2">
+            <Button 
+              variant="outline" 
+              onClick={() => setShowCallbackModal(false)} 
+              disabled={isSubmittingCallback}
             >
               Cancel
             </Button>
-            <Button
-              variant="destructive"
-              onClick={async () => {
-                const { customerId, newStatus } = lostConfirmation;
-                setLostConfirmation({ isOpen: false, customerId: null, newStatus: null });
-                if (customerId && newStatus) {
-                  await performStatusUpdate(customerId, newStatus);
-                }
-              }}
-            >
-              Mark as Lost
+            <Button onClick={handleSubmitCallback} disabled={isSubmittingCallback}>
+              {isSubmittingCallback ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Saving...
+                </>
+              ) : (
+                "Save Callback"
+              )}
             </Button>
           </div>
         </DialogContent>
       </Dialog>
-
     </div>
   );
 }

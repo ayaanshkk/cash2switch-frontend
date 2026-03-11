@@ -265,18 +265,18 @@ export default function EnergyCustomerDetailsPage() {
     }
   };
 
-  const statusConfig: Record<string, { requiresDate: boolean; requiresSold: boolean; deletesRecord: boolean }> = {
-    "Callback": { requiresDate: true, requiresSold: false, deletesRecord: false },
-    "Called": { requiresDate: true, requiresSold: false, deletesRecord: false },
-    "Not Answered": { requiresDate: true, requiresSold: false, deletesRecord: false },
-    "Priced": { requiresDate: false, requiresSold: true, deletesRecord: false },
-    "Lost": { requiresDate: true, requiresSold: false, deletesRecord: false },
-    "Lost COT": { requiresDate: false, requiresSold: false, deletesRecord: true },
-    "Already Renewed": { requiresDate: true, requiresSold: false, deletesRecord: false },
-    "Invalid Number": { requiresDate: false, requiresSold: false, deletesRecord: true },
-    "Meter De-energised": { requiresDate: false, requiresSold: false, deletesRecord: true },
-    "Broker in Place": { requiresDate: true, requiresSold: false, deletesRecord: false },
-    "End Date Changed": { requiresDate: true, requiresSold: false, deletesRecord: false },
+  const statusConfig: Record<string, { requiresDate: boolean; requiresSold: boolean; deletesRecord: boolean; requiresNotes: boolean }> = {
+    "Callback": { requiresDate: true, requiresSold: false, deletesRecord: false, requiresNotes: false },
+    "Called": { requiresDate: true, requiresSold: false, deletesRecord: false, requiresNotes: false },
+    "Not Answered": { requiresDate: true, requiresSold: false, deletesRecord: false, requiresNotes: false },
+    "Priced": { requiresDate: false, requiresSold: true, deletesRecord: false, requiresNotes: false },
+    "Lost": { requiresDate: true, requiresSold: false, deletesRecord: false, requiresNotes: true },
+    "Lost COT": { requiresDate: false, requiresSold: false, deletesRecord: true, requiresNotes: true },
+    "Already Renewed": { requiresDate: true, requiresSold: false, deletesRecord: false, requiresNotes: false },
+    "Invalid Number": { requiresDate: false, requiresSold: false, deletesRecord: true, requiresNotes: false },
+    "Meter De-energised": { requiresDate: false, requiresSold: false, deletesRecord: true, requiresNotes: false },
+    "Broker in Place": { requiresDate: true, requiresSold: false, deletesRecord: false, requiresNotes: false },
+    "End Date Changed": { requiresDate: true, requiresSold: false, deletesRecord: false, requiresNotes: false },
   };
 
   const isDateRequired = () => {
@@ -313,6 +313,12 @@ export default function EnergyCustomerDetailsPage() {
 
     if (config?.requiresSold && !isSold) {
       setCallbackError("Please select if the contract was sold");
+      return;
+    }
+
+
+    if (config?.requiresNotes && !callbackNotes.trim()) {
+      setCallbackError("Please enter the reason why it was lost");
       return;
     }
 
@@ -355,7 +361,12 @@ export default function EnergyCustomerDetailsPage() {
 
       const data = await response.json();
 
-      if (data.deleted) {
+      // ✅ NEW: Handle recycle bin redirect
+      if (data.moved_to_recycle_bin) {
+        alert("✅ Moved to recycle bin");
+        router.push("/dashboard/recycle-bin");
+      } else if (data.deleted) {
+        // Legacy: if backend still returns deleted=true (shouldn't happen with soft delete)
         alert("✅ Record removed from renewals list");
         router.push("/dashboard/renewals");
       } else if (data.moved_to_priced) {
@@ -1484,13 +1495,22 @@ export default function EnergyCustomerDetailsPage() {
 
             {/* Notes */}
             <div className="space-y-2">
-              <label className="text-sm font-medium">Notes (Optional)</label>
+              <label className="text-sm font-medium">
+                Notes {currentConfig?.requiresNotes && <span className="text-red-500">*</span>}
+              </label>
               <Textarea
-                placeholder="Add any additional notes..."
+                placeholder={
+                  currentConfig?.requiresNotes 
+                    ? "Enter the reason why it was lost..." 
+                    : "Add any additional notes..."
+                }
                 value={callbackNotes}
                 onChange={(e) => setCallbackNotes(e.target.value)}
                 rows={3}
               />
+              {currentConfig?.requiresNotes && (
+                <p className="text-xs text-gray-500">Required: Please explain why this opportunity was lost</p>
+              )}
             </div>
           </div>
 
@@ -1509,7 +1529,7 @@ export default function EnergyCustomerDetailsPage() {
                   Saving...
                 </>
               ) : (
-                "Save Callback"
+                "Save"
               )}
             </Button>
           </div>
@@ -1613,14 +1633,23 @@ export default function EnergyCustomerDetailsPage() {
 
           {/* Notes */}
           <div>
-            <label className="text-sm font-medium text-gray-700">Notes:</label>
+            <label className="text-sm font-medium text-gray-700">
+              Notes: {currentConfig?.requiresNotes && <span className="text-red-500">*</span>}
+            </label>
             <Textarea
               className="mt-1"
               rows={3}
-              placeholder="Add notes..."
+              placeholder={
+                currentConfig?.requiresNotes 
+                  ? "Enter reason why it was lost..." 
+                  : "Add notes..."
+              }
               value={callbackNotes}
               onChange={(e) => setCallbackNotes(e.target.value)}
             />
+            {currentConfig?.requiresNotes && (
+              <p className="text-xs text-gray-500 mt-1">Required for Lost/Lost COT</p>
+            )}
           </div>
 
           {/* Error Display */}
