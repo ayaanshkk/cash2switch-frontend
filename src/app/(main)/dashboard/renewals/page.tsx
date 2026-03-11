@@ -601,7 +601,7 @@ export default function EnergyCustomersPage() {
             ? {
                 ...c,
                 assigned_to_id: employeeId,
-                assigned_to_name: employee?.employee_name || null,
+                assigned_to_name: employee?.employee_name || undefined,
               }
             : c
         )
