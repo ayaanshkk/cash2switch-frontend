@@ -135,7 +135,7 @@ export function EnergyRenewalsOverview({ userRole, employeeId }: EnergyRenewalsO
   const [aqModalLoading, setAQModalLoading] = useState(false);
 
   // ✅ Check if user is admin
-  const isAdmin = userRole === "Platform Admin"
+  const isAdmin = userRole?.toLowerCase().includes('platform') && userRole?.toLowerCase().includes('admin');
   const loadEmployees = async () => {
     try {
       const token = localStorage.getItem("auth_token");
@@ -324,16 +324,7 @@ export function EnergyRenewalsOverview({ userRole, employeeId }: EnergyRenewalsO
 
   return (
       <div className="space-y-4">
-        {/* ✅ Show role indicator for clarity */}
-        {!isAdmin && (
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 flex items-center gap-2">
-            <Users className="h-4 w-4 text-blue-600" />
-            <span className="text-sm text-blue-900">
-              Showing your personal renewals dashboard
-            </span>
-          </div>
-        )}
-
+        
         {/* Top Stats Cards */}
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-6">
           {/* 30-60 Days */}

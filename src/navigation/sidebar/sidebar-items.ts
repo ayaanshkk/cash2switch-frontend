@@ -35,6 +35,7 @@ import {
   Trash2,
   File,
   UserPlus,
+  Archive,  // ✅ ADD THIS
 } from "lucide-react";
 
 export interface NavSubItem {
@@ -122,6 +123,12 @@ const allSidebarItems: NavGroup[] = [
             roles: ["platform admin", "salesperson"],
           },
         ],
+      },
+      {
+        title: "Archives",
+        url: "/dashboard/archives",
+        icon: Archive,
+        roles: ["platform admin"],
       },
       {
         title: "Recycle Bin",

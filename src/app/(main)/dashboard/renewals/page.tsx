@@ -80,6 +80,8 @@ interface EnergyCustomer {
   
   // Energy specific fields
   mpan_mpr?: string;
+  mpan_top?: string;
+  mpan_bottom?: string;
   supplier_id?: number;
   supplier_name?: string;
   annual_usage?: number;
@@ -308,9 +310,24 @@ export default function EnergyCustomersPage() {
     setError(null);
     
     try {
+      // ✅ Fetch active customers
       const response = await fetchWithAuth(`/energy-clients?service=${encodeURIComponent(service)}`);
-      const data = Array.isArray(response) ? response : (response?.data || []);
-      setAllCustomers(data);
+      const activeData = Array.isArray(response) ? response : (response?.data || []);
+      
+      // ✅ Fetch archived records for search (for everyone - admin and salesperson)
+      let archivedData: EnergyCustomer[] = [];
+      try {
+        const archiveResponse = await fetchWithAuth(`/energy-clients/archives?service=${encodeURIComponent(service)}`);
+        archivedData = Array.isArray(archiveResponse) ? archiveResponse : [];
+        console.log(`📦 Loaded ${archivedData.length} archived records for search`);
+      } catch (archiveErr) {
+        console.log('No archived records available');
+      }
+      
+      // ✅ Combine active + archived for everyone
+      const combinedData = [...activeData, ...archivedData];
+      
+      setAllCustomers(combinedData);
     } catch (err) {
       console.error("❌ Error fetching clients:", err);
       const errorMessage = err instanceof Error ? err.message : "Unknown error occurred";
@@ -373,9 +390,7 @@ export default function EnergyCustomersPage() {
   // ✅ NEW: Search across all customers (debounced)
   useEffect(() => {
     const searchAllCustomers = async () => {
-      const isAdmin = user?.role === "Platform Admin" || user?.role === "Tenant Super Admin";
-      
-      if (isAdmin || !searchTerm || searchTerm.length < 2) {
+      if (!searchTerm || searchTerm.length < 2) {
         setSearchResults([]);
         return;
       }
@@ -404,26 +419,24 @@ export default function EnergyCustomersPage() {
   const sortedCustomers = useMemo(() => {
     const isAdmin = user?.role === "Platform Admin" || user?.role === "Tenant Super Admin";
     
-    if (isAdmin) {
-      return [...allCustomers].sort((a, b) => {
-        const aDate = new Date(a.created_at).getTime();
-        const bDate = new Date(b.created_at).getTime();
-        return aDate - bDate;
-      });
-    }
+    // ✅ Filter out archived records unless searching
+    const customersToShow = searchTerm.trim() 
+      ? allCustomers  // Show all (including archived) when searching
+      : allCustomers.filter(c => !c.is_archived);  // Hide archived in default view
     
+    // ✅ Combine with search results (for both admin and salesperson)
     if (searchTerm && searchResults.length > 0) {
-      const assignedIds = new Set(allCustomers.map(c => c.client_id));
+      const assignedIds = new Set(customersToShow.map(c => c.client_id));
       const uniqueSearchResults = searchResults.filter(c => !assignedIds.has(c.client_id));
       
-      return [...allCustomers, ...uniqueSearchResults].sort((a, b) => {
+      return [...customersToShow, ...uniqueSearchResults].sort((a, b) => {
         const aDate = new Date(a.created_at || new Date()).getTime();
         const bDate = new Date(b.created_at || new Date()).getTime();
         return aDate - bDate;
       });
     }
     
-    return [...allCustomers].sort((a, b) => {
+    return [...customersToShow].sort((a, b) => {
       const aDate = new Date(a.created_at).getTime();
       const bDate = new Date(b.created_at).getTime();
       return aDate - bDate;
@@ -1139,20 +1152,6 @@ export default function EnergyCustomersPage() {
         </div>
       )}
 
-      {!isAdmin && searchTerm && searchResults.length > 0 && (
-        <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg flex items-start gap-3">
-          <Info className="h-5 w-5 text-blue-600 flex-shrink-0 mt-0.5" />
-          <div className="flex-1 text-sm">
-            <p className="font-medium text-blue-900">
-              Showing {searchResults.length} result(s) from team database
-            </p>
-            <p className="text-blue-700 mt-1">
-              Customers assigned to other team members are included in search results to help you assist callers.
-            </p>
-          </div>
-        </div>
-      )}
-
       {/* Search and Filter Bar */}
       <div className="mb-6 flex flex-wrap gap-3 justify-between">
         <div className="flex flex-wrap gap-3">
@@ -1276,7 +1275,10 @@ export default function EnergyCustomersPage() {
                   Tel No
                 </th>
                 <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase w-32">
-                  MPAN
+                  MPAN Top
+                </th>
+                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase w-24">
+                  MPAN Bottom
                 </th>
                 <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase w-32">
                   Supplier
@@ -1302,14 +1304,14 @@ export default function EnergyCustomersPage() {
             <tbody className="divide-y divide-gray-200 bg-white">
               {isLoading ? (
                 <tr>
-                  <td colSpan={12} className="px-6 py-12 text-center">
+                  <td colSpan={13} className="px-6 py-12 text-center">  {/* Changed from 12 to 13 */}
                     <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-current border-r-transparent text-gray-600"></div>
                     <p className="mt-4 text-gray-500">Loading renewals...</p>
                   </td>
                 </tr>
               ) : error ? (
                 <tr>
-                  <td colSpan={12} className="px-6 py-12 text-center text-gray-500">
+                  <td colSpan={13} className="px-6 py-12 text-center text-gray-500">  {/* Changed from 12 to 13 */}
                     <AlertCircle className="h-12 w-12 text-red-400 mx-auto mb-3" />
                     <p className="text-lg text-red-600">Failed to load renewals</p>
                     <p className="mt-2 text-sm">{error}</p>
@@ -1317,7 +1319,7 @@ export default function EnergyCustomersPage() {
                 </tr>
               ) : paginatedCustomers.length === 0 ? (
                 <tr>
-                  <td colSpan={12} className="px-6 py-12 text-center text-gray-500">
+                  <td colSpan={13} className="px-6 py-12 text-center text-gray-500">  {/* Changed from 12 to 13 */}
                     <Zap className="h-12 w-12 text-gray-400 mx-auto mb-3" />
                     <p className="text-lg">No clients found.</p>
                     <p className="mt-2 text-sm">Create your first client to get started!</p>
@@ -1328,12 +1330,15 @@ export default function EnergyCustomersPage() {
                   const isSelected = selectedCustomers.includes(customer.id);
                   const displayId = (currentPage - 1) * CUSTOMERS_PER_PAGE + idx + 1;
                   const fromSearch = isFromSearch(customer);
+                  const isArchived = customer.is_archived === true;
                   
                   return (
                     <tr
                       key={customer.client_id}
                       className={`hover:bg-gray-50 transition-colors cursor-pointer ${
-                        isSelected ? 'bg-blue-50' : fromSearch ? 'bg-amber-50' : ''
+                        isSelected ? 'bg-blue-50' : 
+                        isArchived ? 'bg-gray-100 opacity-60' : 
+                        fromSearch ? 'bg-amber-50' : ''
                       }`}
                       onClick={() => router.push(`/dashboard/renewals/${customer.client_id}`)}
                       onContextMenu={(e) => {
@@ -1412,6 +1417,11 @@ export default function EnergyCustomersPage() {
                           <span className="break-words max-w-[160px] leading-tight">
                             {customer.business_name}
                           </span>
+                          {isArchived && (
+                            <Badge variant="outline" className="ml-1 text-xs bg-gray-200 text-gray-600 border-gray-400 whitespace-nowrap">
+                              ARCHIVED
+                            </Badge>
+                          )}
                         </div>
                       </td>
 
@@ -1421,9 +1431,17 @@ export default function EnergyCustomersPage() {
                         </div>
                       </td>
 
+                      {/* MPAN Top */}
                       <td className="px-3 py-3 text-xs font-mono text-gray-900 align-top">
                         <div className="break-all max-w-[120px] leading-tight">
-                          {customer.mpan_mpr || "—"}
+                          {customer.mpan_top || "—"}
+                        </div>
+                      </td>
+
+                      {/* MPAN Bottom */}
+                      <td className="px-3 py-3 text-xs font-mono text-gray-900 align-top">
+                        <div className="break-all max-w-[90px] leading-tight">
+                          {customer.mpan_bottom || "—"}
                         </div>
                       </td>
 

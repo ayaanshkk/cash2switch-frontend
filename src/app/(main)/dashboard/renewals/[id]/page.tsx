@@ -79,7 +79,8 @@ interface EnergyCustomer {
   address?: string;
   post_code?: string;
   site_address?: string;
-  mpan_mpr?: string;
+  mpan_top?: string;
+  mpan_bottom?: string;
   supplier_name?: string;
   supplier_id?: number;
   annual_usage?: number;
@@ -212,8 +213,17 @@ export default function EnergyCustomerDetailsPage() {
       if (!response.ok) throw new Error("Failed to load customer data");
 
       const data = await response.json();
+      console.log('📥 Customer data loaded:', data);
+      console.log('📥 Status from API:', data.status);
+
       setCustomer(data);
       setEditedCustomer(data);
+
+      // ✅ ADD THIS: Populate the status dropdown with the value from API
+      if (data.status) {
+        setCallbackStatus(data.status);
+      }
+
       if (data.document_details) {
         try {
           const docs = JSON.parse(data.document_details);
@@ -361,6 +371,9 @@ export default function EnergyCustomerDetailsPage() {
 
       const data = await response.json();
 
+      // ✅ ADD THIS: Reload customer data to get fresh status from API
+      await loadCustomerData();
+
       // ✅ NEW: Handle recycle bin redirect
       if (data.moved_to_recycle_bin) {
         alert("✅ Moved to recycle bin");
@@ -375,9 +388,16 @@ export default function EnergyCustomerDetailsPage() {
       } else {
         alert("✅ Callback saved successfully");
         setShowCallbackModal(false);
-        loadCustomerData();
+        
+        // ✅ Reset the form
+        setCallbackStatus("");
+        setCallbackDate("");
+        setCallbackNotes("");
+        setIsSold("");
+        
         loadHistory();
       }
+
     } catch (err: any) {
       setCallbackError(err.message || "Failed to save callback");
     } finally {
@@ -876,12 +896,23 @@ export default function EnergyCustomerDetailsPage() {
                   />
                 </div>
 
-                {/* MPAN/MPR */}
+                {/* MPAN Top */}
                 <div>
-                  <label className="text-sm font-medium text-gray-700">Mpan MPR</label>
+                  <label className="text-sm font-medium text-gray-700">MPAN Top</label>
                   <Input
-                    value={displayCustomer.mpan_mpr || ""}
-                    onChange={(e) => handleUpdateField("mpan_mpr", e.target.value)}
+                    value={displayCustomer.mpan_top || ""}
+                    onChange={(e) => handleUpdateField("mpan_top", e.target.value)}
+                    disabled={!isEditing}
+                    className="mt-1"
+                  />
+                </div>
+
+                {/* MPAN Bottom */}
+                <div>
+                  <label className="text-sm font-medium text-gray-700">MPAN Bottom</label>
+                  <Input
+                    value={displayCustomer.mpan_bottom || ""}
+                    onChange={(e) => handleUpdateField("mpan_bottom", e.target.value)}
                     disabled={!isEditing}
                     className="mt-1"
                   />

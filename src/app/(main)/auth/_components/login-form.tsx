@@ -245,7 +245,7 @@ export function LoginForm({ onSuccess }: LoginFormProps) {
                 <Input
                   id="username"
                   type="text"
-                  placeholder="your-username"
+                  placeholder="your username"
                   autoComplete="username"
                   disabled={loading}
                   {...field}
