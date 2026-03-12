@@ -51,18 +51,18 @@ const STATUS_OPTIONS = [
 ];
 
 // ✅ Status configuration - MUST match customer details page exactly
-const statusConfig: Record<string, { requiresDate: boolean; requiresSold: boolean; deletesRecord: boolean; requiresNotes: boolean }> = {
-  "Callback": { requiresDate: true, requiresSold: false, deletesRecord: false, requiresNotes: false },
-  "Called": { requiresDate: true, requiresSold: false, deletesRecord: false, requiresNotes: false },
-  "Not Answered": { requiresDate: true, requiresSold: false, deletesRecord: false, requiresNotes: false },
-  "Priced": { requiresDate: false, requiresSold: true, deletesRecord: false, requiresNotes: false },
-  "Lost": { requiresDate: true, requiresSold: false, deletesRecord: true, requiresNotes: true },
-  "Lost COT": { requiresDate: false, requiresSold: false, deletesRecord: true, requiresNotes: true },
-  "Already Renewed": { requiresDate: true, requiresSold: false, deletesRecord: false, requiresNotes: false },
-  "Invalid Number": { requiresDate: false, requiresSold: false, deletesRecord: true, requiresNotes: false },
-  "Meter De-energised": { requiresDate: false, requiresSold: false, deletesRecord: true, requiresNotes: false },
-  "Broker in Place": { requiresDate: true, requiresSold: false, deletesRecord: false, requiresNotes: false },
-  "End Date Changed": { requiresDate: true, requiresSold: false, deletesRecord: false, requiresNotes: false },
+const statusConfig: Record<string, { requiresDate: boolean; requiresSold: boolean; deletesRecord: boolean; requiresNotes: boolean; requiresNewEndDate: boolean }> = {
+  "Callback": { requiresDate: true, requiresSold: false, deletesRecord: false, requiresNotes: false, requiresNewEndDate: false },
+  "Called": { requiresDate: true, requiresSold: false, deletesRecord: false, requiresNotes: false, requiresNewEndDate: false },
+  "Not Answered": { requiresDate: true, requiresSold: false, deletesRecord: false, requiresNotes: false, requiresNewEndDate: false },
+  "Priced": { requiresDate: false, requiresSold: true, deletesRecord: false, requiresNotes: false, requiresNewEndDate: false },
+  "Lost": { requiresDate: true, requiresSold: false, deletesRecord: true, requiresNotes: true, requiresNewEndDate: false },
+  "Lost COT": { requiresDate: false, requiresSold: false, deletesRecord: true, requiresNotes: true, requiresNewEndDate: false },
+  "Already Renewed": { requiresDate: true, requiresSold: false, deletesRecord: false, requiresNotes: false, requiresNewEndDate: false },
+  "Invalid Number": { requiresDate: false, requiresSold: false, deletesRecord: true, requiresNotes: false, requiresNewEndDate: false },
+  "Meter De-energised": { requiresDate: false, requiresSold: false, deletesRecord: true, requiresNotes: false, requiresNewEndDate: false },
+  "Broker in Place": { requiresDate: true, requiresSold: false, deletesRecord: false, requiresNotes: false, requiresNewEndDate: false },
+  "End Date Changed": { requiresDate: true, requiresSold: false, deletesRecord: false, requiresNotes: false, requiresNewEndDate: true },  
 };
 
 // ---------------- Types ----------------
@@ -278,6 +278,7 @@ export default function EnergyCustomersPage() {
   const [callbackStatus, setCallbackStatus] = useState("");
   const [callbackDate, setCallbackDate] = useState("");
   const [callbackNotes, setCallbackNotes] = useState("");
+  const [newEndDate, setNewEndDate] = useState("");
   const [isSold, setIsSold] = useState<string>("");
   const [isSubmittingCallback, setIsSubmittingCallback] = useState(false);
   const [callbackError, setCallbackError] = useState("");
@@ -500,6 +501,7 @@ export default function EnergyCustomersPage() {
     setCallbackDate("");
     setCallbackNotes("");
     setIsSold("");
+    setNewEndDate("");
     setCallbackError("");
     setShowCallbackModal(true);
   };
@@ -525,6 +527,11 @@ export default function EnergyCustomersPage() {
       return;
     }
 
+    if (config?.requiresNewEndDate && !newEndDate) {
+      setCallbackError("Please enter the new contract end date");
+      return;
+    }
+
     if (isDateRequired() && !callbackDate) {
       setCallbackError("Please select a callback date");
       return;
@@ -546,7 +553,10 @@ export default function EnergyCustomersPage() {
         payload.is_sold = isSold === "yes";
       }
 
-      // ✅ Call the callback endpoint (same as customer details page)
+      if (config?.requiresNewEndDate && newEndDate) {
+        payload.new_end_date = newEndDate;
+      }
+
       const response = await fetchWithAuth(`/energy-clients/${selectedCustomerForCallback}/callback`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -557,7 +567,6 @@ export default function EnergyCustomersPage() {
         throw new Error(response?.error || "Failed to save callback");
       }
 
-      // ✅ Handle different responses
       if (response.moved_to_recycle_bin) {
         setAllCustomers((prev) => prev.filter((c) => c.client_id !== selectedCustomerForCallback));
         setSelectedCustomers((prev) => prev.filter((id) => id !== selectedCustomerForCallback));
@@ -569,16 +578,23 @@ export default function EnergyCustomersPage() {
         toast.success("✅ Moved to Priced page");
         setShowCallbackModal(false);
       } else {
-        // ✅ For other statuses, update in place
-        const stageId = getStageIdFromStatus(callbackStatus, stages.length > 0 ? stages : undefined);
-        setAllCustomers((prev) =>
-          prev.map((c) =>
-            c.client_id === selectedCustomerForCallback
-              ? { ...c, status: callbackStatus, stage_id: stageId }
-              : c
-          )
-        );
-        toast.success(`✅ Callback saved successfully`);
+        // ✅ For "End Date Changed", refresh the entire customer list to get updated end date
+        if (callbackStatus === "End Date Changed") {
+          await fetchCustomers();  // ✅ Reload all customers to get fresh data
+          toast.success(`✅ Contract end date updated`);
+        } else {
+          // ✅ For other statuses, just update the status in place
+          const stageId = getStageIdFromStatus(callbackStatus, stages.length > 0 ? stages : undefined);
+          setAllCustomers((prev) =>
+            prev.map((c) =>
+              c.client_id === selectedCustomerForCallback
+                ? { ...c, status: callbackStatus, stage_id: stageId }
+                : c
+            )
+          );
+          toast.success(`✅ Callback saved successfully`);
+        }
+        
         setShowCallbackModal(false);
       }
 
@@ -1711,6 +1727,21 @@ export default function EnergyCustomersPage() {
                   value={callbackDate}
                   onChange={(e) => setCallbackDate(e.target.value)}
                 />
+              </div>
+            )}
+
+            {/* ✅ NEW: New End Date field for "End Date Changed" status */}
+            {statusConfig[callbackStatus]?.requiresNewEndDate && (
+              <div className="space-y-2">
+                <label className="text-sm font-medium">New Contract End Date *</label>
+                <Input
+                  type="date"
+                  value={newEndDate}
+                  onChange={(e) => setNewEndDate(e.target.value)}
+                />
+                <p className="text-xs text-gray-500">
+                  The contract end date will be updated to this new date
+                </p>
               </div>
             )}
 

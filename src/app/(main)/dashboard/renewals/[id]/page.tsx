@@ -188,6 +188,7 @@ export default function EnergyCustomerDetailsPage() {
   const [callbackDate, setCallbackDate] = useState("");
   const [callbackNotes, setCallbackNotes] = useState("");
   const [isSold, setIsSold] = useState<string>("");
+  const [newEndDate, setNewEndDate] = useState("");
   const [isSubmittingCallback, setIsSubmittingCallback] = useState(false);
   const [callbackError, setCallbackError] = useState("");
   const [history, setHistory] = useState<InteractionHistory[]>([]);
@@ -275,18 +276,18 @@ export default function EnergyCustomerDetailsPage() {
     }
   };
 
-  const statusConfig: Record<string, { requiresDate: boolean; requiresSold: boolean; deletesRecord: boolean; requiresNotes: boolean }> = {
-    "Callback": { requiresDate: true, requiresSold: false, deletesRecord: false, requiresNotes: false },
-    "Called": { requiresDate: true, requiresSold: false, deletesRecord: false, requiresNotes: false },
-    "Not Answered": { requiresDate: true, requiresSold: false, deletesRecord: false, requiresNotes: false },
-    "Priced": { requiresDate: false, requiresSold: true, deletesRecord: false, requiresNotes: false },
-    "Lost": { requiresDate: true, requiresSold: false, deletesRecord: false, requiresNotes: true },
-    "Lost COT": { requiresDate: false, requiresSold: false, deletesRecord: true, requiresNotes: true },
-    "Already Renewed": { requiresDate: true, requiresSold: false, deletesRecord: false, requiresNotes: false },
-    "Invalid Number": { requiresDate: false, requiresSold: false, deletesRecord: true, requiresNotes: false },
-    "Meter De-energised": { requiresDate: false, requiresSold: false, deletesRecord: true, requiresNotes: false },
-    "Broker in Place": { requiresDate: true, requiresSold: false, deletesRecord: false, requiresNotes: false },
-    "End Date Changed": { requiresDate: true, requiresSold: false, deletesRecord: false, requiresNotes: false },
+  const statusConfig: Record<string, { requiresDate: boolean; requiresSold: boolean; deletesRecord: boolean; requiresNotes: boolean; requiresNewEndDate: boolean }> = {
+    "Callback": { requiresDate: true, requiresSold: false, deletesRecord: false, requiresNotes: false, requiresNewEndDate: false },
+    "Called": { requiresDate: true, requiresSold: false, deletesRecord: false, requiresNotes: false, requiresNewEndDate: false },
+    "Not Answered": { requiresDate: true, requiresSold: false, deletesRecord: false, requiresNotes: false, requiresNewEndDate: false },
+    "Priced": { requiresDate: false, requiresSold: true, deletesRecord: false, requiresNotes: false, requiresNewEndDate: false },
+    "Lost": { requiresDate: true, requiresSold: false, deletesRecord: true, requiresNotes: true, requiresNewEndDate: false },
+    "Lost COT": { requiresDate: false, requiresSold: false, deletesRecord: true, requiresNotes: true, requiresNewEndDate: false },
+    "Already Renewed": { requiresDate: true, requiresSold: false, deletesRecord: false, requiresNotes: false, requiresNewEndDate: false },
+    "Invalid Number": { requiresDate: false, requiresSold: false, deletesRecord: true, requiresNotes: false, requiresNewEndDate: false },
+    "Meter De-energised": { requiresDate: false, requiresSold: false, deletesRecord: true, requiresNotes: false, requiresNewEndDate: false },
+    "Broker in Place": { requiresDate: true, requiresSold: false, deletesRecord: false, requiresNotes: false, requiresNewEndDate: false },
+    "End Date Changed": { requiresDate: true, requiresSold: false, deletesRecord: false, requiresNotes: false, requiresNewEndDate: true },  
   };
 
   const isDateRequired = () => {
@@ -326,9 +327,13 @@ export default function EnergyCustomerDetailsPage() {
       return;
     }
 
-
     if (config?.requiresNotes && !callbackNotes.trim()) {
       setCallbackError("Please enter the reason why it was lost");
+      return;
+    }
+
+    if (config?.requiresNewEndDate && !newEndDate) {
+      setCallbackError("Please enter the new contract end date");
       return;
     }
 
@@ -341,7 +346,7 @@ export default function EnergyCustomerDetailsPage() {
 
     try {
       const token = localStorage.getItem("auth_token");
-
+      
       const payload: any = {
         status: callbackStatus,
         notes: callbackNotes,
@@ -353,6 +358,10 @@ export default function EnergyCustomerDetailsPage() {
 
       if (config?.requiresSold) {
         payload.is_sold = isSold === "yes";
+      }
+
+      if (config?.requiresNewEndDate && newEndDate) {
+        payload.new_end_date = newEndDate;
       }
 
       const response = await fetch(`${API_BASE_URL}/energy-clients/${id}/callback`, {
@@ -371,29 +380,34 @@ export default function EnergyCustomerDetailsPage() {
 
       const data = await response.json();
 
-      // ✅ ADD THIS: Reload customer data to get fresh status from API
+      // ✅ ALWAYS reload customer data to get fresh values (including updated end date)
       await loadCustomerData();
 
-      // ✅ NEW: Handle recycle bin redirect
       if (data.moved_to_recycle_bin) {
         alert("✅ Moved to recycle bin");
         router.push("/dashboard/recycle-bin");
       } else if (data.deleted) {
-        // Legacy: if backend still returns deleted=true (shouldn't happen with soft delete)
         alert("✅ Record removed from renewals list");
         router.push("/dashboard/renewals");
       } else if (data.moved_to_priced) {
         alert("✅ Moved to Priced page");
         router.push("/dashboard/priced");
       } else {
-        alert("✅ Callback saved successfully");
+        // ✅ Show different message for End Date Changed
+        if (callbackStatus === "End Date Changed") {
+          alert(`✅ Contract end date updated to ${formatDate(newEndDate)}`);
+        } else {
+          alert("✅ Callback saved successfully");
+        }
+        
         setShowCallbackModal(false);
         
-        // ✅ Reset the form
+        // Reset the form
         setCallbackStatus("");
         setCallbackDate("");
         setCallbackNotes("");
         setIsSold("");
+        setNewEndDate("");  // ✅ Also reset this
         
         loadHistory();
       }
@@ -1511,6 +1525,21 @@ export default function EnergyCustomerDetailsPage() {
                   value={callbackDate}
                   onChange={(e) => setCallbackDate(e.target.value)}
                 />
+              </div>
+            )}
+
+            {/* ✅ NEW: New End Date field for "End Date Changed" status */}
+            {statusConfig[callbackStatus]?.requiresNewEndDate && (
+              <div className="space-y-2">
+                <label className="text-sm font-medium">New Contract End Date *</label>
+                <Input
+                  type="date"
+                  value={newEndDate}
+                  onChange={(e) => setNewEndDate(e.target.value)}
+                />
+                <p className="text-xs text-gray-500">
+                  The contract end date will be updated to this new date
+                </p>
               </div>
             )}
 
