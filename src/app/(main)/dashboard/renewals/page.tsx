@@ -51,18 +51,26 @@ const STATUS_OPTIONS = [
 ];
 
 // ✅ Status configuration - MUST match customer details page exactly
-const statusConfig: Record<string, { requiresDate: boolean; requiresSold: boolean; deletesRecord: boolean; requiresNotes: boolean; requiresNewEndDate: boolean }> = {
-  "Callback": { requiresDate: true, requiresSold: false, deletesRecord: false, requiresNotes: false, requiresNewEndDate: false },
-  "Called": { requiresDate: true, requiresSold: false, deletesRecord: false, requiresNotes: false, requiresNewEndDate: false },
-  "Not Answered": { requiresDate: true, requiresSold: false, deletesRecord: false, requiresNotes: false, requiresNewEndDate: false },
-  "Priced": { requiresDate: false, requiresSold: true, deletesRecord: false, requiresNotes: false, requiresNewEndDate: false },
-  "Lost": { requiresDate: true, requiresSold: false, deletesRecord: true, requiresNotes: true, requiresNewEndDate: false },
-  "Lost COT": { requiresDate: false, requiresSold: false, deletesRecord: true, requiresNotes: true, requiresNewEndDate: false },
-  "Already Renewed": { requiresDate: true, requiresSold: false, deletesRecord: false, requiresNotes: false, requiresNewEndDate: false },
-  "Invalid Number": { requiresDate: false, requiresSold: false, deletesRecord: true, requiresNotes: false, requiresNewEndDate: false },
-  "Meter De-energised": { requiresDate: false, requiresSold: false, deletesRecord: true, requiresNotes: false, requiresNewEndDate: false },
-  "Broker in Place": { requiresDate: true, requiresSold: false, deletesRecord: false, requiresNotes: false, requiresNewEndDate: false },
-  "End Date Changed": { requiresDate: true, requiresSold: false, deletesRecord: false, requiresNotes: false, requiresNewEndDate: true },  
+const statusConfig: Record<string, { 
+  requiresDate: boolean; 
+  requiresSold: boolean; 
+  deletesRecord: boolean; 
+  requiresNotes: boolean; 
+  requiresNewEndDate: boolean;
+  requiresSupplierChange: boolean;  // ✅ NEW
+  requiresAddressChange: boolean;   // ✅ NEW
+}> = {
+  "Callback": { requiresDate: true, requiresSold: false, deletesRecord: false, requiresNotes: false, requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
+  "Called": { requiresDate: true, requiresSold: false, deletesRecord: false, requiresNotes: false, requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
+  "Not Answered": { requiresDate: true, requiresSold: false, deletesRecord: false, requiresNotes: false, requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
+  "Priced": { requiresDate: false, requiresSold: true, deletesRecord: false, requiresNotes: false, requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
+  "Lost": { requiresDate: true, requiresSold: false, deletesRecord: true, requiresNotes: true, requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
+  "Lost COT": { requiresDate: false, requiresSold: false, deletesRecord: true, requiresNotes: true, requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
+  "Already Renewed": { requiresDate: true, requiresSold: false, deletesRecord: false, requiresNotes: false, requiresNewEndDate: true, requiresSupplierChange: true, requiresAddressChange: true },  // ✅ UPDATED
+  "Invalid Number": { requiresDate: false, requiresSold: false, deletesRecord: true, requiresNotes: false, requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
+  "Meter De-energised": { requiresDate: false, requiresSold: false, deletesRecord: true, requiresNotes: false, requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
+  "Broker in Place": { requiresDate: true, requiresSold: false, deletesRecord: false, requiresNotes: false, requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
+  "End Date Changed": { requiresDate: true, requiresSold: false, deletesRecord: false, requiresNotes: false, requiresNewEndDate: true, requiresSupplierChange: false, requiresAddressChange: false },
 };
 
 // ---------------- Types ----------------
@@ -124,6 +132,9 @@ interface EnergyCustomer {
   home_door_number?: string;
   home_street?: string;
   home_post_code?: string;
+  
+  // Archive status
+  is_archived?: boolean;
 }
 
 interface Supplier {
@@ -282,6 +293,8 @@ export default function EnergyCustomersPage() {
   const [isSold, setIsSold] = useState<string>("");
   const [isSubmittingCallback, setIsSubmittingCallback] = useState(false);
   const [callbackError, setCallbackError] = useState("");
+  const [newSupplier, setNewSupplier] = useState("");
+  const [newAddress, setNewAddress] = useState(""); 
 
   const router = useRouter();
   const { user } = useAuth();
@@ -495,13 +508,45 @@ export default function EnergyCustomersPage() {
 
   // ---------------- Update Status (Opens Modal) ----------------
   const updateCustomerStatus = async (customerId: number, newStatus: string) => {
-    // ✅ Open modal instead of updating directly
+    // ✅ Handle clearing status - do it directly without modal
+    if (newStatus === "" || newStatus === "CLEAR_STATUS") {
+      try {
+        const response = await fetchWithAuth(`/energy-clients/${customerId}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ status: null }),
+        });
+
+        if (!response || response.error) {
+          throw new Error(response?.error || "Failed to clear status");
+        }
+
+        // Update local state
+        setAllCustomers((prev) =>
+          prev.map((c) =>
+            c.client_id === customerId
+              ? { ...c, status: undefined }
+              : c
+          )
+        );
+        
+        toast.success("✅ Status cleared");
+        return;
+      } catch (err: any) {
+        toast.error(err.message || "Failed to clear status");
+        return;
+      }
+    }
+
+    // ✅ For all other statuses, open the modal
     setSelectedCustomerForCallback(customerId);
     setCallbackStatus(newStatus);
     setCallbackDate("");
     setCallbackNotes("");
     setIsSold("");
     setNewEndDate("");
+    setNewSupplier("");
+    setNewAddress("");
     setCallbackError("");
     setShowCallbackModal(true);
   };
@@ -527,7 +572,8 @@ export default function EnergyCustomersPage() {
       return;
     }
 
-    if (config?.requiresNewEndDate && !newEndDate) {
+    // ✅ Only require new end date for "End Date Changed" (not for "Already Renewed")
+    if (callbackStatus === "End Date Changed" && !newEndDate) {
       setCallbackError("Please enter the new contract end date");
       return;
     }
@@ -557,6 +603,15 @@ export default function EnergyCustomersPage() {
         payload.new_end_date = newEndDate;
       }
 
+      // ✅ NEW: Add supplier and address changes for "Already Renewed"
+      if (config?.requiresSupplierChange && newSupplier.trim()) {
+        payload.new_supplier = newSupplier.trim();
+      }
+
+      if (config?.requiresAddressChange && newAddress.trim()) {
+        payload.new_address = newAddress.trim();
+      }
+
       const response = await fetchWithAuth(`/energy-clients/${selectedCustomerForCallback}/callback`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -578,12 +633,11 @@ export default function EnergyCustomersPage() {
         toast.success("✅ Moved to Priced page");
         setShowCallbackModal(false);
       } else {
-        // ✅ For "End Date Changed", refresh the entire customer list to get updated end date
-        if (callbackStatus === "End Date Changed") {
-          await fetchCustomers();  // ✅ Reload all customers to get fresh data
-          toast.success(`✅ Contract end date updated`);
+        // ✅ For "End Date Changed" or "Already Renewed", refresh the entire customer list
+        if (callbackStatus === "End Date Changed" || callbackStatus === "Already Renewed") {
+          await fetchCustomers();
+          toast.success(`✅ ${callbackStatus === "Already Renewed" ? "Customer information updated" : "Contract end date updated"}`);
         } else {
-          // ✅ For other statuses, just update the status in place
           const stageId = getStageIdFromStatus(callbackStatus, stages.length > 0 ? stages : undefined);
           setAllCustomers((prev) =>
             prev.map((c) =>
@@ -1278,6 +1332,7 @@ export default function EnergyCustomersPage() {
                     onChange={handleSelectAll}
                   />
                 </th>
+                {/* ✅ Matching old code style exactly - text-xs font-medium tracking-wider text-gray-500 uppercase */}
                 <th className="px-2 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase w-16 border-r-2 border-gray-300">
                   ID
                 </th>
@@ -1320,14 +1375,14 @@ export default function EnergyCustomersPage() {
             <tbody className="divide-y divide-gray-200 bg-white">
               {isLoading ? (
                 <tr>
-                  <td colSpan={13} className="px-6 py-12 text-center">  {/* Changed from 12 to 13 */}
+                  <td colSpan={13} className="px-6 py-12 text-center">
                     <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-current border-r-transparent text-gray-600"></div>
                     <p className="mt-4 text-gray-500">Loading renewals...</p>
                   </td>
                 </tr>
               ) : error ? (
                 <tr>
-                  <td colSpan={13} className="px-6 py-12 text-center text-gray-500">  {/* Changed from 12 to 13 */}
+                  <td colSpan={13} className="px-6 py-12 text-center text-gray-500">
                     <AlertCircle className="h-12 w-12 text-red-400 mx-auto mb-3" />
                     <p className="text-lg text-red-600">Failed to load renewals</p>
                     <p className="mt-2 text-sm">{error}</p>
@@ -1335,7 +1390,7 @@ export default function EnergyCustomersPage() {
                 </tr>
               ) : paginatedCustomers.length === 0 ? (
                 <tr>
-                  <td colSpan={13} className="px-6 py-12 text-center text-gray-500">  {/* Changed from 12 to 13 */}
+                  <td colSpan={13} className="px-6 py-12 text-center text-gray-500">
                     <Zap className="h-12 w-12 text-gray-400 mx-auto mb-3" />
                     <p className="text-lg">No clients found.</p>
                     <p className="mt-2 text-sm">Create your first client to get started!</p>
@@ -1406,6 +1461,7 @@ export default function EnergyCustomersPage() {
                         />
                       </td>
 
+                      {/* ✅ ID - text-sm font-medium */}
                       <td className="px-2 py-3 text-sm font-medium text-gray-900 border-r-2 border-gray-300 align-top">
                         <div className="flex items-center gap-1">
                           {customer.display_id || customer.id}
@@ -1417,6 +1473,7 @@ export default function EnergyCustomersPage() {
                         </div>
                       </td>
 
+                      {/* ✅ Client Name - text-sm */}
                       <td className="px-3 py-3 text-sm text-gray-700 align-top">
                         <div className="break-words max-w-[120px] leading-tight">
                           {customer.contact_person}
@@ -1428,6 +1485,7 @@ export default function EnergyCustomersPage() {
                         </div>
                       </td>
 
+                      {/* ✅ Trading Name - text-sm */}
                       <td className="px-3 py-3 text-sm text-gray-900 align-top">
                         <div className="flex items-start gap-1">
                           <span className="break-words max-w-[160px] leading-tight">
@@ -1441,50 +1499,63 @@ export default function EnergyCustomersPage() {
                         </div>
                       </td>
 
+                      {/* ✅ Tel No - text-sm with nowrap */}
                       <td className="px-3 py-3 text-sm text-gray-900 align-top">
                         <div className="whitespace-nowrap">
                           {customer.phone ? String(customer.phone).replace(/\.0$/, '') : '—'}
                         </div>
                       </td>
 
-                      {/* MPAN Top */}
-                      <td className="px-3 py-3 text-xs font-mono text-gray-900 align-top">
-                        <div className="break-all max-w-[120px] leading-tight">
+                      {/* ✅ MPAN Top - text-sm with nowrap (same style as Tel No) */}
+                      <td className="px-3 py-3 text-sm text-gray-900 align-top">
+                        <div className="whitespace-nowrap">
                           {customer.mpan_top || "—"}
                         </div>
                       </td>
 
-                      {/* MPAN Bottom */}
-                      <td className="px-3 py-3 text-xs font-mono text-gray-900 align-top">
-                        <div className="break-all max-w-[90px] leading-tight">
+                      {/* ✅ MPAN Bottom - text-sm with nowrap (same style as Tel No) */}
+                      <td className="px-3 py-3 text-sm text-gray-900 align-top">
+                        <div className="whitespace-nowrap">
                           {customer.mpan_bottom || "—"}
                         </div>
                       </td>
 
-                      <td className="px-3 py-3 text-xs text-gray-900 align-top">
+                      {/* ✅ Supplier - text-sm */}
+                      <td className="px-3 py-3 text-sm text-gray-900 align-top">
                         <div className="break-words max-w-[120px] leading-tight">
                           {customer.supplier_name || "—"}
                         </div>
                       </td>
 
-                      <td className="px-3 py-3 text-xs text-gray-900 text-right align-top">
+                      {/* ✅ Annual Usage - text-sm */}
+                      <td className="px-3 py-3 text-sm text-gray-900 text-right align-top">
                         <div className="whitespace-nowrap">
                           {customer.annual_usage ? customer.annual_usage.toLocaleString() : "—"}
                         </div>
                       </td>
 
-                      <td className="px-3 py-3 text-xs text-gray-700 align-top">
+                      {/* ✅ Start Date - text-sm */}
+                      <td className="px-3 py-3 text-sm text-gray-700 align-top">
                         <div className="whitespace-nowrap">{formatDate(customer.start_date)}</div>
                       </td>
 
-                      <td className="px-3 py-3 text-xs text-gray-700 align-top">
+                      {/* ✅ Contract End - text-sm */}
+                      <td className="px-3 py-3 text-sm text-gray-700 align-top">
                         <div className="whitespace-nowrap">{formatDate(customer.end_date)}</div>
                       </td>
 
+                      {/* Status dropdown - unchanged */}
                       <td className="px-3 py-3 align-top" onClick={(e) => e.stopPropagation()}>
                         <Select
                           value={customer.status || ""}
-                          onValueChange={(value) => updateCustomerStatus(customer.client_id, value)}
+                          onValueChange={(value) => {
+                            if (value === "CLEAR_STATUS") {
+                              updateCustomerStatus(customer.client_id, "");
+                            } else {
+                              updateCustomerStatus(customer.client_id, value);
+                            }
+                          }}
+                          disabled={isArchived}
                         >
                           <SelectTrigger className="h-7 text-xs w-full max-w-[150px]">
                             <SelectValue placeholder="Set status">
@@ -1493,11 +1564,20 @@ export default function EnergyCustomersPage() {
                                   {getStatusLabel(customer.status)}
                                 </span>
                               ) : (
-                                "—"
+                                <span className="text-gray-500">Set status</span>
                               )}
                             </SelectValue>
                           </SelectTrigger>
                           <SelectContent>
+                            {customer.status && (
+                              <>
+                                <SelectItem value="CLEAR_STATUS" className="text-red-600 font-medium">
+                                  ✕ Clear Status
+                                </SelectItem>
+                                <div className="border-b my-1"></div>
+                              </>
+                            )}
+                            
                             {STATUS_OPTIONS.map((option) => (
                               <SelectItem key={option.value} value={option.value}>
                                 {option.label}
@@ -1507,6 +1587,7 @@ export default function EnergyCustomersPage() {
                         </Select>
                       </td>
 
+                      {/* Assigned To dropdown - unchanged */}
                       <td className="px-3 py-3 align-top" onClick={(e) => e.stopPropagation()}>
                         {fromSearch ? (
                           <div className="text-xs text-amber-700 font-medium px-2 py-1 bg-amber-100 rounded">
@@ -1681,7 +1762,7 @@ export default function EnergyCustomersPage() {
       <Dialog open={showCallbackModal} onOpenChange={setShowCallbackModal}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>Add Callback</DialogTitle>
+            <DialogTitle>{callbackStatus ? `Add ${callbackStatus}` : "Add Action"}</DialogTitle>
             <DialogDescription>
               Record customer interaction and set follow-up
             </DialogDescription>
@@ -1730,17 +1811,54 @@ export default function EnergyCustomersPage() {
               </div>
             )}
 
-            {/* ✅ NEW: New End Date field for "End Date Changed" status */}
+            {/* ✅ NEW: New End Date field for "End Date Changed" and "Already Renewed" */}
             {statusConfig[callbackStatus]?.requiresNewEndDate && (
               <div className="space-y-2">
-                <label className="text-sm font-medium">New Contract End Date *</label>
+                <label className="text-sm font-medium">
+                  New Contract End Date {callbackStatus === "End Date Changed" ? "*" : ""}
+                </label>
                 <Input
                   type="date"
                   value={newEndDate}
                   onChange={(e) => setNewEndDate(e.target.value)}
                 />
                 <p className="text-xs text-gray-500">
-                  The contract end date will be updated to this new date
+                  {callbackStatus === "Already Renewed" 
+                    ? "Optional: Update if the contract end date has changed"
+                    : "The contract end date will be updated to this new date"
+                  }
+                </p>
+              </div>
+            )}
+
+            {/* ✅ NEW: Supplier change field for "Already Renewed" */}
+            {statusConfig[callbackStatus]?.requiresSupplierChange && (
+              <div className="space-y-2">
+                <label className="text-sm font-medium">New Supplier (Optional)</label>
+                <Input
+                  type="text"
+                  placeholder="Enter new supplier name"
+                  value={newSupplier}
+                  onChange={(e) => setNewSupplier(e.target.value)}
+                />
+                <p className="text-xs text-gray-500">
+                  Leave blank if supplier hasn't changed
+                </p>
+              </div>
+            )}
+
+            {/* ✅ NEW: Address change field for "Already Renewed" */}
+            {statusConfig[callbackStatus]?.requiresAddressChange && (
+              <div className="space-y-2">
+                <label className="text-sm font-medium">New Address (Optional)</label>
+                <Textarea
+                  placeholder="Enter new address if changed"
+                  value={newAddress}
+                  onChange={(e) => setNewAddress(e.target.value)}
+                  rows={2}
+                />
+                <p className="text-xs text-gray-500">
+                  Leave blank if address hasn't changed
                 </p>
               </div>
             )}
@@ -1789,7 +1907,7 @@ export default function EnergyCustomersPage() {
                   Saving...
                 </>
               ) : (
-                "Save Callback"
+                callbackStatus ? `Save ${callbackStatus}` : "Save"
               )}
             </Button>
           </div>

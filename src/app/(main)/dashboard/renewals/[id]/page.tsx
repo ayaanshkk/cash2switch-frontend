@@ -68,6 +68,36 @@ const STATUS_OPTIONS = [
   { value: "End Date Changed", label: "End Date Changed" },
 ];
 
+// ✅ ADD THESE HELPER FUNCTIONS HERE
+const getStatusColor = (status: string | undefined): string => {
+  if (!status) return "bg-gray-100 text-gray-800";
+  
+  const statusLower = status.toLowerCase();
+  if (statusLower === 'called' || statusLower === 'priced' || statusLower === 'callback') {
+    return "bg-green-100 text-green-800";
+  }
+  if (statusLower === 'not answered') {
+    return "bg-yellow-100 text-yellow-800";
+  }
+  if (statusLower === 'lost' || statusLower === 'lost cot') {
+    return "bg-red-100 text-red-800";
+  }
+  return "bg-gray-100 text-gray-800";
+};
+
+const getStatusLabel = (status: string | undefined): string => {
+  if (!status) return "—";
+  // Direct match first
+  const option = STATUS_OPTIONS.find(opt => opt.value === status);
+  if (option) return option.label;
+  
+  // Fallback: case-insensitive match
+  const optionCaseInsensitive = STATUS_OPTIONS.find(
+    opt => opt.value.toLowerCase() === status.toLowerCase()
+  );
+  return optionCaseInsensitive?.label || status;
+};
+
 interface EnergyCustomer {
   id: number;
   client_id: number;
@@ -191,6 +221,8 @@ export default function EnergyCustomerDetailsPage() {
   const [newEndDate, setNewEndDate] = useState("");
   const [isSubmittingCallback, setIsSubmittingCallback] = useState(false);
   const [callbackError, setCallbackError] = useState("");
+  const [newSupplier, setNewSupplier] = useState("");
+  const [newAddress, setNewAddress] = useState("");  
   const [history, setHistory] = useState<InteractionHistory[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
 
@@ -276,18 +308,26 @@ export default function EnergyCustomerDetailsPage() {
     }
   };
 
-  const statusConfig: Record<string, { requiresDate: boolean; requiresSold: boolean; deletesRecord: boolean; requiresNotes: boolean; requiresNewEndDate: boolean }> = {
-    "Callback": { requiresDate: true, requiresSold: false, deletesRecord: false, requiresNotes: false, requiresNewEndDate: false },
-    "Called": { requiresDate: true, requiresSold: false, deletesRecord: false, requiresNotes: false, requiresNewEndDate: false },
-    "Not Answered": { requiresDate: true, requiresSold: false, deletesRecord: false, requiresNotes: false, requiresNewEndDate: false },
-    "Priced": { requiresDate: false, requiresSold: true, deletesRecord: false, requiresNotes: false, requiresNewEndDate: false },
-    "Lost": { requiresDate: true, requiresSold: false, deletesRecord: true, requiresNotes: true, requiresNewEndDate: false },
-    "Lost COT": { requiresDate: false, requiresSold: false, deletesRecord: true, requiresNotes: true, requiresNewEndDate: false },
-    "Already Renewed": { requiresDate: true, requiresSold: false, deletesRecord: false, requiresNotes: false, requiresNewEndDate: false },
-    "Invalid Number": { requiresDate: false, requiresSold: false, deletesRecord: true, requiresNotes: false, requiresNewEndDate: false },
-    "Meter De-energised": { requiresDate: false, requiresSold: false, deletesRecord: true, requiresNotes: false, requiresNewEndDate: false },
-    "Broker in Place": { requiresDate: true, requiresSold: false, deletesRecord: false, requiresNotes: false, requiresNewEndDate: false },
-    "End Date Changed": { requiresDate: true, requiresSold: false, deletesRecord: false, requiresNotes: false, requiresNewEndDate: true },  
+  const statusConfig: Record<string, { 
+    requiresDate: boolean; 
+    requiresSold: boolean; 
+    deletesRecord: boolean; 
+    requiresNotes: boolean; 
+    requiresNewEndDate: boolean;
+    requiresSupplierChange: boolean;  // ✅ NEW
+    requiresAddressChange: boolean;   // ✅ NEW
+  }> = {
+    "Callback": { requiresDate: true, requiresSold: false, deletesRecord: false, requiresNotes: false, requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
+    "Called": { requiresDate: true, requiresSold: false, deletesRecord: false, requiresNotes: false, requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
+    "Not Answered": { requiresDate: true, requiresSold: false, deletesRecord: false, requiresNotes: false, requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
+    "Priced": { requiresDate: false, requiresSold: true, deletesRecord: false, requiresNotes: false, requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
+    "Lost": { requiresDate: true, requiresSold: false, deletesRecord: true, requiresNotes: true, requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
+    "Lost COT": { requiresDate: false, requiresSold: false, deletesRecord: true, requiresNotes: true, requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
+    "Already Renewed": { requiresDate: true, requiresSold: false, deletesRecord: false, requiresNotes: false, requiresNewEndDate: true, requiresSupplierChange: true, requiresAddressChange: true },  // ✅ UPDATED
+    "Invalid Number": { requiresDate: false, requiresSold: false, deletesRecord: true, requiresNotes: false, requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
+    "Meter De-energised": { requiresDate: false, requiresSold: false, deletesRecord: true, requiresNotes: false, requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
+    "Broker in Place": { requiresDate: true, requiresSold: false, deletesRecord: false, requiresNotes: false, requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
+    "End Date Changed": { requiresDate: true, requiresSold: false, deletesRecord: false, requiresNotes: false, requiresNewEndDate: true, requiresSupplierChange: false, requiresAddressChange: false },
   };
 
   const isDateRequired = () => {
@@ -332,7 +372,8 @@ export default function EnergyCustomerDetailsPage() {
       return;
     }
 
-    if (config?.requiresNewEndDate && !newEndDate) {
+    // ✅ Only require new end date for "End Date Changed" (not for "Already Renewed")
+    if (callbackStatus === "End Date Changed" && !newEndDate) {
       setCallbackError("Please enter the new contract end date");
       return;
     }
@@ -364,6 +405,15 @@ export default function EnergyCustomerDetailsPage() {
         payload.new_end_date = newEndDate;
       }
 
+      // ✅ NEW: Add supplier and address changes for "Already Renewed"
+      if (config?.requiresSupplierChange && newSupplier.trim()) {
+        payload.new_supplier = newSupplier.trim();
+      }
+
+      if (config?.requiresAddressChange && newAddress.trim()) {
+        payload.new_address = newAddress.trim();
+      }
+
       const response = await fetch(`${API_BASE_URL}/energy-clients/${id}/callback`, {
         method: "POST",
         headers: {
@@ -380,7 +430,7 @@ export default function EnergyCustomerDetailsPage() {
 
       const data = await response.json();
 
-      // ✅ ALWAYS reload customer data to get fresh values (including updated end date)
+      // ✅ ALWAYS reload customer data to get fresh values (including updated end date, supplier, address)
       await loadCustomerData();
 
       if (data.moved_to_recycle_bin) {
@@ -393,8 +443,10 @@ export default function EnergyCustomerDetailsPage() {
         alert("✅ Moved to Priced page");
         router.push("/dashboard/priced");
       } else {
-        // ✅ Show different message for End Date Changed
-        if (callbackStatus === "End Date Changed") {
+        // ✅ Show different message for Already Renewed
+        if (callbackStatus === "Already Renewed") {
+          alert(`✅ Customer information updated`);
+        } else if (callbackStatus === "End Date Changed") {
           alert(`✅ Contract end date updated to ${formatDate(newEndDate)}`);
         } else {
           alert("✅ Callback saved successfully");
@@ -407,7 +459,9 @@ export default function EnergyCustomerDetailsPage() {
         setCallbackDate("");
         setCallbackNotes("");
         setIsSold("");
-        setNewEndDate("");  // ✅ Also reset this
+        setNewEndDate("");
+        setNewSupplier("");   // ✅ RESET
+        setNewAddress("");    // ✅ RESET
         
         loadHistory();
       }
@@ -416,6 +470,41 @@ export default function EnergyCustomerDetailsPage() {
       setCallbackError(err.message || "Failed to save callback");
     } finally {
       setIsSubmittingCallback(false);
+    }
+  };
+
+  const handleClearStatus = async () => {
+    if (!window.confirm("Are you sure you want to clear the status?")) {
+      return;
+    }
+
+    try {
+      const token = localStorage.getItem("auth_token");
+      
+      const response = await fetch(`${API_BASE_URL}/energy-clients/${id}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ status: null }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to clear status");
+      }
+
+      // Reload customer data to get fresh state
+      await loadCustomerData();
+      
+      // Reset the status dropdown
+      setCallbackStatus("");
+      
+      alert("✅ Status cleared successfully");
+      
+    } catch (error) {
+      console.error("Error clearing status:", error);
+      alert("❌ Failed to clear status");
     }
   };
 
@@ -1475,33 +1564,16 @@ export default function EnergyCustomerDetailsPage() {
               </Alert>
             )}
 
-            {/* Status Selection */}
             <div className="space-y-2">
-              <label className="text-sm font-medium">Status *</label>
-              <Select 
-                value={callbackStatus} 
-                onValueChange={(value) => {
-                  setCallbackStatus(value);
-                  setCallbackDate("");
-                  setIsSold("");
-                  setCallbackError("");
-                }}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select status" />
-                </SelectTrigger>
-                <SelectContent>
-                  {STATUS_OPTIONS.map((option) => (
-                    <SelectItem key={option.value} value={option.value}>
-                      {option.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <label className="text-sm font-medium">Status</label>
+              <div className="p-2 bg-gray-50 rounded border">
+                <span className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${getStatusColor(callbackStatus)}`}>
+                  {getStatusLabel(callbackStatus)}
+                </span>
+              </div>
             </div>
 
-            {/* Conditional "Sold?" Question for Priced Status */}
-            {currentConfig?.requiresSold && (
+            {statusConfig[callbackStatus]?.requiresSold && (
               <div className="space-y-2">
                 <label className="text-sm font-medium">Was it sold? *</label>
                 <Select value={isSold} onValueChange={setIsSold}>
@@ -1516,51 +1588,90 @@ export default function EnergyCustomerDetailsPage() {
               </div>
             )}
 
-            {/* Conditional Date Picker */}
             {isDateRequired() && (
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Callback Date *</label>
+              <div>
+                <label className="text-sm font-medium text-gray-700">
+                  {callbackStatus === "End Date Changed" || callbackStatus === "Already Renewed" 
+                    ? "Action Date:" 
+                    : "Callback Date:"} <span className="text-red-500">*</span>
+                </label>
                 <Input
                   type="date"
+                  className="mt-1"
                   value={callbackDate}
                   onChange={(e) => setCallbackDate(e.target.value)}
                 />
               </div>
             )}
 
-            {/* ✅ NEW: New End Date field for "End Date Changed" status */}
+            {/* ✅ NEW: New End Date field for "End Date Changed" and "Already Renewed" */}
             {statusConfig[callbackStatus]?.requiresNewEndDate && (
               <div className="space-y-2">
-                <label className="text-sm font-medium">New Contract End Date *</label>
+                <label className="text-sm font-medium">
+                  New Contract End Date {callbackStatus === "End Date Changed" ? "*" : ""}
+                </label>
                 <Input
                   type="date"
                   value={newEndDate}
                   onChange={(e) => setNewEndDate(e.target.value)}
                 />
                 <p className="text-xs text-gray-500">
-                  The contract end date will be updated to this new date
+                  {callbackStatus === "Already Renewed" 
+                    ? "Optional: Update if the contract end date has changed"
+                    : "The contract end date will be updated to this new date"
+                  }
                 </p>
               </div>
             )}
 
-            {/* Deletion Warning */}
-            {currentConfig?.deletesRecord && (
+            {/* ✅ NEW: Supplier change field for "Already Renewed" */}
+            {statusConfig[callbackStatus]?.requiresSupplierChange && (
+              <div className="space-y-2">
+                <label className="text-sm font-medium">New Supplier (Optional)</label>
+                <Input
+                  type="text"
+                  placeholder="Enter new supplier name"
+                  value={newSupplier}
+                  onChange={(e) => setNewSupplier(e.target.value)}
+                />
+                <p className="text-xs text-gray-500">
+                  Leave blank if supplier hasn't changed
+                </p>
+              </div>
+            )}
+
+            {/* ✅ NEW: Address change field for "Already Renewed" */}
+            {statusConfig[callbackStatus]?.requiresAddressChange && (
+              <div className="space-y-2">
+                <label className="text-sm font-medium">New Address (Optional)</label>
+                <Textarea
+                  placeholder="Enter new address if changed"
+                  value={newAddress}
+                  onChange={(e) => setNewAddress(e.target.value)}
+                  rows={2}
+                />
+                <p className="text-xs text-gray-500">
+                  Leave blank if address hasn't changed
+                </p>
+              </div>
+            )}
+
+            {statusConfig[callbackStatus]?.deletesRecord && (
               <Alert>
                 <AlertCircle className="h-4 w-4" />
                 <AlertDescription>
-                  <strong>Warning:</strong> This will permanently remove the record from the renewals list.
+                  <strong>Warning:</strong> This will move the record to the recycle bin.
                 </AlertDescription>
               </Alert>
             )}
 
-            {/* Notes */}
             <div className="space-y-2">
               <label className="text-sm font-medium">
-                Notes {currentConfig?.requiresNotes && <span className="text-red-500">*</span>}
+                Notes {statusConfig[callbackStatus]?.requiresNotes && <span className="text-red-500">*</span>}
               </label>
               <Textarea
                 placeholder={
-                  currentConfig?.requiresNotes 
+                  statusConfig[callbackStatus]?.requiresNotes 
                     ? "Enter the reason why it was lost..." 
                     : "Add any additional notes..."
                 }
@@ -1568,7 +1679,7 @@ export default function EnergyCustomerDetailsPage() {
                 onChange={(e) => setCallbackNotes(e.target.value)}
                 rows={3}
               />
-              {currentConfig?.requiresNotes && (
+              {statusConfig[callbackStatus]?.requiresNotes && (
                 <p className="text-xs text-gray-500">Required: Please explain why this opportunity was lost</p>
               )}
             </div>
@@ -1589,7 +1700,7 @@ export default function EnergyCustomerDetailsPage() {
                   Saving...
                 </>
               ) : (
-                "Save"
+                "Save Callback"
               )}
             </Button>
           </div>
@@ -1629,16 +1740,30 @@ export default function EnergyCustomerDetailsPage() {
             <Select 
               value={callbackStatus} 
               onValueChange={(value) => {
-                setCallbackStatus(value);
-                setCallbackDate("");
-                setIsSold("");
-                setCallbackError("");
+                if (value === "CLEAR_STATUS") {
+                  handleClearStatus();
+                } else {
+                  setCallbackStatus(value);
+                  setCallbackDate("");
+                  setIsSold("");
+                  setNewEndDate("");
+                  setCallbackError("");
+                }
               }}
             >
               <SelectTrigger className="mt-1">
                 <SelectValue placeholder="Select status" />
               </SelectTrigger>
               <SelectContent>
+                {customer.status && (
+                  <>
+                    <SelectItem value="CLEAR_STATUS" className="text-red-600 font-medium">
+                      ✕ Clear Status
+                    </SelectItem>
+                    <div className="border-b my-1"></div>
+                  </>
+                )}
+                
                 {STATUS_OPTIONS.map((option) => (
                   <SelectItem key={option.value} value={option.value}>
                     {option.label}
@@ -1646,6 +1771,7 @@ export default function EnergyCustomerDetailsPage() {
                 ))}
               </SelectContent>
             </Select>
+
           </div>
 
           {/* Conditional "Sold?" for Priced Status */}
@@ -1732,66 +1858,83 @@ export default function EnergyCustomerDetailsPage() {
                 Saving...
               </>
             ) : (
-              "Save Callback"
+              callbackStatus ? `Save ${callbackStatus}` : "Save Action"
             )}
           </Button>
         </div>
 
-    {/* ✅ History Section */}
-    <div className="mt-8">
-      <h3 className="mb-3 text-lg font-semibold text-gray-900">History</h3>
-      
-      {loadingHistory ? (
-        <div className="flex items-center justify-center py-4">
-          <Loader2 className="h-5 w-5 animate-spin text-gray-400" />
-        </div>
-      ) : history.length === 0 ? (
-        <p className="text-sm text-gray-500">No interactions yet</p>
-      ) : (
-        <div className="space-y-3">
-          {history.map((interaction) => {
-            // ✅ FIX 1: Extract clean notes (remove [Status] prefix)
-            const cleanNotes = interaction.notes?.replace(/^\[.*?\]\s*/, '') || '';
-            
-            return (
-              <div 
-                key={interaction.interaction_id} 
-                className="p-3 bg-white border border-gray-200 rounded-lg text-sm relative group"
-              >
-                {/* ✅ DELETE BUTTON - Shows on hover */}
-                <button
-                  onClick={() => handleDeleteInteraction(interaction.interaction_id)}
-                  className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:bg-red-50 rounded"
-                  title="Delete this entry"
-                >
-                  <Trash2 className="h-4 w-4 text-red-600" />
-                </button>
+        {/* ✅ History Section */}
+        <div className="mt-8">
+          <h3 className="mb-3 text-lg font-semibold text-gray-900">History</h3>
+          
+          {loadingHistory ? (
+            <div className="flex items-center justify-center py-4">
+              <Loader2 className="h-5 w-5 animate-spin text-gray-400" />
+            </div>
+          ) : history.length === 0 ? (
+            <p className="text-sm text-gray-500">No interactions yet</p>
+          ) : (
+            <div className="space-y-3">
+              {history.map((interaction) => {
+                // ✅ Extract clean notes (remove [Status] prefix if it exists)
+                const rawNotes = interaction.notes || '';
+                const cleanNotes = rawNotes.replace(/^\[.*?\]\s*/, '');
+                
+                // ✅ Use the actual interaction_type as the status
+                const displayStatus = interaction.interaction_type || 'Unknown';
+                
+                return (
+                  <div 
+                    key={interaction.interaction_id} 
+                    className="p-3 bg-white border border-gray-200 rounded-lg text-sm relative group"
+                  >
+                    {/* ✅ DELETE BUTTON - Shows on hover */}
+                    <button
+                      onClick={() => handleDeleteInteraction(interaction.interaction_id)}
+                      className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:bg-red-50 rounded"
+                      title="Delete this entry"
+                    >
+                      <Trash2 className="h-4 w-4 text-red-600" />
+                    </button>
 
-                {/* ✅ FIX 2: Remove the date on the right - only show status */}
-                <div className="mb-2">
-                  <span className="font-semibold text-gray-900">
-                    {interaction.interaction_type}
-                  </span>
-                </div>
-                
-                {/* ✅ FIX 3: Only show notes if they exist after removing [Status] */}
-                {cleanNotes && (
-                  <p className="text-gray-600 text-xs mb-2 pr-8">{cleanNotes}</p>
-                )}
-                
-                {/* ✅ Show callback date with calendar icon */}
-                {interaction.reminder_date && (
-                  <div className="flex items-center gap-1 text-xs text-purple-700">
-                    <Calendar className="h-3 w-3" />
-                    <span>Callback: {formatDate(interaction.reminder_date)}</span>
+                    {/* ✅ Show the actual status */}
+                    <div className="mb-2">
+                      <span className="font-semibold text-gray-900">
+                        {displayStatus}
+                      </span>
+                    </div>
+                    
+                    {/* ✅ Show notes if they exist */}
+                    {cleanNotes && (
+                      <p className="text-gray-600 text-xs mb-2 pr-8">{cleanNotes}</p>
+                    )}
+                    
+                    {/* ✅ Show callback/reminder date with calendar icon - ONLY if it's actually a callback-type status */}
+                    {interaction.reminder_date && ['Callback', 'Called', 'Not Answered', 'Broker in Place', 'End Date Changed', 'Already Renewed'].includes(displayStatus) && (
+                      <div className="flex items-center gap-1 text-xs text-purple-700">
+                        <Calendar className="h-3 w-3" />
+                        <span>Callback: {formatDate(interaction.reminder_date)}</span>
+                      </div>
+                    )}
+                    
+                    {/* ✅ Show timestamp for when this was created */}
+                    {interaction.created_at && (
+                      <div className="text-xs text-gray-400 mt-1">
+                        {new Date(interaction.created_at).toLocaleString('en-GB', {
+                          day: '2-digit',
+                          month: '2-digit',
+                          year: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit'
+                        })}
+                      </div>
+                    )}
                   </div>
-                )}
-              </div>
-            );
-          })}
+                );
+              })}
+            </div>
+          )}
         </div>
-      )}
-    </div>
       </div>
     </div>
   );
