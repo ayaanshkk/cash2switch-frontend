@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useRef } from "react";
-import { Upload, Download, X, CheckCircle, AlertCircle, FileSpreadsheet } from "lucide-react";
+import { Upload, Download, X, CheckCircle, AlertCircle, FileSpreadsheet, Info } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -18,8 +18,13 @@ interface ImportResult {
   message: string;
   total_rows: number;
   successful: number;
+  duplicates?: number;  // ✅ LEGACY - kept for compatibility
+  same_tenant_duplicates?: number;  // ✅ NEW
+  cross_tenant_duplicates?: number;  // ✅ NEW
   failed: number;
   errors?: string[];
+  duplicate_report?: string[];  // ✅ NEW - detailed duplicate info
+  assigned_to?: string;
 }
 
 interface BulkImportModalProps {
@@ -178,7 +183,7 @@ export function BulkImportModal({ isOpen, onClose, onImportComplete, uploadEndpo
 
   return (
     <Dialog open={isOpen} onOpenChange={handleClose}>
-      <DialogContent className="max-w-2xl">
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Bulk Import Energy Customers</DialogTitle>
           <DialogDescription>
@@ -306,11 +311,54 @@ export function BulkImportModal({ isOpen, onClose, onImportComplete, uploadEndpo
                   </h3>
                   <div className="mt-2 space-y-1 text-sm">
                     <p>Total rows processed: <span className="font-medium">{result.total_rows}</span></p>
-                    <p className="text-green-700">Successful: <span className="font-medium">{result.successful}</span></p>
+                    <p className="text-green-700">✅ New records created: <span className="font-medium">{result.successful}</span></p>
+                    
+                    {/* ✅ NEW: Show same-tenant duplicates */}
+                    {result.same_tenant_duplicates !== undefined && result.same_tenant_duplicates > 0 && (
+                      <p className="text-blue-700">🔄 Same-account duplicates updated: <span className="font-medium">{result.same_tenant_duplicates}</span></p>
+                    )}
+                    
+                    {/* ✅ NEW: Show cross-tenant duplicates */}
+                    {result.cross_tenant_duplicates !== undefined && result.cross_tenant_duplicates > 0 && (
+                      <p className="text-amber-700">🚫 Cross-account duplicates skipped: <span className="font-medium">{result.cross_tenant_duplicates}</span></p>
+                    )}
+                    
                     {result.failed > 0 && (
-                      <p className="text-red-700">Failed: <span className="font-medium">{result.failed}</span></p>
+                      <p className="text-red-700">❌ Failed: <span className="font-medium">{result.failed}</span></p>
+                    )}
+                    
+                    {result.assigned_to && (
+                      <p className="text-gray-700 mt-2">👤 Assigned to: <span className="font-medium">{result.assigned_to}</span></p>
+                    )}
+
+                    {result && (
+                      <div className="mt-2 p-2 bg-gray-100 rounded text-xs">
+                        <p>Debug Info:</p>
+                        <p>same_tenant_duplicates: {result.same_tenant_duplicates}</p>
+                        <p>cross_tenant_duplicates: {result.cross_tenant_duplicates}</p>
+                        <p>duplicate_report length: {result.duplicate_report?.length || 0}</p>
+                        <pre className="mt-1 text-xs overflow-auto max-h-20">
+                          {JSON.stringify(result.duplicate_report, null, 2)}
+                        </pre>
+                      </div>
                     )}
                   </div>
+
+                  {/* ✅ NEW: Show detailed duplicate report */}
+                  {result.duplicate_report && result.duplicate_report.length > 0 && (
+                    <div className="mt-4">
+                      <details className="bg-white rounded border border-gray-200">
+                        <summary className="cursor-pointer px-3 py-2 text-sm font-medium text-gray-900 hover:bg-gray-50">
+                          📋 View Duplicate Details ({result.same_tenant_duplicates || 0} same-account, {result.cross_tenant_duplicates || 0} cross-account)
+                        </summary>
+                        <div className="px-3 py-2 max-h-60 overflow-y-auto border-t">
+                          <pre className="text-xs text-gray-700 whitespace-pre-wrap font-mono">
+                            {result.duplicate_report.join('\n')}
+                          </pre>
+                        </div>
+                      </details>
+                    </div>
+                  )}
 
                   {/* Show errors */}
                   {result.errors && result.errors.length > 0 && (
@@ -333,34 +381,36 @@ export function BulkImportModal({ isOpen, onClose, onImportComplete, uploadEndpo
           {/* Action Buttons */}
           <div className="flex justify-end gap-3">
             <Button variant="outline" onClick={handleClose}>
-              Cancel
+              {result ? 'Close' : 'Cancel'}
             </Button>
-            <Button
-              onClick={handleUpload}
-              disabled={!file || isUploading}
-            >
-              {isUploading ? (
-                <>
-                  <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-solid border-current border-r-transparent mr-2"></span>
-                  Uploading...
-                </>
-              ) : (
-                <>
-                  <Upload className="mr-2 h-4 w-4" />
-                  Upload & Import
-                </>
-              )}
-            </Button>
+            {!result && (
+              <Button
+                onClick={handleUpload}
+                disabled={!file || isUploading}
+              >
+                {isUploading ? (
+                  <>
+                    <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-solid border-current border-r-transparent mr-2"></span>
+                    Uploading...
+                  </>
+                ) : (
+                  <>
+                    <Upload className="mr-2 h-4 w-4" />
+                    Upload & Import
+                  </>
+                )}
+              </Button>
+            )}
           </div>
 
           {/* Instructions */}
           <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
-            <h4 className="text-sm font-medium text-gray-900 mb-2">Required Columns:</h4>
+            <h4 className="text-sm font-medium text-gray-900 mb-2">📌 Required Columns:</h4>
             <ul className="text-xs text-gray-700 space-y-1">
               <li>• <strong>Client Name</strong> (required) - Business/Company name</li>
               <li>• <strong>Tel No</strong> (required) - Primary phone number</li>
             </ul>
-            <h4 className="text-sm font-medium text-gray-900 mb-2 mt-4">Optional Columns:</h4>
+            <h4 className="text-sm font-medium text-gray-900 mb-2 mt-4">🔧 Optional Columns:</h4>
             <ul className="text-xs text-gray-700 space-y-1">
               <li>• Trading Name, Main Contact, Position</li>
               <li>• Mobile No, Email</li>
@@ -370,6 +420,20 @@ export function BulkImportModal({ isOpen, onClose, onImportComplete, uploadEndpo
               <li>• Stand Charge, Rate 1/2/3</li>
               <li>• Bank Name, Ac Number, Sort Code</li>
             </ul>
+            
+            {/* ✅ NEW: Duplicate handling explanation */}
+            <div className="mt-4 pt-3 border-t border-gray-300">
+              <h4 className="text-sm font-medium text-gray-900 mb-2 flex items-center gap-2">
+                <Info className="h-4 w-4 text-blue-600" />
+                Duplicate Handling
+              </h4>
+              <ul className="text-xs text-gray-700 space-y-1">
+                <li>• <strong>Same Account:</strong> Newer contracts replace older ones (archived automatically)</li>
+                <li>• <strong>Cross-Account:</strong> Duplicates from other teams are skipped with a report showing who owns them</li>
+                <li>• <strong>MPAN matching:</strong> Duplicates are detected using MPAN Top field</li>
+              </ul>
+            </div>
+            
             <p className="mt-3 text-xs text-gray-600">
               💡 <strong>Tip:</strong> Download the template to see the exact column format with example data. The system will auto-create suppliers if they don't exist.
             </p>
@@ -378,4 +442,4 @@ export function BulkImportModal({ isOpen, onClose, onImportComplete, uploadEndpo
       </DialogContent>
     </Dialog>
   );
-}  
+}

@@ -225,6 +225,10 @@ export default function EnergyCustomerDetailsPage() {
   const [newAddress, setNewAddress] = useState("");  
   const [history, setHistory] = useState<InteractionHistory[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
+  const [showAssignmentModal, setShowAssignmentModal] = useState(false);
+  const [assigningEmployeeId, setAssigningEmployeeId] = useState<string>("");
+  const [assignmentNotes, setAssignmentNotes] = useState("");
+  const [isAssigningEmployee, setIsAssigningEmployee] = useState(false);
 
   useEffect(() => {
     loadCustomerData();
@@ -581,32 +585,60 @@ export default function EnergyCustomerDetailsPage() {
     setEditedCustomer((prev) => ({ ...prev, [field]: value }));
   };
 
-  const updateAssignedTo = async (employeeId: number) => {
-    const token = localStorage.getItem("auth_token");
+  const handleAssignEmployee = async () => {
+    if (!assigningEmployeeId) return;
+
+    setIsAssigningEmployee(true);
     try {
+      const token = localStorage.getItem("auth_token");
+      
+      const payload: any = {
+        assigned_to_id: assigningEmployeeId === "0" ? null : parseInt(assigningEmployeeId),
+      };
+
+      if (assignmentNotes.trim()) {
+        payload.assignment_notes = assignmentNotes.trim();
+      }
+
       const response = await fetch(`${API_BASE_URL}/energy-clients/${id}`, {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ assigned_to_id: employeeId }),
+        body: JSON.stringify(payload),
       });
 
       if (response.ok) {
-        const employee = employees.find((e) => e.employee_id === employeeId);
+        const employee = employees.find(e => e.employee_id === parseInt(assigningEmployeeId));
+        
         setCustomer((prev) =>
           prev
             ? {
                 ...prev,
-                assigned_to_id: employeeId,
-                assigned_to_name: employee?.employee_name,
+                assigned_to_id: assigningEmployeeId === "0" ? null : parseInt(assigningEmployeeId),
+                assigned_to_name: assigningEmployeeId === "0" ? undefined : employee?.employee_name,
               }
             : null
         );
+
+        alert("✅ Salesperson assigned successfully");
+        
+        // Close modal and reset
+        setShowAssignmentModal(false);
+        setAssigningEmployeeId("");
+        setAssignmentNotes("");
+        
+        // Reload history to show assignment note
+        loadHistory();
+      } else {
+        alert("Failed to assign salesperson");
       }
     } catch (error) {
       console.error("Error updating assignment:", error);
+      alert("Failed to assign salesperson");
+    } finally {
+      setIsAssigningEmployee(false);
     }
   };
 
@@ -1707,6 +1739,81 @@ export default function EnergyCustomerDetailsPage() {
         </DialogContent>
       </Dialog>
 
+      <Dialog open={showAssignmentModal} onOpenChange={setShowAssignmentModal}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Assign Salesperson</DialogTitle>
+            <DialogDescription>
+              Add an optional note about this assignment
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div>
+              <label className="text-sm font-medium text-gray-700">
+                Assigned To
+              </label>
+              <Select
+                value={assigningEmployeeId}
+                onValueChange={setAssigningEmployeeId}
+              >
+                <SelectTrigger className="mt-1">
+                  <SelectValue placeholder="Select salesperson" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="0">Unassigned</SelectItem>
+                  {employees.map((emp) => (
+                    <SelectItem key={emp.employee_id} value={emp.employee_id.toString()}>
+                      {emp.employee_name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div>
+              <label className="text-sm font-medium text-gray-700">
+                Assignment Notes (Optional)
+              </label>
+              <Textarea
+                className="mt-1"
+                placeholder="Why is this being assigned? Any specific instructions..."
+                value={assignmentNotes}
+                onChange={(e) => setAssignmentNotes(e.target.value)}
+                rows={3}
+              />
+            </div>
+          </div>
+
+          <div className="flex justify-end gap-2 mt-4">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowAssignmentModal(false);
+                setAssigningEmployeeId("");
+                setAssignmentNotes("");
+              }}
+              disabled={isAssigningEmployee}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleAssignEmployee}
+              disabled={isAssigningEmployee}
+            >
+              {isAssigningEmployee ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Assigning...
+                </>
+              ) : (
+                "Assign"
+              )}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       {/* ✅ SIMPLE ACTION PANEL (Right Side) - Direct Form, No Modal */}
       <div className="fixed right-0 top-0 h-full w-80 border-l border-gray-200 bg-gray-50 p-6 overflow-y-auto">
         <h3 className="mb-4 text-lg font-semibold text-gray-900">Action</h3>
@@ -1716,13 +1823,20 @@ export default function EnergyCustomerDetailsPage() {
           <div>
             <label className="text-sm font-medium text-gray-700">Assign to:</label>
             <Select
-              value={customer.assigned_to_id?.toString() || ""}
-              onValueChange={(value) => updateAssignedTo(parseInt(value))}
+              value={customer.assigned_to_id?.toString() || "0"}
+              onValueChange={(value) => {
+                setAssigningEmployeeId(value);
+                setAssignmentNotes("");
+                setShowAssignmentModal(true);
+              }}
             >
               <SelectTrigger className="mt-1">
-                <SelectValue placeholder="Unassigned" />
+                <SelectValue placeholder="Unassigned">
+                  {customer.assigned_to_name || "Unassigned"}
+                </SelectValue>
               </SelectTrigger>
               <SelectContent>
+                <SelectItem value="0">Unassigned</SelectItem>
                 {employees.map((employee) => (
                   <SelectItem key={employee.employee_id} value={employee.employee_id.toString()}>
                     {employee.employee_name}
@@ -1737,38 +1851,47 @@ export default function EnergyCustomerDetailsPage() {
             <label className="text-sm font-medium text-gray-700">
               Status: <span className="text-red-500">*</span>
             </label>
-            <Select 
-              value={callbackStatus} 
+            <Select
+              value={callbackStatus}
               onValueChange={(value) => {
                 if (value === "CLEAR_STATUS") {
                   handleClearStatus();
                 } else {
                   setCallbackStatus(value);
                   setCallbackDate("");
-                  setIsSold("");
+                  setCallbackNotes("");
+                  setIsSold(undefined);
                   setNewEndDate("");
-                  setCallbackError("");
+                  setNewSupplier("");
+                  setNewAddress("");
                 }
               }}
             >
-              <SelectTrigger className="mt-1">
-                <SelectValue placeholder="Select status" />
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="Set status" />
               </SelectTrigger>
               <SelectContent>
+                <SelectItem value="Callback">Callback</SelectItem>
+                <SelectItem value="Called">Called</SelectItem>
+                <SelectItem value="Not Answered">Not Answered</SelectItem>
+                <SelectItem value="Priced">Priced</SelectItem>
+                <SelectItem value="Lost">Lost</SelectItem>
+                <SelectItem value="Lost COT">Lost COT</SelectItem>
+                <SelectItem value="Already Renewed">Already Renewed</SelectItem>
+                <SelectItem value="Invalid Number">Invalid Number</SelectItem>
+                <SelectItem value="Meter De-energised">Meter De-energised</SelectItem>
+                <SelectItem value="Broker in Place">Broker in Place</SelectItem>
+                <SelectItem value="End Date Changed">End Date Changed</SelectItem>
+                
+                {/* ✅ Clear Status at the BOTTOM - use customer.status */}
                 {customer.status && (
                   <>
-                    <SelectItem value="CLEAR_STATUS" className="text-red-600 font-medium">
+                    <div className="border-t my-1" />
+                    <SelectItem value="CLEAR_STATUS" className="text-red-600">
                       ✕ Clear Status
                     </SelectItem>
-                    <div className="border-b my-1"></div>
                   </>
                 )}
-                
-                {STATUS_OPTIONS.map((option) => (
-                  <SelectItem key={option.value} value={option.value}>
-                    {option.label}
-                  </SelectItem>
-                ))}
               </SelectContent>
             </Select>
 

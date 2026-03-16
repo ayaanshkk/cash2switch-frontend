@@ -4,7 +4,7 @@ import { useState } from "react";
 import { UserPlus, ClipboardList, Calendar } from "lucide-react";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { CreateCustomerModal } from "@/components/ui/CreateCustomerModal";
+import { CreateCustomerModal } from "@/components/ui/AddEnergyClientModal";
 import { useRouter } from "next/navigation";
 
 export function QuickActions() {

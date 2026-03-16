@@ -30,6 +30,7 @@ import { Badge } from "@/components/ui/badge";
 import { toast, Toaster } from 'react-hot-toast';
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Textarea } from "@/components/ui/textarea";
+import { AddEnergyClientModal } from "@/components/ui/AddEnergyClientModal";
 
 // ---------------- Constants ----------------
 const CUSTOMERS_PER_PAGE = 25;
@@ -78,6 +79,7 @@ interface EnergyCustomer {
   id: number;
   client_id: number;
   display_id?: number;
+  display_order?: number;
   name: string;
   business_name: string;
   contact_person: string;
@@ -105,6 +107,7 @@ interface EnergyCustomer {
   // Assignment
   assigned_to_id?: number;
   assigned_to_name?: string;
+  assignment_notes?: string;
   
   created_at: string;
 
@@ -266,7 +269,17 @@ export default function EnergyCustomersPage() {
     errors: string[];
     assigned_to?: string;
   } | null>(null);
+  const [showBulkAssignModal, setShowBulkAssignModal] = useState(false);
+  const [bulkAssignEmployeeId, setBulkAssignEmployeeId] = useState<number | null>(null);
+  const [bulkAssignEmployeeName, setBulkAssignEmployeeName] = useState("");
+  const [bulkAssignmentNotes, setBulkAssignmentNotes] = useState("");
+  const [isBulkAssigning, setIsBulkAssigning] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [showAssignModal, setShowAssignModal] = useState(false);
+  const [assigningCustomerId, setAssigningCustomerId] = useState<number | null>(null);
+  const [assignToEmployeeId, setAssignToEmployeeId] = useState<string>("");
+  const [assignmentNotes, setAssignmentNotes] = useState("");
+  const [isAssigning, setIsAssigning] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [error, setError] = useState<string | null>(null);
   const [selectedCustomers, setSelectedCustomers] = useState<number[]>([]);
@@ -294,7 +307,9 @@ export default function EnergyCustomersPage() {
   const [isSubmittingCallback, setIsSubmittingCallback] = useState(false);
   const [callbackError, setCallbackError] = useState("");
   const [newSupplier, setNewSupplier] = useState("");
-  const [newAddress, setNewAddress] = useState(""); 
+  const [newAddress, setNewAddress] = useState("");
+  const [usageSort, setUsageSort] = useState<"none" | "low-high" | "high-low">("none");
+  const [endDateFilter, setEndDateFilter] = useState<"all" | "30" | "60" | "90" | "90+">("all"); 
 
   const router = useRouter();
   const { user } = useAuth();
@@ -316,7 +331,7 @@ export default function EnergyCustomersPage() {
   // Reset page when filters/search change
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchTerm, supplierFilter, statusFilter]);
+  }, [searchTerm, supplierFilter, statusFilter, usageSort, endDateFilter]);
 
   // ---------------- Fetch Functions ----------------
   const fetchCustomers = async () => {
@@ -459,7 +474,7 @@ export default function EnergyCustomersPage() {
 
   // ✅ Apply filters
   const filteredCustomers = useMemo(() => {
-    return sortedCustomers.filter((customer) => {
+    let filtered = sortedCustomers.filter((customer) => {
       const term = searchTerm.toLowerCase();
       const matchesSearch =
         (customer.business_name || "").toLowerCase().includes(term) ||
@@ -471,9 +486,48 @@ export default function EnergyCustomersPage() {
       const matchesSupplier = supplierFilter === "All" || customer.supplier_id === supplierFilter;
       const matchesStatus = statusFilter === "All" || customer.status === statusFilter;
 
-      return matchesSearch && matchesSupplier && matchesStatus;
+      // ✅ NEW: End date filter
+      let matchesEndDate = true;
+      if (endDateFilter !== "all" && customer.end_date) {
+        const today = new Date();
+        const endDate = new Date(customer.end_date);
+        const daysUntilEnd = Math.ceil((endDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+        
+        switch (endDateFilter) {
+          case "30":
+            matchesEndDate = daysUntilEnd >= 0 && daysUntilEnd <= 30;
+            break;
+          case "60":
+            matchesEndDate = daysUntilEnd > 30 && daysUntilEnd <= 60;
+            break;
+          case "90":
+            matchesEndDate = daysUntilEnd > 60 && daysUntilEnd <= 90;
+            break;
+          case "90+":
+            matchesEndDate = daysUntilEnd > 90;
+            break;
+        }
+      }
+
+      return matchesSearch && matchesSupplier && matchesStatus && matchesEndDate;
     });
-  }, [sortedCustomers, searchTerm, supplierFilter, statusFilter]);
+
+    // ✅ NEW: Apply usage sort
+    if (usageSort !== "none") {
+      filtered = [...filtered].sort((a, b) => {
+        const aUsage = a.annual_usage || 0;
+        const bUsage = b.annual_usage || 0;
+        
+        if (usageSort === "low-high") {
+          return aUsage - bUsage; // Ascending
+        } else {
+          return bUsage - aUsage; // Descending
+        }
+      });
+    }
+
+    return filtered;
+  }, [sortedCustomers, searchTerm, supplierFilter, statusFilter, endDateFilter, usageSort]);
 
   const isFromSearch = (customer: EnergyCustomer) => {
     const isAdmin = user?.role === "Platform Admin" || user?.role === "Tenant Super Admin";
@@ -698,6 +752,59 @@ export default function EnergyCustomersPage() {
     }
   };
 
+  const handleAssignWithNotes = async () => {
+    if (!assigningCustomerId) return;
+
+    setIsAssigning(true);
+    try {
+      const payload: any = {
+        assigned_to_id: assignToEmployeeId === "0" ? null : parseInt(assignToEmployeeId),
+      };
+
+      if (assignmentNotes.trim()) {
+        payload.assignment_notes = assignmentNotes.trim();
+      }
+
+      const response = await fetchWithAuth(`/energy-clients/${assigningCustomerId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      if (response && !response.error) {
+        // ✅ Update local state with assignment notes
+        setAllCustomers((prev) =>
+          prev.map((c) =>
+            c.client_id === assigningCustomerId
+              ? {
+                  ...c,
+                  assigned_to_id: assignToEmployeeId === "0" ? null : parseInt(assignToEmployeeId),
+                  assigned_to_name: assignToEmployeeId === "0" 
+                    ? null
+                    : employees.find((e) => e.employee_id === parseInt(assignToEmployeeId))?.employee_name || null,
+                  assignment_notes: assignmentNotes.trim() || undefined,  // ✅ ADD THIS
+                }
+              : c
+          )
+        );
+
+        toast.success("✅ Salesperson assigned successfully");
+        
+        setShowAssignModal(false);
+        setAssignToEmployeeId("");
+        setAssignmentNotes("");
+        setAssigningCustomerId(null);
+      } else {
+        toast.error(response?.error || "Failed to assign salesperson");
+      }
+    } catch (error) {
+      console.error("Assignment error:", error);
+      toast.error("Failed to assign salesperson");
+    } finally {
+      setIsAssigning(false);
+    }
+  };
+
   // ---------------- Delete Customer ----------------
   const deleteCustomer = async (id: number) => {
     if (!user) {
@@ -748,41 +855,65 @@ export default function EnergyCustomersPage() {
   };
 
   // ✅ Bulk assign
-  const bulkAssignToEmployee = async (employeeId: number, employeeName: string) => {
-    if (selectedCustomers.length === 0) {
-      alert("Please select customers to assign");
+  const handleBulkAssignWithNotes = async () => {
+    if (selectedCustomers.length === 0 || !bulkAssignEmployeeId) {
+      toast.error("Please select customers and a salesperson");
       return;
     }
 
-    if (!window.confirm(`Assign ${selectedCustomers.length} client(s) to ${employeeName}?`)) {
-      return;
-    }
+    setIsBulkAssigning(true);
 
     try {
       const customerIdsToAssign = selectedCustomers
         .map(displayId => allCustomers.find(c => c.id === displayId)?.client_id)
         .filter((id): id is number => id !== undefined);
 
-      console.log(`🚀 Bulk assigning ${customerIdsToAssign.length} clients to ${employeeName}`);
+      console.log(`🚀 Bulk assigning ${customerIdsToAssign.length} clients to ${bulkAssignEmployeeName}`);
 
-      const response = await fetchWithAuth('/api/bulk-assign-optimized', {
+      const payload: any = {
+        client_ids: customerIdsToAssign,
+        employee_id: bulkAssignEmployeeId,
+      };
+
+      // ✅ Add notes if provided
+      if (bulkAssignmentNotes.trim()) {
+        payload.assignment_notes = bulkAssignmentNotes.trim();
+      }
+
+      const response = await fetchWithAuth('/energy-clients/bulk-assign', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          client_ids: customerIdsToAssign,
-          employee_id: employeeId,
-        }),
+        body: JSON.stringify(payload),
       });
 
       if (response.success) {
         toast.success(`✅ ${response.updated_count} clients assigned to ${response.employee_name}`);
         
-        setAllCustomers((prev) => 
-          prev.filter((c) => !customerIdsToAssign.includes(c.client_id))
-        );
+        // For salespeople: Remove assigned customers from their view
+        if (!isAdmin) {
+          setAllCustomers((prev) => 
+            prev.filter((c) => !customerIdsToAssign.includes(c.client_id))
+          );
+        } else {
+          // Admin: Update assignment in place
+          setAllCustomers((prev) => 
+            prev.map((c) => 
+              customerIdsToAssign.includes(c.client_id)
+                ? {
+                    ...c,
+                    assigned_to_id: bulkAssignEmployeeId,
+                    assigned_to_name: bulkAssignEmployeeName,
+                    assignment_notes: bulkAssignmentNotes.trim() || undefined,
+                  }
+                : c
+            )
+          );
+        }
         
         setSelectedCustomers([]);
         setIsSelectAllChecked(false);
+        setShowBulkAssignModal(false);
+        setBulkAssignmentNotes("");
         
         if (isAdmin) {
           fetchEmployeeStats();
@@ -791,6 +922,8 @@ export default function EnergyCustomersPage() {
     } catch (err) {
       console.error("Bulk assign error:", err);
       toast.error("❌ Error assigning customers");
+    } finally {
+      setIsBulkAssigning(false);
     }
   };
 
@@ -1182,7 +1315,7 @@ export default function EnergyCustomersPage() {
         </div>
       )}
 
-      {selectedCustomers.length > 0 && (user?.role === "Platform Admin" || user?.role === "Tenant Super Admin") && (
+      {selectedCustomers.length > 0 && (
         <div className="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
@@ -1212,7 +1345,13 @@ export default function EnergyCustomersPage() {
                 variant="outline"
                 size="sm"
                 className="hover:bg-blue-100 hover:border-blue-400"
-                onClick={() => bulkAssignToEmployee(employee.employee_id, employee.employee_name)}
+                onClick={() => {
+                  // ✅ Open modal instead of direct assignment
+                  setBulkAssignEmployeeId(employee.employee_id);
+                  setBulkAssignEmployeeName(employee.employee_name);
+                  setBulkAssignmentNotes("");
+                  setShowBulkAssignModal(true);
+                }}
               >
                 <Users className="h-4 w-4 mr-2" />
                 Assign to {employee.employee_name}
@@ -1221,6 +1360,7 @@ export default function EnergyCustomersPage() {
           </div>
         </div>
       )}
+
 
       {/* Search and Filter Bar */}
       <div className="mb-6 flex flex-wrap gap-3 justify-between">
@@ -1240,6 +1380,7 @@ export default function EnergyCustomersPage() {
             )}
           </div>
 
+          {/* Supplier Filter */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="outline">
@@ -1263,6 +1404,7 @@ export default function EnergyCustomersPage() {
             </DropdownMenuContent>
           </DropdownMenu>
 
+          {/* Status Filter */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="outline">
@@ -1285,6 +1427,32 @@ export default function EnergyCustomersPage() {
               ))}
             </DropdownMenuContent>
           </DropdownMenu>
+
+          {/* ✅ NEW: Contract End Date Filter */}
+          <Select value={endDateFilter} onValueChange={(value: any) => setEndDateFilter(value)}>
+            <SelectTrigger className="w-52">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Contracts</SelectItem>
+              <SelectItem value="30">Ending in 30 days</SelectItem>
+              <SelectItem value="60">Ending in 31-60 days</SelectItem>
+              <SelectItem value="90">Ending in 61-90 days</SelectItem>
+              <SelectItem value="90+">Ending in 90+ days</SelectItem>
+            </SelectContent>
+          </Select>
+
+          {/* ✅ NEW: Annual Usage Sort */}
+          <Select value={usageSort} onValueChange={(value: any) => setUsageSort(value)}>
+            <SelectTrigger className="w-48">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="none">Usage: Default</SelectItem>
+              <SelectItem value="low-high">Usage: Low to High</SelectItem>
+              <SelectItem value="high-low">Usage: High to Low</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
 
         <div className="flex gap-2">
@@ -1293,15 +1461,6 @@ export default function EnergyCustomersPage() {
               <Button onClick={bulkDeleteCustomers} variant="destructive">
                 <Trash2 className="mr-2 h-4 w-4" />
                 Delete Selected ({selectedCustomers.length})
-              </Button>
-              
-              <Button 
-                onClick={deleteAllAndReset}
-                variant="destructive"
-                className="bg-red-600 hover:bg-red-700"
-              >
-                <Trash2 className="mr-2 h-4 w-4" />
-                Delete All & Reset
               </Button>
             </>
           )}
@@ -1369,6 +1528,9 @@ export default function EnergyCustomersPage() {
                 <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase w-36">
                   Assigned To
                 </th>
+                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase w-48">
+                  Notes
+                </th>
               </tr>
             </thead>
 
@@ -1399,7 +1561,7 @@ export default function EnergyCustomersPage() {
               ) : (
                 paginatedCustomers.map((customer, idx) => {
                   const isSelected = selectedCustomers.includes(customer.id);
-                  const displayId = (currentPage - 1) * CUSTOMERS_PER_PAGE + idx + 1;
+                  const displayId = customer.display_order || customer.display_id || customer.id;
                   const fromSearch = isFromSearch(customer);
                   const isArchived = customer.is_archived === true;
                   
@@ -1464,7 +1626,7 @@ export default function EnergyCustomersPage() {
                       {/* ✅ ID - text-sm font-medium */}
                       <td className="px-2 py-3 text-sm font-medium text-gray-900 border-r-2 border-gray-300 align-top">
                         <div className="flex items-center gap-1">
-                          {customer.display_id || customer.id}
+                          {displayId}
                           {fromSearch && (
                             <span title="From team search" className="inline-flex">
                               <Info className="h-3 w-3 text-amber-600" />
@@ -1569,48 +1731,60 @@ export default function EnergyCustomersPage() {
                             </SelectValue>
                           </SelectTrigger>
                           <SelectContent>
-                            {customer.status && (
-                              <>
-                                <SelectItem value="CLEAR_STATUS" className="text-red-600 font-medium">
-                                  ✕ Clear Status
-                                </SelectItem>
-                                <div className="border-b my-1"></div>
-                              </>
-                            )}
-                            
+                            {/* ✅ Status options first */}
                             {STATUS_OPTIONS.map((option) => (
                               <SelectItem key={option.value} value={option.value}>
                                 {option.label}
                               </SelectItem>
                             ))}
+                            
+                            {/* ✅ Clear Status at the BOTTOM */}
+                            {customer.status && (
+                              <>
+                                <div className="border-t my-1"></div>
+                                <SelectItem value="CLEAR_STATUS" className="text-red-600 font-medium">
+                                  ✕ Clear Status
+                                </SelectItem>
+                              </>
+                            )}
                           </SelectContent>
                         </Select>
                       </td>
 
                       {/* Assigned To dropdown - unchanged */}
                       <td className="px-3 py-3 align-top" onClick={(e) => e.stopPropagation()}>
-                        {fromSearch ? (
-                          <div className="text-xs text-amber-700 font-medium px-2 py-1 bg-amber-100 rounded">
-                            {customer.assigned_to_name || 'Unassigned'}
+                        <Select
+                          value={customer.assigned_to_id?.toString() || "0"}
+                          onValueChange={(value) => {
+                            setAssigningCustomerId(customer.client_id);
+                            setAssignToEmployeeId(value);
+                            setShowAssignModal(true);
+                          }}
+                          disabled={isArchived}
+                        >
+                          <SelectTrigger className="h-7 text-xs w-full">
+                            <SelectValue placeholder="Assign">
+                              {customer.assigned_to_name || "Unassigned"}
+                            </SelectValue>
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="0">Unassigned</SelectItem>
+                            {employees.map((emp) => (
+                              <SelectItem key={emp.employee_id} value={emp.employee_id.toString()}>
+                                {emp.employee_name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </td>
+
+                      <td className="px-3 py-3 align-top text-sm text-gray-600">
+                        {!isAdmin && customer.assigned_to_id === user?.id ? (
+                          <div className="max-w-[250px] break-words whitespace-normal leading-tight">
+                            {customer.assignment_notes || "—"}
                           </div>
                         ) : (
-                          <Select
-                            value={customer.assigned_to_id?.toString() || ""}
-                            onValueChange={(value) => updateAssignedTo(customer.client_id, parseInt(value))}
-                          >
-                            <SelectTrigger className="h-7 text-xs w-full max-w-[130px]">
-                              <SelectValue placeholder="Assign">
-                                <span className="truncate text-xs">{customer.assigned_to_name || "—"}</span>
-                              </SelectValue>
-                            </SelectTrigger>
-                            <SelectContent>
-                              {employees.map((employee) => (
-                                <SelectItem key={employee.employee_id} value={employee.employee_id.toString()}>
-                                  {employee.employee_name}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
+                          <div className="text-gray-400">—</div>
                         )}
                       </td>
                     </tr>
@@ -1757,6 +1931,16 @@ export default function EnergyCustomersPage() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* ✅ ADD ENERGY CLIENT MODAL */}
+      <AddEnergyClientModal
+        isOpen={showCreateModal}
+        onClose={() => setShowCreateModal(false)}
+        onClientCreated={fetchCustomers}
+        service={service}
+        suppliers={suppliers}
+        employees={employees}
+      />
 
       {/* ✅ CALLBACK MODAL - Same as customer details page */}
       <Dialog open={showCallbackModal} onOpenChange={setShowCallbackModal}>
@@ -1908,6 +2092,151 @@ export default function EnergyCustomersPage() {
                 </>
               ) : (
                 callbackStatus ? `Save ${callbackStatus}` : "Save"
+              )}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showAssignModal} onOpenChange={setShowAssignModal}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Assign Salesperson</DialogTitle>
+            <DialogDescription>
+              Add an optional note about this assignment
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div>
+              <label className="text-sm font-medium text-gray-700">
+                Assigned To
+              </label>
+              <Select
+                value={assignToEmployeeId}
+                onValueChange={setAssignToEmployeeId}
+              >
+                <SelectTrigger className="mt-1">
+                  <SelectValue placeholder="Select salesperson" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="0">Unassigned</SelectItem>  {/* ✅ Use "0" instead of "" */}
+                  {employees.map((emp) => (
+                    <SelectItem key={emp.employee_id} value={emp.employee_id.toString()}>
+                      {emp.employee_name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div>
+              <label className="text-sm font-medium text-gray-700">
+                Assignment Notes (Optional)
+              </label>
+              <Textarea
+                className="mt-1"
+                placeholder="Why is this being assigned? Any specific instructions..."
+                value={assignmentNotes}
+                onChange={(e) => setAssignmentNotes(e.target.value)}
+                rows={3}
+              />
+            </div>
+          </div>
+
+          <div className="flex justify-end gap-2 mt-4">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowAssignModal(false);
+                setAssignToEmployeeId("");
+                setAssignmentNotes("");
+                setAssigningCustomerId(null);
+              }}
+              disabled={isAssigning}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleAssignWithNotes}
+              disabled={isAssigning}
+            >
+              {isAssigning ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Assigning...
+                </>
+              ) : (
+                "Assign"
+              )}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showBulkAssignModal} onOpenChange={setShowBulkAssignModal}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Bulk Assign Customers</DialogTitle>
+            <DialogDescription>
+              Assign {selectedCustomers.length} customer(s) to {bulkAssignEmployeeName}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+              <div className="flex items-center gap-2 mb-2">
+                <UserCheck className="h-4 w-4 text-blue-600" />
+                <span className="text-sm font-medium text-blue-900">
+                  {selectedCustomers.length} customer{selectedCustomers.length !== 1 ? 's' : ''} selected
+                </span>
+              </div>
+              <div className="text-sm text-blue-700">
+                Assigning to: <strong>{bulkAssignEmployeeName}</strong>
+              </div>
+            </div>
+
+            <div>
+              <label className="text-sm font-medium text-gray-700">
+                Assignment Notes (Optional)
+              </label>
+              <Textarea
+                className="mt-1"
+                placeholder="Why are these being assigned? Any specific instructions..."
+                value={bulkAssignmentNotes}
+                onChange={(e) => setBulkAssignmentNotes(e.target.value)}
+                rows={3}
+              />
+              <p className="text-xs text-gray-500 mt-1">
+                This note will be added to all {selectedCustomers.length} customer{selectedCustomers.length !== 1 ? 's' : ''}
+              </p>
+            </div>
+          </div>
+
+          <div className="flex justify-end gap-2 mt-4">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowBulkAssignModal(false);
+                setBulkAssignmentNotes("");
+                setBulkAssignEmployeeId(null);
+                setBulkAssignEmployeeName("");
+              }}
+              disabled={isBulkAssigning}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleBulkAssignWithNotes}
+              disabled={isBulkAssigning}
+            >
+              {isBulkAssigning ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Assigning...
+                </>
+              ) : (
+                `Assign ${selectedCustomers.length} Customer${selectedCustomers.length !== 1 ? 's' : ''}`
               )}
             </Button>
           </div>

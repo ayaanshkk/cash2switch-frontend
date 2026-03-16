@@ -24,6 +24,7 @@ import {
   ChevronFirst,
   Info,
   AlertCircle,
+  Users,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import {
@@ -81,6 +82,12 @@ interface Supplier {
   supplier_name: string;
 }
 
+interface Employee {
+  employee_id: number;
+  employee_name: string;
+  email?: string;
+}
+
 const formatDate = (dateString?: string) => {
   if (!dateString) return "—";
   try {
@@ -99,8 +106,12 @@ export default function ArchivesPage() {
   const router = useRouter();
   const { user } = useAuth();
 
+  const isAdmin = user?.role === "Platform Admin" || user?.role === "Tenant Super Admin";
+
+
   const [allCustomers, setAllCustomers] = useState<EnergyCustomer[]>([]);
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
+  const [employees, setEmployees] = useState<Employee[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
@@ -108,15 +119,24 @@ export default function ArchivesPage() {
   const [selectedService, setSelectedService] = useState("utilities");
   const [isRestoring, setIsRestoring] = useState<number | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
+  const [sortOrder, setSortOrder] = useState<"newest" | "oldest">("newest");
+  const [salespersonFilter, setSalespersonFilter] = useState<number | "All">("All");
 
   useEffect(() => {
     loadArchives();
     fetchSuppliers();
+    fetchEmployees();
   }, [selectedService]);
 
   useEffect(() => {
+  if (isAdmin) {
+    loadArchives();
+  }
+}, [salespersonFilter]);
+
+  useEffect(() => {
     setCurrentPage(1);
-  }, [searchTerm, supplierFilter]);
+  }, [searchTerm, supplierFilter, sortOrder, salespersonFilter]);
 
   const loadArchives = async () => {
     setLoading(true);
@@ -124,16 +144,41 @@ export default function ArchivesPage() {
     const token = localStorage.getItem("auth_token");
 
     try {
-      const response = await fetch(
-        `${API_BASE_URL}/energy-clients/archives?service=${selectedService}`,
-        {
-          headers: { Authorization: `Bearer ${token}` },
-        }
-      );
+      // ✅ Build query params
+      const params = new URLSearchParams({ service: selectedService });
+      
+      // ✅ Add salesperson filter if admin AND filter is not "All"
+      if (isAdmin && salespersonFilter !== "All") {
+        params.append("salesperson", salespersonFilter.toString());
+      }
+
+      const url = `${API_BASE_URL}/energy-clients/archives?${params.toString()}`;
+      
+      // ✅ DEBUG LOGS
+      console.log("🔍 Loading archives with:");
+      console.log("  - isAdmin:", isAdmin);
+      console.log("  - salespersonFilter:", salespersonFilter);
+      console.log("  - URL:", url);
+
+      const response = await fetch(url, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
 
       if (!response.ok) throw new Error("Failed to load archives");
 
       const data = await response.json();
+      
+      // ✅ DEBUG LOG
+      console.log("✅ Received archives:", data.length, "records");
+      if (data.length > 0) {
+        console.log("  - First record assigned_to:", data[0].assigned_to_name);
+        console.log("  - Sample assigned_to IDs:", data.slice(0, 3).map((c: any) => ({
+          id: c.client_id,
+          assigned_to_id: c.assigned_to_id,
+          assigned_to_name: c.assigned_to_name
+        })));
+      }
+      
       setAllCustomers(data);
     } catch (error) {
       console.error("Error loading archives:", error);
@@ -144,6 +189,7 @@ export default function ArchivesPage() {
       setLoading(false);
     }
   };
+
 
   const fetchSuppliers = async () => {
     try {
@@ -159,13 +205,39 @@ export default function ArchivesPage() {
     }
   };
 
+  // ✅ ADD THIS FUNCTION
+  const fetchEmployees = async () => {
+    try {
+      const token = localStorage.getItem("auth_token");
+      const response = await fetch(`${API_BASE_URL}/employees`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await response.json();
+      const employeesList = Array.isArray(data.data)
+        ? data.data
+        : Array.isArray(data)
+        ? data
+        : [];
+      setEmployees(employeesList);
+    } catch (err) {
+      console.error("❌ Error fetching employees:", err);
+      setEmployees([]);
+    }
+  };
+
   const sortedCustomers = useMemo(() => {
     return [...allCustomers].sort((a, b) => {
-      const aDate = new Date(a.archived_at || 0).getTime();
-      const bDate = new Date(b.archived_at || 0).getTime();
-      return bDate - aDate; // Newest archived first
+      // ✅ Sort by contract end date instead of archived date
+      const aDate = new Date(a.end_date || 0).getTime();
+      const bDate = new Date(b.end_date || 0).getTime();
+      
+      if (sortOrder === "newest") {
+        return bDate - aDate; // Newest end date first
+      } else {
+        return aDate - bDate; // Oldest end date first
+      }
     });
-  }, [allCustomers]);
+  }, [allCustomers, sortOrder]);
 
   const filteredCustomers = useMemo(() => {
     return sortedCustomers.filter((customer) => {
@@ -368,7 +440,7 @@ export default function ArchivesPage() {
         </div>
       )}
 
-      {/* Search and Filter Bar */}
+      {/* ✅ NEW: Search and Filter Bar with Sort AND Salesperson Filter */}
       <div className="mb-6 flex flex-wrap gap-3 justify-between">
         <div className="flex flex-wrap gap-3">
           <div className="relative w-64">
@@ -381,6 +453,7 @@ export default function ArchivesPage() {
             />
           </div>
 
+          {/* Supplier Filter */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="outline">
@@ -403,6 +476,45 @@ export default function ArchivesPage() {
               ))}
             </DropdownMenuContent>
           </DropdownMenu>
+
+          {/* ✅ NEW: Salesperson Filter (Admin Only) */}
+          {isAdmin && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline">
+                  <Users className="mr-2 h-4 w-4" />
+                  {salespersonFilter === "All" 
+                    ? "All Salespeople" 
+                    : employees.find(e => e.employee_id === salespersonFilter)?.employee_name || "All Salespeople"}
+                  <ChevronDown className="ml-1 h-3 w-3" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent>
+                <DropdownMenuItem onClick={() => setSalespersonFilter("All")}>
+                  All Salespeople
+                </DropdownMenuItem>
+                {employees.map(employee => (
+                  <DropdownMenuItem 
+                    key={employee.employee_id} 
+                    onClick={() => setSalespersonFilter(employee.employee_id)}
+                  >
+                    {employee.employee_name}
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
+
+          {/* Sort Filter */}
+          <Select value={sortOrder} onValueChange={(value: "newest" | "oldest") => setSortOrder(value)}>
+            <SelectTrigger className="w-40">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="newest">Newest First</SelectItem>
+              <SelectItem value="oldest">Oldest First</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
 
         <div className="flex gap-2">
@@ -497,93 +609,105 @@ export default function ArchivesPage() {
                     className="hover:bg-gray-50 transition-colors cursor-pointer"
                     onClick={() => handleViewDetails(customer.client_id)}
                   >
+                    {/* ID Column - matches renewals exactly */}
                     <td className="px-2 py-3 text-sm font-medium text-gray-900 border-r-2 border-gray-300 align-top">
-                    {customer.display_id || customer.tenant_client_id || customer.id}
+                      {customer.display_id || customer.tenant_client_id || customer.id}
                     </td>
 
+                    {/* Client Name - matches renewals exactly */}
                     <td className="px-3 py-3 text-sm text-gray-700 align-top">
                       <div className="break-words max-w-[120px] leading-tight">
                         {customer.contact_person}
                       </div>
                     </td>
 
+                    {/* Trading Name - matches renewals exactly */}
                     <td className="px-3 py-3 text-sm text-gray-900 align-top">
-                    <div className="flex items-start gap-1">
+                      <div className="flex items-start gap-1">
                         <span className="break-words max-w-[160px] leading-tight">
-                        {customer.business_name}
+                          {customer.business_name}
                         </span>
-                    </div>
+                      </div>
                     </td>
 
+                    {/* Phone - matches renewals exactly */}
                     <td className="px-3 py-3 text-sm text-gray-900 align-top">
                       <div className="whitespace-nowrap">
                         {customer.phone ? String(customer.phone).replace(/\.0$/, '') : '—'}
                       </div>
                     </td>
 
-                    <td className="px-3 py-3 text-xs font-mono text-gray-900 align-top">
-                      <div className="break-all max-w-[120px] leading-tight">
+                    {/* MPAN Top - matches renewals exactly */}
+                    <td className="px-3 py-3 text-sm text-gray-900 align-top">
+                      <div className="whitespace-nowrap">
                         {customer.mpan_top || "—"}
                       </div>
                     </td>
 
-                    <td className="px-3 py-3 text-xs font-mono text-gray-900 align-top">
-                      <div className="break-all max-w-[90px] leading-tight">
+                    {/* MPAN Bottom - matches renewals exactly */}
+                    <td className="px-3 py-3 text-sm text-gray-900 align-top">
+                      <div className="whitespace-nowrap">
                         {customer.mpan_bottom || "—"}
                       </div>
                     </td>
 
-                    <td className="px-3 py-3 text-xs text-gray-900 align-top">
+                    {/* Supplier - matches renewals exactly */}
+                    <td className="px-3 py-3 text-sm text-gray-900 align-top">
                       <div className="break-words max-w-[120px] leading-tight">
                         {customer.supplier_name || "—"}
                       </div>
                     </td>
 
-                    <td className="px-3 py-3 text-xs text-gray-900 text-right align-top">
+                    {/* Annual Usage - matches renewals exactly */}
+                    <td className="px-3 py-3 text-sm text-gray-900 text-right align-top">
                       <div className="whitespace-nowrap">
                         {customer.annual_usage ? customer.annual_usage.toLocaleString() : "—"}
                       </div>
                     </td>
 
-                    <td className="px-3 py-3 text-xs text-gray-700 align-top">
+                    {/* Contract End - matches renewals exactly */}
+                    <td className="px-3 py-3 text-sm text-gray-700 align-top">
                       <div className="whitespace-nowrap">{formatDate(customer.end_date)}</div>
                     </td>
 
-                    <td className="px-3 py-3 text-xs text-gray-700 align-top">
+                    {/* Archived Date - matches renewals exactly */}
+                    <td className="px-3 py-3 text-sm text-gray-700 align-top">
                       <div className="whitespace-nowrap">{formatDate(customer.archived_at)}</div>
                     </td>
 
-                    <td className="px-3 py-3 text-xs text-gray-600 align-top">
+                    {/* Reason - matches renewals exactly */}
+                    <td className="px-3 py-3 text-sm text-gray-600 align-top">
                       <div className="max-w-[240px] leading-tight" title={customer.archived_reason}>
                         {customer.archived_reason || "—"}
                       </div>
                     </td>
 
+                    {/* Actions - same as before */}
                     <td className="px-3 py-3 align-top" onClick={(e) => e.stopPropagation()}>
-                    <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2">
                         <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleViewDetails(customer.client_id)}
-                        title="View Details"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleViewDetails(customer.client_id)}
+                          title="View Details"
                         >
-                        <Eye className="h-4 w-4" />
+                          <Eye className="h-4 w-4" />
                         </Button>
                         <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleUnarchive(customer.client_id)}
-                        disabled={isRestoring === customer.client_id}
-                        title="Restore from Archives"
-                        className="text-green-600 hover:text-green-700 hover:bg-green-50"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleUnarchive(customer.client_id)}
+                          disabled={isRestoring === customer.client_id}
+                          title="Restore from Archives"
+                          className="text-green-600 hover:text-green-700 hover:bg-green-50"
                         >
-                        {isRestoring === customer.client_id ? (
+                          {isRestoring === customer.client_id ? (
                             <Loader2 className="h-4 w-4 animate-spin" />
-                        ) : (
+                          ) : (
                             <ArchiveRestore className="h-4 w-4" />
-                        )}
+                          )}
                         </Button>
-                    </div>
+                      </div>
                     </td>
                   </tr>
                 ))

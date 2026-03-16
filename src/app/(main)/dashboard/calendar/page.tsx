@@ -48,6 +48,10 @@ export default function CalendarPage() {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedRenewal, setSelectedRenewal] = useState<Renewal | null>(null);
   const [showDetailDialog, setShowDetailDialog] = useState(false);
+  const [selectedDayRenewals, setSelectedDayRenewals] = useState<Renewal[]>([]);
+  const [showDayEventsDialog, setShowDayEventsDialog] = useState(false);
+  const [showMonthPicker, setShowMonthPicker] = useState(false);
+
   
   // ✅ Employee filter states
   const [employees, setEmployees] = useState<Employee[]>([]);
@@ -101,6 +105,18 @@ export default function CalendarPage() {
     };
     loadEmployees();
   }, [isAdmin]);
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      if (showMonthPicker && !target.closest('.absolute')) {
+        setShowMonthPicker(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [showMonthPicker]);
 
   const formatDateKey = (date: Date | string) => {
     if (typeof date === "string") {
@@ -196,11 +212,38 @@ export default function CalendarPage() {
   };
 
   const getRenewalColor = (renewal: Renewal) => {
-    if (renewal.type === 'callback') {
-      return "bg-blue-100 text-blue-800 border-blue-300";  
+    const displayType = renewal.display_type.toLowerCase();
+    
+    // Contract end dates (orange)
+    if (renewal.type === 'contract_end') {
+      return "bg-orange-100 text-orange-800 border-orange-300";
     }
-    return "bg-orange-100 text-orange-800 border-orange-300";  
+    
+    // Callback-type events (different colors based on status)
+    if (displayType === 'callback' || displayType === 'called' || displayType === 'not answered') {
+      return "bg-blue-100 text-blue-800 border-blue-300";
+    }
+    
+    if (displayType === 'already renewed') {
+      return "bg-green-100 text-green-800 border-green-300";
+    }
+    
+    if (displayType === 'end date changed') {
+      return "bg-purple-100 text-purple-800 border-purple-300";
+    }
+    
+    if (displayType === 'priced') {
+      return "bg-yellow-100 text-yellow-800 border-yellow-300";
+    }
+    
+    if (displayType === 'broker in place') {
+      return "bg-indigo-100 text-indigo-800 border-indigo-300";
+    }
+    
+    // Default for any other callback-related event
+    return "bg-blue-100 text-blue-800 border-blue-300";
   };
+
 
   const openCustomerDetails = (customerId: number) => {
     window.open(`/dashboard/renewals/${customerId}`, '_blank', 'noopener,noreferrer');
@@ -299,9 +342,77 @@ export default function CalendarPage() {
           <Button variant="outline" size="sm" onClick={() => navigateMonth("next")}>
             <ChevronRight className="h-4 w-4" />
           </Button>
-          <h2 className="ml-4 text-xl font-semibold">
+          
+          {/* ✅ NEW: Month/Year Picker */}
+          <Button 
+            variant="outline" 
+            size="sm" 
+            onClick={() => setShowMonthPicker(!showMonthPicker)}
+            className="ml-4 min-w-[200px]"
+          >
             {currentDate.toLocaleDateString("en-GB", { month: "long", year: "numeric" })}
-          </h2>
+          </Button>
+          
+          {/* ✅ Month/Year Picker Dropdown */}
+          {showMonthPicker && (
+            <div className="absolute mt-2 z-50 bg-white border rounded-lg shadow-lg p-4 top-[180px]">
+              <div className="flex gap-4">
+                {/* Month Selector */}
+                <div>
+                  <p className="text-sm font-medium mb-2">Month</p>
+                  <div className="grid grid-cols-3 gap-2">
+                    {["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"].map((month, idx) => (
+                      <Button
+                        key={month}
+                        variant={currentDate.getMonth() === idx ? "default" : "outline"}
+                        size="sm"
+                        onClick={() => {
+                          const newDate = new Date(currentDate);
+                          newDate.setMonth(idx);
+                          setCurrentDate(newDate);
+                        }}
+                        className="w-16"
+                      >
+                        {month}
+                      </Button>
+                    ))}
+                  </div>
+                </div>
+                
+                {/* Year Selector */}
+                <div>
+                  <p className="text-sm font-medium mb-2">Year</p>
+                  <div className="grid grid-cols-2 gap-2 max-h-[300px] overflow-y-auto">
+                    {Array.from({ length: 10 }, (_, i) => new Date().getFullYear() - 2 + i).map((year) => (
+                      <Button
+                        key={year}
+                        variant={currentDate.getFullYear() === year ? "default" : "outline"}
+                        size="sm"
+                        onClick={() => {
+                          const newDate = new Date(currentDate);
+                          newDate.setFullYear(year);
+                          setCurrentDate(newDate);
+                        }}
+                        className="w-20"
+                      >
+                        {year}
+                      </Button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+              
+              <div className="flex justify-end gap-2 mt-4 pt-4 border-t">
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={() => setShowMonthPicker(false)}
+                >
+                  Close
+                </Button>
+              </div>
+            </div>
+          )}
         </div>
         
         {/* ✅ Show loading/count info */}
@@ -356,14 +467,21 @@ export default function CalendarPage() {
                     >
                       <div className="font-medium truncate">{renewal.name}</div>
                       <div className="text-xs opacity-75 truncate">
-                        {renewal.type === 'callback' ? 'Callback' : renewal.mpan}
+                        {renewal.display_type}
                       </div>
                     </div>
                   ))}
                   {dayRenewals.length > 3 && (
-                    <div className="text-xs text-gray-500">
+                    <button
+                      onClick={() => {
+                        // ✅ NEW: Show all events for this day in a dialog
+                        setSelectedDayRenewals(dayRenewals);
+                        setShowDayEventsDialog(true);
+                      }}
+                      className="text-xs text-blue-600 hover:text-blue-800 hover:underline font-medium w-full text-left"
+                    >
                       +{dayRenewals.length - 3} more
-                    </div>
+                    </button>
                   )}
                 </div>
               </div>
@@ -472,6 +590,43 @@ export default function CalendarPage() {
               </div>
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showDayEventsDialog} onOpenChange={setShowDayEventsDialog}>
+        <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>
+              All Events - {selectedDayRenewals.length > 0 && format(new Date(selectedDayRenewals[0].display_date), "dd MMM yyyy")}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-2">
+            {selectedDayRenewals.map((renewal) => (
+              <div
+                key={`${renewal.id}-${renewal.display_date}`}
+                onClick={() => {
+                  setSelectedRenewal(renewal);
+                  setShowDayEventsDialog(false);
+                  setShowDetailDialog(true);
+                }}
+                className={`cursor-pointer rounded border p-3 hover:shadow-md transition-shadow ${getRenewalColor(renewal)}`}
+              >
+                <div className="flex justify-between items-start">
+                  <div className="flex-1">
+                    <div className="font-semibold text-base">{renewal.name}</div>
+                    <div className="text-sm mt-1">
+                      <span className="font-medium">{renewal.display_type}</span>
+                      {renewal.mpan && <span className="ml-2 text-xs opacity-75">• {renewal.mpan}</span>}
+                    </div>
+                    {renewal.supplier && (
+                      <div className="text-xs mt-1 opacity-75">Supplier: {renewal.supplier}</div>
+                    )}
+                  </div>
+                  <ExternalLink className="h-4 w-4 opacity-50" />
+                </div>
+              </div>
+            ))}
+          </div>
         </DialogContent>
       </Dialog>
     </div>
