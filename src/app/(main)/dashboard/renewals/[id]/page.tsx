@@ -1860,7 +1860,7 @@ export default function EnergyCustomerDetailsPage() {
                   setCallbackStatus(value);
                   setCallbackDate("");
                   setCallbackNotes("");
-                  setIsSold(undefined);
+                  setIsSold("");
                   setNewEndDate("");
                   setNewSupplier("");
                   setNewAddress("");
