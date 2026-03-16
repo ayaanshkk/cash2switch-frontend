@@ -119,8 +119,8 @@ interface EnergyCustomer {
   unit_rate?: number;
   standing_charge?: number;
   status?: string;
-  assigned_to_name?: string;
-  assigned_to_id?: number;
+  assigned_to_name?: string | null;
+  assigned_to_id?: number | null;
   created_at?: string;
   rate_1?: number;
   
