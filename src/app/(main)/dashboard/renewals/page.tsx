@@ -105,8 +105,8 @@ interface EnergyCustomer {
   opportunity_id?: number;
   
   // Assignment
-  assigned_to_id?: number;
-  assigned_to_name?: string;
+  assigned_to_id?: number | null;
+  assigned_to_name?: string | null;
   assignment_notes?: string;
   
   created_at: string;
