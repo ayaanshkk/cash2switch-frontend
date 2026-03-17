@@ -134,8 +134,25 @@ export function EnergyRenewalsOverview({ userRole, employeeId }: EnergyRenewalsO
   const [aqBreakdown, setAQBreakdown] = useState<AQBreakdownResponse | null>(null);
   const [aqModalLoading, setAQModalLoading] = useState(false);
 
-  // ✅ Check if user is admin
-  const isAdmin = userRole?.toLowerCase().includes('platform') && userRole?.toLowerCase().includes('admin');
+  // ✅ CRITICAL FIX: Determine admin status based on employeeId prop
+  // If employeeId is undefined/null, user is admin (viewing all data)
+  // If employeeId is provided, user is salesperson (viewing only their data)
+  const isAdmin = employeeId === undefined || employeeId === null;
+
+  // ✅ DEBUG LOGGING
+  useEffect(() => {
+    console.log("\n" + "=".repeat(80));
+    console.log("🎯 ENERGY RENEWALS OVERVIEW - INITIALIZATION");
+    console.log("=".repeat(80));
+    console.log("Props received:");
+    console.log("  - userRole:", userRole);
+    console.log("  - employeeId:", employeeId);
+    console.log("\nCalculated state:");
+    console.log("  - isAdmin:", isAdmin);
+    console.log("  - Will filter data:", !isAdmin);
+    console.log("=".repeat(80) + "\n");
+  }, [userRole, employeeId, isAdmin]);
+
   const loadEmployees = async () => {
     try {
       const token = localStorage.getItem("auth_token");
@@ -157,8 +174,10 @@ export function EnergyRenewalsOverview({ userRole, employeeId }: EnergyRenewalsO
     try {
       const token = localStorage.getItem("auth_token");
       
-      // ✅ Only admins can see full breakdown, salespeople see their own stats
+      // ✅ Salespeople see their own stats, admins see everyone
       const employeeParam = !isAdmin && employeeId ? `?employee_id=${employeeId}` : '';
+      
+      console.log(`📊 Fetching AQ breakdown with param: ${employeeParam}`);
       
       const res = await fetch(
         `${API_BASE_URL}/energy-renewals/aq-breakdown${employeeParam}`,
@@ -190,14 +209,17 @@ export function EnergyRenewalsOverview({ userRole, employeeId }: EnergyRenewalsO
       setLoading(true);
       const token = localStorage.getItem("auth_token");
 
-      // ✅ CRITICAL: Salespeople ALWAYS filter by their employee_id
+      // ✅ CRITICAL FIX: Only add employee_id param for salespeople
       const employeeParam = !isAdmin && employeeId ? `?employee_id=${employeeId}` : '';
 
-      console.log(`📊 Fetching stats:`, {
-        isAdmin,
-        employeeId,
-        url: `${API_BASE_URL}/energy-renewals/stats${employeeParam}`
-      });
+      console.log("\n" + "=".repeat(80));
+      console.log("📊 FETCHING RENEWAL STATS");
+      console.log("=".repeat(80));
+      console.log("Request details:");
+      console.log("  - isAdmin:", isAdmin);
+      console.log("  - employeeId:", employeeId);
+      console.log("  - URL:", `${API_BASE_URL}/energy-renewals/stats${employeeParam}`);
+      console.log("=".repeat(80) + "\n");
 
       const statsRes = await fetch(`${API_BASE_URL}/energy-renewals/stats${employeeParam}`, {
         headers: { Authorization: `Bearer ${token}` },
@@ -205,6 +227,7 @@ export function EnergyRenewalsOverview({ userRole, employeeId }: EnergyRenewalsO
 
       if (statsRes.ok) {
         const statsData = await statsRes.json();
+        console.log("✅ Stats received:", statsData);
         setStats(statsData);
       } else {
         console.error("❌ Stats API failed:", await statsRes.text());
@@ -216,6 +239,7 @@ export function EnergyRenewalsOverview({ userRole, employeeId }: EnergyRenewalsO
 
       if (supplierRes.ok) {
         const supplierBreakdown = await supplierRes.json();
+        console.log("✅ Supplier breakdown received:", supplierBreakdown.length, "suppliers");
         setSupplierData(supplierBreakdown);
       }
     } catch (error) {
@@ -231,6 +255,8 @@ export function EnergyRenewalsOverview({ userRole, employeeId }: EnergyRenewalsO
       
       // ✅ Salespeople see only their own performance
       const employeeParam = !isAdmin && employeeId ? `&employee_id=${employeeId}` : '';
+
+      console.log(`📈 Fetching sales performance: period=${period}, employeeParam=${employeeParam}`);
 
       const res = await fetch(
         `${API_BASE_URL}/energy-renewals/salesperson-performance?period=${period}${employeeParam}`,
@@ -251,25 +277,32 @@ export function EnergyRenewalsOverview({ userRole, employeeId }: EnergyRenewalsO
     try {
       const token = localStorage.getItem("auth_token");
       
-      // ✅ For ADMINS: Use dropdown filter (modalEmployeeFilter)
-      // ✅ For SALESPEOPLE: Always filter by their own employeeId
+      // ✅ CRITICAL FIX: Different logic for admin vs salesperson
       let employeeParam = '';
+      
       if (!isAdmin && employeeId) {
-        // Salesperson - always show their own customers
+        // Salesperson - ALWAYS filter by their employeeId, ignore dropdown
         employeeParam = `&employee_id=${employeeId}`;
+        console.log(`👤 SALESPERSON MODE: Filtering by employee_id=${employeeId}`);
       } else if (isAdmin && modalEmployeeFilter) {
-        // Admin using dropdown filter
+        // Admin - Use dropdown filter if selected
         employeeParam = `&employee_id=${modalEmployeeFilter}`;
+        console.log(`👨‍💼 ADMIN MODE: Filtering by selected employee_id=${modalEmployeeFilter}`);
+      } else if (isAdmin) {
+        // Admin - No filter, show all
+        console.log(`👨‍💼 ADMIN MODE: No filter, showing ALL renewals`);
       }
 
-      console.log(`🔍 Fetching breakdown:`, {
-        period,
-        isAdmin,
-        employeeId,
-        modalEmployeeFilter,
-        employeeParam,
-        url: `${API_BASE_URL}/energy-renewals/period-breakdown?period=${period}${employeeParam}`
-      });
+      console.log("\n" + "=".repeat(80));
+      console.log("🔍 FETCHING PERIOD BREAKDOWN");
+      console.log("=".repeat(80));
+      console.log("  - Period:", period);
+      console.log("  - isAdmin:", isAdmin);
+      console.log("  - employeeId (prop):", employeeId);
+      console.log("  - modalEmployeeFilter:", modalEmployeeFilter);
+      console.log("  - Final employeeParam:", employeeParam);
+      console.log("  - URL:", `${API_BASE_URL}/energy-renewals/period-breakdown?period=${period}${employeeParam}`);
+      console.log("=".repeat(80) + "\n");
 
       const res = await fetch(
         `${API_BASE_URL}/energy-renewals/period-breakdown?period=${period}${employeeParam}`,
@@ -278,10 +311,12 @@ export function EnergyRenewalsOverview({ userRole, employeeId }: EnergyRenewalsO
 
       if (res.ok) {
         const data = await res.json();
-        console.log(`✅ Received ${data.renewals?.length || 0} renewals`);
+        console.log(`✅ Received ${data.renewals?.length || 0} renewals for period ${period}`);
         setPeriodBreakdown(data.renewals || []);
         setSelectedPeriod(period);
         setShowPeriodModal(true);
+      } else {
+        console.error("❌ Period breakdown failed:", await res.text());
       }
     } catch (error) {
       console.error("Error fetching period breakdown:", error);

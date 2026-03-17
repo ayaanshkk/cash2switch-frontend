@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { 
   Search, Plus, Edit, Trash2, ChevronDown, Filter, AlertCircle, 
-  ChevronRight, ChevronLeft, ChevronLast, ChevronFirst, Zap, Building2, Upload, Users, UserCheck, Info, Loader2
+  ChevronRight, ChevronLeft, ChevronLast, ChevronFirst, Zap, Building2, Upload, Users, UserCheck, Info, Loader2, TrendingUp, TrendingDown, AlertTriangle, CheckCircle2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -310,17 +310,49 @@ export default function EnergyCustomersPage() {
   const [newAddress, setNewAddress] = useState("");
   const [usageSort, setUsageSort] = useState<"none" | "low-high" | "high-low">("none");
   const [endDateFilter, setEndDateFilter] = useState<"all" | "30" | "60" | "90" | "90+">("all"); 
+  const [performanceStats, setPerformanceStats] = useState({
+  renewed: 0,
+  in_progress: 0,
+  not_contacted: 0,
+  lost: 0,
+  success_rate: 0
+});
+  const [showPerformanceModal, setShowPerformanceModal] = useState(false);
+  const [performanceFilter, setPerformanceFilter] = useState<'renewed' | 'in_progress' | 'not_contacted' | 'lost' | null>(null);
+  const [performanceFilteredCustomers, setPerformanceFilteredCustomers] = useState<EnergyCustomer[]>([]);
 
   const router = useRouter();
   const { user } = useAuth();
 
   const isAdmin = user?.role === "Platform Admin" || user?.role === "Tenant Super Admin";
 
+  const fetchPerformanceStats = async () => {
+    try {
+      // ✅ Use the /performance endpoint with use_current_user=true
+      const response = await fetchWithAuth(
+        `/energy-renewals/performance?use_current_user=true&service=${encodeURIComponent(service)}`
+      );
+      
+      if (response && !response.error) {
+        setPerformanceStats({
+          renewed: response.renewed_count || 0,
+          in_progress: response.contacted_count || 0,
+          not_contacted: response.not_contacted_count || 0,
+          lost: response.lost_count || 0,
+          success_rate: response.success_rate || 0
+        });
+      }
+    } catch (err) {
+      console.error("Error fetching performance stats:", err);
+    }
+  };
+
   useEffect(() => {
     fetchCustomers();
     fetchSuppliers();
     fetchEmployees();
     fetchStages();
+    fetchPerformanceStats();
     
     // ✅ Fetch stats if admin
     if (isAdmin) {
@@ -1155,6 +1187,125 @@ export default function EnergyCustomersPage() {
     return supplier?.supplier_name || "—";
   };
 
+  const handlePerformanceClick = async (type: 'renewed' | 'in_progress' | 'not_contacted' | 'lost') => {
+    console.log(`\n${'='.repeat(60)}`);
+    console.log(`📊 Performance box clicked: ${type}`);
+    console.log(`${'='.repeat(60)}\n`);
+    setPerformanceFilter(type);
+    
+    try {
+      // ✅ Fetch ALL customers with use_current_user=true
+      console.log(`🔍 Fetching: /energy-renewals?use_current_user=true&service=${encodeURIComponent(service)}`);
+      
+      const response = await fetchWithAuth(
+        `/energy-renewals?use_current_user=true&service=${encodeURIComponent(service)}`
+      );
+      
+      console.log(`\n📦 API Response:`, response);
+      console.log(`📦 Received ${response?.length || 0} customers from API\n`);
+      
+      if (response && Array.isArray(response)) {
+        // ✅ DEBUG: Log ALL the data
+        console.log('🔍 RAW DATA FROM API:');
+        response.forEach((c, idx) => {
+          console.log(`  [${idx}] ${c.business_name}:`);
+          console.log(`      - status (raw): ${JSON.stringify(c.status)}`);
+          console.log(`      - status (type): ${typeof c.status}`);
+          console.log(`      - status (lower): "${(c.status || '').toLowerCase()}"`);
+        });
+        
+        console.log(`\n🎯 Filtering for: ${type}\n`);
+        
+        // ✅ Filter by status type
+        let filtered: EnergyCustomer[] = [];
+        
+        switch (type) {
+          case 'renewed':
+            filtered = response.filter(c => {
+              const status = (c.status || '').toLowerCase();
+              const match = status === 'priced' || status === 'renewed';
+              console.log(`  ✓ "${c.business_name}": status="${c.status}" → ${match ? '✅ MATCH' : '❌ no match'}`);
+              return match;
+            });
+            break;
+            
+          case 'in_progress':
+            filtered = response.filter(c => {
+              const status = (c.status || '').toLowerCase();
+              const match = status === 'called' || status === 'callback' || status === 'contacted';
+              console.log(`  ✓ "${c.business_name}": status="${c.status}" → ${match ? '✅ MATCH' : '❌ no match'}`);
+              return match;
+            });
+            break;
+            
+          case 'not_contacted':
+            filtered = response.filter(c => {
+              const status = (c.status || '').toLowerCase();
+              
+              // ✅ SUPER DETAILED DEBUGGING
+              console.log(`  ✓ "${c.business_name}":`);
+              console.log(`      status (raw): ${JSON.stringify(c.status)}`);
+              console.log(`      !c.status: ${!c.status}`);
+              console.log(`      status === '': ${status === ''}`);
+              console.log(`      status === 'none': ${status === 'none'}`);
+              console.log(`      status === 'not answered': ${status === 'not answered'}`);
+              console.log(`      status === 'not contacted': ${status === 'not contacted'}`);
+              console.log(`      status === 'pending': ${status === 'pending'}`);
+              
+              const hasNoStatus = !c.status || status === '' || status === 'none' || status === 'pending';
+              const isNotContacted = status === 'not answered' || status === 'not contacted';
+              const match = hasNoStatus || isNotContacted;
+              
+              console.log(`      hasNoStatus: ${hasNoStatus}`);
+              console.log(`      isNotContacted: ${isNotContacted}`);
+              console.log(`      FINAL MATCH: ${match ? '✅ YES' : '❌ NO'}\n`);
+              
+              return match;
+            });
+            break;
+            
+          case 'lost':
+            filtered = response.filter(c => {
+              const status = (c.status || '').toLowerCase();
+              const match = status === 'lost' || status === 'lost cot';
+              console.log(`  ✓ "${c.business_name}": status="${c.status}" → ${match ? '✅ MATCH' : '❌ no match'}`);
+              return match;
+            });
+            break;
+        }
+        
+        console.log(`\n${'='.repeat(60)}`);
+        console.log(`✅ Filtered to ${filtered.length} customers for ${type}`);
+        console.log(`${'='.repeat(60)}\n`);
+        
+        if (filtered.length > 0) {
+          console.log('📋 Filtered customers:');
+          filtered.forEach(c => console.log(`  - ${c.business_name} (${c.status})`));
+        }
+        
+        setPerformanceFilteredCustomers(filtered);
+        setShowPerformanceModal(true);
+      } else {
+        console.error('❌ Response is not an array:', response);
+        toast.error("Failed to load customers");
+      }
+    } catch (err) {
+      console.error("❌ Error fetching performance customers:", err);
+      toast.error("Failed to load customers");
+    }
+  };
+  
+  // ✅ Get performance label
+  const getPerformanceLabel = (type: string): string => {
+    switch (type) {
+      case 'renewed': return 'Renewed';
+      case 'in_progress': return 'In Progress';
+      case 'not_contacted': return 'Not Contacted';
+      case 'lost': return 'Lost';
+      default: return '';
+    }
+  };
+
   // Pagination Component
   const PaginationControls = () => {
     if (totalPages <= 1) return null;
@@ -1361,6 +1512,181 @@ export default function EnergyCustomersPage() {
         </div>
       )}
 
+      {/* ============================================
+          RENEWAL PERFORMANCE METRICS
+          ============================================ */}
+      <div className="mb-6">
+        <div className="bg-white rounded-lg border border-gray-200 p-6">
+          <div className="mb-4">
+            <h2 className="text-xl font-semibold text-gray-900">Renewal Performance</h2>
+            <p className="text-sm text-gray-600">
+              {isAdmin ? "Overall renewal success metrics" : "Your renewal success metrics"}
+            </p>
+          </div>
+      
+          <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+            {/* Renewed */}
+            <div 
+              className="text-center p-6 border rounded-lg bg-green-50 cursor-pointer hover:shadow-md transition-shadow"
+              onClick={async () => await handlePerformanceClick('renewed')}
+            >
+              <div className="text-4xl font-bold text-green-700">{performanceStats.renewed}</div>
+              <div className="text-sm text-green-600 mt-2 font-medium">Renewed</div>
+              <div className="mt-3">
+                <CheckCircle2 className="h-6 w-6 text-green-600 mx-auto" />
+              </div>
+            </div>
+      
+            {/* In Progress */}
+            <div 
+              className="text-center p-6 border rounded-lg bg-blue-50 cursor-pointer hover:shadow-md transition-shadow"
+              onClick={() => handlePerformanceClick('in_progress')}
+            >
+              <div className="text-4xl font-bold text-blue-700">{performanceStats.in_progress}</div>
+              <div className="text-sm text-blue-600 mt-2 font-medium">In Progress</div>
+              <div className="mt-3">
+                <TrendingUp className="h-6 w-6 text-blue-600 mx-auto" />
+              </div>
+            </div>
+      
+            {/* Not Contacted */}
+            <div 
+              className="text-center p-6 border rounded-lg bg-orange-50 cursor-pointer hover:shadow-md transition-shadow"
+              onClick={() => handlePerformanceClick('not_contacted')}
+            >
+              <div className="text-4xl font-bold text-orange-700">{performanceStats.not_contacted}</div>
+              <div className="text-sm text-orange-600 mt-2 font-medium">Not Contacted</div>
+              <div className="mt-3">
+                <AlertTriangle className="h-6 w-6 text-orange-600 mx-auto" />
+              </div>
+            </div>
+      
+            {/* Lost */}
+            <div 
+              className="text-center p-6 border rounded-lg bg-red-50 cursor-pointer hover:shadow-md transition-shadow"
+              onClick={() => handlePerformanceClick('lost')}
+            >
+              <div className="text-4xl font-bold text-red-700">{performanceStats.lost}</div>
+              <div className="text-sm text-red-600 mt-2 font-medium">Lost</div>
+              <div className="mt-3">
+                <TrendingDown className="h-6 w-6 text-red-600 mx-auto" />
+              </div>
+            </div>
+          </div>
+      
+          {/* Success Rate */}
+          <div className="mt-4 text-center border-t pt-4">
+            <div className="text-sm text-gray-600">
+              Renewal success rate: <span className="font-semibold text-gray-900">{performanceStats.success_rate}%</span>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      {/* ============================================
+          PERFORMANCE MODAL - Shows filtered customers
+          ============================================ */}
+      <Dialog open={showPerformanceModal} onOpenChange={setShowPerformanceModal}>
+        <DialogContent className="max-w-[95vw] w-[95vw] max-h-[90vh] overflow-hidden flex flex-col">
+          <DialogHeader className="pb-4 border-b flex-shrink-0">
+            <DialogTitle className="text-2xl font-bold">
+              {performanceFilter ? getPerformanceLabel(performanceFilter) : 'Customers'}
+            </DialogTitle>
+            <DialogDescription>
+              Showing {performanceFilteredCustomers.length} customer{performanceFilteredCustomers.length !== 1 ? 's' : ''}
+            </DialogDescription>
+          </DialogHeader>
+      
+          <div className="flex-1 overflow-y-auto pr-2">
+            {performanceFilteredCustomers.length === 0 ? (
+              <div className="text-center py-16 text-gray-500">
+                <p className="text-lg">No customers found in this category</p>
+              </div>
+            ) : (
+              <div className="space-y-3 py-4">
+                {performanceFilteredCustomers.map((customer) => (
+                  <div
+                    key={customer.client_id}
+                    className="p-5 border rounded-xl hover:bg-gray-50 hover:shadow-sm cursor-pointer transition-all"
+                    onClick={() => {
+                      setShowPerformanceModal(false);
+                      router.push(`/dashboard/renewals/${customer.client_id}`);
+                    }}
+                  >
+                    <div className="flex items-start justify-between gap-4 mb-4">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-2">
+                          <h3 className="text-lg font-bold text-gray-900 truncate">
+                            {customer.business_name}
+                          </h3>
+                          {customer.status && (
+                            <Badge variant="outline" className={`text-xs flex-shrink-0 ${getStatusColor(customer.status)}`}>
+                              {getStatusLabel(customer.status)}
+                            </Badge>
+                          )}
+                        </div>
+                        <p className="text-sm text-gray-600 truncate">
+                          {customer.contact_person} · {customer.phone}
+                        </p>
+                      </div>
+                      
+                      <div className="text-right flex-shrink-0">
+                        {customer.annual_usage && (
+                          <p className="text-sm font-semibold text-gray-700">
+                            {formatUsage(customer.annual_usage)}
+                          </p>
+                        )}
+                        {customer.end_date && (
+                          <p className="text-xs text-gray-500 mt-1">
+                            End: {formatDate(customer.end_date)}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+      
+                    <div className="grid grid-cols-4 gap-4 pt-3 border-t border-gray-100">
+                      <div className="min-w-0">
+                        <p className="text-xs text-gray-500 uppercase mb-1">Supplier</p>
+                        <p className="font-semibold text-sm text-gray-900 truncate">
+                          {customer.supplier_name || '—'}
+                        </p>
+                      </div>
+                      
+                      <div className="min-w-0">
+                        <p className="text-xs text-gray-500 uppercase mb-1">MPAN</p>
+                        <p className="font-semibold text-sm text-gray-900 font-mono truncate">
+                          {customer.mpan_mpr || customer.mpan_bottom || '—'}
+                        </p>
+                      </div>
+                      
+                      <div className="min-w-0">
+                        <p className="text-xs text-gray-500 uppercase mb-1">Annual Usage</p>
+                        <p className="font-semibold text-sm text-gray-900 truncate">
+                          {customer.annual_usage?.toLocaleString() || '—'} kWh
+                        </p>
+                      </div>
+                      
+                      <div className="min-w-0">
+                        <p className="text-xs text-gray-500 uppercase mb-1">Assigned To</p>
+                        <p className="font-semibold text-sm text-purple-700 flex items-center gap-1 truncate">
+                          <Users className="h-3 w-3 flex-shrink-0" />
+                          <span className="truncate">{customer.assigned_to_name || 'Unassigned'}</span>
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+      
+          <div className="flex justify-end gap-2 pt-4 border-t">
+            <Button variant="outline" onClick={() => setShowPerformanceModal(false)}>
+              Close
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Search and Filter Bar */}
       <div className="mb-6 flex flex-wrap gap-3 justify-between">

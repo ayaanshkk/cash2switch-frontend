@@ -645,9 +645,9 @@ export default function EnergyCustomerDetailsPage() {
   const handleDocumentUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = event.target.files;
     if (!files || files.length === 0) return;
-
+  
     setIsUploadingDocument(true);
-
+  
     try {
       const token = localStorage.getItem("auth_token");
       if (!token) {
@@ -662,15 +662,16 @@ export default function EnergyCustomerDetailsPage() {
       });
       
       formData.append("client_id", id);
-
-      const response = await fetch(`${API_BASE_URL}/upload-documents`, {
+  
+      // ✅ UPDATED ENDPOINT URL
+      const response = await fetch(`${API_BASE_URL}/api/crm/documents/upload-customer-documents`, {
         method: "POST",
         headers: {
           Authorization: `Bearer ${token}`,
         },
         body: formData,
       });
-
+  
       if (!response.ok) {
         const errorText = await response.text();
         try {
@@ -681,18 +682,19 @@ export default function EnergyCustomerDetailsPage() {
         }
         return;
       }
-
+  
       const result = await response.json();
-
+  
       if (!result.file_paths || result.file_paths.length === 0) {
         alert("Upload succeeded but no file paths were returned");
         return;
       }
-
+  
       const newDocuments = result.file_paths;
       const updatedDocuments = [...uploadedDocuments, ...newDocuments];
       setUploadedDocuments(updatedDocuments);
-
+  
+      // ✅ This will update the database with new document URLs
       await updateDocumentDetails(updatedDocuments);
       
       alert(`✅ ${newDocuments.length} document(s) uploaded successfully!`);
@@ -1108,7 +1110,7 @@ export default function EnergyCustomerDetailsPage() {
 
                 {/* Term Sold */}
                 <div>
-                  <label className="text-sm font-medium text-gray-700">Term Sold (Months)</label>
+                  <label className="text-sm font-medium text-gray-700">Term Sold (Years)</label>
                   <Input
                     type="number"
                     value={displayCustomer.term_sold || ""}
@@ -1213,7 +1215,6 @@ export default function EnergyCustomerDetailsPage() {
                             >
                               <Download className="h-4 w-4" />
                             </Button>
-                            {isEditing && (
                               <Button
                                 variant="ghost"
                                 size="sm"
@@ -1223,7 +1224,6 @@ export default function EnergyCustomerDetailsPage() {
                               >
                                 <Trash2 className="h-4 w-4" />
                               </Button>
-                            )}
                           </div>
                         </div>
                       ))}
@@ -1927,6 +1927,27 @@ export default function EnergyCustomerDetailsPage() {
                 value={callbackDate}
                 onChange={(e) => setCallbackDate(e.target.value)}
               />
+            </div>
+          )}
+
+          {/* ✅ NEW: Contract End Date field for "End Date Changed" */}
+          {currentConfig?.requiresNewEndDate && (
+            <div>
+              <label className="text-sm font-medium text-gray-700">
+                New Contract End Date: {callbackStatus === "End Date Changed" ? <span className="text-red-500">*</span> : <span className="text-gray-400">(Optional)</span>}
+              </label>
+              <Input
+                type="date"
+                className="mt-1"
+                value={newEndDate}
+                onChange={(e) => setNewEndDate(e.target.value)}
+              />
+              <p className="text-xs text-gray-500 mt-1">
+                {callbackStatus === "Already Renewed" 
+                  ? "Leave blank if end date hasn't changed"
+                  : "Contract end date will be updated"
+                }
+              </p>
             </div>
           )}
 

@@ -330,19 +330,23 @@ export function BulkImportModal({ isOpen, onClose, onImportComplete, uploadEndpo
                     {result.assigned_to && (
                       <p className="text-gray-700 mt-2">👤 Assigned to: <span className="font-medium">{result.assigned_to}</span></p>
                     )}
-
-                    {result && (
-                      <div className="mt-2 p-2 bg-gray-100 rounded text-xs">
-                        <p>Debug Info:</p>
-                        <p>same_tenant_duplicates: {result.same_tenant_duplicates}</p>
-                        <p>cross_tenant_duplicates: {result.cross_tenant_duplicates}</p>
-                        <p>duplicate_report length: {result.duplicate_report?.length || 0}</p>
-                        <pre className="mt-1 text-xs overflow-auto max-h-20">
-                          {JSON.stringify(result.duplicate_report, null, 2)}
-                        </pre>
-                      </div>
-                    )}
                   </div>
+
+                  {/* ✅ UPDATED: Scrollable error list with better height */}
+                  {result.errors && result.errors.length > 0 && (
+                    <div className="mt-3">
+                      <p className="text-sm font-medium text-red-900 mb-2">
+                        Errors ({result.errors.length}):
+                      </p>
+                      <div className="bg-white rounded border border-red-200 p-3 max-h-60 overflow-y-auto scroll-smooth">
+                        <ul className="text-xs text-red-800 space-y-1">
+                          {result.errors.map((error, index) => (
+                            <li key={index} className="leading-relaxed">• {error}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    </div>
+                  )}
 
                   {/* ✅ NEW: Show detailed duplicate report */}
                   {result.duplicate_report && result.duplicate_report.length > 0 && (
@@ -357,20 +361,6 @@ export function BulkImportModal({ isOpen, onClose, onImportComplete, uploadEndpo
                           </pre>
                         </div>
                       </details>
-                    </div>
-                  )}
-
-                  {/* Show errors */}
-                  {result.errors && result.errors.length > 0 && (
-                    <div className="mt-3">
-                      <p className="text-sm font-medium text-red-900 mb-2">Errors:</p>
-                      <div className="bg-white rounded border border-red-200 p-3 max-h-40 overflow-y-auto">
-                        <ul className="text-xs text-red-800 space-y-1">
-                          {result.errors.map((error, index) => (
-                            <li key={index}>• {error}</li>
-                          ))}
-                        </ul>
-                      </div>
                     </div>
                   )}
                 </div>

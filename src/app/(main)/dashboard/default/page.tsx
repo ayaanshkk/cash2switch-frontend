@@ -8,28 +8,16 @@ import { RenewalsTable } from "./_components/renewals-table";
 export default function DashboardPage() {
   const { user } = useAuth();
 
-  // ✅ DEBUG: Check what data we're passing
-  console.log("🏠 Dashboard Page Debug:", {
-    user_role: user?.role,
-    employee_id: user?.employee_id,
-    full_user: user
-  });
-
   // ✅ Case-insensitive check for Platform Admin
   const userRole = user?.role?.toLowerCase() || '';
   const isPlatformAdmin = userRole.includes('platform') && userRole.includes('admin');
-
-  console.log("🔐 Role Check:", {
-    userRole,
-    isPlatformAdmin,
-    employeeIdToPass: isPlatformAdmin ? undefined : user?.employee_id
-  });
 
   return (
     <div className="flex flex-col gap-6 p-6">
       {isPlatformAdmin ? (
         /* ============================================
-           PLATFORM ADMIN DASHBOARD VIEW
+           ADMIN DASHBOARD - COMPANY-WIDE VIEW
+           Same as before, no changes
            ============================================ */
         <>
           <div className="space-y-2">
@@ -44,30 +32,31 @@ export default function DashboardPage() {
           {/* Team Performance Grid - Shows all salespeople */}
           <StaffPerformanceGrid />
 
-          {/* ✅ Company-wide Stats - NO filter, show ALL data */}
+          {/* Company-wide Stats - ALL data */}
           <EnergyRenewalsOverview 
             userRole={user?.role} 
-            employeeId={undefined} // ✅ undefined = no filter = ALL company data
+            employeeId={undefined}
           />
 
-          {/* ✅ All Company Renewals */}
-          <RenewalsTable employeeId={undefined} /> {/* ✅ Show all renewals */}
+          {/* All Company Renewals */}
+          <RenewalsTable employeeId={undefined} />
         </>
       ) : (
         /* ============================================
-           SALESPERSON DASHBOARD VIEW
+           SALESPERSON DASHBOARD - PERSONALIZED VIEW
+           Completely different, isolated view
            ============================================ */
         <>
           <div className="space-y-2">
             <h1 className="text-3xl font-bold tracking-tight">
-              My Performance Dashboard
+              My Dashboard
             </h1>
             <p className="text-muted-foreground">
-              Track your personal renewal performance and customers
+              Welcome back, {user?.name || 'Salesperson'}! Here's your personal performance overview.
             </p>
           </div>
 
-          {/* ✅ Personal Stats - Filter by their employee_id */}
+          {/* ✅ Personal Performance Stats - ONLY their data */}
           <EnergyRenewalsOverview 
             userRole={user?.role} 
             employeeId={user?.employee_id}
