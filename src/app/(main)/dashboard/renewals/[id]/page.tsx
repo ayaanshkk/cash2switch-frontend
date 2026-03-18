@@ -1010,7 +1010,7 @@ export default function EnergyCustomerDetailsPage() {
               <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
                 {/* Supplier */}
                 <div>
-                  <label className="text-sm font-medium text-gray-700">Supplier</label>
+                  <label className="text-sm font-medium text-gray-700">Old Supplier</label>
                   {isEditing ? (
                     <Select
                       value={displayCustomer.supplier_id?.toString() || ""}
@@ -1038,7 +1038,7 @@ export default function EnergyCustomerDetailsPage() {
 
                 {/* Old Supplier */}
                 <div>
-                  <label className="text-sm font-medium text-gray-700">Old Supplier</label>
+                  <label className="text-sm font-medium text-gray-700">New Supplier</label>
                   {isEditing ? (
                     <Select
                       value={displayCustomer.old_supplier_id?.toString() || ""}
