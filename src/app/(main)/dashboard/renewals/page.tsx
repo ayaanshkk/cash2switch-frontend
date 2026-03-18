@@ -329,6 +329,7 @@ export default function EnergyCustomersPage() {
   const [showPerformanceModal, setShowPerformanceModal] = useState(false);
   const [performanceFilter, setPerformanceFilter] = useState<'renewed' | 'in_progress' | 'not_contacted' | 'lost' | null>(null);
   const [performanceFilteredCustomers, setPerformanceFilteredCustomers] = useState<EnergyCustomer[]>([]);
+  const [calledDate, setCalledDate] = useState("");
 
   const router = useRouter();
   const { user } = useAuth();
@@ -645,6 +646,7 @@ export default function EnergyCustomersPage() {
     setNewEndDate("");
     setNewSupplier("");
     setNewAddress("");
+    setCalledDate("");
     setCallbackError("");
     setShowCallbackModal(true);
   };
@@ -676,10 +678,10 @@ export default function EnergyCustomersPage() {
       return;
     }
 
-    if (isDateRequired() && !callbackDate) {
-      setCallbackError("Please select a callback date");
-      return;
-    }
+    // if (isDateRequired() && !callbackDate) {
+    //   setCallbackError("Please select a callback date");
+    //   return
+    // }
 
     setIsSubmittingCallback(true);
 
@@ -688,6 +690,10 @@ export default function EnergyCustomersPage() {
         status: callbackStatus,
         notes: callbackNotes,
       };
+
+      if (calledDate) {
+        payload.called_date = calledDate;
+      }
 
       if (isDateRequired() && callbackDate) {
         payload.callback_date = callbackDate;
@@ -1235,7 +1241,11 @@ export default function EnergyCustomersPage() {
           case 'renewed':
             filtered = response.filter(c => {
               const status = (c.status || '').toLowerCase();
-              const match = status === 'priced' || status === 'renewed';
+              const match = 
+                status === 'priced' || 
+                status === 'renewed' || 
+                status === 'already renewed' || 
+                status === 'end date changed';
               console.log(`  ✓ "${c.business_name}": status="${c.status}" → ${match ? '✅ MATCH' : '❌ no match'}`);
               return match;
             });
@@ -2308,6 +2318,15 @@ export default function EnergyCustomersPage() {
               </div>
             </div>
 
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Called Date</label>
+              <Input
+                type="date"
+                value={calledDate}
+                onChange={(e) => setCalledDate(e.target.value)}
+              />
+            </div>
+
             {statusConfig[callbackStatus]?.requiresSold && (
               <div className="space-y-2">
                 <label className="text-sm font-medium">Was it sold? *</label>
@@ -2325,7 +2344,9 @@ export default function EnergyCustomersPage() {
 
             {isDateRequired() && (
               <div className="space-y-2">
-                <label className="text-sm font-medium">Callback Date *</label>
+                <label className="text-sm font-medium">
+                  Callback Date <span className="text-gray-400 font-normal text-xs"></span>
+                </label>
                 <Input
                   type="date"
                   value={callbackDate}

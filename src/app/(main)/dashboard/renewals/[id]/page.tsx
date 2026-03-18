@@ -232,6 +232,7 @@ export default function EnergyCustomerDetailsPage() {
   const [assignmentNotes, setAssignmentNotes] = useState("");
   const [isAssigningEmployee, setIsAssigningEmployee] = useState(false);
   const [suppliers, setSuppliers] = useState<{ supplier_id: number; supplier_name: string }[]>([]);
+  const [calledDate, setCalledDate] = useState("");
 
   useEffect(() => {
     loadCustomerData();
@@ -371,6 +372,7 @@ export default function EnergyCustomerDetailsPage() {
   const handleOpenCallbackModal = () => {
     setCallbackStatus("");
     setCallbackDate("");
+    setCalledDate("");
     setCallbackNotes("");
     setIsSold("");
     setCallbackError("");
@@ -403,10 +405,10 @@ export default function EnergyCustomerDetailsPage() {
       return;
     }
 
-    if (isDateRequired() && !callbackDate) {
-      setCallbackError("Please select a callback date");
-      return;
-    }
+    // if (isDateRequired() && !callbackDate) {
+    //   setCallbackError("Please select a callback date");
+    //   return;
+    // }
 
     setIsSubmittingCallback(true);
 
@@ -417,6 +419,10 @@ export default function EnergyCustomerDetailsPage() {
         status: callbackStatus,
         notes: callbackNotes,
       };
+
+      if (calledDate) {
+        payload.called_date = calledDate;
+      }
 
       if (isDateRequired() && callbackDate) {
         payload.callback_date = callbackDate;
@@ -486,8 +492,9 @@ export default function EnergyCustomerDetailsPage() {
         setIsSold("");
         setNewEndDate("");
         setNewSupplier("");   // ✅ RESET
-        setNewAddress("");    // ✅ RESET
-        
+        setNewAddress("");
+        setCalledDate("");
+      
         loadHistory();
       }
 
@@ -1663,6 +1670,15 @@ export default function EnergyCustomerDetailsPage() {
               </div>
             </div>
 
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Called Date</label>
+              <Input
+                type="date"
+                value={calledDate}
+                onChange={(e) => setCalledDate(e.target.value)}
+              />
+            </div>
+
             {statusConfig[callbackStatus]?.requiresSold && (
               <div className="space-y-2">
                 <label className="text-sm font-medium">Was it sold? *</label>
@@ -1922,6 +1938,7 @@ export default function EnergyCustomerDetailsPage() {
                   setNewEndDate("");
                   setNewSupplier("");
                   setNewAddress("");
+                  setCalledDate("");
                 }
               }}
             >
@@ -1956,6 +1973,16 @@ export default function EnergyCustomerDetailsPage() {
 
           </div>
 
+          <div>
+            <label className="text-sm font-medium text-gray-700">Called Date</label>
+            <Input
+              type="date"
+              className="mt-1"
+              value={calledDate}
+              onChange={(e) => setCalledDate(e.target.value)}
+            />
+          </div>
+
           {/* Conditional "Sold?" for Priced Status */}
           {currentConfig?.requiresSold && (
             <div>
@@ -1978,7 +2005,7 @@ export default function EnergyCustomerDetailsPage() {
           {isDateRequired() && (
             <div>
               <label className="text-sm font-medium text-gray-700">
-                Callback Date: <span className="text-red-500">*</span>
+                Callback Date: <span className="text-gray-400 font-normal"></span>
               </label>
               <Input
                 type="date"
