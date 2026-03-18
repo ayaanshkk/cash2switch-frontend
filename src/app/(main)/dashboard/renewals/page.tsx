@@ -309,7 +309,7 @@ export default function EnergyCustomersPage() {
   const [newSupplier, setNewSupplier] = useState("");
   const [newAddress, setNewAddress] = useState("");
   const [usageSort, setUsageSort] = useState<"none" | "low-high" | "high-low">("none");
-  const [endDateFilter, setEndDateFilter] = useState<"all" | "30" | "60" | "90" | "90+">("all"); 
+  const [endDateFilter, setEndDateFilter] = useState<"all" | "expired" | "30" | "60" | "90" | "90+">("all");
   const [performanceStats, setPerformanceStats] = useState({
   renewed: 0,
   in_progress: 0,
@@ -526,6 +526,9 @@ export default function EnergyCustomersPage() {
         const daysUntilEnd = Math.ceil((endDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
         
         switch (endDateFilter) {
+          case "expired":
+            matchesEndDate = daysUntilEnd < 0;  // Show expired contracts
+            break;
           case "30":
             matchesEndDate = daysUntilEnd >= 0 && daysUntilEnd <= 30;
             break;
@@ -536,7 +539,7 @@ export default function EnergyCustomersPage() {
             matchesEndDate = daysUntilEnd > 60 && daysUntilEnd <= 90;
             break;
           case "90+":
-            matchesEndDate = daysUntilEnd > 90;
+            matchesEndDate = daysUntilEnd > 90 && daysUntilEnd <= 365;  // ✅ CAPPED AT 365 DAYS
             break;
         }
       }
@@ -1765,6 +1768,7 @@ export default function EnergyCustomersPage() {
               <SelectItem value="60">Ending in 31-60 days</SelectItem>
               <SelectItem value="90">Ending in 61-90 days</SelectItem>
               <SelectItem value="90+">Ending in 90+ days</SelectItem>
+              <SelectItem value="expired">Expired Contracts</SelectItem>
             </SelectContent>
           </Select>
 
