@@ -44,8 +44,10 @@ const STATUS_OPTIONS = [
   { value: "Priced", label: "Priced" },
   { value: "Lost", label: "Lost" },
   { value: "Lost COT", label: "Lost COT" },                      
-  { value: "Already Renewed", label: "Already Renewed" },        
-  { value: "Invalid Number", label: "Invalid Number" },         
+  { value: "Already Renewed", label: "Already Renewed" },
+  { value: "Renewed Directly", label: "Renewed Directly" },        
+  { value: "Invalid Number", label: "Invalid Number" },
+  { value: "Incorrect Supplier", label: "Incorrect Supplier" },         
   { value: "Meter De-energised", label: "Meter De-energised" }, 
   { value: "Broker in Place", label: "Broker in Place" },       
   { value: "End Date Changed", label: "End Date Changed" },     
@@ -76,6 +78,8 @@ const statusConfig: Record<string, {
   "End Date Changed": { requiresDate: true, requiresSold: false, deletesRecord: false, requiresNotes: false, requiresNewEndDate: true, requiresSupplierChange: false, requiresAddressChange: false },
   "Complaint": { requiresDate: true, requiresSold: false, deletesRecord: false, requiresNotes: true, requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
   "Email Only": { requiresDate: true, requiresSold: false, deletesRecord: false, requiresNotes: false, requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
+  "Renewed Directly": { requiresDate: true, requiresSold: false, deletesRecord: false, requiresNotes: true, requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
+  "Incorrect Supplier": { requiresDate: false, requiresSold: false, deletesRecord: false, requiresNotes: true, requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
 };
 
 // ---------------- Types ----------------
@@ -229,6 +233,8 @@ const STATUS_TO_STAGE_FALLBACK: Record<string, number> = {
   'end date changed': 11,
   'complaint': 12,
   'email only': 13,
+  'renewed directly': 14,
+  'incorrect supplier': 15,
 };    
 
 
@@ -320,14 +326,17 @@ export default function EnergyCustomersPage() {
   const [usageSort, setUsageSort] = useState<"none" | "low-high" | "high-low">("none");
   const [endDateFilter, setEndDateFilter] = useState<"all" | "expired" | "30" | "60" | "90" | "90+">("all");
   const [performanceStats, setPerformanceStats] = useState({
-  renewed: 0,
-  in_progress: 0,
-  not_contacted: 0,
-  lost: 0,
-  success_rate: 0
-});
+    renewed: 0,
+    in_progress: 0,
+    not_contacted: 0,
+    lost: 0,
+    success_rate: 0,
+    renewed_directly: 0,
+    end_date_changed: 0,
+    priced: 0,
+  });
   const [showPerformanceModal, setShowPerformanceModal] = useState(false);
-  const [performanceFilter, setPerformanceFilter] = useState<'renewed' | 'in_progress' | 'not_contacted' | 'lost' | null>(null);
+  const [performanceFilter, setPerformanceFilter] = useState<'renewed' | 'in_progress' | 'not_contacted' | 'lost' | 'renewed_directly' | 'end_date_changed' | 'priced' | null>(null);
   const [performanceFilteredCustomers, setPerformanceFilteredCustomers] = useState<EnergyCustomer[]>([]);
   const [calledDate, setCalledDate] = useState("");
 
@@ -349,7 +358,10 @@ export default function EnergyCustomersPage() {
           in_progress: response.contacted_count || 0,
           not_contacted: response.not_contacted_count || 0,
           lost: response.lost_count || 0,
-          success_rate: response.success_rate || 0
+          success_rate: response.success_rate || 0,
+          renewed_directly: response.renewed_directly_count || 0,
+          end_date_changed: response.end_date_changed_count || 0,
+          priced: response.priced_count || 0,
         });
       }
     } catch (err) {
@@ -668,7 +680,7 @@ export default function EnergyCustomersPage() {
     }
 
     if (config?.requiresNotes && !callbackNotes.trim()) {
-      setCallbackError("Please enter the reason why it was lost");
+      setCallbackError("Please enter the reason for this status");
       return;
     }
 
@@ -1205,7 +1217,7 @@ export default function EnergyCustomersPage() {
     return supplier?.supplier_name || "—";
   };
 
-  const handlePerformanceClick = async (type: 'renewed' | 'in_progress' | 'not_contacted' | 'lost') => {
+  const handlePerformanceClick = async (type: 'renewed' | 'in_progress' | 'not_contacted' | 'lost' | 'renewed_directly' | 'end_date_changed' | 'priced') => {
     console.log(`\n${'='.repeat(60)}`);
     console.log(`📊 Performance box clicked: ${type}`);
     console.log(`${'='.repeat(60)}\n`);
@@ -1294,6 +1306,28 @@ export default function EnergyCustomersPage() {
               return match;
             });
             break;
+
+            case 'renewed_directly':
+              filtered = response.filter(c => {
+                const status = (c.status || '').toLowerCase();
+                return status === 'renewed directly';
+              });
+              break;
+
+            case 'end_date_changed':
+              filtered = response.filter(c => {
+                const status = (c.status || '').toLowerCase();
+                return status === 'end date changed';
+              });
+              break;
+
+            case 'priced':
+              filtered = response.filter(c => {
+                const status = (c.status || '').toLowerCase();
+                return status === 'priced';
+              });
+              break;
+
         }
         
         console.log(`\n${'='.repeat(60)}`);
@@ -1320,10 +1354,13 @@ export default function EnergyCustomersPage() {
   // ✅ Get performance label
   const getPerformanceLabel = (type: string): string => {
     switch (type) {
-      case 'renewed': return 'Renewed';
+      case 'renewed': return 'Renewed (Already Renewed)';
       case 'in_progress': return 'In Progress';
       case 'not_contacted': return 'Not Contacted';
       case 'lost': return 'Lost';
+      case 'renewed_directly': return 'Renewed Directly';
+      case 'end_date_changed': return 'End Date Changed';
+      case 'priced': return 'Priced';
       default: return '';
     }
   };
@@ -1547,6 +1584,7 @@ export default function EnergyCustomersPage() {
           </div>
       
           <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+
             {/* Renewed */}
             <div 
               className="text-center p-6 border rounded-lg bg-green-50 cursor-pointer hover:shadow-md transition-shadow"
@@ -2423,7 +2461,7 @@ export default function EnergyCustomersPage() {
               <Textarea
                 placeholder={
                   statusConfig[callbackStatus]?.requiresNotes 
-                    ? "Enter the reason why it was lost..." 
+                    ? "Enter required notes explaining the reason for this status..." 
                     : "Add any additional notes..."
                 }
                 value={callbackNotes}
@@ -2431,7 +2469,7 @@ export default function EnergyCustomersPage() {
                 rows={3}
               />
               {statusConfig[callbackStatus]?.requiresNotes && (
-                <p className="text-xs text-gray-500">Required: Please explain why this opportunity was lost</p>
+                <p className="text-xs text-gray-500">Required: Please explain the reason for this status</p>
               )}
             </div>
           </div>

@@ -68,6 +68,8 @@ const STATUS_OPTIONS = [
   { value: "End Date Changed", label: "End Date Changed" },
   { value: "Complaint", label: "Complaint" },
   { value: "Email Only", label: "Email Only" },
+  { value: "Renewed Directly", label: "Renewed Directly" },
+  { value: "Incorrect Supplier", label: "Incorrect Supplier" },
 ];
 
 // ✅ ADD THESE HELPER FUNCTIONS HERE
@@ -354,6 +356,8 @@ export default function EnergyCustomerDetailsPage() {
     "End Date Changed": { requiresDate: true, requiresSold: false, deletesRecord: false, requiresNotes: false, requiresNewEndDate: true, requiresSupplierChange: false, requiresAddressChange: false },
     "Complaint": { requiresDate: true, requiresSold: false, deletesRecord: false, requiresNotes: true, requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
     "Email Only": { requiresDate: true, requiresSold: false, deletesRecord: false, requiresNotes: false, requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
+    "Renewed Directly": { requiresDate: true, requiresSold: false, deletesRecord: false, requiresNotes: true, requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
+    "Incorrect Supplier": { requiresDate: false, requiresSold: false, deletesRecord: false, requiresNotes: true, requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false }
   };
 
   const isDateRequired = () => {
@@ -395,7 +399,7 @@ export default function EnergyCustomerDetailsPage() {
     }
 
     if (config?.requiresNotes && !callbackNotes.trim()) {
-      setCallbackError("Please enter the reason why it was lost");
+      setCallbackError("Please enter the reason for this status");
       return;
     }
 
@@ -1778,7 +1782,7 @@ export default function EnergyCustomerDetailsPage() {
               <Textarea
                 placeholder={
                   statusConfig[callbackStatus]?.requiresNotes 
-                    ? "Enter the reason why it was lost..." 
+                    ? "Enter required notes explaining the reason for this status..." 
                     : "Add any additional notes..."
                 }
                 value={callbackNotes}
@@ -1786,7 +1790,7 @@ export default function EnergyCustomerDetailsPage() {
                 rows={3}
               />
               {statusConfig[callbackStatus]?.requiresNotes && (
-                <p className="text-xs text-gray-500">Required: Please explain why this opportunity was lost</p>
+                <p className="text-xs text-gray-500">Required: Please explain the reason for this status</p>
               )}
             </div>
           </div>
@@ -1953,7 +1957,9 @@ export default function EnergyCustomerDetailsPage() {
                 <SelectItem value="Lost">Lost</SelectItem>
                 <SelectItem value="Lost COT">Lost COT</SelectItem>
                 <SelectItem value="Already Renewed">Already Renewed</SelectItem>
+                <SelectItem value="Renewed Directly">Renewed Directly</SelectItem>
                 <SelectItem value="Invalid Number">Invalid Number</SelectItem>
+                <SelectItem value="Incorrect Supplier">Incorrect Supplier</SelectItem>
                 <SelectItem value="Meter De-energised">Meter De-energised</SelectItem>
                 <SelectItem value="Broker in Place">Broker in Place</SelectItem>
                 <SelectItem value="End Date Changed">End Date Changed</SelectItem>

@@ -118,12 +118,12 @@ export function AddEnergyClientModal({
         }
         
         // Validate MPAN if provided
-        if (formData.mpan_top && formData.mpan_top.length !== 13) {
-            newErrors.mpan_top = "MPAN Top must be 13 digits";
-        }
-        if (formData.mpan_bottom && formData.mpan_bottom.length !== 13) {
-            newErrors.mpan_bottom = "MPAN Bottom must be 13 digits";
-        }
+        // if (formData.mpan_top && formData.mpan_top.length !== 13) {
+        //     newErrors.mpan_top = "MPAN Top must be 13 digits";
+        // }
+        // if (formData.mpan_bottom && formData.mpan_bottom.length !== 13) {
+        //     newErrors.mpan_bottom = "MPAN Bottom must be 13 digits";
+        // }
         
         // Validate annual usage if provided
         if (formData.annual_usage && isNaN(Number(formData.annual_usage))) {
@@ -159,7 +159,7 @@ export function AddEnergyClientModal({
                 annual_usage: formData.annual_usage ? Number(formData.annual_usage) : undefined,
                 start_date: formData.start_date || undefined,
                 end_date: formData.end_date || undefined,
-                unit_rate: formData.unit_rate ? Number(formData.unit_rate) : undefined,
+                unit_rate: formData.unit_rate ? Number(formData.unit_rate) : 0,
                 assigned_to_id: formData.assigned_to_id ? Number(formData.assigned_to_id) : undefined,
                 notes: formData.notes.trim() || undefined,
                 service: formData.service, // ✅ Send selected service
@@ -356,7 +356,7 @@ export function AddEnergyClientModal({
                                 <Label htmlFor="mpan_top">MPAN Top</Label>
                                 <Input
                                     id="mpan_top"
-                                    placeholder="13-digit MPAN top"
+                                    placeholder="MPAN top"
                                     value={formData.mpan_top}
                                     onChange={(e) => handleChange("mpan_top", e.target.value)}
                                     maxLength={13}
@@ -369,7 +369,7 @@ export function AddEnergyClientModal({
                                 <Label htmlFor="mpan_bottom">MPAN Bottom</Label>
                                 <Input
                                     id="mpan_bottom"
-                                    placeholder="13-digit MPAN bottom"
+                                    placeholder="MPAN bottom"
                                     value={formData.mpan_bottom}
                                     onChange={(e) => handleChange("mpan_bottom", e.target.value)}
                                     maxLength={13}
