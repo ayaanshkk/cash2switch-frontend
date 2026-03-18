@@ -66,6 +66,8 @@ const STATUS_OPTIONS = [
   { value: "Meter De-energised", label: "Meter De-energised" },
   { value: "Broker in Place", label: "Broker in Place" },
   { value: "End Date Changed", label: "End Date Changed" },
+  { value: "Complaint", label: "Complaint" },
+  { value: "Email Only", label: "Email Only" },
 ];
 
 // ✅ ADD THESE HELPER FUNCTIONS HERE
@@ -329,14 +331,14 @@ export default function EnergyCustomerDetailsPage() {
     }
   };
 
-  const statusConfig: Record<string, { 
-    requiresDate: boolean; 
-    requiresSold: boolean; 
-    deletesRecord: boolean; 
-    requiresNotes: boolean; 
+  const statusConfig: Record<string, {
+    requiresDate: boolean;
+    requiresSold: boolean;
+    deletesRecord: boolean;
+    requiresNotes: boolean;
     requiresNewEndDate: boolean;
-    requiresSupplierChange: boolean;  // ✅ NEW
-    requiresAddressChange: boolean;   // ✅ NEW
+    requiresSupplierChange: boolean;
+    requiresAddressChange: boolean;
   }> = {
     "Callback": { requiresDate: true, requiresSold: false, deletesRecord: false, requiresNotes: false, requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
     "Called": { requiresDate: true, requiresSold: false, deletesRecord: false, requiresNotes: false, requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
@@ -344,11 +346,13 @@ export default function EnergyCustomerDetailsPage() {
     "Priced": { requiresDate: false, requiresSold: true, deletesRecord: false, requiresNotes: false, requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
     "Lost": { requiresDate: true, requiresSold: false, deletesRecord: true, requiresNotes: true, requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
     "Lost COT": { requiresDate: false, requiresSold: false, deletesRecord: true, requiresNotes: true, requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
-    "Already Renewed": { requiresDate: true, requiresSold: false, deletesRecord: false, requiresNotes: false, requiresNewEndDate: true, requiresSupplierChange: true, requiresAddressChange: true },  // ✅ UPDATED
+    "Already Renewed": { requiresDate: true, requiresSold: false, deletesRecord: false, requiresNotes: false, requiresNewEndDate: true, requiresSupplierChange: true, requiresAddressChange: true },
     "Invalid Number": { requiresDate: false, requiresSold: false, deletesRecord: true, requiresNotes: false, requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
     "Meter De-energised": { requiresDate: false, requiresSold: false, deletesRecord: true, requiresNotes: false, requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
     "Broker in Place": { requiresDate: true, requiresSold: false, deletesRecord: false, requiresNotes: false, requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
     "End Date Changed": { requiresDate: true, requiresSold: false, deletesRecord: false, requiresNotes: false, requiresNewEndDate: true, requiresSupplierChange: false, requiresAddressChange: false },
+    "Complaint": { requiresDate: true, requiresSold: false, deletesRecord: false, requiresNotes: true, requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
+    "Email Only": { requiresDate: true, requiresSold: false, deletesRecord: false, requiresNotes: false, requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
   };
 
   const isDateRequired = () => {
@@ -1045,7 +1049,7 @@ export default function EnergyCustomerDetailsPage() {
                       onValueChange={(value) => handleUpdateField("old_supplier_id", parseInt(value))}
                     >
                       <SelectTrigger className="mt-1">
-                        <SelectValue placeholder="Select old supplier" />
+                        <SelectValue placeholder="Select new supplier" />
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="0">— None —</SelectItem>
@@ -1936,8 +1940,9 @@ export default function EnergyCustomerDetailsPage() {
                 <SelectItem value="Meter De-energised">Meter De-energised</SelectItem>
                 <SelectItem value="Broker in Place">Broker in Place</SelectItem>
                 <SelectItem value="End Date Changed">End Date Changed</SelectItem>
-                
-                {/* ✅ Clear Status at the BOTTOM - use customer.status */}
+                <SelectItem value="Complaint">Complaint</SelectItem>
+                <SelectItem value="Email Only">Email Only</SelectItem>
+
                 {customer.status && (
                   <>
                     <div className="border-t my-1" />

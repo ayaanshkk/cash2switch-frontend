@@ -49,17 +49,19 @@ const STATUS_OPTIONS = [
   { value: "Meter De-energised", label: "Meter De-energised" }, 
   { value: "Broker in Place", label: "Broker in Place" },       
   { value: "End Date Changed", label: "End Date Changed" },     
+  { value: "Complaint", label: "Complaint" },
+  { value: "Email Only", label: "Email Only" },
 ];
 
 // ✅ Status configuration - MUST match customer details page exactly
-const statusConfig: Record<string, { 
-  requiresDate: boolean; 
-  requiresSold: boolean; 
-  deletesRecord: boolean; 
-  requiresNotes: boolean; 
+const statusConfig: Record<string, {
+  requiresDate: boolean;
+  requiresSold: boolean;
+  deletesRecord: boolean;
+  requiresNotes: boolean;
   requiresNewEndDate: boolean;
-  requiresSupplierChange: boolean;  // ✅ NEW
-  requiresAddressChange: boolean;   // ✅ NEW
+  requiresSupplierChange: boolean;
+  requiresAddressChange: boolean;
 }> = {
   "Callback": { requiresDate: true, requiresSold: false, deletesRecord: false, requiresNotes: false, requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
   "Called": { requiresDate: true, requiresSold: false, deletesRecord: false, requiresNotes: false, requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
@@ -67,11 +69,13 @@ const statusConfig: Record<string, {
   "Priced": { requiresDate: false, requiresSold: true, deletesRecord: false, requiresNotes: false, requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
   "Lost": { requiresDate: true, requiresSold: false, deletesRecord: true, requiresNotes: true, requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
   "Lost COT": { requiresDate: false, requiresSold: false, deletesRecord: true, requiresNotes: true, requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
-  "Already Renewed": { requiresDate: true, requiresSold: false, deletesRecord: false, requiresNotes: false, requiresNewEndDate: true, requiresSupplierChange: true, requiresAddressChange: true },  // ✅ UPDATED
+  "Already Renewed": { requiresDate: true, requiresSold: false, deletesRecord: false, requiresNotes: false, requiresNewEndDate: true, requiresSupplierChange: true, requiresAddressChange: true },
   "Invalid Number": { requiresDate: false, requiresSold: false, deletesRecord: true, requiresNotes: false, requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
   "Meter De-energised": { requiresDate: false, requiresSold: false, deletesRecord: true, requiresNotes: false, requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
   "Broker in Place": { requiresDate: true, requiresSold: false, deletesRecord: false, requiresNotes: false, requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
   "End Date Changed": { requiresDate: true, requiresSold: false, deletesRecord: false, requiresNotes: false, requiresNewEndDate: true, requiresSupplierChange: false, requiresAddressChange: false },
+  "Complaint": { requiresDate: true, requiresSold: false, deletesRecord: false, requiresNotes: true, requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
+  "Email Only": { requiresDate: true, requiresSold: false, deletesRecord: false, requiresNotes: false, requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
 };
 
 // ---------------- Types ----------------
@@ -221,9 +225,12 @@ const STATUS_TO_STAGE_FALLBACK: Record<string, number> = {
   'already renewed': 7,
   'invalid number': 8,
   'meter de-energised': 9,
-  'broker in place': 10,       
-  'end date changed': 11,      
-};
+  'broker in place': 10,
+  'end date changed': 11,
+  'complaint': 12,
+  'email only': 13,
+};    
+
 
 const getStageIdFromStatus = (status: string, stagesList?: Stage[]): number => {
   // ✅ Try API-fetched stages first
@@ -239,9 +246,11 @@ const getStageIdFromStatus = (status: string, stagesList?: Stage[]): number => {
 
   // ✅ Fallback to hardcoded mapping
   const stageId = STATUS_TO_STAGE_FALLBACK[status.toLowerCase()];
-  
+
   if (!stageId) {
-    throw new Error(`Unknown status: ${status}`);
+    // ✅ Don't throw — log a warning and return 0 so it never crashes
+    console.warn(`⚠️ No stage_id found for status: ${status}, using 0`);
+    return 0;
   }
 
   console.log(`⚠️ Using fallback stage_id: ${stageId}`);
