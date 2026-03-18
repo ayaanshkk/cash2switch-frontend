@@ -272,37 +272,23 @@ export function EnergyRenewalsOverview({ userRole, employeeId }: EnergyRenewalsO
     }
   };
 
-  const fetchPeriodBreakdown = async (period: string) => {
+  const fetchPeriodBreakdown = async (period: string, employeeOverride?: number | undefined | null) => {
     setModalLoading(true);
     try {
       const token = localStorage.getItem("auth_token");
       
-      // ✅ CRITICAL FIX: Different logic for admin vs salesperson
       let employeeParam = '';
       
       if (!isAdmin && employeeId) {
-        // Salesperson - ALWAYS filter by their employeeId, ignore dropdown
+        // Salesperson - always filter by their employeeId
         employeeParam = `&employee_id=${employeeId}`;
-        console.log(`👤 SALESPERSON MODE: Filtering by employee_id=${employeeId}`);
-      } else if (isAdmin && modalEmployeeFilter) {
-        // Admin - Use dropdown filter if selected
-        employeeParam = `&employee_id=${modalEmployeeFilter}`;
-        console.log(`👨‍💼 ADMIN MODE: Filtering by selected employee_id=${modalEmployeeFilter}`);
       } else if (isAdmin) {
-        // Admin - No filter, show all
-        console.log(`👨‍💼 ADMIN MODE: No filter, showing ALL renewals`);
+        // Use the override if provided (from dropdown change), otherwise fall back to state
+        const effectiveFilter = employeeOverride !== undefined ? employeeOverride : modalEmployeeFilter;
+        if (effectiveFilter) {
+          employeeParam = `&employee_id=${effectiveFilter}`;
+        }
       }
-
-      console.log("\n" + "=".repeat(80));
-      console.log("🔍 FETCHING PERIOD BREAKDOWN");
-      console.log("=".repeat(80));
-      console.log("  - Period:", period);
-      console.log("  - isAdmin:", isAdmin);
-      console.log("  - employeeId (prop):", employeeId);
-      console.log("  - modalEmployeeFilter:", modalEmployeeFilter);
-      console.log("  - Final employeeParam:", employeeParam);
-      console.log("  - URL:", `${API_BASE_URL}/energy-renewals/period-breakdown?period=${period}${employeeParam}`);
-      console.log("=".repeat(80) + "\n");
 
       const res = await fetch(
         `${API_BASE_URL}/energy-renewals/period-breakdown?period=${period}${employeeParam}`,
@@ -311,12 +297,9 @@ export function EnergyRenewalsOverview({ userRole, employeeId }: EnergyRenewalsO
 
       if (res.ok) {
         const data = await res.json();
-        console.log(`✅ Received ${data.renewals?.length || 0} renewals for period ${period}`);
         setPeriodBreakdown(data.renewals || []);
         setSelectedPeriod(period);
         setShowPeriodModal(true);
-      } else {
-        console.error("❌ Period breakdown failed:", await res.text());
       }
     } catch (error) {
       console.error("Error fetching period breakdown:", error);
@@ -713,12 +696,8 @@ export function EnergyRenewalsOverview({ userRole, employeeId }: EnergyRenewalsO
                     value={modalEmployeeFilter?.toString() || "all"}
                     onValueChange={(value) => {
                       const newEmployeeId = value === "all" ? undefined : parseInt(value);
-                      console.log(`🔄 Admin changing filter from ${modalEmployeeFilter} to ${newEmployeeId}`);
                       setModalEmployeeFilter(newEmployeeId);
-                      
-                      setTimeout(() => {
-                        fetchPeriodBreakdown(selectedPeriod);
-                      }, 50);
+                      fetchPeriodBreakdown(selectedPeriod, newEmployeeId);
                     }}
                   >
                     <SelectTrigger className="w-[220px] flex-shrink-0">

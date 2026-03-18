@@ -229,11 +229,13 @@ export default function EnergyCustomerDetailsPage() {
   const [assigningEmployeeId, setAssigningEmployeeId] = useState<string>("");
   const [assignmentNotes, setAssignmentNotes] = useState("");
   const [isAssigningEmployee, setIsAssigningEmployee] = useState(false);
+  const [suppliers, setSuppliers] = useState<{ supplier_id: number; supplier_name: string }[]>([]);
 
   useEffect(() => {
     loadCustomerData();
     loadEmployees();
     loadHistory();
+    loadSuppliers();
   }, [id]);
 
   const loadCustomerData = async () => {
@@ -274,6 +276,21 @@ export default function EnergyCustomerDetailsPage() {
       setError("Failed to load customer data. Please refresh the page.");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadSuppliers = async () => {
+    const token = localStorage.getItem("auth_token");
+    try {
+      const response = await fetch(`${API_BASE_URL}/suppliers`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setSuppliers(data);
+      }
+    } catch (error) {
+      console.error("Error loading suppliers:", error);
     }
   };
 
@@ -994,21 +1011,58 @@ export default function EnergyCustomerDetailsPage() {
                 {/* Supplier */}
                 <div>
                   <label className="text-sm font-medium text-gray-700">Supplier</label>
-                  <Input
-                    value={displayCustomer.supplier_name || ""}
-                    disabled
-                    className="mt-1 bg-gray-50"
-                  />
+                  {isEditing ? (
+                    <Select
+                      value={displayCustomer.supplier_id?.toString() || ""}
+                      onValueChange={(value) => handleUpdateField("supplier_id", parseInt(value))}
+                    >
+                      <SelectTrigger className="mt-1">
+                        <SelectValue placeholder="Select supplier" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {suppliers.map((s) => (
+                          <SelectItem key={s.supplier_id} value={s.supplier_id.toString()}>
+                            {s.supplier_name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    <Input
+                      value={displayCustomer.supplier_name || ""}
+                      disabled
+                      className="mt-1 bg-gray-50"
+                    />
+                  )}
                 </div>
 
                 {/* Old Supplier */}
                 <div>
                   <label className="text-sm font-medium text-gray-700">Old Supplier</label>
-                  <Input
-                    value={displayCustomer.old_supplier_name || ""}
-                    disabled
-                    className="mt-1 bg-gray-50"
-                  />
+                  {isEditing ? (
+                    <Select
+                      value={displayCustomer.old_supplier_id?.toString() || ""}
+                      onValueChange={(value) => handleUpdateField("old_supplier_id", parseInt(value))}
+                    >
+                      <SelectTrigger className="mt-1">
+                        <SelectValue placeholder="Select old supplier" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="0">— None —</SelectItem>
+                        {suppliers.map((s) => (
+                          <SelectItem key={s.supplier_id} value={s.supplier_id.toString()}>
+                            {s.supplier_name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    <Input
+                      value={displayCustomer.old_supplier_name || ""}
+                      disabled
+                      className="mt-1 bg-gray-50"
+                    />
+                  )}
                 </div>
 
                 {/* Site Name */}
