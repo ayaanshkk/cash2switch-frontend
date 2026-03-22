@@ -30,12 +30,14 @@ import {
   History,
   TrendingUp,
   Phone,
-  BadgeDollarSign,
+  BadgePoundSterling,
   FolderOpen,
   Trash2,
   File,
   UserPlus,
-  Archive,  // ✅ ADD THIS
+  Archive,
+  UserCheck,
+  Sparkles,
 } from "lucide-react";
 
 export interface NavSubItem {
@@ -83,6 +85,20 @@ const allSidebarItems: NavGroup[] = [
         url: "/dashboard/renewals",
         icon: Users,
         roles: ["platform admin", "salesperson"],
+        subItems: [
+          {
+            title: "Renewals",
+            url: "/dashboard/renewals",
+            icon: Users,
+            roles: ["platform admin", "salesperson"],
+          },
+          {
+            title: "Allocated Contacts",
+            url: "/dashboard/allocated-contacts",
+            icon: UserCheck,
+            roles: ["platform admin", "salesperson"],  // ✅ Only salesperson sees this
+          },
+        ],
       },
       {
         title: "Leads",
@@ -93,7 +109,7 @@ const allSidebarItems: NavGroup[] = [
       {
         title: "Priced",
         url: "/dashboard/priced",
-        icon: BadgeDollarSign,
+        icon: BadgePoundSterling,
         roles: ["platform admin", "salesperson"],
         isNew: true,
       },
@@ -129,6 +145,12 @@ const allSidebarItems: NavGroup[] = [
         url: "/dashboard/archives",
         icon: Archive,
         roles: ["platform admin"],
+      },
+      {
+        title: "Cleansing",
+        url: "/dashboard/cleansing",
+        icon: Sparkles,  
+        roles: ["platform admin", "salesperson"],
       },
       {
         title: "Recycle Bin",

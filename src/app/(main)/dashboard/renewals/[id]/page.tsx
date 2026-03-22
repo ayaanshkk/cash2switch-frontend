@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -56,7 +56,7 @@ const TABS = [
 // Status options
 const STATUS_OPTIONS = [
   { value: "Callback", label: "Callback" },
-  { value: "Called", label: "Called" },
+  // { value: "Called", label: "Called" },
   { value: "Not Answered", label: "Not Answered" },
   { value: "Priced", label: "Priced" },
   { value: "Lost", label: "Lost" },
@@ -105,10 +105,13 @@ const getStatusLabel = (status: string | undefined): string => {
 interface EnergyCustomer {
   id: number;
   client_id: number;
+  display_id?: number;
+  display_order?: number;
   name: string;
   business_name: string;
   contact_person: string;
   phone: string;
+  mobile_no?: string;
   email?: string;
   address?: string;
   post_code?: string;
@@ -205,6 +208,8 @@ export default function EnergyCustomerDetailsPage() {
   const router = useRouter();
   const { user } = useAuth();
   const id = params?.id as string;
+  const searchParams = useSearchParams();
+  const fromPage = searchParams?.get('from') || 'renewals';
 
   const [customer, setCustomer] = useState<EnergyCustomer | null>(null);
   const [employees, setEmployees] = useState<Employee[]>([]);
@@ -234,7 +239,9 @@ export default function EnergyCustomerDetailsPage() {
   const [assignmentNotes, setAssignmentNotes] = useState("");
   const [isAssigningEmployee, setIsAssigningEmployee] = useState(false);
   const [suppliers, setSuppliers] = useState<{ supplier_id: number; supplier_name: string }[]>([]);
-  const [calledDate, setCalledDate] = useState("");
+  const [calledDate, setCalledDate] = useState(() => new Date().toISOString().split('T')[0]);
+  const [renewedBy, setRenewedBy] = useState<"customer" | "agent" | "">("");
+
 
   useEffect(() => {
     loadCustomerData();
@@ -344,7 +351,7 @@ export default function EnergyCustomerDetailsPage() {
     requiresAddressChange: boolean;
   }> = {
     "Callback": { requiresDate: true, requiresSold: false, deletesRecord: false, requiresNotes: false, requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
-    "Called": { requiresDate: true, requiresSold: false, deletesRecord: false, requiresNotes: false, requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
+    // "Called": { requiresDate: true, requiresSold: false, deletesRecord: false, requiresNotes: false, requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
     "Not Answered": { requiresDate: true, requiresSold: false, deletesRecord: false, requiresNotes: false, requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
     "Priced": { requiresDate: false, requiresSold: true, deletesRecord: false, requiresNotes: false, requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
     "Lost": { requiresDate: true, requiresSold: false, deletesRecord: true, requiresNotes: true, requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
@@ -376,11 +383,12 @@ export default function EnergyCustomerDetailsPage() {
   const handleOpenCallbackModal = () => {
     setCallbackStatus("");
     setCallbackDate("");
-    setCalledDate("");
+    setCalledDate(new Date().toISOString().split('T')[0]);
     setCallbackNotes("");
     setIsSold("");
     setCallbackError("");
     setShowCallbackModal(true);
+    setRenewedBy("");
   };
 
   const handleSubmitCallback = async () => {
@@ -400,6 +408,11 @@ export default function EnergyCustomerDetailsPage() {
 
     if (config?.requiresNotes && !callbackNotes.trim()) {
       setCallbackError("Please enter the reason for this status");
+      return;
+    }
+
+    if (callbackStatus === "Already Renewed" && !renewedBy) {
+      setCallbackError("Please select if renewed by customer or agent");
       return;
     }
 
@@ -440,6 +453,10 @@ export default function EnergyCustomerDetailsPage() {
         payload.new_end_date = newEndDate;
       }
 
+      if (callbackStatus === "Already Renewed" && renewedBy) {
+        payload.renewed_by = renewedBy;
+      }
+
       // ✅ NEW: Add supplier and address changes for "Already Renewed"
       if (config?.requiresSupplierChange && newSupplier.trim()) {
         payload.new_supplier = newSupplier.trim();
@@ -468,7 +485,10 @@ export default function EnergyCustomerDetailsPage() {
       // ✅ ALWAYS reload customer data to get fresh values (including updated end date, supplier, address)
       await loadCustomerData();
 
-      if (data.moved_to_recycle_bin) {
+      if (data.moved_to_cleansing) {
+        alert("🧹 Moved to Cleansing");
+        router.push("/dashboard/cleansing");
+      } else if (data.moved_to_recycle_bin) {
         alert("✅ Moved to recycle bin");
         router.push("/dashboard/recycle-bin");
       } else if (data.deleted) {
@@ -497,7 +517,7 @@ export default function EnergyCustomerDetailsPage() {
         setNewEndDate("");
         setNewSupplier("");   // ✅ RESET
         setNewAddress("");
-        setCalledDate("");
+        setCalledDate(new Date().toISOString().split('T')[0]);
       
         loadHistory();
       }
@@ -593,6 +613,7 @@ export default function EnergyCustomerDetailsPage() {
 
       if (response.ok) {
         const data = await response.json();
+        console.log('💾 Save response customer:', data.customer);
         setCustomer(data.customer || data);
         setIsEditing(false);
         alert("✅ Customer updated successfully!");
@@ -813,14 +834,20 @@ export default function EnergyCustomerDetailsPage() {
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-3">
             <button
-              onClick={() => router.push("/dashboard/renewals")}
+              onClick={() => router.push(
+                fromPage === 'allocated' 
+                  ? '/dashboard/allocated-contacts' 
+                  : '/dashboard/renewals'
+              )}
               className="rounded-lg p-2 hover:bg-gray-100"
             >
               <ArrowLeft className="h-5 w-5 text-gray-600" />
             </button>
             <div>
               <h1 className="text-2xl font-bold text-gray-900">Consumer Details</h1>
-              <p className="text-sm text-gray-500">ID: {customer.client_id}</p>
+              <p className="text-sm text-gray-500">
+                ID: {(customer as any).display_order || (customer as any).display_id || customer.client_id}
+              </p>
             </div>
           </div>
 
@@ -891,7 +918,11 @@ export default function EnergyCustomerDetailsPage() {
                 <div>
                   <label className="text-sm font-medium text-gray-700">ID</label>
                   <Input
-                    value={displayCustomer.client_id || ""}
+                    value={
+                      (displayCustomer as any).display_order ||
+                      (displayCustomer as any).display_id ||
+                      displayCustomer.client_id || ""
+                    }
                     disabled
                     className="mt-1 bg-gray-50"
                   />
@@ -938,6 +969,17 @@ export default function EnergyCustomerDetailsPage() {
                   <Input
                     value={displayCustomer.phone || ""}
                     onChange={(e) => handleUpdateField("phone", e.target.value)}
+                    disabled={!isEditing}
+                    className="mt-1"
+                  />
+                </div>
+
+                {/* Mobile Number */}
+                <div>
+                  <label className="text-sm font-medium text-gray-700">Mobile Number</label>
+                  <Input
+                    value={displayCustomer.mobile_no || ""}
+                    onChange={(e) => handleUpdateField("mobile_no", e.target.value)}
                     disabled={!isEditing}
                     className="mt-1"
                   />
@@ -1028,13 +1070,14 @@ export default function EnergyCustomerDetailsPage() {
                   <label className="text-sm font-medium text-gray-700">Old Supplier</label>
                   {isEditing ? (
                     <Select
-                      value={displayCustomer.supplier_id?.toString() || ""}
-                      onValueChange={(value) => handleUpdateField("supplier_id", parseInt(value))}
+                      value={displayCustomer.old_supplier_id?.toString() || ""}
+                      onValueChange={(value) => handleUpdateField("old_supplier_id", parseInt(value))}
                     >
                       <SelectTrigger className="mt-1">
-                        <SelectValue placeholder="Select supplier" />
+                        <SelectValue placeholder="Select old supplier" />
                       </SelectTrigger>
                       <SelectContent>
+                        <SelectItem value="0">— None —</SelectItem>
                         {suppliers.map((s) => (
                           <SelectItem key={s.supplier_id} value={s.supplier_id.toString()}>
                             {s.supplier_name}
@@ -1044,20 +1087,20 @@ export default function EnergyCustomerDetailsPage() {
                     </Select>
                   ) : (
                     <Input
-                      value={displayCustomer.supplier_name || ""}
+                      value={displayCustomer.old_supplier_name || ""}
                       disabled
                       className="mt-1 bg-gray-50"
                     />
                   )}
                 </div>
 
-                {/* Old Supplier */}
+                {/* New Supplier — this updates the active contract supplier */}
                 <div>
                   <label className="text-sm font-medium text-gray-700">New Supplier</label>
                   {isEditing ? (
                     <Select
-                      value={displayCustomer.old_supplier_id?.toString() || ""}
-                      onValueChange={(value) => handleUpdateField("old_supplier_id", parseInt(value))}
+                      value={displayCustomer.supplier_id?.toString() || ""}
+                      onValueChange={(value) => handleUpdateField("supplier_id", parseInt(value))}
                     >
                       <SelectTrigger className="mt-1">
                         <SelectValue placeholder="Select new supplier" />
@@ -1073,7 +1116,7 @@ export default function EnergyCustomerDetailsPage() {
                     </Select>
                   ) : (
                     <Input
-                      value={displayCustomer.old_supplier_name || ""}
+                      value={displayCustomer.supplier_name || ""}
                       disabled
                       className="mt-1 bg-gray-50"
                     />
@@ -1095,7 +1138,13 @@ export default function EnergyCustomerDetailsPage() {
                 <div>
                   <label className="text-sm font-medium text-gray-700">Month Sold</label>
                   <Input
-                    value={displayCustomer.month_sold || ""}
+                    value={
+                      displayCustomer.month_sold
+                        ? displayCustomer.month_sold.includes('T') || displayCustomer.month_sold.includes(' ')
+                          ? new Date(displayCustomer.month_sold).toLocaleDateString('en-GB', { month: 'short', year: 'numeric' })
+                          : displayCustomer.month_sold
+                        : ""
+                    }
                     onChange={(e) => handleUpdateField("month_sold", e.target.value)}
                     disabled={!isEditing}
                     className="mt-1"
@@ -1649,7 +1698,7 @@ export default function EnergyCustomerDetailsPage() {
 
       {/* ✅ CALLBACK MODAL */}
       <Dialog open={showCallbackModal} onOpenChange={setShowCallbackModal}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Add Callback</DialogTitle>
             <DialogDescription>
@@ -1734,6 +1783,79 @@ export default function EnergyCustomerDetailsPage() {
               </div>
             )}
 
+          {/* ✅ New Supplier for Already Renewed */}
+          {callbackStatus === "Already Renewed" && (
+            <div>
+              <label className="text-sm font-medium text-gray-700">
+                New Supplier <span className="text-gray-400 font-normal">(Optional)</span>
+              </label>
+              <Input
+                type="text"
+                className="mt-1"
+                placeholder="Enter new supplier name"
+                value={newSupplier}
+                onChange={(e) => setNewSupplier(e.target.value)}
+              />
+              <p className="text-xs text-gray-500 mt-1">Leave blank if supplier hasn't changed</p>
+            </div>
+          )}
+
+          {/* ✅ New Address for Already Renewed */}
+          {currentConfig?.requiresAddressChange && (
+            <div>
+              <label className="text-sm font-medium text-gray-700">
+                New Address <span className="text-gray-400 font-normal">(Optional)</span>
+              </label>
+              <Textarea
+                className="mt-1"
+                rows={2}
+                placeholder="Enter new address if changed"
+                value={newAddress}
+                onChange={(e) => setNewAddress(e.target.value)}
+              />
+              <p className="text-xs text-gray-500 mt-1">Leave blank if address hasn't changed</p>
+            </div>
+          )}
+
+            {/* Renewed By - only for Already Renewed */}
+            {callbackStatus === "Already Renewed" && (
+              <div>
+                <label className="text-sm font-medium text-gray-700">
+                  Renewed By <span className="text-red-500">*</span>
+                </label>
+                <div className="mt-1 flex flex-col gap-2 p-3 border rounded-lg bg-white">
+                  <label className="flex items-center gap-3 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="renewedBy_panel"
+                      value="customer"
+                      checked={renewedBy === "customer"}
+                      onChange={() => setRenewedBy("customer")}
+                      className="w-4 h-4 accent-black"
+                    />
+                    <div>
+                      <span className="text-sm font-medium text-gray-900">Renewed by Customer</span>
+                      <p className="text-xs text-gray-500">Counts as Renewed Directly</p>
+                    </div>
+                  </label>
+                  <label className="flex items-center gap-3 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="renewedBy_panel"
+                      value="agent"
+                      checked={renewedBy === "agent"}
+                      onChange={() => setRenewedBy("agent")}
+                      className="w-4 h-4 accent-black"
+                    />
+                    <div>
+                      <span className="text-sm font-medium text-gray-900">Renewed by Agent</span>
+                      <p className="text-xs text-gray-500">Counts as Renewed</p>
+                    </div>
+                  </label>
+                </div>
+              </div>
+            )}
+
             {/* ✅ NEW: Supplier change field for "Already Renewed" */}
             {statusConfig[callbackStatus]?.requiresSupplierChange && (
               <div className="space-y-2">
@@ -1751,7 +1873,7 @@ export default function EnergyCustomerDetailsPage() {
             )}
 
             {/* ✅ NEW: Address change field for "Already Renewed" */}
-            {statusConfig[callbackStatus]?.requiresAddressChange && (
+            {callbackStatus === "Already Renewed" && (
               <div className="space-y-2">
                 <label className="text-sm font-medium">New Address (Optional)</label>
                 <Textarea
@@ -1951,7 +2073,7 @@ export default function EnergyCustomerDetailsPage() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="Callback">Callback</SelectItem>
-                <SelectItem value="Called">Called</SelectItem>
+                {/* <SelectItem value="Called">Called</SelectItem> */}
                 <SelectItem value="Not Answered">Not Answered</SelectItem>
                 <SelectItem value="Priced">Priced</SelectItem>
                 <SelectItem value="Lost">Lost</SelectItem>
@@ -1979,15 +2101,17 @@ export default function EnergyCustomerDetailsPage() {
 
           </div>
 
-          <div>
-            <label className="text-sm font-medium text-gray-700">Called Date</label>
-            <Input
-              type="date"
-              className="mt-1"
-              value={calledDate}
-              onChange={(e) => setCalledDate(e.target.value)}
-            />
-          </div>
+          {callbackStatus && (
+            <div>
+              <label className="text-sm font-medium text-gray-700">Called Date</label>
+              <Input
+                type="date"
+                className="mt-1"
+                value={calledDate}
+                onChange={(e) => setCalledDate(e.target.value)}
+              />
+            </div>
+          )}
 
           {/* Conditional "Sold?" for Priced Status */}
           {currentConfig?.requiresSold && (
@@ -2043,6 +2167,45 @@ export default function EnergyCustomerDetailsPage() {
             </div>
           )}
 
+          {/* ✅ Renewed By - only for Already Renewed */}
+          {callbackStatus === "Already Renewed" && (
+            <div>
+              <label className="text-sm font-medium text-gray-700">
+                Renewed By <span className="text-red-500">*</span>
+              </label>
+              <div className="mt-1 flex flex-col gap-2 p-3 border rounded-lg bg-white">
+                <label className="flex items-center gap-3 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="renewedBy_action_panel"
+                    value="customer"
+                    checked={renewedBy === "customer"}
+                    onChange={() => setRenewedBy("customer")}
+                    className="w-4 h-4 accent-black"
+                  />
+                  <div>
+                    <span className="text-sm font-medium text-gray-900">Renewed by Customer</span>
+                    <p className="text-xs text-gray-500">Counts as Renewed Directly</p>
+                  </div>
+                </label>
+                <label className="flex items-center gap-3 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="renewedBy_action_panel"
+                    value="agent"
+                    checked={renewedBy === "agent"}
+                    onChange={() => setRenewedBy("agent")}
+                    className="w-4 h-4 accent-black"
+                  />
+                  <div>
+                    <span className="text-sm font-medium text-gray-900">Renewed by Agent</span>
+                    <p className="text-xs text-gray-500">Counts as Renewed</p>
+                  </div>
+                </label>
+              </div>
+            </div>
+          )}
+
           {/* Deletion Warning */}
           {currentConfig?.deletesRecord && (
             <Alert className="mt-2">
@@ -2051,6 +2214,40 @@ export default function EnergyCustomerDetailsPage() {
                 <strong>Warning:</strong> This will permanently delete the record.
               </AlertDescription>
             </Alert>
+          )}
+
+          {/* New Supplier - Already Renewed */}
+          {callbackStatus === "Already Renewed" && (
+            <div>
+              <label className="text-sm font-medium text-gray-700">
+                New Supplier <span className="text-gray-400 font-normal">(Optional)</span>
+              </label>
+              <Input
+                type="text"
+                className="mt-1"
+                placeholder="Enter new supplier name"
+                value={newSupplier}
+                onChange={(e) => setNewSupplier(e.target.value)}
+              />
+              <p className="text-xs text-gray-500 mt-1">Leave blank if supplier hasn't changed</p>
+            </div>
+          )}
+
+          {/* New Address - Already Renewed */}
+          {callbackStatus === "Already Renewed" && (
+            <div>
+              <label className="text-sm font-medium text-gray-700">
+                New Address <span className="text-gray-400 font-normal">(Optional)</span>
+              </label>
+              <Textarea
+                className="mt-1"
+                rows={2}
+                placeholder="Enter new address if changed"
+                value={newAddress}
+                onChange={(e) => setNewAddress(e.target.value)}
+              />
+              <p className="text-xs text-gray-500 mt-1">Leave blank if address hasn't changed</p>
+            </div>
           )}
 
           {/* Notes */}
