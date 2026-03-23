@@ -2,7 +2,6 @@
 import React, { useState, useEffect } from "react";
 import {
   Settings,
-  User,
   Building2,
   Users,
   Shield,
@@ -10,14 +9,11 @@ import {
   FileText,
   Save,
   Plus,
-  Edit,
-  Trash2,
   Check,
-  X,
   Copy,
   Mail,
+  Trash2,
   Link as LinkIcon,
-  ToggleLeft,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -28,7 +24,10 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
-// Types for settings data
+const API_BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
+
+// ─── Types ───────────────────────────────────────────────────────────────────
+
 interface CompanySettings {
   name: string;
   address: string;
@@ -37,31 +36,30 @@ interface CompanySettings {
   website: string;
 }
 
-interface UserSettings {
-  id: string;
-  first_name: string;
-  last_name: string;
-  email: string;
-  role: "Manager" | "HR" | "Sales" | "Production" | "Staff" | string;
-  is_active: boolean;
-  is_invited?: boolean;
-  invitation_token?: string;
-}
-
-interface CurrentUser {
-  role: string;
-  [key: string]: any; // Allow other properties
+interface TeamMember {
+  employee_id: number;
+  employee_name: string;
+  email: string | null;
+  phone: string | null;
+  user_id: number | null;
+  username: string | null;
+  role: string | null;
+  role_id: number | null;
+  is_invite_pending: boolean;
+  invite_link: string | null;
 }
 
 interface InviteFormData {
-  first_name: string;
-  last_name: string;
+  employee_name: string;
+  username: string;
   email: string;
-  role: string;
+  phone: string;
+  role_id: string;
 }
 
+// ─── Component ───────────────────────────────────────────────────────────────
+
 export default function SettingsPage() {
-  // State management
   const [activeTab, setActiveTab] = useState("company");
   const [companySettings, setCompanySettings] = useState<CompanySettings>({
     name: "Business Gas",
@@ -71,733 +69,415 @@ export default function SettingsPage() {
     website: "www.switchmyutility.co.uk",
   });
 
-  const [users, setUsers] = useState<UserSettings[]>([]);
-  const [editingUser, setEditingUser] = useState<string | null>(null);
-  const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null);
-  const [isLoadingUser, setIsLoadingUser] = useState(true);
-
+  // Users tab state
+  const [members, setMembers] = useState<TeamMember[]>([]);
+  const [currentUserRole, setCurrentUserRole] = useState<string | null>(null);
+  const [isLoadingRole, setIsLoadingRole] = useState(true);
+  const [isLoadingMembers, setIsLoadingMembers] = useState(false);
   const [showInviteForm, setShowInviteForm] = useState(false);
   const [inviteForm, setInviteForm] = useState<InviteFormData>({
-    first_name: "",
-    last_name: "",
-    email: "",
-    role: "Staff",
+    employee_name: "", username: "", email: "", phone: "", role_id: "",
   });
   const [generatedInviteLink, setGeneratedInviteLink] = useState<string>("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [resendingUserId, setResendingUserId] = useState<number | null>(null);
+  const [deletingEmployeeId, setDeletingEmployeeId] = useState<number | null>(null);
 
-  // Load settings from API
+
+  // ── Bootstrap ───────────────────────────────────────────────────────────────
+
   useEffect(() => {
     fetchCurrentUser();
-    fetchSettings();
   }, []);
 
+  useEffect(() => {
+    if (currentUserRole === "Platform Admin" || currentUserRole === "Tenant Super Admin") {
+      loadMembers();
+    }
+  }, [currentUserRole]);
+
   const fetchCurrentUser = async () => {
-    setIsLoadingUser(true);
+    setIsLoadingRole(true);
     try {
-      // Get the token with correct key
-      const token = localStorage.getItem("auth_token");
-      
-      if (!token) {
-        console.error("No auth_token found in localStorage");
-        setCurrentUser(null);
-        setIsLoadingUser(false);
-        return;
+      const userStr = localStorage.getItem("auth_user");
+      if (userStr) {
+        const user = JSON.parse(userStr);
+        setCurrentUserRole(user.role || null);
       }
-
-      // Auth endpoints use Next.js API routes, not the Render backend
-      const basePath = process.env.NEXT_PUBLIC_BASE_PATH || '';
-      const url = `${basePath}/api/auth/me`;
-      
-      const res = await fetch(url, {
-        method: "GET",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${token}`
-        }
-      });
-      
-      if (res.ok) {
-        const data = await res.json();
-        console.log("Current user loaded:", data.user?.email, "Role:", data.user?.role);
-        setCurrentUser(data.user);
-      } else {
-        const errorText = await res.text();
-        console.error("Failed to fetch current user, status:", res.status);
-        console.error("Error:", errorText.substring(0, 100));
-        setCurrentUser(null);
-      }
-    } catch (err) {
-      console.error("Error fetching current user:", err);
-      setCurrentUser(null);
+    } catch {
+      setCurrentUserRole(null);
     } finally {
-      setIsLoadingUser(false);
+      setIsLoadingRole(false);
     }
   };
 
-  const fetchSettings = async () => {
+  const loadMembers = async () => {
+    setIsLoadingMembers(true);
     try {
       const token = localStorage.getItem("auth_token");
-      if (!token) {
-        console.warn("No auth token found, cannot fetch users.");
-        return;
-      }
-
-      // Try Next.js API route first
-      const basePath = process.env.NEXT_PUBLIC_BASE_PATH || '';
-      let url = `${basePath}/api/auth/users`;
-      
-      console.log("Fetching users from:", url);
-      
-      let usersRes = await fetch(url, {
-        method: "GET",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${token}`
-        }
+      const res = await fetch(`${API_BASE_URL}/auth/invite/list`, {
+        headers: { Authorization: `Bearer ${token}` },
       });
-
-      // If Next.js route doesn't exist (404), try the Render backend
-      if (!usersRes.ok && usersRes.status === 404) {
-        console.log("Next.js API route not found, trying Render backend...");
-        const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
-        url = `${backendUrl}/auth/users`;
-        console.log("Fetching users from backend:", url);
-        
-        usersRes = await fetch(url, {
-          method: "GET",
-          headers: {
-            "Content-Type": "application/json",
-            "Authorization": `Bearer ${token}`
-          }
-        });
-      }
-
-      if (!usersRes.ok) {
-        const errorText = await usersRes.text();
-        console.error("Failed to fetch users. Status:", usersRes.status);
-        console.error("Error response:", errorText);
-        throw new Error(`Failed to fetch users: ${usersRes.status}`);
-      }
-
-      const contentType = usersRes.headers.get("content-type");
-      if (!contentType || !contentType.includes("application/json")) {
-        const text = await usersRes.text();
-        console.error("Response is not JSON:", text.substring(0, 200));
-        throw new Error("API returned HTML instead of JSON - endpoint may not exist");
-      }
-
-      const usersData = await usersRes.json();
-      console.log("Users data received:", usersData);
-      setUsers(usersData.users || []);
-
-      console.log("Users loaded successfully");
-    } catch (err) {
-      console.error("Error loading settings:", err);
-      alert("Error loading users. Check console for details.");
+      if (!res.ok) throw new Error("Failed to load team");
+      const data = await res.json();
+      setMembers(data.members || []);
+    } catch (err: any) {
+      alert(err.message || "Failed to load team members");
+    } finally {
+      setIsLoadingMembers(false);
     }
   };
+
+  // ── Company ─────────────────────────────────────────────────────────────────
 
   const saveCompanySettings = async () => {
     try {
       const token = localStorage.getItem("auth_token");
       if (!token) throw new Error("Not authenticated");
-
-      const basePath = process.env.NEXT_PUBLIC_BASE_PATH || '';
-      const url = `${basePath}/api/settings/company`;
-      
-      const res = await fetch(url, {
+      const res = await fetch(`${API_BASE_URL}/auth/settings/company`, {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
-          "Authorization": `Bearer ${token}`
+          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({ address: companySettings.address }),
       });
-
       if (!res.ok) throw new Error("Failed to save company settings");
       alert("Company settings saved successfully!");
     } catch (err) {
-      console.error("Save error:", err);
       alert("Error saving company settings");
     }
   };
 
-  // Check if current user has permission to manage users
-  const canManageUsers = () => {
-    if (isLoadingUser || !currentUser) {
-      return false;
-    }
-    
-    // Try to get role from different possible locations
-    const role = currentUser.role || currentUser.Role || (currentUser as any).user_role;
-    
-    if (!role) {
-      return false;
-    }
+  // ── Invite ──────────────────────────────────────────────────────────────────
 
-    // Normalize the role for comparison
-    const userRoleLower = String(role).toLowerCase().trim();
-    
-    return userRoleLower === "manager" || userRoleLower === "hr";
-  };
+  const isAdmin =
+    currentUserRole === "Platform Admin" || currentUserRole === "Tenant Super Admin";
 
-  const handleInviteUser = () => {
-    if (!canManageUsers()) {
-      alert("You don't have permission to invite users");
-      return;
-    }
-    setShowInviteForm(true);
-    setGeneratedInviteLink("");
-  };
-
-  const updateInviteForm = (field: keyof InviteFormData, value: string) => {
-    setInviteForm({ ...inviteForm, [field]: value });
-  };
-
-  const sendInvitation = async () => {
-    // Validation
-    if (!inviteForm.first_name || !inviteForm.last_name || !inviteForm.email) {
-      alert("Please fill in all required fields");
-      return;
-    }
-
-    // Email validation
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(inviteForm.email)) {
-      alert("Please enter a valid email address");
-      return;
-    }
+  const handleCreateInvite = async () => {
+    if (!inviteForm.employee_name.trim()) return alert("Full name is required");
+    if (!inviteForm.username.trim()) return alert("Username is required");
+    if (!inviteForm.role_id) return alert("Role is required");
 
     setIsSubmitting(true);
-
     try {
       const token = localStorage.getItem("auth_token");
-      if (!token) throw new Error("Not authenticated");
-
-      const basePath = process.env.NEXT_PUBLIC_BASE_PATH || '';
-      let url = `${basePath}/api/auth/invite-user`;
-      
-      console.log("Sending invitation to:", url);
-      
-      let res = await fetch(url, {
+      const res = await fetch(`${API_BASE_URL}/auth/invite/create`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "Authorization": `Bearer ${token}`
+          Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify(inviteForm),
+        body: JSON.stringify({
+          employee_name: inviteForm.employee_name.trim(),
+          username: inviteForm.username.trim(),
+          email: inviteForm.email.trim() || undefined,
+          phone: inviteForm.phone.trim() || undefined,
+          role_id: parseInt(inviteForm.role_id),
+        }),
       });
-
-      // If Next.js route doesn't exist (404), try the Render backend
-      if (!res.ok && res.status === 404) {
-        console.log("Next.js API route not found, trying Render backend...");
-        const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
-        url = `${backendUrl}/auth/invite-user`;
-        console.log("Sending invitation to backend:", url);
-        
-        res = await fetch(url, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "Authorization": `Bearer ${token}`
-          },
-          body: JSON.stringify(inviteForm),
-        });
-      }
-
-      if (!res.ok) {
-        const contentType = res.headers.get("content-type");
-        if (contentType && contentType.includes("application/json")) {
-          const error = await res.json();
-          throw new Error(error.message || "Failed to send invitation");
-        } else {
-          const text = await res.text();
-          console.error("Non-JSON error response:", text.substring(0, 200));
-          throw new Error(`API returned HTML instead of JSON (status ${res.status}) - endpoint may not exist`);
-        }
-      }
-
-      // Check content-type before parsing success response
-      const contentType = res.headers.get("content-type");
-      if (!contentType || !contentType.includes("application/json")) {
-        const text = await res.text();
-        console.error("Non-JSON success response:", text.substring(0, 200));
-        throw new Error("API returned HTML instead of JSON - endpoint configuration issue");
-      }
-
       const data = await res.json();
-      
-      // Generate the invitation link
-      const baseUrl = window.location.origin;
-      const inviteLink = `${baseUrl}${basePath}/register?token=${data.invitation_token}`;
-      
-      setGeneratedInviteLink(inviteLink);
-      
-      // Reset form
-      setInviteForm({
-        first_name: "",
-        last_name: "",
-        email: "",
-        role: "Staff",
-      });
+      if (!res.ok) throw new Error(data.error || "Failed to create invite");
 
-      // Refresh user list
-      fetchSettings();
-
-      alert("Invitation created successfully! Copy the link and send it to the user.");
+      setGeneratedInviteLink(data.invite.invite_link);
+      setInviteForm({ employee_name: "", username: "", email: "", phone: "", role_id: "" });
+      loadMembers();
     } catch (err: any) {
-      console.error("Invitation error:", err);
-      alert(err.message || "Error sending invitation");
+      alert(err.message || "Failed to create invite");
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  const copyInviteLink = () => {
-    navigator.clipboard.writeText(generatedInviteLink);
-    alert("Invitation link copied to clipboard!");
-  };
-
-  const resendInvitation = async (userId: string) => {
-    if (!canManageUsers()) {
-      alert("You don't have permission to resend invitations");
-      return;
-    }
-
+  const handleResendInvite = async (userId: number) => {
+    setResendingUserId(userId);
     try {
       const token = localStorage.getItem("auth_token");
-      if (!token) throw new Error("Not authenticated");
-
-      const basePath = process.env.NEXT_PUBLIC_BASE_PATH || '';
-      const url = `${basePath}/api/auth/resend-invitation/${userId}`;
-      
-      const res = await fetch(url, {
+      const res = await fetch(`${API_BASE_URL}/auth/invite/resend/${userId}`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${token}`
-        },
+        headers: { Authorization: `Bearer ${token}` },
       });
-
-      if (!res.ok) {
-        const error = await res.json();
-        throw new Error(error.message || "Failed to resend invitation");
-      }
-
       const data = await res.json();
-      const baseUrl = window.location.origin;
-      const inviteLink = `${baseUrl}${basePath}/register?token=${data.invitation_token}`;
-      
-      setGeneratedInviteLink(inviteLink);
-      alert("New invitation link generated! Copy and send it to the user.");
+      if (!res.ok) throw new Error(data.error || "Failed to resend");
+      setGeneratedInviteLink(data.invite_link);
+      alert("New invite link generated! Copy it below.");
     } catch (err: any) {
-      console.error("Resend invitation error:", err);
-      alert(err.message || "Error resending invitation");
+      alert(err.message || "Failed to resend invite");
+    } finally {
+      setResendingUserId(null);
     }
   };
 
-  const updateUser = (id: string, field: keyof UserSettings, value: any) => {
-    setUsers(users.map((user) => (user.id === id ? { ...user, [field]: value } : user)));
+  const copyInviteLink = (link?: string) => {
+    navigator.clipboard.writeText(link || generatedInviteLink);
+    alert("Link copied to clipboard!");
   };
 
-  const saveUserChanges = async (id: string) => {
-    if (!canManageUsers()) {
-      alert("You don't have permission to update users");
-      return;
-    }
+  const handleDeleteMember = async (employeeId: number, employeeName: string) => {
+    if (!confirm(`Are you sure you want to delete ${employeeName}? This cannot be undone.`)) return;
 
-    const user = users.find((u) => u.id === id);
-    if (!user) return;
-
+    setDeletingEmployeeId(employeeId);
     try {
       const token = localStorage.getItem("auth_token");
-      if (!token) throw new Error("Not authenticated");
-
-      const basePath = process.env.NEXT_PUBLIC_BASE_PATH || '';
-      const url = `${basePath}/api/auth/users/${id}`;
-      
-      const res = await fetch(url, {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${token}`
-        },
-        body: JSON.stringify({
-          first_name: user.first_name,
-          last_name: user.last_name,
-          email: user.email,
-          role: user.role,
-        }),
-      });
-
-      if (!res.ok) {
-        const error = await res.json();
-        throw new Error(error.message || "Failed to update user");
-      }
-
-      alert("User updated successfully!");
-      setEditingUser(null);
-      fetchSettings();
-    } catch (err: any) {
-      console.error("Update user error:", err);
-      alert(err.message || "Error updating user");
-    }
-  };
-
-  const cancelEdit = (id: string) => {
-    setEditingUser(null);
-    fetchSettings(); // Refresh to revert changes
-  };
-
-  const deleteUser = async (id: string) => {
-    if (!canManageUsers()) {
-      alert("You don't have permission to delete users");
-      return;
-    }
-
-    if (!confirm("Are you sure you want to delete this user?")) return;
-
-    try {
-      const token = localStorage.getItem("auth_token");
-      if (!token) throw new Error("Not authenticated");
-
-      const basePath = process.env.NEXT_PUBLIC_BASE_PATH || '';
-      const url = `${basePath}/api/auth/users/${id}`;
-      
-      const res = await fetch(url, {
+      const res = await fetch(`${API_BASE_URL}/auth/invite/delete/${employeeId}`, {
         method: "DELETE",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${token}`
-        },
+        headers: { Authorization: `Bearer ${token}` },
       });
-
-      if (!res.ok) {
-        const error = await res.json();
-        throw new Error(error.message || "Failed to delete user");
-      }
-
-      setUsers(users.filter((u) => u.id !== id));
-      alert("User deleted successfully!");
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to delete");
+      alert("Team member deleted successfully");
+      loadMembers();
     } catch (err: any) {
-      console.error("Delete error:", err);
-      alert(err.message || "Error deleting user");
+      alert(err.message || "Failed to delete team member");
+    } finally {
+      setDeletingEmployeeId(null);
     }
   };
 
-  const toggleUserStatus = async (id: string, newStatus: boolean) => {
-    if (!canManageUsers()) {
-      alert("You don't have permission to change user status");
-      return;
-    }
+  // ── Render: Users Tab ───────────────────────────────────────────────────────
 
-    // Optimistically update the UI
-    updateUser(id, "is_active", newStatus);
-
-    try {
-      const token = localStorage.getItem("auth_token");
-      if (!token) throw new Error("Not authenticated");
-
-      const basePath = process.env.NEXT_PUBLIC_BASE_PATH || '';
-      const url = `${basePath}/api/auth/users/${id}/toggle-status`;
-      
-      const res = await fetch(url, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${token}`
-        },
-        body: JSON.stringify({ is_active: newStatus }),
-      });
-
-      if (!res.ok) throw new Error("Failed to toggle status");
-      console.log("User status toggled successfully");
-    } catch (err) {
-      console.error("Error toggling user status:", err);
-      // Revert the UI update if the API call fails
-      updateUser(id, "is_active", !newStatus); 
-      alert("Error updating user status");
-    }
-  };
-  
-  // Conditional rendering function to show a loading indicator or the permission message
   const renderUsersContent = () => {
-    if (isLoadingUser) {
-      return <div className="p-4 text-center text-gray-500">Loading user permissions...</div>;
+    if (isLoadingRole) {
+      return <div className="p-4 text-center text-gray-500">Loading permissions...</div>;
     }
 
-    return (
-      <div className="space-y-6">
-        {/* User Invitation Card - Only shown if canManageUsers is TRUE */}
-        {canManageUsers() && (
-          <Card>
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <div>
-                  <CardTitle>Invite New User</CardTitle>
-                  <CardDescription>
-                    Send an invitation link to new users to complete their registration
-                  </CardDescription>
-                </div>
-                {!showInviteForm && (
-                  <Button onClick={handleInviteUser}>
-                    <Plus className="mr-2 h-4 w-4" />
-                    Invite User
-                  </Button>
-                )}
-              </div>
-            </CardHeader>
-            {showInviteForm && (
-              <CardContent className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label>First Name *</Label>
-                    <Input
-                      value={inviteForm.first_name}
-                      onChange={(e) => updateInviteForm("first_name", e.target.value)}
-                      placeholder="John"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Last Name *</Label>
-                    <Input
-                      value={inviteForm.last_name}
-                      onChange={(e) => updateInviteForm("last_name", e.target.value)}
-                      placeholder="Doe"
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label>Email *</Label>
-                    <Input
-                      type="email"
-                      value={inviteForm.email}
-                      onChange={(e) => updateInviteForm("email", e.target.value)}
-                      placeholder="john@example.com"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Role *</Label>
-                    <Select value={inviteForm.role} onValueChange={(value) => updateInviteForm("role", value)}>
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="Manager">Manager</SelectItem>
-                        <SelectItem value="HR">HR</SelectItem>
-                        <SelectItem value="Sales">Sales</SelectItem>
-                        <SelectItem value="Production">Production</SelectItem>
-                        <SelectItem value="Staff">Staff</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-
-                {generatedInviteLink && (
-                  <div className="rounded-lg bg-green-50 p-4 space-y-3">
-                    <div className="flex items-center gap-2 text-green-800 font-medium">
-                      <Check className="h-5 w-5" />
-                      Invitation Created Successfully!
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Registration Link (copy and send to user)</Label>
-                      <div className="flex gap-2"> 
-                        <Input value={generatedInviteLink} readOnly className="font-mono text-sm" />
-                        <Button onClick={copyInviteLink} variant="outline" size="sm">
-                          <Copy className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                <div className="flex gap-2 justify-end">
-                  <Button
-                    variant="outline"
-                    onClick={() => {
-                      setShowInviteForm(false);
-                      setGeneratedInviteLink("");
-                      setInviteForm({
-                        first_name: "",
-                        last_name: "",
-                        email: "",
-                        role: "Staff",
-                      });
-                    }}
-                    disabled={isSubmitting}
-                  >
-                    Cancel
-                  </Button>
-                  <Button onClick={sendInvitation} disabled={isSubmitting}>
-                    <Mail className="mr-2 h-4 w-4" />
-                    {isSubmitting ? "Creating..." : "Create Invitation"}
-                  </Button>
-                </div>
-              </CardContent>
-            )}
-          </Card>
-        )}
-
-        {/* Users List */}
+    if (!isAdmin) {
+      return (
         <Card>
-          <CardHeader>
-            <CardTitle>All Users</CardTitle>
-            <CardDescription>Manage existing user accounts and permissions</CardDescription>
-          </CardHeader>
-          <CardContent>
-            {/* ONLY show the permission warning if not loading AND the user cannot manage */}
-            {!canManageUsers() && (
-              <div className="mb-4 rounded-lg bg-yellow-50 p-4 text-sm text-yellow-800">
-                You don't have permission to manage users. Only <strong>Manager</strong> and <strong>HR</strong> roles can invite, edit, or delete
-                users.
-              </div>
-            )}
-            <div className="space-y-4">
-              {users.map((user) => (
-                <div key={user.id} className="rounded-lg border p-4">
-                  {editingUser === user.id && canManageUsers() ? ( 
-                    <div className="space-y-4">
-                      <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                          <Label>First Name *</Label>
-                          <Input
-                            value={user.first_name}
-                            onChange={(e) => updateUser(user.id, "first_name", e.target.value)}
-                            placeholder="First Name"
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <Label>Last Name *</Label>
-                          <Input
-                            value={user.last_name}
-                            onChange={(e) => updateUser(user.id, "last_name", e.target.value)}
-                            placeholder="Last Name"
-                          />
-                        </div>
-                      </div>
-
-                      <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                          <Label>Email *</Label>
-                          <Input
-                            type="email"
-                            value={user.email}
-                            onChange={(e) => updateUser(user.id, "email", e.target.value)}
-                            placeholder="email@example.com"
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <Label>Role *</Label>
-                          <Select value={user.role} onValueChange={(value) => updateUser(user.id, "role", value)}>
-                            <SelectTrigger>
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="Manager">Manager</SelectItem>
-                              <SelectItem value="HR">HR</SelectItem>
-                              <SelectItem value="Sales">Sales</SelectItem>
-                              <SelectItem value="Production">Production</SelectItem>
-                              <SelectItem value="Staff">Staff</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </div>
-                      </div>
-
-                      <div className="flex gap-2 justify-end">
-                        <Button size="sm" variant="outline" onClick={() => cancelEdit(user.id)}>
-                          <X className="mr-2 h-4 w-4" />
-                          Cancel
-                        </Button>
-                        <Button size="sm" onClick={() => saveUserChanges(user.id)}>
-                          <Check className="mr-2 h-4 w-4" />
-                          Save
-                        </Button>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-6">
-                        <div className="min-w-[200px]">
-                          <div className="font-medium">
-                            {user.first_name} {user.last_name}
-                          </div>
-                          <div className="text-sm text-gray-600">{user.email}</div>
-                        </div>
-                        <div>
-                          <span className="inline-flex rounded-full bg-blue-100 px-3 py-1 text-xs font-semibold text-blue-800">
-                            {user.role}
-                          </span>
-                        </div>
-                        <div>
-                          {user.is_invited ? (
-                            <span className="inline-flex rounded-full bg-orange-100 px-3 py-1 text-xs font-semibold text-orange-800">
-                              Pending Registration
-                            </span>
-                          ) : (
-                            <span
-                              className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${
-                                user.is_active ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"
-                              }`}
-                            >
-                              {user.is_active ? "Active" : "Inactive"}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-
-                      <div className="flex items-center gap-2">
-                        {user.is_invited && canManageUsers() && (
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => resendInvitation(user.id)}
-                            title="Resend invitation link"
-                          >
-                            <LinkIcon className="h-4 w-4 mr-1" />
-                            Resend Link
-                          </Button>
-                        )}
-                        {!user.is_invited && canManageUsers() && (
-                            <Switch 
-                                checked={user.is_active}
-                                onCheckedChange={(newStatus) => toggleUserStatus(user.id, newStatus)}
-                                aria-label={`Toggle status for ${user.first_name}`}
-                            />
-                        )}
-                        {canManageUsers() && (
-                          <>
-                            <Button size="sm" variant="ghost" onClick={() => setEditingUser(user.id)} title="Edit User">
-                              <Edit className="h-4 w-4" />
-                            </Button>
-                            <Button size="sm" variant="ghost" onClick={() => deleteUser(user.id)} title="Delete User">
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </>
-                        )}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
+          <CardContent className="py-12 text-center text-gray-500">
+            <Shield className="h-10 w-10 mx-auto mb-3 text-gray-300" />
+            <p className="font-medium">Platform Admin access required</p>
+            <p className="text-sm mt-1">Only Platform Admins can manage team members.</p>
           </CardContent>
         </Card>
-      </div>
-    );
-  };
-  
+      );
+    }
+
+return (
+  <div className="space-y-6">
+    {/* Invite Card */}
+    <Card>
+      <CardHeader>
+        <div className="flex items-center justify-between">
+          <div>
+            <CardTitle>Invite Team Member</CardTitle>
+            <CardDescription>
+              Create a username for your team member and share the invite link so
+              they can set their password and log in.
+            </CardDescription>
+          </div>
+          {!showInviteForm && (
+            <Button onClick={() => { setShowInviteForm(true); setGeneratedInviteLink(""); }}>
+              <Plus className="mr-2 h-4 w-4" />
+              Invite Member
+            </Button>
+          )}
+        </div>
+      </CardHeader>
+
+      {showInviteForm && (
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label>Full Name <span className="text-red-500">*</span></Label>
+              <Input
+                placeholder="e.g. Sarah Jones"
+                value={inviteForm.employee_name}
+                onChange={(e) => setInviteForm({ ...inviteForm, employee_name: e.target.value })}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Username <span className="text-red-500">*</span></Label>
+              <Input
+                placeholder="e.g. sarah.jones"
+                value={inviteForm.username}
+                onChange={(e) => setInviteForm({ ...inviteForm, username: e.target.value })}
+              />
+              <p className="text-xs text-gray-500">They will use this to log in</p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label>Email <span className="text-gray-400 font-normal">(optional)</span></Label>
+              <Input
+                type="email"
+                placeholder="sarah@company.com"
+                value={inviteForm.email}
+                onChange={(e) => setInviteForm({ ...inviteForm, email: e.target.value })}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Phone <span className="text-gray-400 font-normal">(optional)</span></Label>
+              <Input
+                placeholder="07700 000000"
+                value={inviteForm.phone}
+                onChange={(e) => setInviteForm({ ...inviteForm, phone: e.target.value })}
+              />
+            </div>
+          </div>
+
+          <div className="space-y-2 max-w-xs">
+            <Label>Role <span className="text-red-500">*</span></Label>
+            <Select
+              value={inviteForm.role_id}
+              onValueChange={(v) => setInviteForm({ ...inviteForm, role_id: v })}
+            >
+              <SelectTrigger><SelectValue placeholder="Select role" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="2">Platform Admin</SelectItem>
+                <SelectItem value="3">Salesperson</SelectItem>
+                <SelectItem value="5">Leads Offshore</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          {generatedInviteLink && (
+            <div className="rounded-lg bg-green-50 p-4 space-y-3">
+              <div className="flex items-center gap-2 text-green-800 font-medium">
+                <Check className="h-5 w-5" />
+                Invite created! Share this link:
+              </div>
+              <div className="flex gap-2">
+                <Input value={generatedInviteLink} readOnly className="font-mono text-xs" />
+                <Button variant="outline" size="sm" onClick={() => copyInviteLink()}>
+                  <Copy className="h-4 w-4" />
+                </Button>
+              </div>
+              <p className="text-xs text-green-700">
+                They visit this link, set a password, and can log in immediately.
+              </p>
+            </div>
+          )}
+
+          <div className="flex gap-2 justify-end">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowInviteForm(false);
+                setGeneratedInviteLink("");
+                setInviteForm({ employee_name: "", username: "", email: "", phone: "", role_id: "" });
+              }}
+              disabled={isSubmitting}
+            >
+              Cancel
+            </Button>
+            <Button onClick={handleCreateInvite} disabled={isSubmitting}>
+              <Mail className="mr-2 h-4 w-4" />
+              {isSubmitting ? "Creating..." : "Create Invite"}
+            </Button>
+          </div>
+        </CardContent>
+      )}
+    </Card>
+
+    {/* Team Members List */}
+    <Card>
+      <CardHeader>
+        <CardTitle>All Users</CardTitle>
+        <CardDescription>Manage existing team members and permissions</CardDescription>
+      </CardHeader>
+      <CardContent>
+        {isLoadingMembers ? (
+          <div className="text-center py-8 text-gray-400">Loading members...</div>
+        ) : members.length === 0 ? (
+          <div className="text-center py-8 text-gray-500">
+            No team members yet. Invite your first member above.
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {members.map((member) => (
+              <div key={member.employee_id} className="rounded-lg border p-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-6">
+                    <div className="min-w-[200px]">
+                      <div className="font-medium">{member.employee_name}</div>
+                      <div className="text-sm text-gray-600">
+                        {member.username
+                          ? `@${member.username}`
+                          : <span className="italic text-gray-400">No username</span>}
+                        {member.email && <span className="ml-2">· {member.email}</span>}
+                      </div>
+                    </div>
+
+                    {member.role && (
+                      <span className="inline-flex rounded-full bg-blue-100 px-3 py-1 text-xs font-semibold text-blue-800">
+                        {member.role}
+                      </span>
+                    )}
+
+                    {member.is_invite_pending ? (
+                      <span className="inline-flex rounded-full bg-orange-100 px-3 py-1 text-xs font-semibold text-orange-800">
+                        Pending Registration
+                      </span>
+                    ) : member.user_id ? (
+                      <span className="inline-flex rounded-full bg-green-100 px-3 py-1 text-xs font-semibold text-green-800">
+                        Active
+                      </span>
+                    ) : (
+                      <span className="inline-flex rounded-full bg-gray-100 px-3 py-1 text-xs font-semibold text-gray-500">
+                        No account
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    {member.is_invite_pending && member.invite_link && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => copyInviteLink(member.invite_link!)}
+                        title="Copy invite link"
+                      >
+                        <Copy className="h-4 w-4 mr-1" />
+                        Copy Link
+                      </Button>
+                    )}
+                    {member.is_invite_pending && member.user_id && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => handleResendInvite(member.user_id!)}
+                        disabled={resendingUserId === member.user_id}
+                        title="Generate new invite link"
+                      >
+                        <LinkIcon className="h-4 w-4 mr-1" />
+                        {resendingUserId === member.user_id ? "..." : "New Link"}
+                      </Button>
+                    )}
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => handleDeleteMember(member.employee_id, member.employee_name)}
+                      disabled={deletingEmployeeId === member.employee_id}
+                      title="Delete team member"
+                      className="text-red-600 border-red-200 hover:bg-red-50"
+                    >
+                      <Trash2 className="h-4 w-4 mr-1" />
+                      {deletingEmployeeId === member.employee_id ? "..." : "Delete"}
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  </div>
+);
+};
+    
+
+  // ── Main Render ─────────────────────────────────────────────────────────────
+
   return (
     <div className="w-full p-6">
-      {/* Header */}
       <div className="mb-6 flex items-center gap-3">
         <Settings className="h-8 w-8" />
         <h1 className="text-3xl font-bold">Settings</h1>
       </div>
 
-      {/* Settings Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
         <TabsList className="grid w-full grid-cols-3">
           <TabsTrigger value="company" className="flex items-center gap-2">
@@ -872,7 +552,6 @@ export default function SettingsPage() {
         {/* System Settings */}
         <TabsContent value="system">
           <div className="space-y-6">
-            {/* Backup & Data */}
             <Card>
               <CardHeader>
                 <CardTitle>Data Management</CardTitle>
@@ -902,7 +581,6 @@ export default function SettingsPage() {
               </CardContent>
             </Card>
 
-            {/* Security Settings */}
             <Card>
               <CardHeader>
                 <CardTitle>Security Settings</CardTitle>
