@@ -209,7 +209,7 @@ export default function LeadsPage() {
     setIsLoading(true); setError(null);
     try {
       const [leadsResp, suppResp, empResp, stagesResp] = await Promise.all([
-        fetchWithAuth(`/api/crm/leads?exclude_stage=Lost&service=${encodeURIComponent(service)}`),
+        fetchWithAuth(`/api/crm/leads?exclude_stage=Lost&use_current_user=true&service=${encodeURIComponent(service)}`),
         fetchWithAuth("/suppliers"),
         fetchWithAuth("/employees"),
         fetchWithAuth("/stages"),
@@ -298,7 +298,8 @@ export default function LeadsPage() {
     return [...base].sort((a, b) =>
       new Date(a.created_at || 0).getTime() - new Date(b.created_at || 0).getTime()
     );
-  }, [allLeads, searchResults, searchTerm]);
+  }, [allLeads, searchResults, searchTerm, user]);
+
 
   const filteredLeads = useMemo(() => {
     let list = sortedLeads.filter(l => {
@@ -341,9 +342,9 @@ export default function LeadsPage() {
     return filteredLeads.slice(s, s + CUSTOMERS_PER_PAGE);
   }, [filteredLeads, currentPage]);
 
-  const isFromSearch  = (l: LeadCustomer) => {
+  const isFromSearch = (l: LeadCustomer) => {
     if (isAdmin) return false;
-    return l.opportunity_owner_employee_id !== (user as any)?.employee_id;
+    return l.opportunity_owner_employee_id !== user?.id;
   };
 
   const getSupplierName = (id?: number | null) =>
@@ -594,7 +595,7 @@ export default function LeadsPage() {
   const handlePerformanceClick = async (type: string) => {
     setPerformanceFilter(type);
     try {
-      const resp = await fetchWithAuth(`/api/crm/leads?service=${encodeURIComponent(service)}`);
+      const resp = await fetchWithAuth(`/api/crm/leads?use_current_user=true&service=${encodeURIComponent(service)}`);
       const all: LeadCustomer[] = Array.isArray(resp) ? resp : (resp?.data || []);
       let filtered: LeadCustomer[] = [];
       switch (type) {

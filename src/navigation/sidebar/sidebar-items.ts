@@ -78,7 +78,7 @@ const allSidebarItems: NavGroup[] = [
         title: "Dashboard",
         url: "/dashboard/default",
         icon: Home,
-        roles: ["platform admin", "salesperson"],
+        roles: ["platform admin", "salesperson", "leads offshore"],
       },
       {
         title: "Renewals",
@@ -93,8 +93,8 @@ const allSidebarItems: NavGroup[] = [
             roles: ["platform admin", "salesperson"],
           },
           {
-            title: "Allocated Contacts",
-            url: "/dashboard/allocated-contacts",
+            title: "Allocated Renewals",
+            url: "/dashboard/allocated-renewals",
             icon: UserCheck,
             roles: ["platform admin", "salesperson"],  // ✅ Only salesperson sees this
           },
@@ -104,7 +104,7 @@ const allSidebarItems: NavGroup[] = [
         title: "Leads",
         url: "/dashboard/leads",
         icon: Phone,
-        roles: ["platform admin", "salesperson"],
+        roles: ["platform admin", "salesperson", "leads offshore"],
       },
       {
         title: "Priced",
@@ -117,7 +117,7 @@ const allSidebarItems: NavGroup[] = [
         title: "Calendar",
         url: "/dashboard/calendar",
         icon: Calendar,
-        roles: ["platform admin", "salesperson"],
+        roles: ["platform admin", "salesperson", "leads offshore"],
         isNew: true,
       },
       {
@@ -156,20 +156,20 @@ const allSidebarItems: NavGroup[] = [
         title: "Recycle Bin",
         url: "/dashboard/recycle-bin",
         icon: Trash2,
-        roles: ["platform admin", "salesperson"],
+        roles: ["platform admin", "salesperson", "leads offshore"],
       },
       {
         title: "Notifications",
         url: "/dashboard/notifications",
         icon: Bell,
-        roles: ["platform admin", "salesperson"],
+        roles: ["platform admin", "salesperson", "leads offshore"],
         isNew: true,
       },
       {
         title: "Settings",
         url: "/dashboard/settings",
         icon: Settings,
-        roles: ["platform admin", "salesperson"],
+        roles: ["platform admin", "salesperson", "leads offshore"],
       },
     ],
   },
@@ -183,13 +183,17 @@ export const getSidebarItems = (userRole: string, notificationCount?: number): N
   // Check if user has platform admin role
   const isPlatformAdmin = normalizedRole.includes('platform') && normalizedRole.includes('admin');
   const isSalesperson = normalizedRole.includes('salesperson') || normalizedRole.includes('sales');
+  const isLeadsOffshore = normalizedRole.includes('leads') || normalizedRole.includes('offshore');
+
   
   // Determine allowed roles
   let allowedRoles: string[] = [];
   if (isPlatformAdmin) {
-    allowedRoles = ['platform admin', 'salesperson']; // Admin sees everything
+    allowedRoles = ['platform admin', 'salesperson', 'leads offshore'];
   } else if (isSalesperson) {
     allowedRoles = ['salesperson'];
+  } else if (isLeadsOffshore) {
+    allowedRoles = ['leads offshore'];
   }
   
   return allSidebarItems

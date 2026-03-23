@@ -454,7 +454,7 @@ export default function AllocatedContactsPage() {
     <div className="w-full p-6">
       <Toaster position="top-right" />
 
-      <h1 className="mb-2 text-4xl font-semibold tracking-tight text-slate-900">Allocated Contacts</h1>
+      <h1 className="mb-2 text-4xl font-semibold tracking-tight text-slate-900">Allocated Renewals</h1>
       <p className="mb-6 text-sm text-gray-500">
         {isAdmin
           ? "Records that have been reassigned from one salesperson to another."
@@ -643,25 +643,23 @@ export default function AllocatedContactsPage() {
       {/* Table */}
       <div className="overflow-hidden rounded-lg border border-gray-200 bg-white">
         <div className="overflow-x-auto">
-          <table className="w-full divide-y divide-gray-200 table-fixed text-xs">
+          <table className="w-full divide-y divide-gray-200 table-fixed">
             <thead className="bg-gray-50">
               <tr>
-                <th className="px-1.5 py-2 text-left text-xs font-medium tracking-wide text-gray-500 uppercase w-8">ID</th>
-                <th className="px-1.5 py-2 text-left text-xs font-medium tracking-wide text-gray-500 uppercase w-[8%]">Client Name</th>
-                <th className="px-1.5 py-2 text-left text-xs font-medium tracking-wide text-gray-500 uppercase w-[10%]">Trading Name</th>
-                <th className="px-1.5 py-2 text-left text-xs font-medium tracking-wide text-gray-500 uppercase w-[8%]">Tel No</th>
-                <th className="px-1.5 py-2 text-left text-xs font-medium tracking-wide text-gray-500 uppercase w-[8%]">Mobile No</th>
-                <th className="px-1.5 py-2 text-left text-xs font-medium tracking-wide text-gray-500 uppercase w-[9%]">MPAN Top</th>
-                <th className="px-1.5 py-2 text-left text-xs font-medium tracking-wide text-gray-500 uppercase w-[7%]">MPAN Bottom</th>
-                <th className="px-1.5 py-2 text-left text-xs font-medium tracking-wide text-gray-500 uppercase w-[7%]">Supplier</th>
-                <th className="px-1.5 py-2 text-right text-xs font-medium tracking-wide text-gray-500 uppercase w-[5%]">Usage</th>
-                <th className="px-1.5 py-2 text-left text-xs font-medium tracking-wide text-gray-500 uppercase w-[6%]">Start</th>
-                <th className="px-1.5 py-2 text-left text-xs font-medium tracking-wide text-gray-500 uppercase w-[6%]">End</th>
-                <th className="px-1.5 py-2 text-left text-xs font-medium tracking-wide text-gray-500 uppercase w-[10%]">Status</th>
+                <th className="px-2 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase w-10 border-r-2 border-gray-300">ID</th>
+                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase w-[9%]">Client Name</th>
+                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase w-[11%]">Trading Name</th>
+                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase w-[8%]">Tel No</th>
+                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase w-[8%]">Mobile No</th>
+                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase w-[10%]">MPAN Top</th>
+                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase w-[9%]">Supplier</th>
+                <th className="px-3 py-3 text-right text-xs font-medium tracking-wider text-gray-500 uppercase w-[9%] whitespace-nowrap">Annual Usage</th>
+                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase w-[9%] whitespace-nowrap">Start Date</th>
+                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase w-[9%] whitespace-nowrap">Contract End</th>
+                <th className="px-3 py-3 text-center text-xs font-medium tracking-wider text-gray-500 uppercase w-[12%]">Status</th>
                 {isAdmin && (
-                  <th className="px-1.5 py-2 text-left text-xs font-medium tracking-wide text-gray-500 uppercase w-[8%]">Assigned To</th>
+                  <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase w-[9%]">Assigned To</th>
                 )}
-                <th className="px-1.5 py-2 text-left text-xs font-medium tracking-wide text-gray-500 uppercase w-[8%]">Notes</th>
               </tr>
             </thead>
 
@@ -670,7 +668,7 @@ export default function AllocatedContactsPage() {
                 <tr>
                   <td colSpan={colSpan} className="px-6 py-12 text-center">
                     <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-current border-r-transparent text-gray-600" />
-                    <p className="mt-4 text-gray-500">Loading allocated contacts...</p>
+                    <p className="mt-4 text-gray-500">Loading allocated renewals...</p>
                   </td>
                 </tr>
               ) : error ? (
@@ -684,7 +682,7 @@ export default function AllocatedContactsPage() {
                 <tr>
                   <td colSpan={colSpan} className="px-6 py-12 text-center text-gray-500">
                     <UserCheck className="h-12 w-12 text-gray-400 mx-auto mb-3" />
-                    <p className="text-lg">No allocated contacts yet.</p>
+                    <p className="text-lg">No allocated renewals yet.</p>
                     <p className="mt-2 text-sm">
                       {isAdmin
                         ? "Reassigned records will appear here."
@@ -699,51 +697,54 @@ export default function AllocatedContactsPage() {
                     <tr
                       key={customer.client_id}
                       className="hover:bg-gray-50 transition-colors cursor-pointer"
-                      onClick={() => router.push(`/dashboard/renewals/${customer.client_id}?from=allocated`)}
+                      onClick={() => window.open(`/dashboard/renewals/${displayId}?cid=${customer.client_id}&from=allocated`, "_blank")}
                     >
-                      <td className="px-1.5 py-2 text-xs font-medium text-gray-900 border-r-2 border-gray-300 align-top">
+                      <td className="px-2 py-3 text-sm font-medium text-gray-900 border-r-2 border-gray-300 align-top">
                         {displayId}
                       </td>
-                      <td className="px-1.5 py-2 text-xs text-gray-700 align-top">
-                        <div className="break-words leading-tight">{customer.contact_person || "—"}</div>
+
+                      <td className="px-3 py-3 text-sm text-gray-700 align-top overflow-hidden">
+                        <div className="whitespace-normal break-words leading-tight">{customer.contact_person || "—"}</div>
                       </td>
-                      <td className="px-1.5 py-2 text-xs text-gray-900 align-top">
-                        <div className="break-words leading-tight">{customer.business_name || "—"}</div>
+
+                      <td className="px-3 py-3 text-sm text-gray-900 align-top overflow-hidden">
+                        <div className="whitespace-normal break-words leading-tight">{customer.business_name || "—"}</div>
                       </td>
-                      <td className="px-1.5 py-2 text-xs text-gray-900 align-top">
+
+                      <td className="px-3 py-3 text-sm text-gray-900 align-top">
                         <div className="whitespace-nowrap">{customer.phone ? String(customer.phone).replace(/\.0$/, "") : "—"}</div>
                       </td>
-                      <td className="px-1.5 py-2 text-xs text-gray-900 align-top">
+
+                      <td className="px-3 py-3 text-sm text-gray-900 align-top">
                         <div className="whitespace-nowrap">{customer.mobile_no ? String(customer.mobile_no).replace(/\.0$/, "") : "—"}</div>
                       </td>
-                      <td className="px-1.5 py-2 text-xs text-gray-900 align-top">
-                        <div className="whitespace-nowrap">{customer.mpan_top || "—"}</div>
+
+                      <td className="px-3 py-3 text-sm text-gray-900 align-top overflow-hidden">
+                        <div className="truncate" title={customer.mpan_top || ""}>{customer.mpan_top || "—"}</div>
                       </td>
-                      <td className="px-1.5 py-2 text-xs text-gray-900 align-top">
-                        <div className="whitespace-nowrap">{customer.mpan_bottom || "—"}</div>
+
+                      <td className="px-3 py-3 text-sm text-gray-900 align-top overflow-hidden">
+                        <div className="truncate" title={customer.supplier_name || ""}>{customer.supplier_name || "—"}</div>
                       </td>
-                      <td className="px-1.5 py-2 text-xs text-gray-900 align-top">
-                        <div className="break-words leading-tight">{customer.supplier_name || "—"}</div>
+
+                      <td className="px-3 py-3 text-sm text-gray-900 text-right align-top">
+                        <div className="whitespace-nowrap">{customer.annual_usage ? customer.annual_usage.toLocaleString() : "—"}</div>
                       </td>
-                      <td className="px-1.5 py-2 text-xs text-gray-900 text-right align-top">
-                        <div className="whitespace-nowrap">
-                          {customer.annual_usage ? customer.annual_usage.toLocaleString() : "—"}
-                        </div>
-                      </td>
-                      <td className="px-1.5 py-2 text-xs text-gray-700 align-top">
+
+                      <td className="px-3 py-3 text-sm text-gray-900 align-top">
                         <div className="whitespace-nowrap">{formatDate(customer.start_date)}</div>
                       </td>
-                      <td className="px-1.5 py-2 text-xs text-gray-700 align-top">
+
+                      <td className="px-3 py-3 text-sm text-gray-900 align-top">
                         <div className="whitespace-nowrap">{formatDate(customer.end_date)}</div>
                       </td>
 
-                      {/* Status */}
-                      <td className="px-1.5 py-2 align-top" onClick={e => e.stopPropagation()}>
+                      <td className="px-3 py-3 align-top" onClick={e => e.stopPropagation()}>
                         <Select
                           value={customer.status || ""}
                           onValueChange={value => openCallbackModal(customer.client_id, value === "CLEAR_STATUS" ? "" : value)}
                         >
-                          <SelectTrigger className="h-6 text-xs w-full">
+                          <SelectTrigger className="h-7 text-xs w-full max-w-[150px]">
                             <SelectValue placeholder="Set status">
                               {customer.status ? (
                                 <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-semibold ${getStatusColor(customer.status)}`}>
@@ -768,9 +769,8 @@ export default function AllocatedContactsPage() {
                         </Select>
                       </td>
 
-                      {/* Admin-only: Assigned To */}
-                      {isAdmin && (
-                        <td className="px-1.5 py-2 align-top" onClick={e => e.stopPropagation()}>
+                      <td className="px-3 py-3 align-top" onClick={e => e.stopPropagation()}>
+                        {isAdmin ? (
                           <Select
                             value={customer.assigned_to_id?.toString() || "0"}
                             onValueChange={(value) => {
@@ -780,7 +780,7 @@ export default function AllocatedContactsPage() {
                               setShowAssignModal(true);
                             }}
                           >
-                            <SelectTrigger className="h-6 text-xs w-full">
+                            <SelectTrigger className="h-7 text-xs w-full max-w-[150px]">
                               <SelectValue placeholder="Assign">
                                 {customer.assigned_to_name || "Unassigned"}
                               </SelectValue>
@@ -794,14 +794,9 @@ export default function AllocatedContactsPage() {
                               ))}
                             </SelectContent>
                           </Select>
-                        </td>
-                      )}
-
-                      {/* Notes */}
-                      <td className="px-1.5 py-2 align-top text-xs text-gray-600">
-                        <div className="break-words whitespace-normal leading-tight">
-                          {customer.assignment_notes || "—"}
-                        </div>
+                        ) : (
+                          <span className="text-sm text-gray-700">{customer.assigned_to_name || "—"}</span>
+                        )}
                       </td>
                     </tr>
                   );
