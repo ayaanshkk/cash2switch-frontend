@@ -453,30 +453,6 @@ export function EnergyRenewalsOverview({ userRole, employeeId }: EnergyRenewalsO
             </CardFooter>
           </Card>
 
-          {/* Revenue at Risk */}
-          <Card className="border-red-300 bg-red-50/30">
-            <CardHeader className="pb-2">
-              <CardDescription>
-                {isAdmin ? "Total Revenue at Risk" : "Your Revenue at Risk"}
-              </CardDescription>
-              <CardTitle className="text-xl font-semibold tabular-nums text-red-900 break-all leading-tight">
-                £{(stats?.total_revenue_at_risk || 0).toLocaleString('en-GB', { 
-                  minimumFractionDigits: 2, 
-                  maximumFractionDigits: 2 
-                })}
-              </CardTitle>
-            </CardHeader>
-            <CardFooter className="flex-col items-start gap-1.5 text-sm pt-2">
-              <Badge variant="outline" className="bg-red-100 text-red-700 border-red-300 mb-2">
-                <AlertTriangle className="h-3 w-3 mr-1" />
-                High Priority
-              </Badge>
-              <div className="line-clamp-2 text-xs font-medium text-red-800">
-                {isAdmin ? "Total contract value expiring" : "Your contract value expiring"}
-              </div>
-            </CardFooter>
-          </Card>
-
           {/* Total AQ */}
           <Card 
             className={`border-purple-300 bg-purple-50/30 ${isAdmin ? 'cursor-pointer hover:shadow-lg transition-shadow' : ''}`}
@@ -511,6 +487,30 @@ export function EnergyRenewalsOverview({ userRole, employeeId }: EnergyRenewalsO
               ) : (
                 <div className="text-purple-600 text-xs">Annual energy usage</div>
               )}
+            </CardFooter>
+          </Card>
+
+          {/* Revenue at Risk */}
+          <Card className="border-red-300 bg-red-50/30">
+            <CardHeader className="pb-2">
+              <CardDescription>
+                {isAdmin ? "Total Revenue at Risk" : "Your Revenue at Risk"}
+              </CardDescription>
+              <CardTitle className="text-xl font-semibold tabular-nums text-red-900 break-all leading-tight">
+                £{(stats?.total_revenue_at_risk || 0).toLocaleString('en-GB', { 
+                  minimumFractionDigits: 2, 
+                  maximumFractionDigits: 2 
+                })}
+              </CardTitle>
+            </CardHeader>
+            <CardFooter className="flex-col items-start gap-1.5 text-sm pt-2">
+              <Badge variant="outline" className="bg-red-100 text-red-700 border-red-300 mb-2">
+                <AlertTriangle className="h-3 w-3 mr-1" />
+                High Priority
+              </Badge>
+              <div className="line-clamp-2 text-xs font-medium text-red-800">
+                {isAdmin ? "Total contract value expiring" : "Your contract value expiring"}
+              </div>
             </CardFooter>
           </Card>
         </div>
