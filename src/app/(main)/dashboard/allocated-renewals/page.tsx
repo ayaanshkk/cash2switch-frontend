@@ -697,7 +697,7 @@ export default function AllocatedContactsPage() {
                     <tr
                       key={customer.client_id}
                       className="hover:bg-gray-50 transition-colors cursor-pointer"
-                      onClick={() => window.open(`/dashboard/renewals/${displayId}?cid=${customer.client_id}&from=allocated`, "_blank")}
+                      onClick={() => window.open(`/dashboard/renewals/${customer.client_id}?from=allocated`, "_blank")}
                     >
                       <td className="px-2 py-3 text-sm font-medium text-gray-900 border-r-2 border-gray-300 align-top">
                         {displayId}
