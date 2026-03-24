@@ -212,7 +212,7 @@ export default function AllocatedLeadsPage() {
       // We filter client-side to only show records that have been *reassigned*
       // (i.e. stage_name exists meaning they've been worked on, OR simply have an owner).
       const resp = await fetchWithAuth(
-        `/api/crm/leads?service=${encodeURIComponent(service)}&exclude_stage=Lost`
+        `/api/crm/leads/allocated?service=${encodeURIComponent(service)}&exclude_stage=Lost`
       );
       const data: AllocatedLead[] = Array.isArray(resp) ? resp : (resp?.data || []);
 
