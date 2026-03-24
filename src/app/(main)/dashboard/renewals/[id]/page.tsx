@@ -836,7 +836,7 @@ export default function EnergyCustomerDetailsPage() {
             <button
               onClick={() => router.push(
                 fromPage === 'allocated' 
-                  ? '/dashboard/allocated-contacts' 
+                  ? '/dashboard/allocated-renewals' 
                   : '/dashboard/renewals'
               )}
               className="rounded-lg p-2 hover:bg-gray-100"

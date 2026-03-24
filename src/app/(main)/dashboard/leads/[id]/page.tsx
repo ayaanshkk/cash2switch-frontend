@@ -608,7 +608,7 @@ export default function LeadDetailsPage() {
           <div className="flex items-center space-x-3">
             <button
               onClick={() => router.push(
-                fromPage === "allocated" ? "/dashboard/allocated-contacts" : "/dashboard/leads"
+                fromPage === "allocated" ? "/dashboard/allocated-renewals" : "/dashboard/leads"
               )}
               className="rounded-lg p-2 hover:bg-gray-100"
             >
