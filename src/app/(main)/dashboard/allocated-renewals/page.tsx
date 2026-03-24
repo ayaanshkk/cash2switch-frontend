@@ -646,7 +646,7 @@ export default function AllocatedContactsPage() {
           <table className="w-full divide-y divide-gray-200 table-fixed">
             <thead className="bg-gray-50">
               <tr>
-                <th className="px-2 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase w-10 border-r-2 border-gray-300">ID</th>
+                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase w-20 border-r-2 border-gray-300">ID</th>
                 <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase w-[9%]">Client Name</th>
                 <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase w-[11%]">Trading Name</th>
                 <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase w-[8%]">Tel No</th>
@@ -699,8 +699,10 @@ export default function AllocatedContactsPage() {
                       className="hover:bg-gray-50 transition-colors cursor-pointer"
                       onClick={() => window.open(`/dashboard/renewals/${customer.client_id}?from=allocated`, "_blank")}
                     >
-                      <td className="px-2 py-3 text-sm font-medium text-gray-900 border-r-2 border-gray-300 align-top">
-                        {displayId}
+                      <td className="px-3 py-3 text-sm font-medium text-gray-900 border-r-2 border-gray-300 align-top">
+                        <div className="whitespace-nowrap">
+                          {displayId}
+                        </div>
                       </td>
 
                       <td className="px-3 py-3 text-sm text-gray-700 align-top overflow-hidden">

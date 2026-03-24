@@ -535,7 +535,7 @@ export default function ArchivesPage() {
           <table className="w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
-                <th className="px-2 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase w-16 border-r-2 border-gray-300">
+                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase w-20 border-r-2 border-gray-300">
                   ID
                 </th>
                 <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase w-32">
@@ -610,8 +610,10 @@ export default function ArchivesPage() {
                     onClick={() => handleViewDetails(customer.client_id)}
                   >
                     {/* ID Column - matches renewals exactly */}
-                    <td className="px-2 py-3 text-sm font-medium text-gray-900 border-r-2 border-gray-300 align-top">
-                      {customer.display_id || customer.tenant_client_id || customer.id}
+                    <td className="px-3 py-3 text-sm font-medium text-gray-900 border-r-2 border-gray-300 align-top">
+                      <div className="whitespace-nowrap">
+                        {customer.display_id || customer.tenant_client_id || customer.id}
+                      </div>
                     </td>
 
                     {/* Client Name - matches renewals exactly */}

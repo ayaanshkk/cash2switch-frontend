@@ -1382,7 +1382,6 @@ export default function EnergyCustomersPage() {
             <thead className="bg-gray-50">
               <tr>
                 <th className="px-3 py-3 text-left w-8">
-                  {/* ✅ FIX: checked state uses client_id based selection */}
                   <input
                     type="checkbox"
                     className="rounded border-gray-300"
@@ -1390,7 +1389,7 @@ export default function EnergyCustomersPage() {
                     onChange={handleSelectAll}
                   />
                 </th>
-                <th className="px-2 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase w-10 border-r-2 border-gray-300">
+                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase w-20 border-r-2 border-gray-300">
                   ID
                 </th>
                 <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase w-[9%]">
@@ -1426,7 +1425,6 @@ export default function EnergyCustomersPage() {
                 <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase w-[9%]">
                   Assigned To
                 </th>
-                {/* ✅ REMOVED: Notes column */}
               </tr>
             </thead>
 
@@ -1509,8 +1507,8 @@ export default function EnergyCustomersPage() {
                         />
                       </td>
 
-                      <td className="px-2 py-3 text-sm font-medium text-gray-900 border-r-2 border-gray-300 align-top">
-                        <div className="flex items-center gap-1">
+                      <td className="px-3 py-3 text-sm font-medium text-gray-900 border-r-2 border-gray-300 align-top">
+                        <div className="flex items-center gap-1 whitespace-nowrap">
                           {displayId}
                           {fromSearch && (
                             <span title="From team search" className="inline-flex">

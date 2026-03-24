@@ -886,7 +886,7 @@ export default function LeadsPage() {
                     checked={selectedLeads.length === paginatedLeads.length && paginatedLeads.length > 0}
                     onChange={handleSelectAll} />
                 </th>
-                <th className="px-2 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase w-10 border-r-2 border-gray-300">ID</th>
+                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase w-20 border-r-2 border-gray-300">ID</th>
                 <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase w-[9%]">Client Name</th>
                 <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase w-[11%]">Trading Name</th>
                 <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase w-[8%]">Tel No</th>
@@ -945,8 +945,8 @@ export default function LeadsPage() {
                       <input type="checkbox" className="rounded border-gray-300 mt-1"
                         checked={isSelected} onChange={() => handleSelectLead(lead.opportunity_id)} disabled={fromSearch} />
                     </td>
-                    <td className="px-2 py-3 text-sm font-medium text-gray-900 border-r-2 border-gray-300 align-top">
-                      <div className="flex items-center gap-1">
+                    <td className="px-3 py-3 text-sm font-medium text-gray-900 border-r-2 border-gray-300 align-top">
+                      <div className="flex items-center gap-1 whitespace-nowrap">
                         {displayId}
                         {fromSearch && <span title="From team search" className="inline-flex"><Info className="h-3 w-3 text-amber-600" /></span>}
                       </div>
