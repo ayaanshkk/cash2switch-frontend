@@ -96,7 +96,7 @@ const allSidebarItems: NavGroup[] = [
             title: "Allocated Renewals",
             url: "/dashboard/allocated-renewals",
             icon: UserCheck,
-            roles: ["platform admin", "salesperson"],  // ✅ Only salesperson sees this
+            roles: ["platform admin", "salesperson"],
           },
         ],
       },
@@ -105,6 +105,20 @@ const allSidebarItems: NavGroup[] = [
         url: "/dashboard/leads",
         icon: Phone,
         roles: ["platform admin", "salesperson", "leads offshore"],
+        subItems: [
+          {
+            title: "Leads",
+            url: "/dashboard/leads",
+            icon: Phone,
+            roles: ["platform admin", "salesperson", "leads offshore"],
+          },
+          {
+            title: "Allocated Leads",
+            url: "/dashboard/allocated-leads",
+            icon: UserCheck,
+            roles: ["platform admin", "salesperson", "leads offshore"],
+          },
+        ],
       },
       {
         title: "Priced",

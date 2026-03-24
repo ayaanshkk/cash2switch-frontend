@@ -698,33 +698,43 @@ export default function EnergyCustomersPage() {
       });
 
       if (response && !response.error) {
-        if (isAdmin) {
+        // ✅ CRITICAL FIX: Everyone (including admin) removes contact when assigning to someone else
+        const assignedToSelf = parseInt(assignToEmployeeId) === user?.employee_id;
+        
+        if (assignedToSelf) {
+          // Keep it if assigning to self
           setAllCustomers((prev) =>
             prev.map((c) =>
               c.client_id === assigningCustomerId
                 ? {
                     ...c,
-                    assigned_to_id: assignToEmployeeId === "0" ? null : parseInt(assignToEmployeeId),
-                    assigned_to_name: assignToEmployeeId === "0"
-                      ? null
-                      : employees.find((e) => e.employee_id === parseInt(assignToEmployeeId))?.employee_name || null,
+                    assigned_to_id: parseInt(assignToEmployeeId),
+                    assigned_to_name: employees.find((e) => e.employee_id === parseInt(assignToEmployeeId))?.employee_name || null,
                     assignment_notes: assignmentNotes.trim() || undefined,
                   }
                 : c
             )
           );
         } else {
+          // ✅ REMOVE from view when assigning to someone else (for EVERYONE, including admin)
           setAllCustomers((prev) => prev.filter((c) => c.client_id !== assigningCustomerId));
+          setSelectedCustomers((prev) => prev.filter((id) => id !== assigningCustomerId));
+          console.log(`✅ Removed client ${assigningCustomerId} from view - assigned to ${assignToEmployeeId}`);
         }
+        
         toast.success("✅ Salesperson assigned successfully");
         setShowAssignModal(false);
         setAssignToEmployeeId("");
         setAssignmentNotes("");
         setAssigningCustomerId(null);
+        
+        // Refresh stats if admin
+        if (isAdmin) fetchEmployeeStats();
       } else {
         toast.error(response?.error || "Failed to assign salesperson");
       }
     } catch (error) {
+      console.error("Assignment error:", error);
       toast.error("Failed to assign salesperson");
     } finally {
       setIsAssigning(false);
@@ -784,7 +794,6 @@ export default function EnergyCustomersPage() {
     }
     setIsBulkAssigning(true);
     try {
-      // ✅ FIX: selectedCustomers already contains client_ids directly
       const payload: any = {
         client_ids: selectedCustomers,
         employee_id: bulkAssignEmployeeId,
@@ -798,28 +807,19 @@ export default function EnergyCustomersPage() {
       });
 
       if (response.success) {
-        toast.success(`✅ ${response.updated_count} clients assigned to ${response.employee_name}`);
-        if (!isAdmin) {
-          setAllCustomers((prev) => prev.filter((c) => !selectedCustomers.includes(c.client_id)));
-        } else {
-          setAllCustomers((prev) => 
-            prev.map((c) => 
-              selectedCustomers.includes(c.client_id)
-                ? {
-                    ...c,
-                    assigned_to_id: bulkAssignEmployeeId,
-                    assigned_to_name: bulkAssignEmployeeName,
-                    assignment_notes: bulkAssignmentNotes.trim() || undefined,
-                  }
-                : c
-            )
-          );
-        }
+        // ✅ CRITICAL FIX: ALWAYS remove bulk assigned contacts (for everyone including admin)
+        setAllCustomers((prev) => prev.filter((c) => !selectedCustomers.includes(c.client_id)));
+        
         setSelectedCustomers([]);
         setIsSelectAllChecked(false);
         setShowBulkAssignModal(false);
         setBulkAssignmentNotes("");
+        
+        toast.success(`✅ ${response.updated_count} clients assigned to ${response.employee_name}`);
+        
         if (isAdmin) fetchEmployeeStats();
+        
+        console.log(`✅ Removed ${selectedCustomers.length} clients from view - bulk assigned`);
       }
     } catch (err) {
       console.error("Bulk assign error:", err);
@@ -828,6 +828,7 @@ export default function EnergyCustomersPage() {
       setIsBulkAssigning(false);
     }
   };
+
 
   // ---------------- Bulk Delete ----------------
   const bulkDeleteCustomers = async () => {
