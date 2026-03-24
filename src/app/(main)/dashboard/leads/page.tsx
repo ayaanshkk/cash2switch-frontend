@@ -209,6 +209,7 @@ export default function LeadsPage() {
     setIsLoading(true); setError(null);
     try {
       const [leadsResp, suppResp, empResp, stagesResp] = await Promise.all([
+        // ✅ ADD use_current_user=true to match renewals behavior
         fetchWithAuth(`/api/crm/leads?exclude_stage=Lost&use_current_user=true&service=${encodeURIComponent(service)}`),
         fetchWithAuth("/suppliers"),
         fetchWithAuth("/employees"),
@@ -219,7 +220,8 @@ export default function LeadsPage() {
 
       let archived: LeadCustomer[] = [];
       try {
-        const archResp = await fetchWithAuth(`/api/crm/leads/archives?service=${encodeURIComponent(service)}`);
+        // ✅ ADD use_current_user=true here too
+        const archResp = await fetchWithAuth(`/api/crm/leads/archives?service=${encodeURIComponent(service)}&use_current_user=true`);
         archived = Array.isArray(archResp) ? archResp : [];
       } catch { /* no archive endpoint yet */ }
 
@@ -287,7 +289,14 @@ export default function LeadsPage() {
   }, [searchTerm, service]);
 
   const sortedLeads = useMemo(() => {
-    const base = searchTerm.trim() ? allLeads : allLeads.filter(l => !l.is_archived);
+    // ✅ For non-admins, filter out leads assigned to other people (unless searching)
+    let base = searchTerm.trim() ? allLeads : allLeads.filter(l => !l.is_archived);
+    
+    // ✅ Additional filtering: non-admins can't see others' leads in their main view
+    if (!isAdmin && !searchTerm.trim()) {
+      base = base.filter(l => l.opportunity_owner_employee_id === user?.employee_id);
+    }
+    
     if (searchTerm && searchResults.length > 0) {
       const existingIds = new Set(base.map(l => l.opportunity_id));
       const extras = searchResults.filter(l => !existingIds.has(l.opportunity_id));
@@ -298,7 +307,7 @@ export default function LeadsPage() {
     return [...base].sort((a, b) =>
       new Date(a.created_at || 0).getTime() - new Date(b.created_at || 0).getTime()
     );
-  }, [allLeads, searchResults, searchTerm, user]);
+  }, [allLeads, searchResults, searchTerm, user, isAdmin]);
 
 
   const filteredLeads = useMemo(() => {
