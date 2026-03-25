@@ -68,6 +68,9 @@ interface StaffStat {
   in_progress_count: number;
   not_contacted_count: number;
   lost_count: number;
+  renewed_directly_count: number;
+  end_date_changed_count: number;
+  priced_count: number;
 }
 
 interface StaffPerformanceGridProps {
@@ -214,167 +217,47 @@ function DetailCard({ stat, delay }: { stat: StaffStat; delay: number }) {
 
 /* ─── Main component ─── */
 export function StaffPerformanceGrid({ employeeId }: StaffPerformanceGridProps) {
-  const [staff, setStaff] = useState<StaffMember[]>([]);
-  const [monthlyPerformance, setMonthlyPerformance] = useState<SalespersonPerformance[]>([]);
-  const [renewals, setRenewals] = useState<CustomerContact[]>([]);
+  // const [staff, setStaff] = useState<StaffMember[]>([]);
+  const [staffStats, setStaffStats] = useState<StaffStat[]>([]);
+
   const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState(false);
   const [selectedEmployeeId, setSelectedEmployeeId] = useState<number | null>(null);
   const [sortBy, setSortBy] = useState<"conversion_rate" | "converted_count" | "total_contacts">("conversion_rate");
 
   useEffect(() => {
-    if (employeeId) {
-      // Salesperson view - fetch only their performance
-      fetchPerformanceData();
-    } else {
-      // Admin view - fetch all staff first, then performance
-      fetchStaffMembers();
-    }
+    fetchPerformanceData();
   }, [employeeId]);
-
-  const fetchStaffMembers = async () => {
-    try {
-      setLoading(true);
-      const token = localStorage.getItem("auth_token");
-      const tenantId = localStorage.getItem("tenant_id") || "1";
-
-      const response = await fetch(`${API_BASE_URL}/employees`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "X-Tenant-ID": tenantId,
-        },
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        const employees = Array.isArray(data) ? data : (data.data || []);
-        
-        // Show ALL employees except Platform Admin
-        const salespeople = employees.filter((emp: any) => {
-          const roleName = emp.role_name?.toLowerCase() || '';
-          const isPlatformAdmin = roleName.includes('platform') && roleName.includes('admin');
-          return !isPlatformAdmin;
-        });
-        
-        setStaff(salespeople);
-        
-        // After fetching staff, fetch performance data
-        await fetchPerformanceData();
-      }
-    } catch (error) {
-      console.error("Error fetching staff:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const fetchPerformanceData = async () => {
     try {
       const token = localStorage.getItem("auth_token");
       const tenantId = localStorage.getItem("tenant_id") || "1";
-      const employeeParam = employeeId ? `&employee_id=${employeeId}` : '';
+      const employeeParam = employeeId ? `?employee_id=${employeeId}` : '';
 
-      const headers: Record<string, string> = {
-        Authorization: `Bearer ${token}`,
-        "X-Tenant-ID": tenantId,
-      };
-
-      // Fetch monthly performance (primary data source for the new design)
-      const monthlyRes = await fetch(
-        `${API_BASE_URL}/energy-renewals/salesperson-performance?period=month${employeeParam}`,
-        { headers }
+      const res = await fetch(
+        `${API_BASE_URL}/energy-renewals/staff-status-counts${employeeParam}`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "X-Tenant-ID": tenantId,
+          },
+        }
       );
 
-      if (monthlyRes.ok) {
-        const monthlyData: PerformanceData = await monthlyRes.json();
-        console.log("📊 Monthly Performance Data:", monthlyData);
-        setMonthlyPerformance(monthlyData.performance || []);
-      }
-
-      // Also fetch ALL renewals to get accurate status counts
-      const renewalsUrl = employeeId
-        ? `${API_BASE_URL}/energy-renewals?employee_id=${employeeId}`
-        : `${API_BASE_URL}/energy-renewals`;
-      
-      const renewalsRes = await fetch(renewalsUrl, { headers });
-      if (renewalsRes.ok) {
-        const renewalsData = await renewalsRes.json();
-        const allRenewals = Array.isArray(renewalsData) ? renewalsData : [];
-        console.log("📋 All Renewals Sample:", allRenewals.slice(0, 5));
-        setRenewals(allRenewals);
+      if (res.ok) {
+        const data = await res.json();
+        setStaffStats(data); // data is already StaffStat[] shape
       }
     } catch (error) {
       console.error("Error fetching performance:", error);
     } finally {
-      if (employeeId) {
-        setLoading(false);
-      }
+      setLoading(false);
     }
   };
 
   /* Compute stats from performance data AND renewals data */
-  const stats: StaffStat[] = monthlyPerformance
-    .map((perf) => {
-      // Get this employee's renewals from the renewals endpoint
-      const employeeRenewals = renewals.filter(
-        (r) => r.assigned_to_name?.toLowerCase().trim() === perf.employee_name.toLowerCase().trim()
-      );
-
-      // Count by status - using the SAME logic as your Renewal Performance widget
-      const renewed_count = employeeRenewals.filter(r => {
-        const s = (r.status || '').toLowerCase().trim();
-        return s === 'renewed' || s === 'won' || s === 'already renewed' || 
-               s === 'renewed directly' || s === 'pricing approved' ||
-               s.includes('renew');
-      }).length;
-      
-      const in_progress_count = employeeRenewals.filter(r => {
-        const s = (r.status || '').toLowerCase().trim();
-        return s === 'in progress' || s.includes('contact') || 
-               s.includes('call') || s.includes('progress') || s.includes('callback');
-      }).length;
-      
-      const lost_count = employeeRenewals.filter(r => {
-        const s = (r.status || '').toLowerCase().trim();
-        return s === 'lost' || s.includes('cancel') || s === 'declined';
-      }).length;
-      
-      const not_contacted_count = employeeRenewals.filter(r => {
-        const s = (r.status || '').toLowerCase().trim();
-        return s === '' || s === 'pending' || s === 'not contacted' || s === 'new' ||
-               (!s.includes('renew') && !s.includes('progress') && 
-                !s.includes('contact') && !s.includes('lost') && 
-                !s.includes('cancel') && !s.includes('call') && !s.includes('won'));
-      }).length;
-
-      // Calculate renewal rate based on renewals data
-      const total = employeeRenewals.length || perf.total_contacts || 1;
-      const renewal_rate = total > 0 ? Math.round((renewed_count / total) * 100) : 0;
-
-      console.log(`📊 ${perf.employee_name}:`, {
-        total_from_api: perf.total_contacts,
-        renewals_count: employeeRenewals.length,
-        renewed: renewed_count,
-        in_progress: in_progress_count,
-        not_contacted: not_contacted_count,
-        lost: lost_count,
-        renewal_rate,
-      });
-
-      return {
-        employee_id: perf.employee_id,
-        employee_name: perf.employee_name,
-        total_contacts: employeeRenewals.length || perf.total_contacts,
-        converted_count: renewed_count,
-        total_value_touched: perf.total_value_touched,
-        conversion_rate: renewal_rate,
-        renewed_count,
-        in_progress_count,
-        not_contacted_count,
-        lost_count,
-      };
-    })
-    .sort((a, b) => a.employee_name.localeCompare(b.employee_name)); // Alphabetical order
+  const stats = staffStats;
 
   const strip = [...stats].sort((a, b) => a.employee_name.localeCompare(b.employee_name)); // Also alphabetical in strip
   const sorted = [...stats].sort((a, b) => {
@@ -387,24 +270,24 @@ export function StaffPerformanceGrid({ employeeId }: StaffPerformanceGridProps) 
   const avgRate = stats.length > 0 
     ? Math.round(stats.reduce((s, m) => s + m.conversion_rate, 0) / stats.length) 
     : 0;
-  const totalConverted = stats.reduce((s, m) => s + m.converted_count, 0);
+  const totalConverted = stats.reduce((s, m) => s + m.renewed_count, 0);
   const totalContacts = stats.reduce((s, m) => s + m.total_contacts, 0);
 
   /* Subtitle and modal header differ per role */
   const subtitle = employeeId
-    ? `${stats[0]?.total_contacts ?? 0} contacts · ${stats[0]?.conversion_rate ?? 0}% conversion · ${stats[0]?.converted_count ?? 0} converted`
-    : `${staff.length} members · avg ${avgRate}% conversion · ${totalConverted} converted this month`;
+    ? `${stats[0]?.total_contacts ?? 0} contacts · ${stats[0]?.conversion_rate ?? 0}% conversion`
+    : `${stats.length} members · avg ${avgRate}% conversion · ${totalConverted} renewed`;
 
   const modalStats = employeeId
     ? [
         { label: "Contacts", val: stats[0]?.total_contacts ?? 0 },
         { label: "Rate", val: `${stats[0]?.conversion_rate ?? 0}%` },
-        { label: "Converted", val: stats[0]?.converted_count ?? 0 },
+        { label: "Converted", val: stats[0]?.renewed_count ?? 0 },
       ]
     : [
-        { label: "Members", val: staff.length },
+        { label: "Members", val: stats.length },
         { label: "Avg Rate", val: `${avgRate}%` },
-        { label: "Total Converted", val: totalConverted },
+        { label: "Total Renewed", val: totalConverted },
         { label: "Total Contacts", val: totalContacts },
       ];
 
