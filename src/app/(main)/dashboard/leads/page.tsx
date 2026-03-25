@@ -208,9 +208,6 @@ export default function LeadsPage() {
   const fetchLeads = async () => {
     setIsLoading(true); setError(null);
     try {
-      // ✅ FIX: Remove use_current_user=true from initial load
-      // Non-admins get filtered server-side automatically
-      // Admins see all leads by default
       const [leadsResp, suppResp, empResp, stagesResp] = await Promise.all([
         fetchWithAuth(`/api/crm/leads?exclude_stage=Lost&service=${encodeURIComponent(service)}`),
         fetchWithAuth("/suppliers"),
@@ -220,18 +217,15 @@ export default function LeadsPage() {
 
       const active: LeadCustomer[] = Array.isArray(leadsResp) ? leadsResp : (leadsResp?.data || []);
 
-      let archived: LeadCustomer[] = [];
-      try {
-        const archResp = await fetchWithAuth(`/api/crm/leads/archives?service=${encodeURIComponent(service)}`);
-        archived = Array.isArray(archResp) ? archResp : [];
-      } catch { /* no archive endpoint yet */ }
-
-      setAllLeads([...active, ...archived]);
+      console.log(`📊 Loaded ${active.length} active leads for service=${service}`);
+      
+      setAllLeads(active);
       setSuppliers(Array.isArray(suppResp) ? suppResp : (suppResp?.data || []));
       const empList = Array.isArray(empResp.data) ? empResp.data : (Array.isArray(empResp) ? empResp : []);
       setEmployees(empList);
       setStages(Array.isArray(stagesResp) ? stagesResp : (stagesResp?.data || []));
     } catch (err: any) {
+      console.error('❌ fetchLeads error:', err);
       setError(err.message || "Failed to load leads");
       setAllLeads([]);
     } finally {
@@ -291,9 +285,9 @@ export default function LeadsPage() {
   }, [searchTerm, service]);
 
   const sortedLeads = useMemo(() => {
-    // ✅ FIX: Server already filtered by employee_id for non-admins
-    // No need to filter again on client side
-    let base = searchTerm.trim() ? allLeads : allLeads.filter(l => !l.is_archived);
+    // ✅ Server already filtered by employee_id for non-admins
+    // All leads from server are active (exclude_stage=Lost)
+    let base = [...allLeads];
     
     if (searchTerm && searchResults.length > 0) {
       const existingIds = new Set(base.map(l => l.opportunity_id));
@@ -303,7 +297,7 @@ export default function LeadsPage() {
       );
     }
     
-    return [...base].sort((a, b) =>
+    return base.sort((a, b) =>
       new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime()
     );
   }, [allLeads, searchResults, searchTerm]);
@@ -968,7 +962,7 @@ export default function LeadsPage() {
                     <td className="px-3 py-3 text-sm text-gray-900 align-top overflow-hidden">
                       <div className="leading-tight">
                         <div className="truncate" title={lead.business_name || ""}>{lead.business_name || "—"}</div>
-                        {isArchived && <Badge variant="outline" className="mt-1 text-xs bg-gray-200 text-gray-600 border-gray-400 whitespace-nowrap">ARCHIVED</Badge>}
+                        {/* {isArchived && <Badge variant="outline" className="mt-1 text-xs bg-gray-200 text-gray-600 border-gray-400 whitespace-nowrap">ARCHIVED</Badge>} */}
                       </div>
                     </td>
                     <td className="px-3 py-3 text-sm text-gray-900 align-top">
@@ -993,7 +987,7 @@ export default function LeadsPage() {
                       <div className="whitespace-nowrap">{formatDate(lead.end_date)}</div>
                     </td>
                     <td className="px-3 py-3 align-top" onClick={e => e.stopPropagation()}>
-                      <Select value={lead.stage_name || ""} onValueChange={v => { if (v === "CLEAR_STATUS") updateLeadStatus(lead.opportunity_id, ""); else updateLeadStatus(lead.opportunity_id, v); }} disabled={isArchived}>
+                      <Select value={lead.stage_name || ""} onValueChange={v => { if (v === "CLEAR_STATUS") updateLeadStatus(lead.opportunity_id, ""); else updateLeadStatus(lead.opportunity_id, v); }}>
                         <SelectTrigger className="h-7 text-xs w-full max-w-[150px]">
                           <SelectValue placeholder="Set status">
                             {lead.stage_name
