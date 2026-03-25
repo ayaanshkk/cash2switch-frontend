@@ -208,9 +208,11 @@ export default function LeadsPage() {
   const fetchLeads = async () => {
     setIsLoading(true); setError(null);
     try {
+      // ✅ FIX: Remove use_current_user=true from initial load
+      // Non-admins get filtered server-side automatically
+      // Admins see all leads by default
       const [leadsResp, suppResp, empResp, stagesResp] = await Promise.all([
-        // ✅ ADD use_current_user=true to match renewals behavior
-        fetchWithAuth(`/api/crm/leads?exclude_stage=Lost&use_current_user=true&service=${encodeURIComponent(service)}`),
+        fetchWithAuth(`/api/crm/leads?exclude_stage=Lost&service=${encodeURIComponent(service)}`),
         fetchWithAuth("/suppliers"),
         fetchWithAuth("/employees"),
         fetchWithAuth("/stages"),
@@ -220,8 +222,7 @@ export default function LeadsPage() {
 
       let archived: LeadCustomer[] = [];
       try {
-        // ✅ ADD use_current_user=true here too
-        const archResp = await fetchWithAuth(`/api/crm/leads/archives?service=${encodeURIComponent(service)}&use_current_user=true`);
+        const archResp = await fetchWithAuth(`/api/crm/leads/archives?service=${encodeURIComponent(service)}`);
         archived = Array.isArray(archResp) ? archResp : [];
       } catch { /* no archive endpoint yet */ }
 
@@ -240,8 +241,9 @@ export default function LeadsPage() {
 
   const fetchPerformanceStats = async () => {
     try {
+      // ✅ FIX: Remove use_current_user=true - server-side filtering handles this
       const resp = await fetchWithAuth(
-        `/api/crm/leads/performance?use_current_user=true&service=${encodeURIComponent(service)}`
+        `/api/crm/leads/performance?service=${encodeURIComponent(service)}`
       );
       if (resp && !resp.error) {
         setPerformanceStats({
@@ -289,26 +291,22 @@ export default function LeadsPage() {
   }, [searchTerm, service]);
 
   const sortedLeads = useMemo(() => {
-    // ✅ For non-admins, filter out leads assigned to other people (unless searching)
+    // ✅ FIX: Server already filtered by employee_id for non-admins
+    // No need to filter again on client side
     let base = searchTerm.trim() ? allLeads : allLeads.filter(l => !l.is_archived);
-    
-    // ✅ Additional filtering: non-admins can't see others' leads in their main view
-    if (!isAdmin && !searchTerm.trim()) {
-      base = base.filter(l => l.opportunity_owner_employee_id === user?.employee_id);
-    }
     
     if (searchTerm && searchResults.length > 0) {
       const existingIds = new Set(base.map(l => l.opportunity_id));
       const extras = searchResults.filter(l => !existingIds.has(l.opportunity_id));
       return [...base, ...extras].sort((a, b) =>
-        new Date(a.created_at || 0).getTime() - new Date(b.created_at || 0).getTime()
+        new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime()
       );
     }
+    
     return [...base].sort((a, b) =>
-      new Date(a.created_at || 0).getTime() - new Date(b.created_at || 0).getTime()
+      new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime()
     );
-  }, [allLeads, searchResults, searchTerm, user, isAdmin]);
-
+  }, [allLeads, searchResults, searchTerm]);
 
   const filteredLeads = useMemo(() => {
     let list = sortedLeads.filter(l => {
@@ -604,7 +602,8 @@ export default function LeadsPage() {
   const handlePerformanceClick = async (type: string) => {
     setPerformanceFilter(type);
     try {
-      const resp = await fetchWithAuth(`/api/crm/leads?use_current_user=true&service=${encodeURIComponent(service)}`);
+      // ✅ FIX: Remove use_current_user=true - server handles filtering
+      const resp = await fetchWithAuth(`/api/crm/leads?service=${encodeURIComponent(service)}`);
       const all: LeadCustomer[] = Array.isArray(resp) ? resp : (resp?.data || []);
       let filtered: LeadCustomer[] = [];
       switch (type) {
