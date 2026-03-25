@@ -258,9 +258,14 @@ export default function LeadsPage() {
   const fetchEmployeeStats = async () => {
     try {
       const resp = await fetchWithAuth(`/api/crm/leads/stats-by-employee?service=${encodeURIComponent(service)}`);
-      const stats = Array.isArray(resp?.stats) ? resp.stats : [];
+      // ✅ FIX: Backend returns array directly, not { stats: [...] }
+      const stats = Array.isArray(resp) ? resp : [];
+      console.log('📊 Team stats loaded:', stats);
       setEmployeeStats(stats.filter((s: any) => s.count > 0));
-    } catch { setEmployeeStats([]); }
+    } catch (err) { 
+      console.error('❌ Failed to load team stats:', err);
+      setEmployeeStats([]); 
+    }
   };
 
   useEffect(() => {
