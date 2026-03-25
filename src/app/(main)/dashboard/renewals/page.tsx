@@ -460,7 +460,7 @@ export default function EnergyCustomersPage() {
     }
     
     return [...customersToShow].sort((a, b) => {
-      return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+      return (a.display_order ?? 9999) - (b.display_order ?? 9999);
     });
   }, [allCustomers, searchResults, searchTerm, user]);
 
@@ -1456,7 +1456,8 @@ export default function EnergyCustomersPage() {
                 paginatedCustomers.map((customer) => {
                   // ✅ FIX: isSelected now checks client_id
                   const isSelected = selectedCustomers.includes(customer.client_id);
-                  const displayId = customer.display_order || customer.display_id || customer.id;
+                  // const displayId = customer.display_order || customer.display_id || customer.id;
+                  const displayId = customer.display_order ?? customer.display_id ?? customer.id;
                   const fromSearch = isFromSearch(customer);
                   const isArchived = customer.is_archived === true;
                   
