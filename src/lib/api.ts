@@ -3,6 +3,7 @@
 // ================= BASE CONFIG =================
 const BACKEND_URL = process.env.NEXT_PUBLIC_API_URL || process.env.NEXT_PUBLIC_BACKEND_URL || "http://127.0.0.1:5000";
 export const API_BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://127.0.0.1:5000";
+const DEFAULT_TIMEOUT_MS = Number(process.env.NEXT_PUBLIC_API_TIMEOUT_MS || 60000);
 
 if (typeof window !== "undefined") {
   console.log("🌐 API_BASE_URL:", API_BASE_URL);
@@ -52,34 +53,67 @@ export async function fetchWithAuth(url: string, options: RequestInit = {}) {
     return pendingRequests.get(requestKey);
   }
 
+  const method = (options.method || "GET").toUpperCase();
+  const timeoutMsFromOptions = Number((options as any)?.timeoutMs);
+  const timeoutMs = Number.isFinite(timeoutMsFromOptions) && timeoutMsFromOptions > 0
+    ? timeoutMsFromOptions
+    : DEFAULT_TIMEOUT_MS;
+
+  const requestOptions: RequestInit = { ...options };
+  delete (requestOptions as any).timeoutMs;
+
   // ⭐ Create the request promise
   const requestPromise = (async () => {
-    try {
+    const runRequest = async (effectiveTimeoutMs: number) => {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 30000); // 30s timeout
+      const timeoutId = setTimeout(() => controller.abort(), effectiveTimeoutMs);
 
-      const response = await fetch(fullUrl, {
-        ...options,
-        headers,
-        signal: controller.signal,
-      });
+      try {
+        let response: Response;
+        try {
+          response = await fetch(fullUrl, {
+            ...requestOptions,
+            headers,
+            signal: controller.signal,
+          });
+        } catch (err: any) {
+          if (err?.name === "AbortError") {
+            throw new Error(`Request timed out after ${Math.ceil(effectiveTimeoutMs / 1000)}s`);
+          }
+          throw err;
+        }
 
-      clearTimeout(timeoutId);
+        const contentType = response.headers.get("content-type");
+        const data = contentType?.includes("application/json")
+          ? await response.json()
+          : response;
 
-      const contentType = response.headers.get("content-type");
-      const data = contentType?.includes("application/json") 
-        ? await response.json() 
-        : response;
+        if (!response.ok) {
+          const msg =
+            typeof data === "object" && (data?.message || data?.error)
+              ? (data.message || data.error)
+              : `Request failed: ${response.status}`;
+          throw new Error(msg);
+        }
 
-      if (!response.ok) {
-        const msg =
-          typeof data === "object" && (data?.message || data?.error)
-            ? (data.message || data.error)
-            : `Request failed: ${response.status}`;
-        throw new Error(msg);
+        return data;
+      } finally {
+        clearTimeout(timeoutId);
       }
+    };
 
-      return data;
+    try {
+      try {
+        return await runRequest(timeoutMs);
+      } catch (err: any) {
+        const timedOut = typeof err?.message === "string" && err.message.startsWith("Request timed out");
+        if (method === "GET" && timedOut) {
+          const retryTimeoutMs = Math.max(timeoutMs, 90000);
+          console.warn(`⚠️ Retrying GET request after timeout (${Math.ceil(retryTimeoutMs / 1000)}s):`, fullUrl);
+          return await runRequest(retryTimeoutMs);
+        }
+        throw err;
+      }
     } finally {
       // ⭐ Remove from pending requests after completion
       pendingRequests.delete(requestKey);
