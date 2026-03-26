@@ -139,7 +139,8 @@ const getStageIdFromStatus = (status: string, stagesList?: Stage[]): number => {
 export default function LeadsPage() {
   const router = useRouter();
   const { user } = useAuth();
-  const isAdmin = user?.role === "Platform Admin" || user?.role === "Tenant Super Admin";
+  const normalizedRole = typeof user?.role === "string" ? user.role.trim().toLowerCase() : "";
+  const isAdmin = normalizedRole.includes("admin");
 
   const [allLeads, setAllLeads]           = useState<LeadCustomer[]>([]);
   const [suppliers, setSuppliers]         = useState<Supplier[]>([]);
@@ -208,22 +209,55 @@ export default function LeadsPage() {
   const fetchLeads = async () => {
     setIsLoading(true); setError(null);
     try {
-      const [leadsResp, suppResp, empResp, stagesResp] = await Promise.all([
-        fetchWithAuth(`/api/crm/leads?exclude_stage=Lost&service=${encodeURIComponent(service)}`),
-        fetchWithAuth("/suppliers"),
-        fetchWithAuth("/employees"),
-        fetchWithAuth("/stages"),
-      ]);
+      console.log("LeadsPage.fetchLeads start", {
+        service,
+        userId: user?.id,
+        employeeId: user?.employee_id,
+        role: user?.role,
+      });
 
+      const leadsResp = await fetchWithAuth(
+        `/api/crm/leads?exclude_stage=Lost&service=${encodeURIComponent(service)}`
+      );
       const active: LeadCustomer[] = Array.isArray(leadsResp) ? leadsResp : (leadsResp?.data || []);
 
-      console.log(`📊 Loaded ${active.length} active leads for service=${service}`);
-      
+      console.log("LeadsPage.fetchLeads response", {
+        service,
+        count: active.length,
+        responseShape: Array.isArray(leadsResp) ? "array" : typeof leadsResp,
+        firstIds: active.slice(0, 5).map((lead) => lead.tenant_lead_id || lead.opportunity_id),
+      });
+
       setAllLeads(active);
-      setSuppliers(Array.isArray(suppResp) ? suppResp : (suppResp?.data || []));
-      const empList = Array.isArray(empResp.data) ? empResp.data : (Array.isArray(empResp) ? empResp : []);
-      setEmployees(empList);
-      setStages(Array.isArray(stagesResp) ? stagesResp : (stagesResp?.data || []));
+
+      const [suppResp, empResp, stagesResp] = await Promise.allSettled([
+        fetchWithAuth("/api/crm/suppliers"),
+        fetchWithAuth("/api/crm/employees"),
+        fetchWithAuth("/api/crm/stages"),
+      ]);
+
+      if (suppResp.status === "fulfilled") {
+        setSuppliers(Array.isArray(suppResp.value) ? suppResp.value : (suppResp.value?.data || []));
+      } else {
+        console.warn("LeadsPage.fetchLeads suppliers request failed", suppResp.reason);
+        setSuppliers([]);
+      }
+
+      if (empResp.status === "fulfilled") {
+        const empValue = empResp.value;
+        const empList = Array.isArray(empValue?.data) ? empValue.data : (Array.isArray(empValue) ? empValue : []);
+        setEmployees(empList);
+      } else {
+        console.warn("LeadsPage.fetchLeads employees request failed", empResp.reason);
+        setEmployees([]);
+      }
+
+      if (stagesResp.status === "fulfilled") {
+        setStages(Array.isArray(stagesResp.value) ? stagesResp.value : (stagesResp.value?.data || []));
+      } else {
+        console.warn("LeadsPage.fetchLeads stages request failed", stagesResp.reason);
+        setStages([]);
+      }
     } catch (err: any) {
       console.error('❌ fetchLeads error:', err);
       setError(err.message || "Failed to load leads");
@@ -258,8 +292,7 @@ export default function LeadsPage() {
   const fetchEmployeeStats = async () => {
     try {
       const resp = await fetchWithAuth(`/api/crm/leads/stats-by-employee?service=${encodeURIComponent(service)}`);
-      // ✅ FIX: Backend returns array directly, not { stats: [...] }
-      const stats = Array.isArray(resp) ? resp : [];
+      const stats = Array.isArray(resp) ? resp : (Array.isArray(resp?.stats) ? resp.stats : []);
       console.log('📊 Team stats loaded:', stats);
       setEmployeeStats(stats.filter((s: any) => s.count > 0));
     } catch (err) { 
@@ -710,7 +743,7 @@ export default function LeadsPage() {
         </div>
       )}
 
-      {selectedLeads.length > 0 && (
+      {isAdmin && selectedLeads.length > 0 && (
         <div className="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
@@ -1007,17 +1040,21 @@ export default function LeadsPage() {
                       </Select>
                     </td>
                     <td className="px-3 py-3 align-top" onClick={e => e.stopPropagation()}>
-                      <Select value={lead.opportunity_owner_employee_id?.toString() || "0"}
-                        onValueChange={v => { setAssigningLeadId(lead.opportunity_id); setAssignToEmployeeId(v); setShowAssignModal(true); }}
-                        disabled={isArchived}>
-                        <SelectTrigger className="h-7 text-xs w-full max-w-[150px]">
-                          <SelectValue placeholder="Assign">{lead.assigned_to_name || "Unassigned"}</SelectValue>
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="0">Unassigned</SelectItem>
-                          {employees.map(e => <SelectItem key={e.employee_id} value={e.employee_id.toString()}>{e.employee_name}</SelectItem>)}
-                        </SelectContent>
-                      </Select>
+                      {isAdmin ? (
+                        <Select value={lead.opportunity_owner_employee_id?.toString() || "0"}
+                          onValueChange={v => { setAssigningLeadId(lead.opportunity_id); setAssignToEmployeeId(v); setShowAssignModal(true); }}
+                          disabled={isArchived}>
+                          <SelectTrigger className="h-7 text-xs w-full max-w-[150px]">
+                            <SelectValue placeholder="Assign">{lead.assigned_to_name || "Unassigned"}</SelectValue>
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="0">Unassigned</SelectItem>
+                            {employees.map(e => <SelectItem key={e.employee_id} value={e.employee_id.toString()}>{e.employee_name}</SelectItem>)}
+                          </SelectContent>
+                        </Select>
+                      ) : (
+                        <span className="text-sm text-gray-700">{lead.assigned_to_name || "—"}</span>
+                      )}
                     </td>
                   </tr>
                 );

@@ -20,7 +20,8 @@ export interface AssignableEntity {
  */
 export const canEditEntity = (user: User | null, entity: AssignableEntity): boolean => {
   if (!user) return false;
-  if (user.role === "Admin") return true;
+  const normalizedRole = typeof user.role === "string" ? user.role.trim().toLowerCase() : "";
+  if (normalizedRole.includes("admin")) return true;
   if (user.role === "Staff") {
     // Check both possible assignment field names
     const assignedToId = entity.assigned_to_id ?? entity.opportunity_owner_employee_id;
@@ -34,7 +35,8 @@ export const canEditEntity = (user: User | null, entity: AssignableEntity): bool
  * Only Admins can bulk assign
  */
 export const canBulkAssign = (user: User | null): boolean => {
-  return user?.role === "Admin";
+  const normalizedRole = typeof user?.role === "string" ? user.role.trim().toLowerCase() : "";
+  return normalizedRole.includes("admin");
 };
 
 /**

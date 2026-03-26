@@ -133,7 +133,8 @@ const getStageIdFromStatus = (status: string, stages?: Stage[]): number => {
 // ---------------- Component ----------------
 export default function AllocatedLeadsPage() {
   const { user } = useAuth();
-  const isAdmin = user?.role === "Platform Admin" || user?.role === "Tenant Super Admin";
+  const normalizedRole = typeof user?.role === "string" ? user.role.trim().toLowerCase() : "";
+  const isAdmin = normalizedRole.includes("admin");
 
   // Data
   const [allLeads, setAllLeads]           = useState<AllocatedLead[]>([]);

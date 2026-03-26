@@ -209,6 +209,8 @@ export default function LeadDetailsPage() {
   const params       = useParams();
   const router       = useRouter();
   const { user }     = useAuth();
+  const normalizedRole = typeof user?.role === "string" ? user.role.trim().toLowerCase() : "";
+  const isAdmin      = normalizedRole.includes("admin");
   const id           = params?.id as string;
   const searchParams = useSearchParams();
   const fromPage     = searchParams?.get("from") || "leads";
@@ -482,6 +484,10 @@ export default function LeadDetailsPage() {
 
   // ── assign ───────────────────────────────────────────────────────────────
   const handleAssignEmployee = async () => {
+    if (!isAdmin) {
+      alert("Only admin users can assign leads");
+      return;
+    }
     if (!assigningEmployeeId) return;
     setIsAssigningEmployee(true);
     try {
@@ -1091,19 +1097,25 @@ export default function LeadDetailsPage() {
           {/* Assign To */}
           <div>
             <label className="text-sm font-medium text-gray-700">Assign to:</label>
-            <Select
-              value={lead.opportunity_owner_employee_id?.toString() || "0"}
-              onValueChange={v => { setAssigningEmployeeId(v); setAssignmentNotes(""); setShowAssignmentModal(true); }}>
-              <SelectTrigger className="mt-1">
-                <SelectValue placeholder="Unassigned">{lead.assigned_to_name || "Unassigned"}</SelectValue>
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="0">Unassigned</SelectItem>
-                {employees.map(e => (
-                  <SelectItem key={e.employee_id} value={e.employee_id.toString()}>{e.employee_name}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            {isAdmin ? (
+              <Select
+                value={lead.opportunity_owner_employee_id?.toString() || "0"}
+                onValueChange={v => { setAssigningEmployeeId(v); setAssignmentNotes(""); setShowAssignmentModal(true); }}>
+                <SelectTrigger className="mt-1">
+                  <SelectValue placeholder="Unassigned">{lead.assigned_to_name || "Unassigned"}</SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="0">Unassigned</SelectItem>
+                  {employees.map(e => (
+                    <SelectItem key={e.employee_id} value={e.employee_id.toString()}>{e.employee_name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            ) : (
+              <div className="mt-1 rounded-md border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700">
+                {lead.assigned_to_name || "Unassigned"}
+              </div>
+            )}
           </div>
 
           {/* Status */}
