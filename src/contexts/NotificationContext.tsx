@@ -1,8 +1,7 @@
 "use client";
 
 import { createContext, useContext, useEffect, useState, ReactNode, useCallback, useRef } from "react";
-
-const API_BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
+import { api } from "@/lib/api"; // ✅ Use centralized API
 
 type Notification = {
   id: string;
@@ -30,8 +29,7 @@ type NotificationContextType = {
 
 const NotificationContext = createContext<NotificationContextType | undefined>(undefined);
 
-// ✅ Poll every 60 seconds — not 30. Halves the connection load.
-const POLL_INTERVAL_MS = 60_000;
+const POLL_INTERVAL_MS = 60_000; // 60 seconds
 
 export function NotificationProvider({ children }: { children: ReactNode }) {
   const [notifications, setNotifications] = useState<Notification[]>([]);
@@ -39,11 +37,11 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
   
   const previousUnreadCountRef = useRef<number>(0);
-  const isFetchingRef = useRef(false);       // ✅ Prevent concurrent fetches
-  const consecutiveFailsRef = useRef(0);     // ✅ Track failures for backoff
-  const hasInteractedRef = useRef(false);    // ✅ Track user interaction for autoplay
+  const isFetchingRef = useRef(false);
+  const consecutiveFailsRef = useRef(0);
+  const hasInteractedRef = useRef(false);
 
-  // ✅ Track user interaction so audio can play (browser autoplay policy)
+  // Track user interaction for audio autoplay
   useEffect(() => {
     const markInteracted = () => { hasInteractedRef.current = true; };
     window.addEventListener('click', markInteracted, { once: true });
@@ -55,7 +53,6 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const fetchNotifications = useCallback(async () => {
-    // ✅ Skip if already fetching (prevents stacked requests)
     if (isFetchingRef.current) return;
 
     const token = localStorage.getItem("auth_token");
@@ -67,52 +64,41 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
     isFetchingRef.current = true;
 
     try {
-      const response = await fetch(`${API_BASE_URL}/notifications/production`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-      });
+      // ✅ Use centralized API (benefits from request deduplication)
+      const data = await api.getNotifications();
+      consecutiveFailsRef.current = 0;
 
-      if (response.ok) {
-        const data = await response.json();
-        consecutiveFailsRef.current = 0; // ✅ Reset fail counter on success
+      const newNotifications: Notification[] = data.notifications || [];
+      const newUnreadCount: number = data.unread_count || 0;
 
-        const newNotifications: Notification[] = data.notifications || [];
-        const newUnreadCount: number = data.unread_count || 0;
+      setNotifications(newNotifications);
+      setUnreadCount(newUnreadCount);
 
-        setNotifications(newNotifications);
-        setUnreadCount(newUnreadCount);
+      // Play sound for new urgent notifications
+      if (
+        hasInteractedRef.current &&
+        newUnreadCount > previousUnreadCountRef.current &&
+        previousUnreadCountRef.current >= 0
+      ) {
+        const hasUrgent = newNotifications.some(
+          (n) => !n.read && n.priority === 'urgent'
+        );
 
-        // ✅ Play sound only if user has interacted with the page first
-        if (
-          hasInteractedRef.current &&
-          newUnreadCount > previousUnreadCountRef.current &&
-          previousUnreadCountRef.current >= 0
-        ) {
-          const hasUrgent = newNotifications.some(
-            (n) => !n.read && n.priority === 'urgent'
-          );
+        if (hasUrgent) {
+          const audio = new Audio('/notification-sound.mp3');
+          audio.volume = 1.0;
+          audio.play().catch(() => {});
 
-          if (hasUrgent) {
-            // ✅ Create audio inline — avoids autoplay block on mount
-            const audio = new Audio('/notification-sound.mp3');
-            audio.volume = 1.0;
-            audio.play().catch(() => {}); // Silently ignore if still blocked
-
-            if ("Notification" in window && Notification.permission === "granted") {
-              new Notification("🚨 Urgent Contract Expiry!", {
-                body: "You have contracts expiring soon. Check notifications now!",
-                icon: "/favicon.ico",
-              });
-            }
+          if ("Notification" in window && Notification.permission === "granted") {
+            new Notification("🚨 Urgent Contract Expiry!", {
+              body: "You have contracts expiring soon. Check notifications now!",
+              icon: "/favicon.ico",
+            });
           }
         }
-
-        previousUnreadCountRef.current = newUnreadCount;
-      } else {
-        consecutiveFailsRef.current += 1;
       }
+
+      previousUnreadCountRef.current = newUnreadCount;
     } catch (error) {
       consecutiveFailsRef.current += 1;
       console.error("Failed to fetch notifications:", error);
@@ -129,12 +115,11 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  // ✅ Poll with exponential backoff on consecutive failures
+  // Poll with exponential backoff
   useEffect(() => {
     fetchNotifications();
 
     const scheduleNext = () => {
-      // Back off: 60s → 120s → 240s → max 300s on repeated failures
       const fails = consecutiveFailsRef.current;
       const delay = fails > 0
         ? Math.min(POLL_INTERVAL_MS * Math.pow(2, fails - 1), 300_000)
@@ -157,13 +142,10 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
         unreadCount,
         loading,
         fetchNotifications,
+        
         markAsRead: useCallback(async (id: string) => {
           try {
-            const token = localStorage.getItem("auth_token");
-            await fetch(`${API_BASE_URL}/notifications/mark-read/${id}`, {
-              method: "PATCH",
-              headers: { Authorization: `Bearer ${token}` },
-            });
+            await api.markNotificationAsRead(id);
             setNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, read: true } : n)));
             setUnreadCount((prev) => Math.max(0, prev - 1));
           } catch (error) {
@@ -173,11 +155,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
 
         markAllAsRead: useCallback(async () => {
           try {
-            const token = localStorage.getItem("auth_token");
-            await fetch(`${API_BASE_URL}/notifications/mark-all-read`, {
-              method: "PATCH",
-              headers: { Authorization: `Bearer ${token}` },
-            });
+            await api.markAllNotificationsAsRead();
             setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
             setUnreadCount(0);
           } catch (error) {
@@ -187,11 +165,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
 
         dismissNotification: useCallback(async (id: string) => {
           try {
-            const token = localStorage.getItem("auth_token");
-            await fetch(`${API_BASE_URL}/notifications/dismiss/${id}`, {
-              method: "PATCH",
-              headers: { Authorization: `Bearer ${token}` },
-            });
+            await api.dismissNotification(id);
             setNotifications((prev) => {
               const n = prev.find((n) => n.id === id);
               if (n && !n.read) setUnreadCount((c) => Math.max(0, c - 1));
@@ -204,11 +178,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
 
         deleteNotification: useCallback(async (id: string) => {
           try {
-            const token = localStorage.getItem("auth_token");
-            await fetch(`${API_BASE_URL}/notifications/delete/${id}`, {
-              method: "DELETE",
-              headers: { Authorization: `Bearer ${token}` },
-            });
+            await api.deleteNotification(id);
             setNotifications((prev) => {
               const n = prev.find((n) => n.id === id);
               if (n && !n.read) setUnreadCount((c) => Math.max(0, c - 1));
@@ -221,11 +191,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
 
         clearAllNotifications: useCallback(async () => {
           try {
-            const token = localStorage.getItem("auth_token");
-            await fetch(`${API_BASE_URL}/notifications/clear-all`, {
-              method: "DELETE",
-              headers: { Authorization: `Bearer ${token}` },
-            });
+            await api.clearAllNotifications();
             setNotifications([]);
             setUnreadCount(0);
           } catch (error) {

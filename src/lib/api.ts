@@ -1,6 +1,6 @@
+// lib/api.ts
+
 // ================= BASE CONFIG =================
-// In browser: use /backend-api (proxied by Next.js) to avoid CORS / "Failed to fetch"
-// On server: use explicit backend URL
 const BACKEND_URL = process.env.NEXT_PUBLIC_API_URL || process.env.NEXT_PUBLIC_BACKEND_URL || "http://127.0.0.1:5000";
 export const API_BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://127.0.0.1:5000";
 
@@ -8,14 +8,23 @@ if (typeof window !== "undefined") {
   console.log("🌐 API_BASE_URL:", API_BASE_URL);
 }
 
+// ================= REQUEST DEDUPLICATION =================
+const pendingRequests = new Map<string, Promise<any>>();
+
+function getRequestKey(url: string, options: RequestInit = {}): string {
+  const method = options.method || 'GET';
+  const body = options.body ? JSON.stringify(options.body) : '';
+  return `${method}:${url}:${body}`;
+}
+
 // ================= BACKEND CALLS =================
 export async function fetchWithAuth(url: string, options: RequestInit = {}) {
   const token = localStorage.getItem("auth_token") || localStorage.getItem("token");
   const tenantId = localStorage.getItem("tenant_id");
 
-  // ✅ DEBUG: Log tenant_id for troubleshooting
+  // ✅ Set default tenant if missing
   if (!tenantId) {
-    console.warn("⚠️ No tenant_id found in localStorage - setting default to '2'");
+    console.warn("⚠️ No tenant_id found - setting default to '2'");
     localStorage.setItem("tenant_id", "2");
   }
 
@@ -32,28 +41,55 @@ export async function fetchWithAuth(url: string, options: RequestInit = {}) {
   }
 
   if (token) headers["Authorization"] = `Bearer ${token}`;
-  // ✅ ALWAYS include tenant_id header (use fallback if not in localStorage)
   headers["X-Tenant-ID"] = tenantId || "2";
 
-  // prepend backend url unless already absolute
   const fullUrl = url.startsWith("http") ? url : `${API_BASE_URL}${url}`;
 
-  const response = await fetch(fullUrl, {
-    ...options,
-    headers,
-  });
-
-  const contentType = response.headers.get("content-type");
-  const data = contentType?.includes("application/json") ? await response.json() : response;
-
-  if (!response.ok) {
-    const msg =
-      typeof data === "object" && (data?.message || data?.error)
-        ? (data.message || data.error)
-        : `Request failed: ${response.status}`;
-    throw new Error(msg);
+  // ⭐ DEDUPLICATION: Check if identical request is in flight
+  const requestKey = getRequestKey(fullUrl, options);
+  if (pendingRequests.has(requestKey)) {
+    console.log("⚡ Reusing in-flight request:", requestKey);
+    return pendingRequests.get(requestKey);
   }
-  return data;
+
+  // ⭐ Create the request promise
+  const requestPromise = (async () => {
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 30000); // 30s timeout
+
+      const response = await fetch(fullUrl, {
+        ...options,
+        headers,
+        signal: controller.signal,
+      });
+
+      clearTimeout(timeoutId);
+
+      const contentType = response.headers.get("content-type");
+      const data = contentType?.includes("application/json") 
+        ? await response.json() 
+        : response;
+
+      if (!response.ok) {
+        const msg =
+          typeof data === "object" && (data?.message || data?.error)
+            ? (data.message || data.error)
+            : `Request failed: ${response.status}`;
+        throw new Error(msg);
+      }
+
+      return data;
+    } finally {
+      // ⭐ Remove from pending requests after completion
+      pendingRequests.delete(requestKey);
+    }
+  })();
+
+  // ⭐ Store the pending request
+  pendingRequests.set(requestKey, requestPromise);
+
+  return requestPromise;
 }
 
 // ================= PUBLIC CALLS (no auth required) =================
@@ -72,10 +108,16 @@ export async function fetchPublic(url: string, options: RequestInit = {}) {
 
   const fullUrl = url.startsWith("http") ? url : `${API_BASE_URL}${url}`;
 
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 30000); // 30s timeout
+
   const response = await fetch(fullUrl, {
     ...options,
     headers,
+    signal: controller.signal,
   });
+
+  clearTimeout(timeoutId);
 
   // For login endpoint, return Response object so caller can check status
   if (url.includes("/auth/login")) {
@@ -92,9 +134,8 @@ export async function fetchPublic(url: string, options: RequestInit = {}) {
 
 // ================= API METHODS =================
 export const api = {
-  // AUTH
+  // ==================== AUTH ====================
   async login(username: string, password: string, tenant_id: number = 2) {
-    // ✅ Set tenant_id BEFORE making the request
     localStorage.setItem("tenant_id", tenant_id.toString());
     console.log("✅ Setting tenant_id:", tenant_id);
     
@@ -104,18 +145,17 @@ export const api = {
       headers: { "Content-Type": "application/json" },
     });
     
-    // ✅ Verify tenant_id is still set after login
     const storedTenantId = localStorage.getItem("tenant_id");
     console.log("✅ Verified tenant_id after login:", storedTenantId);
     
     return res;
   },
 
-  // CLIENTS / RENEWALS
+  // ==================== CLIENTS / RENEWALS ====================
   getCustomers: () => fetchWithAuth("/clients"),
   getRenewals: () => fetchWithAuth("/clients"),
 
-  // ✅ LEADS - matches your crm_routes blueprint
+  // ==================== LEADS ====================
   getLeads: (service?: string) =>
     fetchWithAuth(`/api/crm/leads${service ? `?service=${encodeURIComponent(service)}` : ""}`),
 
@@ -140,13 +180,13 @@ export const api = {
     );
   },
 
-  // ✅ EMPLOYEES - matches your crm_routes blueprint  
+  // ==================== EMPLOYEES ====================
   getEmployees: () => fetchWithAuth("/employees"),
 
-  // ASSIGNMENTS
+  // ==================== ASSIGNMENTS ====================
   getAssignments: () => fetchWithAuth("/assignments"),
 
-  // DOCUMENTS
+  // ==================== DOCUMENTS ====================
   uploadDocument: (formData: FormData) => 
     fetchWithAuth("/api/crm/documents/upload", {
       method: "POST",
@@ -161,19 +201,46 @@ export const api = {
       body: JSON.stringify({ public_id: publicId }),
     }),
 
-  // CALENDAR - ✅ All calendar routes are under /api/calendar
+  // ==================== CALENDAR ====================
   getContractSchedule: () => fetchWithAuth("/api/calendar/contracts"),
   getCalendarClients: () => fetchWithAuth("/api/calendar/clients"),
   getCalendarEmployees: () => fetchWithAuth("/api/calendar/employees"),
   
-  // ✅ UPDATED: Add employee_id parameter for admin filtering
   getCalendarRenewals: (employeeId?: number) => {
     const params = new URLSearchParams();
-    if (employeeId !== undefined) {  // ✅ Changed to check for undefined explicitly
+    if (employeeId !== undefined) {
       params.append('employee_id', employeeId.toString());
     }
     const url = `/api/calendar/renewals${params.toString() ? '?' + params.toString() : ''}`;
-    console.log("📡 Calendar API URL:", url);  // ✅ Debug log
+    console.log("📡 Calendar API URL:", url);
     return fetchWithAuth(url);
   },
+
+  // ==================== NOTIFICATIONS ====================
+  getNotifications: () => fetchWithAuth("/notifications/production"),
+  
+  markNotificationAsRead: (id: string) =>
+    fetchWithAuth(`/notifications/mark-read/${id}`, {
+      method: "PATCH",
+    }),
+
+  markAllNotificationsAsRead: () =>
+    fetchWithAuth("/notifications/mark-all-read", {
+      method: "PATCH",
+    }),
+
+  dismissNotification: (id: string) =>
+    fetchWithAuth(`/notifications/dismiss/${id}`, {
+      method: "PATCH",
+    }),
+
+  deleteNotification: (id: string) =>
+    fetchWithAuth(`/notifications/delete/${id}`, {
+      method: "DELETE",
+    }),
+
+  clearAllNotifications: () =>
+    fetchWithAuth("/notifications/clear-all", {
+      method: "DELETE",
+    }),
 };
