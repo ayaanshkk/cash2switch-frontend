@@ -138,7 +138,7 @@ const getStageIdFromStatus = (status: string, stagesList?: Stage[]): number => {
 
 export default function LeadsPage() {
   const router = useRouter();
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const normalizedRole = typeof user?.role === "string" ? user.role.trim().toLowerCase() : "";
   const isAdmin = normalizedRole.includes("admin");
 
@@ -302,10 +302,11 @@ export default function LeadsPage() {
   };
 
   useEffect(() => {
+    if (authLoading) return;
     fetchLeads();
     fetchPerformanceStats();
     if (isAdmin) fetchEmployeeStats();
-  }, [service, isAdmin]);
+  }, [service, isAdmin, authLoading, user?.id]);
 
   useEffect(() => {
     if (!searchTerm || searchTerm.length < 2) { setSearchResults([]); return; }
