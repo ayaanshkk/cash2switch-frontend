@@ -18,7 +18,6 @@ import {
 } from "@/components/ui/select";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
-import { canBulkAssign } from "@/lib/permissions";
 import { fetchWithAuth } from "@/lib/api";
 import { Badge } from "@/components/ui/badge";
 import { toast, Toaster } from "react-hot-toast";
@@ -94,7 +93,7 @@ interface LeadCustomer {
   created_at: string | null;
   opportunity_owner_employee_id: number | null;
   assigned_to_name: string | null;
-  is_archived?: boolean;
+  is_allocated?: boolean;
   display_id?: number;
   display_order?: number;
 }
@@ -138,10 +137,10 @@ const getStageIdFromStatus = (status: string, stagesList?: Stage[]): number => {
 
 export default function LeadsPage() {
   const router = useRouter();
-  const { user, loading: authLoading } = useAuth();
-  const normalizedRole = typeof user?.role === "string" ? user.role.trim().toLowerCase() : "";
-  const isAdmin = normalizedRole.includes("admin");
+  const { user } = useAuth();
+  const isAdmin = user?.role === "Platform Admin" || user?.role === "Tenant Super Admin";
 
+  // ── Data ───────────────────────────────────────────────────────────────────
   const [allLeads, setAllLeads]           = useState<LeadCustomer[]>([]);
   const [suppliers, setSuppliers]         = useState<Supplier[]>([]);
   const [employees, setEmployees]         = useState<Employee[]>([]);
@@ -149,53 +148,63 @@ export default function LeadsPage() {
   const [searchResults, setSearchResults] = useState<LeadCustomer[]>([]);
   const [employeeStats, setEmployeeStats] = useState<{ employee_id: number; employee_name: string; count: number }[]>([]);
 
+  // ── Loading / error ────────────────────────────────────────────────────────
   const [isLoading, setIsLoading]     = useState(true);
   const [isSearching, setIsSearching] = useState(false);
   const [error, setError]             = useState<string | null>(null);
+
+  // ── Filters / pagination ───────────────────────────────────────────────────
   const [currentPage, setCurrentPage] = useState(1);
   const [service, setService]         = useState("utilities");
-
   const [searchTerm, setSearchTerm]         = useState("");
   const [supplierFilter, setSupplierFilter] = useState<number | "All">("All");
   const [statusFilter, setStatusFilter]     = useState<string | "All">("All");
   const [endDateFilter, setEndDateFilter]   = useState<"all" | "expired" | "30" | "60" | "90" | "90+">("all");
   const [usageSort, setUsageSort]           = useState<"none" | "low-high" | "high-low">("none");
 
+  // ── Selection ──────────────────────────────────────────────────────────────
   const [selectedLeads, setSelectedLeads]           = useState<number[]>([]);
   const [isSelectAllChecked, setIsSelectAllChecked] = useState(false);
 
+  // ── Import modal ───────────────────────────────────────────────────────────
   const [showImportModal, setShowImportModal]   = useState(false);
   const [bulkImportFile, setBulkImportFile]     = useState<File | null>(null);
   const [bulkImporting, setBulkImporting]       = useState(false);
   const [assignToEmployee, setAssignToEmployee] = useState<number | null>(null);
-  const [bulkImportResult, setBulkImportResult] = useState<{ success: boolean; successful: number; errors: string[]; assigned_to?: string } | null>(null);
+  const [bulkImportResult, setBulkImportResult] = useState<{
+    success: boolean; successful: number; errors: string[]; assigned_to?: string
+  } | null>(null);
 
-  const [showCallbackModal, setShowCallbackModal]                     = useState(false);
-  const [selectedLeadForCallback, setSelectedLeadForCallback]         = useState<number | null>(null);
-  const [callbackStatus, setCallbackStatus]                           = useState("");
-  const [callbackDate, setCallbackDate]                               = useState("");
-  const [callbackNotes, setCallbackNotes]                             = useState("");
-  const [newEndDate, setNewEndDate]                                   = useState("");
-  const [isSold, setIsSold]                                           = useState("");
-  const [isSubmittingCallback, setIsSubmittingCallback]               = useState(false);
-  const [callbackError, setCallbackError]                             = useState("");
-  const [newSupplier, setNewSupplier]                                 = useState("");
-  const [newAddress, setNewAddress]                                   = useState("");
-  const [calledDate, setCalledDate]                                   = useState(() => new Date().toISOString().split("T")[0]);
-  const [renewedBy, setRenewedBy]                                     = useState<"customer" | "agent" | "">("");
+  // ── Callback modal ─────────────────────────────────────────────────────────
+  const [showCallbackModal, setShowCallbackModal]               = useState(false);
+  const [selectedLeadForCallback, setSelectedLeadForCallback]   = useState<number | null>(null);
+  const [callbackStatus, setCallbackStatus]                     = useState("");
+  const [callbackDate, setCallbackDate]                         = useState("");
+  const [callbackNotes, setCallbackNotes]                       = useState("");
+  const [newEndDate, setNewEndDate]                             = useState("");
+  const [isSold, setIsSold]                                     = useState("");
+  const [isSubmittingCallback, setIsSubmittingCallback]         = useState(false);
+  const [callbackError, setCallbackError]                       = useState("");
+  const [newSupplier, setNewSupplier]                           = useState("");
+  const [newAddress, setNewAddress]                             = useState("");
+  const [calledDate, setCalledDate] = useState(() => new Date().toISOString().split("T")[0]);
+  const [renewedBy, setRenewedBy]   = useState<"customer" | "agent" | "">("");
 
+  // ── Assign modal ───────────────────────────────────────────────────────────
   const [showAssignModal, setShowAssignModal]       = useState(false);
   const [assigningLeadId, setAssigningLeadId]       = useState<number | null>(null);
   const [assignToEmployeeId, setAssignToEmployeeId] = useState("");
   const [assignmentNotes, setAssignmentNotes]       = useState("");
   const [isAssigning, setIsAssigning]               = useState(false);
 
+  // ── Bulk assign modal ──────────────────────────────────────────────────────
   const [showBulkAssignModal, setShowBulkAssignModal]       = useState(false);
   const [bulkAssignEmployeeId, setBulkAssignEmployeeId]     = useState<number | null>(null);
   const [bulkAssignEmployeeName, setBulkAssignEmployeeName] = useState("");
   const [bulkAssignmentNotes, setBulkAssignmentNotes]       = useState("");
   const [isBulkAssigning, setIsBulkAssigning]               = useState(false);
 
+  // ── Performance ────────────────────────────────────────────────────────────
   const [performanceStats, setPerformanceStats] = useState({
     converted: 0, renewed: 0, in_progress: 0, not_contacted: 0, lost: 0,
     success_rate: 0, renewed_directly: 0, end_date_changed: 0, priced: 0,
@@ -204,60 +213,29 @@ export default function LeadsPage() {
   const [performanceFilter, setPerformanceFilter]               = useState<string | null>(null);
   const [performanceFilteredLeads, setPerformanceFilteredLeads] = useState<LeadCustomer[]>([]);
 
+  // Reset page when filters change
   useEffect(() => { setCurrentPage(1); }, [searchTerm, supplierFilter, statusFilter, usageSort, endDateFilter]);
+
+  // ── Fetch helpers ──────────────────────────────────────────────────────────
 
   const fetchLeads = async () => {
     setIsLoading(true); setError(null);
     try {
-      console.log("LeadsPage.fetchLeads start", {
-        service,
-        userId: user?.id,
-        employeeId: user?.employee_id,
-        role: user?.role,
-      });
-
-      const leadsResp = await fetchWithAuth(
-        `/api/crm/leads?exclude_stage=Lost&service=${encodeURIComponent(service)}`
-      );
-      const active: LeadCustomer[] = Array.isArray(leadsResp) ? leadsResp : (leadsResp?.data || []);
-
-      console.log("LeadsPage.fetchLeads response", {
-        service,
-        count: active.length,
-        responseShape: Array.isArray(leadsResp) ? "array" : typeof leadsResp,
-        firstIds: active.slice(0, 5).map((lead) => lead.tenant_lead_id || lead.opportunity_id),
-      });
-
-      setAllLeads(active);
-
-      const [suppResp, empResp, stagesResp] = await Promise.allSettled([
-        fetchWithAuth("/api/crm/suppliers"),
-        fetchWithAuth("/api/crm/employees"),
+      const [leadsResp, suppResp, empResp, stagesResp] = await Promise.all([
+        fetchWithAuth(`/api/crm/leads?exclude_stage=Lost&service=${encodeURIComponent(service)}`),
+        fetchWithAuth("/suppliers"),
+        fetchWithAuth("/employees"),
         fetchWithAuth("/api/crm/stages"),
       ]);
 
-      if (suppResp.status === "fulfilled") {
-        setSuppliers(Array.isArray(suppResp.value) ? suppResp.value : (suppResp.value?.data || []));
-      } else {
-        console.warn("LeadsPage.fetchLeads suppliers request failed", suppResp.reason);
-        setSuppliers([]);
-      }
+      const active: LeadCustomer[] = Array.isArray(leadsResp) ? leadsResp : (leadsResp?.data || []);
+      console.log(`📊 Loaded ${active.length} active leads for service=${service}`);
 
-      if (empResp.status === "fulfilled") {
-        const empValue = empResp.value;
-        const empList = Array.isArray(empValue?.data) ? empValue.data : (Array.isArray(empValue) ? empValue : []);
-        setEmployees(empList);
-      } else {
-        console.warn("LeadsPage.fetchLeads employees request failed", empResp.reason);
-        setEmployees([]);
-      }
-
-      if (stagesResp.status === "fulfilled") {
-        setStages(Array.isArray(stagesResp.value) ? stagesResp.value : (stagesResp.value?.data || []));
-      } else {
-        console.warn("LeadsPage.fetchLeads stages request failed", stagesResp.reason);
-        setStages([]);
-      }
+      setAllLeads(active);
+      setSuppliers(Array.isArray(suppResp) ? suppResp : (suppResp?.data || []));
+      const empList = Array.isArray(empResp?.data) ? empResp.data : (Array.isArray(empResp) ? empResp : []);
+      setEmployees(empList);
+      setStages(Array.isArray(stagesResp) ? stagesResp : (stagesResp?.data || []));
     } catch (err: any) {
       console.error('❌ fetchLeads error:', err);
       setError(err.message || "Failed to load leads");
@@ -269,21 +247,20 @@ export default function LeadsPage() {
 
   const fetchPerformanceStats = async () => {
     try {
-      // ✅ FIX: Remove use_current_user=true - server-side filtering handles this
       const resp = await fetchWithAuth(
         `/api/crm/leads/performance?service=${encodeURIComponent(service)}`
       );
       if (resp && !resp.error) {
         setPerformanceStats({
-          converted:        resp.converted_count       || 0,
-          renewed:          resp.renewed_count         || 0,
-          in_progress:      resp.contacted_count       || 0,
-          not_contacted:    resp.not_contacted_count   || 0,
-          lost:             resp.lost_count            || 0,
-          success_rate:     resp.success_rate          || 0,
-          renewed_directly: resp.renewed_directly_count|| 0,
-          end_date_changed: resp.end_date_changed_count|| 0,
-          priced:           resp.priced_count          || 0,
+          converted:        resp.converted_count        || 0,
+          renewed:          resp.renewed_count          || 0,
+          in_progress:      resp.contacted_count        || 0,
+          not_contacted:    resp.not_contacted_count    || 0,
+          lost:             resp.lost_count             || 0,
+          success_rate:     resp.success_rate           || 0,
+          renewed_directly: resp.renewed_directly_count || 0,
+          end_date_changed: resp.end_date_changed_count || 0,
+          priced:           resp.priced_count           || 0,
         });
       }
     } catch { /* optional */ }
@@ -291,28 +268,32 @@ export default function LeadsPage() {
 
   const fetchEmployeeStats = async () => {
     try {
-      const resp = await fetchWithAuth(`/api/crm/leads/stats-by-employee?service=${encodeURIComponent(service)}`);
-      const stats = Array.isArray(resp) ? resp : (Array.isArray(resp?.stats) ? resp.stats : []);
+      // ✅ FIX: backend returns { stats: [...] } — extract the array
+      const resp = await fetchWithAuth(
+        `/api/crm/leads/stats-by-employee?service=${encodeURIComponent(service)}`
+      );
+      const stats = Array.isArray(resp?.stats) ? resp.stats : [];
       console.log('📊 Team stats loaded:', stats);
       setEmployeeStats(stats.filter((s: any) => s.count > 0));
-    } catch (err) { 
+    } catch (err) {
       console.error('❌ Failed to load team stats:', err);
-      setEmployeeStats([]); 
+      setEmployeeStats([]);
     }
   };
 
   useEffect(() => {
-    if (authLoading) return;
     fetchLeads();
     fetchPerformanceStats();
     if (isAdmin) fetchEmployeeStats();
-  }, [service, isAdmin, authLoading, user?.id]);
+  }, [service, isAdmin]);
 
+  // ── Cross-team text search (debounced) ─────────────────────────────────────
   useEffect(() => {
     if (!searchTerm || searchTerm.length < 2) { setSearchResults([]); return; }
     const tid = setTimeout(async () => {
       setIsSearching(true);
       try {
+        // ✅ FIX: search-all now returns matching leads (not employee stats)
         const resp = await fetchWithAuth(
           `/api/crm/leads/search-all?q=${encodeURIComponent(searchTerm)}&service=${encodeURIComponent(service)}`
         );
@@ -323,11 +304,13 @@ export default function LeadsPage() {
     return () => clearTimeout(tid);
   }, [searchTerm, service]);
 
+  // ── Derived lists ──────────────────────────────────────────────────────────
+
   const sortedLeads = useMemo(() => {
-    // ✅ Server already filtered by employee_id for non-admins
-    // All leads from server are active (exclude_stage=Lost)
-    let base = [...allLeads];
-    
+    // Main list: own non-allocated leads (server already filtered)
+    const base = [...allLeads];
+
+    // Merge in search results that aren't already in the main list
     if (searchTerm && searchResults.length > 0) {
       const existingIds = new Set(base.map(l => l.opportunity_id));
       const extras = searchResults.filter(l => !existingIds.has(l.opportunity_id));
@@ -335,7 +318,7 @@ export default function LeadsPage() {
         new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime()
       );
     }
-    
+
     return base.sort((a, b) =>
       new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime()
     );
@@ -382,9 +365,12 @@ export default function LeadsPage() {
     return filteredLeads.slice(s, s + CUSTOMERS_PER_PAGE);
   }, [filteredLeads, currentPage]);
 
+  // A lead is "from search" (not the current user's own) when it's in the search
+  // results but not in the user's own list
   const isFromSearch = (l: LeadCustomer) => {
     if (isAdmin) return false;
-    return l.opportunity_owner_employee_id !== user?.id;
+    const ownIds = new Set(allLeads.map(x => x.opportunity_id));
+    return !ownIds.has(l.opportunity_id);
   };
 
   const getSupplierName = (id?: number | null) =>
@@ -398,7 +384,8 @@ export default function LeadsPage() {
     return cfg.requiresDate;
   };
 
-  // ── FIX: send stage_id=1 (Not Called) instead of null — stage_id is NOT NULL in DB ──
+  // ── Status / callback ──────────────────────────────────────────────────────
+
   const updateLeadStatus = (leadId: number, newStatus: string) => {
     if (!newStatus || newStatus === "CLEAR_STATUS") {
       fetchWithAuth(`/api/crm/leads/${leadId}`, {
@@ -443,19 +430,13 @@ export default function LeadsPage() {
       if (cfg?.requiresSupplierChange && newSupplier.trim()) payload.new_supplier = newSupplier.trim();
       if (cfg?.requiresAddressChange && newAddress.trim()) payload.new_address = newAddress.trim();
 
-      const response = await fetchWithAuth(`/api/crm/leads/${selectedLeadForCallback}/callback`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
+      const response = await fetchWithAuth(
+        `/api/crm/leads/${selectedLeadForCallback}/callback`,
+        { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) }
+      );
       if (!response || response.error) throw new Error(response?.error || "Failed to save");
 
-      if (response.moved_to_cleansing) {
-        // Invalid Number or Incorrect Supplier → goes to Cleansing page
-        setAllLeads(prev => prev.filter(l => l.opportunity_id !== selectedLeadForCallback));
-        setSelectedLeads(prev => prev.filter(id => id !== selectedLeadForCallback));
-        toast.success("🧹 Moved to Cleansing");
-      } else if (response.moved_to_recycle_bin) {
+      if (response.moved_to_recycle_bin) {
         setAllLeads(prev => prev.filter(l => l.opportunity_id !== selectedLeadForCallback));
         setSelectedLeads(prev => prev.filter(id => id !== selectedLeadForCallback));
         toast.success("🗑️ Moved to recycle bin");
@@ -463,22 +444,20 @@ export default function LeadsPage() {
         setAllLeads(prev => prev.filter(l => l.opportunity_id !== selectedLeadForCallback));
         setSelectedLeads(prev => prev.filter(id => id !== selectedLeadForCallback));
         toast.success("✅ Moved to Priced page");
-      } else {
-        if (callbackStatus === "End Date Changed" || callbackStatus === "Already Renewed") {
-          if (callbackStatus === "Already Renewed" && newSupplier.trim()) {
-            setAllLeads(prev => prev.map(l =>
-              l.opportunity_id === selectedLeadForCallback ? { ...l, supplier_name: newSupplier.trim() } : l
-            ));
-          }
-          await fetchLeads();
-          await fetchPerformanceStats();
-          toast.success(`✅ ${callbackStatus === "Already Renewed" ? "Lead updated" : "End date updated"}`);
-        } else {
+      } else if (callbackStatus === "End Date Changed" || callbackStatus === "Already Renewed") {
+        if (callbackStatus === "Already Renewed" && newSupplier.trim()) {
           setAllLeads(prev => prev.map(l =>
-            l.opportunity_id === selectedLeadForCallback ? { ...l, stage_name: callbackStatus } : l
+            l.opportunity_id === selectedLeadForCallback ? { ...l, supplier_name: newSupplier.trim() } : l
           ));
-          toast.success("✅ Callback saved");
         }
+        await fetchLeads();
+        await fetchPerformanceStats();
+        toast.success(`✅ ${callbackStatus === "Already Renewed" ? "Lead updated" : "End date updated"}`);
+      } else {
+        setAllLeads(prev => prev.map(l =>
+          l.opportunity_id === selectedLeadForCallback ? { ...l, stage_name: callbackStatus } : l
+        ));
+        toast.success("✅ Callback saved");
       }
       setShowCallbackModal(false);
     } catch (err: any) {
@@ -488,21 +467,25 @@ export default function LeadsPage() {
     }
   };
 
+  // ── Assignment ─────────────────────────────────────────────────────────────
+
   const handleAssignWithNotes = async () => {
     if (!assigningLeadId) return;
     setIsAssigning(true);
     try {
       const empId = assignToEmployeeId === "0" ? null : parseInt(assignToEmployeeId);
-      const payload: any = { employee_id: empId };
+      const payload: any = { employee_id: empId, lead_ids: [assigningLeadId] };
       if (assignmentNotes.trim()) payload.assignment_notes = assignmentNotes.trim();
 
       await fetchWithAuth("/api/crm/leads/assign", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ lead_ids: [assigningLeadId], ...payload }),
+        body: JSON.stringify(payload),
       });
 
-      if (isAdmin) {
+      // ✅ MIRROR RENEWALS: always remove from current view when assigning to someone else
+      const assignedToSelf = empId === user?.employee_id;
+      if (assignedToSelf) {
         const empName = employees.find(e => e.employee_id === empId)?.employee_name || null;
         setAllLeads(prev => prev.map(l =>
           l.opportunity_id === assigningLeadId
@@ -510,11 +493,15 @@ export default function LeadsPage() {
             : l
         ));
       } else {
+        // Assigning to someone else → is_allocated=TRUE → disappears from our list
         setAllLeads(prev => prev.filter(l => l.opportunity_id !== assigningLeadId));
+        setSelectedLeads(prev => prev.filter(id => id !== assigningLeadId));
       }
+
       toast.success("✅ Salesperson assigned successfully");
       setShowAssignModal(false);
       setAssignToEmployeeId(""); setAssignmentNotes(""); setAssigningLeadId(null);
+      if (isAdmin) fetchEmployeeStats();
     } catch { toast.error("Failed to assign salesperson"); }
     finally { setIsAssigning(false); }
   };
@@ -533,22 +520,17 @@ export default function LeadsPage() {
         body: JSON.stringify(payload),
       });
 
-      toast.success(`✅ ${selectedLeads.length} leads assigned to ${bulkAssignEmployeeName}`);
-      if (!isAdmin) {
-        setAllLeads(prev => prev.filter(l => !selectedLeads.includes(l.opportunity_id)));
-      } else {
-        setAllLeads(prev => prev.map(l =>
-          selectedLeads.includes(l.opportunity_id)
-            ? { ...l, opportunity_owner_employee_id: bulkAssignEmployeeId, assigned_to_name: bulkAssignEmployeeName }
-            : l
-        ));
-      }
+      // ✅ MIRROR RENEWALS: always remove bulk-assigned leads from current view
+      setAllLeads(prev => prev.filter(l => !selectedLeads.includes(l.opportunity_id)));
       setSelectedLeads([]); setIsSelectAllChecked(false);
       setShowBulkAssignModal(false); setBulkAssignmentNotes("");
+      toast.success(`✅ ${selectedLeads.length} leads assigned to ${bulkAssignEmployeeName}`);
       if (isAdmin) fetchEmployeeStats();
     } catch { toast.error("❌ Error assigning leads"); }
     finally { setIsBulkAssigning(false); }
   };
+
+  // ── Delete ─────────────────────────────────────────────────────────────────
 
   const deleteLead = async (id: number) => {
     if (!window.confirm("Delete this lead and all related records?")) return;
@@ -573,6 +555,8 @@ export default function LeadsPage() {
     } catch { toast.error("Error deleting some leads"); }
   };
 
+  // ── Selection ──────────────────────────────────────────────────────────────
+
   const handleSelectAll = () => {
     if (isSelectAllChecked) { setSelectedLeads([]); setIsSelectAllChecked(false); }
     else {
@@ -588,11 +572,13 @@ export default function LeadsPage() {
     });
   };
 
+  // ── Import ─────────────────────────────────────────────────────────────────
+
   const downloadTemplate = async () => {
     const token    = localStorage.getItem("auth_token");
     const tenantId = localStorage.getItem("tenant_id") || "";
     try {
-      const res = await fetch(`${API_BASE_URL}/import/leads/template`, {
+      const res = await fetch(`${API_BASE_URL}/api/crm/leads/import/template`, {
         headers: { Authorization: `Bearer ${token}`, "X-Tenant-ID": tenantId },
       });
       if (!res.ok) throw new Error("Failed to download");
@@ -613,7 +599,7 @@ export default function LeadsPage() {
       fd.append("file", bulkImportFile);
       if (assignToEmployee) fd.append("assigned_employee_id", assignToEmployee.toString());
       const res  = await fetch(
-        `${API_BASE_URL}/import/leads?service=${encodeURIComponent(service)}`,
+        `${API_BASE_URL}/api/crm/leads/import?service=${encodeURIComponent(service)}`,
         { method: "POST", headers: { Authorization: `Bearer ${token}` }, body: fd }
       );
       const data = await res.json();
@@ -632,11 +618,14 @@ export default function LeadsPage() {
     } finally { setBulkImporting(false); }
   };
 
+  // ── Performance modal ──────────────────────────────────────────────────────
+
   const handlePerformanceClick = async (type: string) => {
     setPerformanceFilter(type);
     try {
-      // ✅ FIX: Remove use_current_user=true - server handles filtering
-      const resp = await fetchWithAuth(`/api/crm/leads?service=${encodeURIComponent(service)}`);
+      const resp = await fetchWithAuth(
+        `/api/crm/leads?service=${encodeURIComponent(service)}`
+      );
       const all: LeadCustomer[] = Array.isArray(resp) ? resp : (resp?.data || []);
       let filtered: LeadCustomer[] = [];
       switch (type) {
@@ -660,6 +649,8 @@ export default function LeadsPage() {
     end_date_changed: "End Date Changed", priced: "Priced",
   }[type] || "");
 
+  // ── Pagination ─────────────────────────────────────────────────────────────
+
   const PaginationControls = () => {
     if (totalPages <= 1) return null;
     return (
@@ -679,6 +670,8 @@ export default function LeadsPage() {
       </div>
     );
   };
+
+  // ── Render ─────────────────────────────────────────────────────────────────
 
   return (
     <div className="w-full p-6">
@@ -744,7 +737,8 @@ export default function LeadsPage() {
         </div>
       )}
 
-      {isAdmin && selectedLeads.length > 0 && (
+      {/* Bulk selection bar */}
+      {selectedLeads.length > 0 && (
         <div className="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
@@ -785,7 +779,8 @@ export default function LeadsPage() {
               { key: "not_contacted",    label: "Not Contacted",    color: "orange",  icon: <AlertTriangle className="h-6 w-6 text-orange-600 mx-auto" />, val: performanceStats.not_contacted },
               { key: "lost",             label: "Lost",             color: "red",     icon: <TrendingDown className="h-6 w-6 text-red-600 mx-auto" />,     val: performanceStats.lost },
             ].map(({ key, label, color, icon, val }) => (
-              <div key={key} className={`text-center p-6 border rounded-lg bg-${color}-50 cursor-pointer hover:shadow-md transition-shadow`}
+              <div key={key}
+                className={`text-center p-6 border rounded-lg bg-${color}-50 cursor-pointer hover:shadow-md transition-shadow`}
                 onClick={() => handlePerformanceClick(key)}>
                 <div className={`text-4xl font-bold text-${color}-700`}>{val}</div>
                 <div className={`text-sm text-${color}-600 mt-2 font-medium`}>{label}</div>
@@ -814,7 +809,8 @@ export default function LeadsPage() {
             ) : (
               <div className="space-y-3 py-4">
                 {performanceFilteredLeads.map(l => (
-                  <div key={l.opportunity_id} className="p-5 border rounded-xl hover:bg-gray-50 hover:shadow-sm cursor-pointer transition-all"
+                  <div key={l.opportunity_id}
+                    className="p-5 border rounded-xl hover:bg-gray-50 hover:shadow-sm cursor-pointer transition-all"
                     onClick={() => { setShowPerformanceModal(false); window.open(`/dashboard/leads/${l.tenant_lead_id || l.opportunity_id}`, "_blank"); }}>
                     <div className="flex items-start justify-between gap-4 mb-4">
                       <div className="flex-1 min-w-0">
@@ -962,11 +958,10 @@ export default function LeadsPage() {
               ) : paginatedLeads.map(lead => {
                 const isSelected = selectedLeads.includes(lead.opportunity_id);
                 const fromSearch = isFromSearch(lead);
-                const isArchived = lead.is_archived === true;
-                const displayId  = (lead as any).tenant_lead_id || lead.display_id || lead.opportunity_id;
+                const displayId  = lead.tenant_lead_id || lead.display_id || lead.opportunity_id;
                 return (
                   <tr key={lead.opportunity_id}
-                    className={`hover:bg-gray-50 transition-colors cursor-pointer ${isSelected ? "bg-blue-50" : isArchived ? "bg-gray-100 opacity-60" : fromSearch ? "bg-amber-50" : ""}`}
+                    className={`hover:bg-gray-50 transition-colors cursor-pointer ${isSelected ? "bg-blue-50" : fromSearch ? "bg-amber-50" : ""}`}
                     onClick={() => window.open(`/dashboard/leads/${displayId}`, "_blank")}
                     onContextMenu={e => {
                       e.preventDefault();
@@ -984,7 +979,9 @@ export default function LeadsPage() {
 
                     <td className="px-3 py-3 align-top" onClick={e => e.stopPropagation()}>
                       <input type="checkbox" className="rounded border-gray-300 mt-1"
-                        checked={isSelected} onChange={() => handleSelectLead(lead.opportunity_id)} disabled={fromSearch} />
+                        checked={isSelected}
+                        onChange={() => handleSelectLead(lead.opportunity_id)}
+                        disabled={fromSearch} />
                     </td>
                     <td className="px-3 py-3 text-sm font-medium text-gray-900 border-r-2 border-gray-300 align-top">
                       <div className="flex items-center gap-1 whitespace-nowrap">
@@ -999,10 +996,7 @@ export default function LeadsPage() {
                       </div>
                     </td>
                     <td className="px-3 py-3 text-sm text-gray-900 align-top overflow-hidden">
-                      <div className="leading-tight">
-                        <div className="truncate" title={lead.business_name || ""}>{lead.business_name || "—"}</div>
-                        {/* {isArchived && <Badge variant="outline" className="mt-1 text-xs bg-gray-200 text-gray-600 border-gray-400 whitespace-nowrap">ARCHIVED</Badge>} */}
-                      </div>
+                      <div className="truncate" title={lead.business_name || ""}>{lead.business_name || "—"}</div>
                     </td>
                     <td className="px-3 py-3 text-sm text-gray-900 align-top">
                       <div className="whitespace-nowrap">{lead.tel_number ? String(lead.tel_number).replace(/\.0$/, "") : "—"}</div>
@@ -1041,21 +1035,17 @@ export default function LeadsPage() {
                       </Select>
                     </td>
                     <td className="px-3 py-3 align-top" onClick={e => e.stopPropagation()}>
-                      {isAdmin ? (
-                        <Select value={lead.opportunity_owner_employee_id?.toString() || "0"}
-                          onValueChange={v => { setAssigningLeadId(lead.opportunity_id); setAssignToEmployeeId(v); setShowAssignModal(true); }}
-                          disabled={isArchived}>
-                          <SelectTrigger className="h-7 text-xs w-full max-w-[150px]">
-                            <SelectValue placeholder="Assign">{lead.assigned_to_name || "Unassigned"}</SelectValue>
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="0">Unassigned</SelectItem>
-                            {employees.map(e => <SelectItem key={e.employee_id} value={e.employee_id.toString()}>{e.employee_name}</SelectItem>)}
-                          </SelectContent>
-                        </Select>
-                      ) : (
-                        <span className="text-sm text-gray-700">{lead.assigned_to_name || "—"}</span>
-                      )}
+                      <Select
+                        value={lead.opportunity_owner_employee_id?.toString() || "0"}
+                        onValueChange={v => { setAssigningLeadId(lead.opportunity_id); setAssignToEmployeeId(v); setShowAssignModal(true); }}>
+                        <SelectTrigger className="h-7 text-xs w-full max-w-[150px]">
+                          <SelectValue placeholder="Assign">{lead.assigned_to_name || "Unassigned"}</SelectValue>
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="0">Unassigned</SelectItem>
+                          {employees.map(e => <SelectItem key={e.employee_id} value={e.employee_id.toString()}>{e.employee_name}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
                     </td>
                   </tr>
                 );
