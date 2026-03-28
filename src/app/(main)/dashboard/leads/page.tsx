@@ -551,7 +551,7 @@ export default function LeadsPage() {
             ? { ...l, opportunity_owner_employee_id: bulkAssignEmployeeId, assigned_to_name: bulkAssignEmployeeName }
             : l
         ));
-        fetchEmployeeStats();
+        // ✅ Team stats will refresh on next fetchLeads() call
       } else {
         // Non-admin: assigned leads move to /allocated, remove from main list.
         setAllLeads(prev => prev.filter(l => !selectedLeads.includes(l.opportunity_id)));
@@ -640,7 +640,7 @@ export default function LeadsPage() {
       if (res.ok && data.success) {
         setBulkImportResult({ success: true, successful: data.successful, errors: data.errors || [], assigned_to: data.assigned_to });
         toast.success(`✅ Imported ${data.successful} leads!`);
-        await fetchLeads(); if (isAdmin) await fetchEmployeeStats();
+        await fetchLeads(); await fetchLeads();
         setBulkImportFile(null); setAssignToEmployee(null);
       } else {
         setBulkImportResult({ success: false, successful: data.successful || 0, errors: data.errors || [data.error || "Import failed"] });
