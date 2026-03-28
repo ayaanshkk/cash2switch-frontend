@@ -282,16 +282,10 @@ export default function LeadsPage() {
   };
 
   useEffect(() => {
-    if (!user) return; 
     fetchLeads();
     fetchPerformanceStats();
-  }, [service, user]);
-
-  useEffect(() => {
-    if (isAdmin) {
-      fetchEmployeeStats();
-    }
-  }, [isAdmin, service]);
+    if (isAdmin) fetchEmployeeStats();
+  }, [service, isAdmin]);
 
   // ── Cross-team text search (debounced) ─────────────────────────────────────
   useEffect(() => {
@@ -489,25 +483,36 @@ export default function LeadsPage() {
         body: JSON.stringify(payload),
       });
 
-      // ✅ MIRROR RENEWALS: always remove from current view when assigning to someone else
-      const assignedToSelf = empId === user?.employee_id;
-      if (assignedToSelf) {
-        const empName = employees.find(e => e.employee_id === empId)?.employee_name || null;
+      const empName = employees.find(e => e.employee_id === empId)?.employee_name || null;
+
+      if (isAdmin) {
+        // Admin sees all leads — always update in place, never remove.
+        // The lead stays visible with its new assignee shown.
         setAllLeads(prev => prev.map(l =>
           l.opportunity_id === assigningLeadId
             ? { ...l, opportunity_owner_employee_id: empId, assigned_to_name: empName }
             : l
         ));
+        fetchEmployeeStats();
       } else {
-        // Assigning to someone else → is_allocated=TRUE → disappears from our list
-        setAllLeads(prev => prev.filter(l => l.opportunity_id !== assigningLeadId));
-        setSelectedLeads(prev => prev.filter(id => id !== assigningLeadId));
+        // Non-admin: assigning to self keeps it visible; assigning away removes it
+        // (backend sets is_allocated=TRUE so it moves to /allocated instead).
+        const assignedToSelf = empId === user?.employee_id;
+        if (assignedToSelf) {
+          setAllLeads(prev => prev.map(l =>
+            l.opportunity_id === assigningLeadId
+              ? { ...l, opportunity_owner_employee_id: empId, assigned_to_name: empName }
+              : l
+          ));
+        } else {
+          setAllLeads(prev => prev.filter(l => l.opportunity_id !== assigningLeadId));
+          setSelectedLeads(prev => prev.filter(id => id !== assigningLeadId));
+        }
       }
 
       toast.success("✅ Salesperson assigned successfully");
       setShowAssignModal(false);
       setAssignToEmployeeId(""); setAssignmentNotes(""); setAssigningLeadId(null);
-      if (isAdmin) fetchEmployeeStats();
     } catch { toast.error("Failed to assign salesperson"); }
     finally { setIsAssigning(false); }
   };
@@ -526,12 +531,23 @@ export default function LeadsPage() {
         body: JSON.stringify(payload),
       });
 
-      // ✅ MIRROR RENEWALS: always remove bulk-assigned leads from current view
-      setAllLeads(prev => prev.filter(l => !selectedLeads.includes(l.opportunity_id)));
+      if (isAdmin) {
+        // Admin: update assigned_to_name in place for all selected leads.
+        // Never remove — admin always sees all leads regardless of assignment.
+        setAllLeads(prev => prev.map(l =>
+          selectedLeads.includes(l.opportunity_id)
+            ? { ...l, opportunity_owner_employee_id: bulkAssignEmployeeId, assigned_to_name: bulkAssignEmployeeName }
+            : l
+        ));
+        fetchEmployeeStats();
+      } else {
+        // Non-admin: assigned leads move to /allocated, remove from main list.
+        setAllLeads(prev => prev.filter(l => !selectedLeads.includes(l.opportunity_id)));
+      }
+
       setSelectedLeads([]); setIsSelectAllChecked(false);
       setShowBulkAssignModal(false); setBulkAssignmentNotes("");
       toast.success(`✅ ${selectedLeads.length} leads assigned to ${bulkAssignEmployeeName}`);
-      if (isAdmin) fetchEmployeeStats();
     } catch { toast.error("❌ Error assigning leads"); }
     finally { setIsBulkAssigning(false); }
   };
