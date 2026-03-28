@@ -284,8 +284,7 @@ export default function LeadsPage() {
   useEffect(() => {
     fetchLeads();
     fetchPerformanceStats();
-    if (isAdmin) fetchEmployeeStats();
-  }, [service, isAdmin]);
+  }, [service]);
 
   // ── Cross-team text search (debounced) ─────────────────────────────────────
   useEffect(() => {
@@ -734,19 +733,17 @@ export default function LeadsPage() {
       )}
 
       {/* My Leads count (non-admin) */}
-      {!isAdmin && (
-        <div className="mb-6">
-          <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-lg p-4">
-            <div className="flex items-center gap-3">
-              <div className="bg-blue-600 p-2 rounded-lg"><Users className="h-5 w-5 text-white" /></div>
-              <div>
-                <p className="text-sm text-gray-600">Your Leads</p>
-                <p className="text-2xl font-bold text-gray-900">{allLeads.length}</p>
-              </div>
+      <div className="mb-6">
+        <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-lg p-4">
+          <div className="flex items-center gap-3">
+            <div className="bg-blue-600 p-2 rounded-lg"><Users className="h-5 w-5 text-white" /></div>
+            <div>
+              <p className="text-sm text-gray-600">Your Leads</p>
+              <p className="text-2xl font-bold text-gray-900">{allLeads.length}</p>
             </div>
           </div>
         </div>
-      )}
+      </div>
 
       {error && (
         <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg flex items-start gap-3">
