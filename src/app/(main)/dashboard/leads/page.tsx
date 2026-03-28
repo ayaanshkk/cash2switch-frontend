@@ -98,6 +98,13 @@ interface LeadCustomer {
   display_order?: number;
 }
 
+interface TeamStat {
+  employee_id: number;
+  employee_name: string;
+  lead_count?: number;  
+  count?: number;      
+}
+
 interface Supplier { supplier_id: number; supplier_name: string; }
 interface Employee { employee_id: number; employee_name: string; email?: string; }
 interface Stage { stage_id: number; stage_name: string; stage_description?: string; }
@@ -219,7 +226,8 @@ export default function LeadsPage() {
   // ── Fetch helpers ──────────────────────────────────────────────────────────
 
   const fetchLeads = async () => {
-    setIsLoading(true); setError(null);
+    setIsLoading(true); 
+    setError(null);
     try {
       const [leadsResp, suppResp, empResp, stagesResp] = await Promise.all([
         fetchWithAuth(`/api/crm/leads?exclude_stage=Lost&service=${encodeURIComponent(service)}`),
@@ -228,18 +236,39 @@ export default function LeadsPage() {
         fetchWithAuth("/api/crm/stages"),
       ]);
 
-      const active: LeadCustomer[] = Array.isArray(leadsResp) ? leadsResp : (leadsResp?.data || []);
+      // ✅ Extract data and team_stats from response
+      const active: LeadCustomer[] = Array.isArray(leadsResp) 
+        ? leadsResp 
+        : (leadsResp?.data || []);
+      
       console.log(`📊 Loaded ${active.length} active leads for service=${service}`);
+      console.log('📊 Full backend response:', leadsResp);
 
       setAllLeads(active);
       setSuppliers(Array.isArray(suppResp) ? suppResp : (suppResp?.data || []));
       const empList = Array.isArray(empResp?.data) ? empResp.data : (Array.isArray(empResp) ? empResp : []);
       setEmployees(empList);
       setStages(Array.isArray(stagesResp) ? stagesResp : (stagesResp?.data || []));
+      
+      // ✅ NEW: Extract team_stats from backend response
+      if (leadsResp?.team_stats && Array.isArray(leadsResp.team_stats)) {
+        console.log('📊 Team stats from backend:', leadsResp.team_stats);
+        // Map lead_count to count for compatibility
+        const stats = leadsResp.team_stats.map((s: any) => ({
+          employee_id: s.employee_id,
+          employee_name: s.employee_name,
+          count: s.lead_count || s.count || 0
+        }));
+        setEmployeeStats(stats.filter((s: any) => s.count > 0));
+      } else {
+        console.warn('⚠️ No team_stats in backend response');
+        setEmployeeStats([]);
+      }
     } catch (err: any) {
       console.error('❌ fetchLeads error:', err);
       setError(err.message || "Failed to load leads");
       setAllLeads([]);
+      setEmployeeStats([]);
     } finally {
       setIsLoading(false);
     }
@@ -264,21 +293,6 @@ export default function LeadsPage() {
         });
       }
     } catch { /* optional */ }
-  };
-
-  const fetchEmployeeStats = async () => {
-    try {
-      // ✅ FIX: backend returns { stats: [...] } — extract the array
-      const resp = await fetchWithAuth(
-        `/api/crm/leads/stats-by-employee?service=${encodeURIComponent(service)}`
-      );
-      const stats = Array.isArray(resp?.stats) ? resp.stats : [];
-      console.log('📊 Team stats loaded:', stats);
-      setEmployeeStats(stats.filter((s: any) => s.count > 0));
-    } catch (err) {
-      console.error('❌ Failed to load team stats:', err);
-      setEmployeeStats([]);
-    }
   };
 
   useEffect(() => {
@@ -485,24 +499,23 @@ export default function LeadsPage() {
       const empName = employees.find(e => e.employee_id === empId)?.employee_name || null;
 
       if (isAdmin) {
-        // Admin sees all leads — always update in place, never remove.
-        // The lead stays visible with its new assignee shown.
         setAllLeads(prev => prev.map(l =>
           l.opportunity_id === assigningLeadId
             ? { ...l, opportunity_owner_employee_id: empId, assigned_to_name: empName }
             : l
         ));
-        fetchEmployeeStats();
+        await fetchLeads(); // ✅ This will refresh team_stats too
       } else {
         // Non-admin: assigning to self keeps it visible; assigning away removes it
         // (backend sets is_allocated=TRUE so it moves to /allocated instead).
         const assignedToSelf = empId === user?.employee_id;
-        if (assignedToSelf) {
+        if (isAdmin) {
           setAllLeads(prev => prev.map(l =>
-            l.opportunity_id === assigningLeadId
-              ? { ...l, opportunity_owner_employee_id: empId, assigned_to_name: empName }
+            selectedLeads.includes(l.opportunity_id)
+              ? { ...l, opportunity_owner_employee_id: bulkAssignEmployeeId, assigned_to_name: bulkAssignEmployeeName }
               : l
           ));
+          await fetchLeads(); 
         } else {
           setAllLeads(prev => prev.filter(l => l.opportunity_id !== assigningLeadId));
           setSelectedLeads(prev => prev.filter(id => id !== assigningLeadId));
@@ -733,17 +746,19 @@ export default function LeadsPage() {
       )}
 
       {/* My Leads count (non-admin) */}
-      <div className="mb-6">
-        <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-lg p-4">
-          <div className="flex items-center gap-3">
-            <div className="bg-blue-600 p-2 rounded-lg"><Users className="h-5 w-5 text-white" /></div>
-            <div>
-              <p className="text-sm text-gray-600">Your Leads</p>
-              <p className="text-2xl font-bold text-gray-900">{allLeads.length}</p>
+      {!isAdmin && (
+        <div className="mb-6">
+          <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-lg p-4">
+            <div className="flex items-center gap-3">
+              <div className="bg-blue-600 p-2 rounded-lg"><Users className="h-5 w-5 text-white" /></div>
+              <div>
+                <p className="text-sm text-gray-600">Your Leads</p>
+                <p className="text-2xl font-bold text-gray-900">{allLeads.length}</p>
+              </div>
             </div>
           </div>
         </div>
-      </div>
+      )}
 
       {error && (
         <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg flex items-start gap-3">
