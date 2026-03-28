@@ -282,10 +282,16 @@ export default function LeadsPage() {
   };
 
   useEffect(() => {
+    if (!user) return; 
     fetchLeads();
     fetchPerformanceStats();
-    if (isAdmin) fetchEmployeeStats();
-  }, [service, isAdmin]);
+  }, [service, user]);
+
+  useEffect(() => {
+    if (isAdmin) {
+      fetchEmployeeStats();
+    }
+  }, [isAdmin, service]);
 
   // ── Cross-team text search (debounced) ─────────────────────────────────────
   useEffect(() => {
