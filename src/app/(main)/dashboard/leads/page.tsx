@@ -24,7 +24,10 @@ import { toast, Toaster } from "react-hot-toast";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Textarea } from "@/components/ui/textarea";
 
+// ─── Constants ────────────────────────────────────────────────────────────────
 const CUSTOMERS_PER_PAGE = 25;
+
+// ✅ Use the same base URL pattern as renewals import
 const API_BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
 
 const STATUS_OPTIONS = [
@@ -74,6 +77,7 @@ const STATUS_TO_STAGE_FALLBACK: Record<string, number> = {
   "email only": 13, "renewed directly": 14, "incorrect supplier": 15, "converted": 16,
 };
 
+// ─── Types ────────────────────────────────────────────────────────────────────
 interface LeadCustomer {
   opportunity_id: number;
   tenant_lead_id?: number;
@@ -99,16 +103,17 @@ interface LeadCustomer {
 }
 
 interface TeamStat {
-  employee_id: number;
+  employee_id: number | null;
   employee_name: string;
-  lead_count?: number;  
-  count?: number;      
+  lead_count?: number;
+  count?: number;
 }
 
 interface Supplier { supplier_id: number; supplier_name: string; }
 interface Employee { employee_id: number; employee_name: string; email?: string; }
 interface Stage { stage_id: number; stage_name: string; stage_description?: string; }
 
+// ─── Utilities ────────────────────────────────────────────────────────────────
 const formatDate = (d: string | null | undefined) => {
   if (!d) return "—";
   try { return new Date(d).toLocaleDateString("en-GB", { day: "2-digit", month: "2-digit", year: "numeric" }); }
@@ -142,6 +147,7 @@ const getStageIdFromStatus = (status: string, stagesList?: Stage[]): number => {
   return id;
 };
 
+// ─── Component ────────────────────────────────────────────────────────────────
 export default function LeadsPage() {
   const router = useRouter();
   const { user } = useAuth();
@@ -153,7 +159,7 @@ export default function LeadsPage() {
   const [employees, setEmployees]         = useState<Employee[]>([]);
   const [stages, setStages]               = useState<Stage[]>([]);
   const [searchResults, setSearchResults] = useState<LeadCustomer[]>([]);
-  const [employeeStats, setEmployeeStats] = useState<{ employee_id: number; employee_name: string; count: number }[]>([]);
+  const [employeeStats, setEmployeeStats] = useState<TeamStat[]>([]);
 
   // ── Loading / error ────────────────────────────────────────────────────────
   const [isLoading, setIsLoading]     = useState(true);
@@ -177,9 +183,11 @@ export default function LeadsPage() {
   const [showImportModal, setShowImportModal]   = useState(false);
   const [bulkImportFile, setBulkImportFile]     = useState<File | null>(null);
   const [bulkImporting, setBulkImporting]       = useState(false);
+  // ✅ Default assignToEmployee to null — backend will auto-assign to the importing user
   const [assignToEmployee, setAssignToEmployee] = useState<number | null>(null);
   const [bulkImportResult, setBulkImportResult] = useState<{
-    success: boolean; successful: number; errors: string[]; assigned_to?: string
+    success: boolean; successful: number; duplicates?: number; errors: string[]; assigned_to?: string;
+    duplicate_report?: string[];
   } | null>(null);
 
   // ── Callback modal ─────────────────────────────────────────────────────────
@@ -223,10 +231,9 @@ export default function LeadsPage() {
   // Reset page when filters change
   useEffect(() => { setCurrentPage(1); }, [searchTerm, supplierFilter, statusFilter, usageSort, endDateFilter]);
 
-  // ── Fetch helpers ──────────────────────────────────────────────────────────
-
+  // ─── Fetch helpers ──────────────────────────────────────────────────────────
   const fetchLeads = async () => {
-    setIsLoading(true); 
+    setIsLoading(true);
     setError(null);
     try {
       const [leadsResp, suppResp, empResp, stagesResp] = await Promise.all([
@@ -236,36 +243,31 @@ export default function LeadsPage() {
         fetchWithAuth("/api/crm/stages"),
       ]);
 
-      // ✅ Extract data and team_stats from response
-      const active: LeadCustomer[] = Array.isArray(leadsResp) 
-        ? leadsResp 
+      // ✅ Backend already scopes to the current user's employee_id (non-admin)
+      // or all tenant leads (admin). team_stats comes back in the same response.
+      const active: LeadCustomer[] = Array.isArray(leadsResp)
+        ? leadsResp
         : (leadsResp?.data || []);
-      
-      console.log(`📊 Loaded ${active.length} active leads for service=${service}`);
-      console.log('📊 Full backend response:', leadsResp);
 
       setAllLeads(active);
       setSuppliers(Array.isArray(suppResp) ? suppResp : (suppResp?.data || []));
       const empList = Array.isArray(empResp?.data) ? empResp.data : (Array.isArray(empResp) ? empResp : []);
       setEmployees(empList);
       setStages(Array.isArray(stagesResp) ? stagesResp : (stagesResp?.data || []));
-      
-      // ✅ NEW: Extract team_stats from backend response
+
+      // ✅ Extract team_stats from the backend response (same shape as renewals)
       if (leadsResp?.team_stats && Array.isArray(leadsResp.team_stats)) {
-        console.log('📊 Team stats from backend:', leadsResp.team_stats);
-        // Map lead_count to count for compatibility
-        const stats = leadsResp.team_stats.map((s: any) => ({
-          employee_id: s.employee_id,
+        const stats: TeamStat[] = leadsResp.team_stats.map((s: any) => ({
+          employee_id:   s.employee_id,
           employee_name: s.employee_name,
-          count: s.lead_count || s.count || 0
+          count:         s.lead_count || s.count || 0,
         }));
-        setEmployeeStats(stats.filter((s: any) => s.count > 0));
+        setEmployeeStats(stats.filter(s => (s.count ?? 0) > 0));
       } else {
-        console.warn('⚠️ No team_stats in backend response');
         setEmployeeStats([]);
       }
     } catch (err: any) {
-      console.error('❌ fetchLeads error:', err);
+      console.error("❌ fetchLeads error:", err);
       setError(err.message || "Failed to load leads");
       setAllLeads([]);
       setEmployeeStats([]);
@@ -306,7 +308,6 @@ export default function LeadsPage() {
     const tid = setTimeout(async () => {
       setIsSearching(true);
       try {
-        // ✅ FIX: search-all now returns matching leads (not employee stats)
         const resp = await fetchWithAuth(
           `/api/crm/leads/search-all?q=${encodeURIComponent(searchTerm)}&service=${encodeURIComponent(service)}`
         );
@@ -318,23 +319,22 @@ export default function LeadsPage() {
   }, [searchTerm, service]);
 
   // ── Derived lists ──────────────────────────────────────────────────────────
-
   const sortedLeads = useMemo(() => {
-    // Main list: own non-allocated leads (server already filtered)
     const base = [...allLeads];
-
-    // Merge in search results that aren't already in the main list
     if (searchTerm && searchResults.length > 0) {
       const existingIds = new Set(base.map(l => l.opportunity_id));
       const extras = searchResults.filter(l => !existingIds.has(l.opportunity_id));
-      return [...base, ...extras].sort((a, b) =>
-        new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime()
-      );
+      return [...base, ...extras].sort((a, b) => {
+        const orderA = a.display_order ?? 999999;
+        const orderB = b.display_order ?? 999999;
+        return orderA - orderB;  // ✅ ASCENDING
+      });
     }
-
-    return base.sort((a, b) =>
-      new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime()
-    );
+    return base.sort((a, b) => {
+      const orderA = a.display_order ?? 999999;
+      const orderB = b.display_order ?? 999999;
+      return orderA - orderB;  // ✅ ASCENDING
+    });
   }, [allLeads, searchResults, searchTerm]);
 
   const filteredLeads = useMemo(() => {
@@ -348,7 +348,6 @@ export default function LeadsPage() {
         (l.mpan_mpr       || "").toLowerCase().includes(term);
       const matchSupplier = supplierFilter === "All" || l.supplier_id === supplierFilter;
       const matchStatus   = statusFilter   === "All" || l.stage_name === statusFilter;
-
       let matchEndDate = true;
       if (endDateFilter !== "all" && l.end_date) {
         const today = new Date();
@@ -362,7 +361,6 @@ export default function LeadsPage() {
       }
       return matchSearch && matchSupplier && matchStatus && matchEndDate;
     });
-
     if (usageSort !== "none") {
       list = [...list].sort((a, b) => {
         const au = a.annual_usage || 0, bu = b.annual_usage || 0;
@@ -378,8 +376,7 @@ export default function LeadsPage() {
     return filteredLeads.slice(s, s + CUSTOMERS_PER_PAGE);
   }, [filteredLeads, currentPage]);
 
-  // A lead is "from search" (not the current user's own) when it's in the search
-  // results but not in the user's own list
+  // A lead is "from search" when it's in search results but not in the user's own list
   const isFromSearch = (l: LeadCustomer) => {
     if (isAdmin) return false;
     const ownIds = new Set(allLeads.map(x => x.opportunity_id));
@@ -398,7 +395,6 @@ export default function LeadsPage() {
   };
 
   // ── Status / callback ──────────────────────────────────────────────────────
-
   const updateLeadStatus = (leadId: number, newStatus: string) => {
     if (!newStatus || newStatus === "CLEAR_STATUS") {
       fetchWithAuth(`/api/crm/leads/${leadId}`, {
@@ -481,7 +477,6 @@ export default function LeadsPage() {
   };
 
   // ── Assignment ─────────────────────────────────────────────────────────────
-
   const handleAssignWithNotes = async () => {
     if (!assigningLeadId) return;
     setIsAssigning(true);
@@ -496,30 +491,19 @@ export default function LeadsPage() {
         body: JSON.stringify(payload),
       });
 
-      const empName = employees.find(e => e.employee_id === empId)?.employee_name || null;
-
+      // ✅ Mirror renewals: assigning away removes from non-admin view
       if (isAdmin) {
+        const empName = employees.find(e => e.employee_id === empId)?.employee_name || null;
         setAllLeads(prev => prev.map(l =>
           l.opportunity_id === assigningLeadId
             ? { ...l, opportunity_owner_employee_id: empId, assigned_to_name: empName }
             : l
         ));
-        await fetchLeads(); // ✅ This will refresh team_stats too
+        await fetchLeads(); // refresh team stats
       } else {
-        // Non-admin: assigning to self keeps it visible; assigning away removes it
-        // (backend sets is_allocated=TRUE so it moves to /allocated instead).
-        const assignedToSelf = empId === user?.employee_id;
-        if (isAdmin) {
-          setAllLeads(prev => prev.map(l =>
-            selectedLeads.includes(l.opportunity_id)
-              ? { ...l, opportunity_owner_employee_id: bulkAssignEmployeeId, assigned_to_name: bulkAssignEmployeeName }
-              : l
-          ));
-          await fetchLeads(); 
-        } else {
-          setAllLeads(prev => prev.filter(l => l.opportunity_id !== assigningLeadId));
-          setSelectedLeads(prev => prev.filter(id => id !== assigningLeadId));
-        }
+        // Non-admin: assigned lead moves away (becomes allocated), remove from view
+        setAllLeads(prev => prev.filter(l => l.opportunity_id !== assigningLeadId));
+        setSelectedLeads(prev => prev.filter(id => id !== assigningLeadId));
       }
 
       toast.success("✅ Salesperson assigned successfully");
@@ -543,17 +527,16 @@ export default function LeadsPage() {
         body: JSON.stringify(payload),
       });
 
+      // ✅ Mirror renewals exactly
       if (isAdmin) {
-        // Admin: update assigned_to_name in place for all selected leads.
-        // Never remove — admin always sees all leads regardless of assignment.
         setAllLeads(prev => prev.map(l =>
           selectedLeads.includes(l.opportunity_id)
             ? { ...l, opportunity_owner_employee_id: bulkAssignEmployeeId, assigned_to_name: bulkAssignEmployeeName }
             : l
         ));
-        // ✅ Team stats will refresh on next fetchLeads() call
+        await fetchLeads(); // refresh team stats
       } else {
-        // Non-admin: assigned leads move to /allocated, remove from main list.
+        // Non-admin: bulk assigned leads are removed from view (they go to allocated)
         setAllLeads(prev => prev.filter(l => !selectedLeads.includes(l.opportunity_id)));
       }
 
@@ -565,7 +548,6 @@ export default function LeadsPage() {
   };
 
   // ── Delete ─────────────────────────────────────────────────────────────────
-
   const deleteLead = async (id: number) => {
     if (!window.confirm("Delete this lead and all related records?")) return;
     try {
@@ -590,7 +572,6 @@ export default function LeadsPage() {
   };
 
   // ── Selection ──────────────────────────────────────────────────────────────
-
   const handleSelectAll = () => {
     if (isSelectAllChecked) { setSelectedLeads([]); setIsSelectAllChecked(false); }
     else {
@@ -607,12 +588,12 @@ export default function LeadsPage() {
   };
 
   // ── Import ─────────────────────────────────────────────────────────────────
-
+  // ✅ Download template from /import/leads/template — same pattern as renewals
   const downloadTemplate = async () => {
     const token    = localStorage.getItem("auth_token");
     const tenantId = localStorage.getItem("tenant_id") || "";
     try {
-      const res = await fetch(`${API_BASE_URL}/api/crm/leads/import/template`, {
+      const res = await fetch(`${API_BASE_URL}/import/leads/template`, {
         headers: { Authorization: `Bearer ${token}`, "X-Tenant-ID": tenantId },
       });
       if (!res.ok) throw new Error("Failed to download");
@@ -624,26 +605,55 @@ export default function LeadsPage() {
     } catch (e) { alert(e instanceof Error ? e.message : "Failed"); }
   };
 
+  // ✅ KEY FIX: Use /import/leads (same backend as renewals uses /import/energy-customers)
+  // This endpoint in import_routes.py auto-assigns to the importing user when no
+  // assigned_employee_id is provided — exactly what we want.
   const handleBulkImport = async () => {
     if (!bulkImportFile) { alert("Please select a file"); return; }
     setBulkImporting(true); setBulkImportResult(null);
     try {
-      const token = localStorage.getItem("auth_token");
-      const fd    = new FormData();
+      const token    = localStorage.getItem("auth_token");
+      const tenantId = localStorage.getItem("tenant_id") || "";
+      const fd = new FormData();
       fd.append("file", bulkImportFile);
-      if (assignToEmployee) fd.append("assigned_employee_id", assignToEmployee.toString());
-      const res  = await fetch(
-        `${API_BASE_URL}/api/crm/leads/import?service=${encodeURIComponent(service)}`,
-        { method: "POST", headers: { Authorization: `Bearer ${token}` }, body: fd }
+      // ✅ If no employee selected, DO NOT append assigned_employee_id at all.
+      // The backend (/import/leads) will default to the authenticated user's employee_id.
+      if (assignToEmployee) {
+        fd.append("assigned_employee_id", assignToEmployee.toString());
+      }
+
+      const res = await fetch(
+        `${API_BASE_URL}/import/leads?service=${encodeURIComponent(service)}`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "X-Tenant-ID": tenantId,
+          },
+          body: fd,
+        }
       );
       const data = await res.json();
+
       if (res.ok && data.success) {
-        setBulkImportResult({ success: true, successful: data.successful, errors: data.errors || [], assigned_to: data.assigned_to });
+        setBulkImportResult({
+          success:          true,
+          successful:       data.successful,
+          duplicates:       data.duplicates,
+          errors:           data.errors || [],
+          assigned_to:      data.assigned_to,
+          duplicate_report: data.duplicate_report,
+        });
         toast.success(`✅ Imported ${data.successful} leads!`);
-        await fetchLeads(); await fetchLeads();
-        setBulkImportFile(null); setAssignToEmployee(null);
+        await fetchLeads();
+        setBulkImportFile(null);
+        setAssignToEmployee(null);
       } else {
-        setBulkImportResult({ success: false, successful: data.successful || 0, errors: data.errors || [data.error || "Import failed"] });
+        setBulkImportResult({
+          success:    false,
+          successful: data.successful || 0,
+          errors:     data.errors || [data.error || "Import failed"],
+        });
         toast.error(data.error || "Import failed");
       }
     } catch {
@@ -653,7 +663,6 @@ export default function LeadsPage() {
   };
 
   // ── Performance modal ──────────────────────────────────────────────────────
-
   const handlePerformanceClick = async (type: string) => {
     setPerformanceFilter(type);
     try {
@@ -684,7 +693,6 @@ export default function LeadsPage() {
   }[type] || "");
 
   // ── Pagination ─────────────────────────────────────────────────────────────
-
   const PaginationControls = () => {
     if (totalPages <= 1) return null;
     return (
@@ -705,8 +713,7 @@ export default function LeadsPage() {
     );
   };
 
-  // ── Render ─────────────────────────────────────────────────────────────────
-
+  // ─── Render ─────────────────────────────────────────────────────────────────
   return (
     <div className="w-full p-6">
       <Toaster position="top-right" />
@@ -730,14 +737,14 @@ export default function LeadsPage() {
           <h2 className="text-sm font-medium text-gray-700 mb-3">Team Overview</h2>
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
             {employeeStats.map(stat => (
-              <div key={stat.employee_id} className="bg-white border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow">
+              <div key={stat.employee_id ?? "unassigned"} className="bg-white border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow">
                 <div className="flex items-center gap-2 mb-2">
                   <Users className="h-4 w-4 text-blue-600" />
                   <span className="text-xs font-medium text-gray-500 truncate">{stat.employee_name}</span>
                 </div>
                 <div className="flex items-baseline gap-2">
-                  <span className="text-2xl font-bold text-gray-900">{stat.count}</span>
-                  <span className="text-xs text-gray-500">lead{stat.count !== 1 ? "s" : ""}</span>
+                  <span className="text-2xl font-bold text-gray-900">{stat.count ?? stat.lead_count ?? 0}</span>
+                  <span className="text-xs text-gray-500">lead{(stat.count ?? 0) !== 1 ? "s" : ""}</span>
                 </div>
               </div>
             ))}
@@ -992,7 +999,7 @@ export default function LeadsPage() {
               ) : paginatedLeads.map(lead => {
                 const isSelected = selectedLeads.includes(lead.opportunity_id);
                 const fromSearch = isFromSearch(lead);
-                const displayId  = lead.tenant_lead_id || lead.display_id || lead.opportunity_id;
+                const displayId = lead.display_order || lead.opportunity_id;
                 return (
                   <tr key={lead.opportunity_id}
                     className={`hover:bg-gray-50 transition-colors cursor-pointer ${isSelected ? "bg-blue-50" : fromSearch ? "bg-amber-50" : ""}`}
@@ -1007,7 +1014,7 @@ export default function LeadsPage() {
                       del.innerHTML = `<svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg> Delete`;
                       del.onclick = () => { deleteLead(lead.opportunity_id); document.body.removeChild(menu); };
                       menu.appendChild(del); document.body.appendChild(menu);
-                      const close = (ev: MouseEvent) => { if (!menu.contains(ev.target as Node)) { document.body.removeChild(menu); document.removeEventListener("click", close); } };
+                      const close = (ev: MouseEvent) => { if (!menu.contains(ev.target as Node)) { try { document.body.removeChild(menu); } catch {} document.removeEventListener("click", close); } };
                       setTimeout(() => document.addEventListener("click", close), 0);
                     }}>
 
@@ -1090,37 +1097,67 @@ export default function LeadsPage() {
         {!isLoading && !error && filteredLeads.length > 0 && <PaginationControls />}
       </div>
 
-      {/* Bulk Import Modal */}
+      {/* ── Bulk Import Modal ─────────────────────────────────────────────────── */}
+      {/*
+        ✅ This now mirrors the renewals import modal exactly:
+        - Uses /import/leads endpoint (import_routes.py)
+        - When "Assign To" is left blank, the backend auto-assigns to the importing user
+        - Shows duplicate report just like renewals
+      */}
       <Dialog open={showImportModal} onOpenChange={setShowImportModal}>
         <DialogContent className="max-w-2xl">
           <DialogHeader>
             <DialogTitle>Bulk Import Leads</DialogTitle>
-            <DialogDescription>Upload an Excel file (.xlsx) with lead data.</DialogDescription>
+            <DialogDescription>
+              Upload an Excel or CSV file. Leads will be assigned to <strong>you</strong> by default unless you select someone else below.
+            </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <div>
-              <label className="block text-sm font-medium mb-2">Select Excel File</label>
+              <label className="block text-sm font-medium mb-2">Select File (.xlsx, .xls, .csv)</label>
               <input type="file" accept=".xlsx,.xls,.csv" onChange={e => setBulkImportFile(e.target.files?.[0] || null)} className="block w-full text-sm border rounded-md p-2" />
             </div>
-            <div>
-              <label className="block text-sm font-medium mb-2">Assign To (Optional)</label>
-              <Select value={assignToEmployee?.toString() || "0"} onValueChange={v => setAssignToEmployee(v === "0" ? null : Number(v))}>
-                <SelectTrigger className="w-full"><SelectValue placeholder="Keep unassigned" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="0">Keep unassigned</SelectItem>
-                  {employees.map(e => <SelectItem key={e.employee_id} value={e.employee_id.toString()}>{e.employee_name}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
+
+            {/* ✅ "Assign To" — admin can pick someone; leaving blank = self-assign */}
+            {isAdmin && (
+              <div>
+                <label className="block text-sm font-medium mb-2">
+                  Assign To <span className="text-gray-400 font-normal">(optional — defaults to your account)</span>
+                </label>
+                <Select value={assignToEmployee?.toString() || "0"} onValueChange={v => setAssignToEmployee(v === "0" ? null : Number(v))}>
+                  <SelectTrigger className="w-full"><SelectValue placeholder="Assign to myself (default)" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="0">Assign to myself (default)</SelectItem>
+                    {employees.map(e => <SelectItem key={e.employee_id} value={e.employee_id.toString()}>{e.employee_name}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
             <div className="bg-blue-50 border border-blue-200 rounded-md p-4">
               <h4 className="font-medium text-sm mb-2">📥 Download Template</h4>
+              <p className="text-xs text-blue-700 mb-2">Same format as the Renewals import template.</p>
               <Button variant="outline" size="sm" onClick={downloadTemplate}>Download Template</Button>
             </div>
+
             {bulkImportResult && (
               <div className={`rounded-md p-4 ${bulkImportResult.success ? "bg-green-50 border border-green-200" : "bg-red-50 border border-red-200"}`}>
                 <h4 className="font-medium text-sm mb-2">{bulkImportResult.success ? "✅ Import Successful" : "❌ Import Failed"}</h4>
                 <p className="text-sm">Imported: <strong>{bulkImportResult.successful}</strong> leads</p>
-                {bulkImportResult.assigned_to && <p className="text-sm text-green-700 mt-1">✅ Assigned to: <strong>{bulkImportResult.assigned_to}</strong></p>}
+                {bulkImportResult.duplicates != null && bulkImportResult.duplicates > 0 && (
+                  <p className="text-sm text-orange-700 mt-1">⚠️ Duplicates skipped: <strong>{bulkImportResult.duplicates}</strong></p>
+                )}
+                {bulkImportResult.assigned_to && (
+                  <p className="text-sm text-green-700 mt-1">✅ Assigned to: <strong>{bulkImportResult.assigned_to}</strong></p>
+                )}
+                {bulkImportResult.duplicate_report && bulkImportResult.duplicate_report.length > 0 && (
+                  <details className="mt-2">
+                    <summary className="text-xs cursor-pointer text-orange-700 font-medium">View duplicate report</summary>
+                    <ul className="list-none text-xs mt-1 max-h-32 overflow-y-auto space-y-0.5">
+                      {bulkImportResult.duplicate_report.map((line, i) => <li key={i} className="text-gray-600">{line}</li>)}
+                    </ul>
+                  </details>
+                )}
                 {bulkImportResult.errors.length > 0 && (
                   <div className="mt-2"><p className="text-sm font-medium">Errors:</p>
                     <ul className="list-disc list-inside text-xs mt-1 max-h-40 overflow-y-auto">
@@ -1131,6 +1168,7 @@ export default function LeadsPage() {
                 )}
               </div>
             )}
+
             <div className="flex justify-end gap-2 pt-4">
               <Button variant="outline" onClick={() => { setShowImportModal(false); setBulkImportFile(null); setAssignToEmployee(null); setBulkImportResult(null); }}>Cancel</Button>
               <Button onClick={handleBulkImport} disabled={!bulkImportFile || bulkImporting}>
