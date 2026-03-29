@@ -59,6 +59,7 @@ const STATUS_OPTIONS = [
   // { value: "Called", label: "Called" },
   { value: "Not Answered", label: "Not Answered" },
   { value: "Priced", label: "Priced" },
+  { value: "Sold", label: "Sold" },
   { value: "Lost", label: "Lost" },
   { value: "Lost COT", label: "Lost COT" },
   { value: "Already Renewed", label: "Already Renewed" },
@@ -2064,7 +2065,7 @@ export default function EnergyCustomerDetailsPage() {
                   setNewEndDate("");
                   setNewSupplier("");
                   setNewAddress("");
-                  setCalledDate("");
+                  setRenewedBy("");
                 }
               }}
             >
@@ -2076,6 +2077,7 @@ export default function EnergyCustomerDetailsPage() {
                 {/* <SelectItem value="Called">Called</SelectItem> */}
                 <SelectItem value="Not Answered">Not Answered</SelectItem>
                 <SelectItem value="Priced">Priced</SelectItem>
+                <SelectItem value="Sold">Sold</SelectItem>  
                 <SelectItem value="Lost">Lost</SelectItem>
                 <SelectItem value="Lost COT">Lost COT</SelectItem>
                 <SelectItem value="Already Renewed">Already Renewed</SelectItem>
