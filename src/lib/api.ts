@@ -250,6 +250,12 @@ export const api = {
     return fetchWithAuth(url);
   },
 
+  getCalendarLeads: (employeeId?: number, service = 'utilities') => {
+    const params = new URLSearchParams({ service });
+    if (employeeId) params.set('employee_id', String(employeeId));
+    return fetchWithAuth(`/api/calendar/leads?${params}`);
+  },
+
   // ==================== NOTIFICATIONS ====================
   getNotifications: () => fetchWithAuth("/notifications/production"),
   

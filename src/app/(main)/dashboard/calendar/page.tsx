@@ -42,6 +42,19 @@ interface Employee {
 
 export default function CalendarPage() {
   const { user } = useAuth();
+  const isLeadsRole = useMemo(() => {
+    const role = user?.role || '';
+    const adminRoles = ['Platform Admin', 'Tenant Super Admin'];
+    // Don't treat admins as leads role - they see renewals with full access
+    if (adminRoles.includes(role)) return false;
+    return role.toLowerCase().includes('leads offshore') || role.toLowerCase().includes('leads');
+  }, [user?.role]);
+
+  const pageTitle = isLeadsRole ? "Leads Calendar" : "Renewals Calendar";
+  const pageSubtitle = isLeadsRole
+    ? "View all leads contract end dates and callbacks"
+    : "View all customers contract end dates and callbacks";
+  const detailsBasePath = isLeadsRole ? "/dashboard/leads" : "/dashboard/renewals";
   const [renewals, setRenewals] = useState<Renewal[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -169,24 +182,18 @@ export default function CalendarPage() {
     try {
       setLoading(true);
       setError(null);
-      
-      console.log("🔄 Loading renewals...");
-      console.log("📊 Selected employee ID:", selectedEmployeeId);
-      
-      const response = await api.getCalendarRenewals(selectedEmployeeId);
-      
-      console.log("✅ Calendar response:", response);
-      
-      // Handle both { data: [...] } and direct array responses
-      const renewalsList = Array.isArray(response) 
-        ? response 
+
+      const response = isLeadsRole
+        ? await api.getCalendarLeads(selectedEmployeeId)
+        : await api.getCalendarRenewals(selectedEmployeeId);
+
+      const renewalsList = Array.isArray(response)
+        ? response
         : (response?.data || []);
-      
-      console.log("✅ Loaded renewals:", renewalsList.length);
-      
+
       setRenewals(renewalsList);
     } catch (err) {
-      console.error("❌ Error loading renewals:", err);
+      console.error("❌ Error loading calendar:", err);
       const errorMessage = err instanceof Error ? err.message : 'Failed to load calendar data';
       setError(errorMessage);
     } finally {
@@ -262,9 +269,9 @@ export default function CalendarPage() {
       {/* Header */}
       <div className="mb-6 flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold">Renewals Calendar</h1>
+          <h1 className="text-3xl font-bold">{pageTitle}</h1>
           <p className="text-muted-foreground mt-1">
-            View all customers contract end dates and callbacks
+            {pageSubtitle}
           </p>
         </div>
         <div className="flex items-center gap-3">
