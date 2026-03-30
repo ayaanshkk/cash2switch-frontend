@@ -852,7 +852,7 @@ export default function LeadsPage() {
                 {performanceFilteredLeads.map(l => (
                   <div key={l.opportunity_id}
                     className="p-5 border rounded-xl hover:bg-gray-50 hover:shadow-sm cursor-pointer transition-all"
-                    onClick={() => { setShowPerformanceModal(false); window.open(`/dashboard/leads/${l.tenant_lead_id || l.opportunity_id}`, "_blank"); }}>
+                    onClick={() => { setShowPerformanceModal(false); window.open(`/dashboard/leads/${l.opportunity_id}`, "_blank"); }}>
                     <div className="flex items-start justify-between gap-4 mb-4">
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 mb-2">
@@ -999,11 +999,11 @@ export default function LeadsPage() {
               ) : paginatedLeads.map(lead => {
                 const isSelected = selectedLeads.includes(lead.opportunity_id);
                 const fromSearch = isFromSearch(lead);
-                const displayId = lead.display_order || lead.opportunity_id;
+                const displayId = lead.tenant_lead_id || lead.opportunity_id;
                 return (
                   <tr key={lead.opportunity_id}
                     className={`hover:bg-gray-50 transition-colors cursor-pointer ${isSelected ? "bg-blue-50" : fromSearch ? "bg-amber-50" : ""}`}
-                    onClick={() => window.open(`/dashboard/leads/${displayId}`, "_blank")}
+                    onClick={() => window.open(`/dashboard/leads/${lead.opportunity_id}`, "_blank")}
                     onContextMenu={e => {
                       e.preventDefault();
                       const menu = document.createElement("div");
