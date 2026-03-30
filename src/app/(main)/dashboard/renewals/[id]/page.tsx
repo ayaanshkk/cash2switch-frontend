@@ -1457,12 +1457,12 @@ export default function EnergyCustomerDetailsPage() {
                 <div>
                   <label className="text-sm font-medium text-gray-700">Standing Charge (£)</label>
                   <Input
-                    type="number"
-                    step="0.01"
+                    type="text"
                     value={displayCustomer.standing_charge || ""}
-                    onChange={(e) => handleUpdateField("standing_charge", parseFloat(e.target.value))}
+                    onChange={(e) => handleUpdateField("standing_charge", e.target.value)}
                     disabled={!isEditing}
                     className="mt-1"
+                    placeholder="e.g., 60p, 0.6, 25.2"
                   />
                 </div>
 
