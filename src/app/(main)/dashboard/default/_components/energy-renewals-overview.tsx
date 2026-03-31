@@ -1,8 +1,19 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { TrendingUp, TrendingDown, AlertTriangle, AlertCircle, CheckCircle2, Zap, Users, ChevronRight } from "lucide-react";
-import { Bar, BarChart, XAxis, Cell, Pie, PieChart, LabelList } from "recharts";
+import {
+  TrendingUp,
+  TrendingDown,
+  AlertTriangle,
+  AlertCircle,
+  CheckCircle2,
+  Zap,
+  Users,
+  ChevronRight,
+  Clock,
+  PoundSterling,
+} from "lucide-react";
+import { Bar, BarChart, XAxis, Cell, Pie, PieChart } from "recharts";
 import { useRouter } from "next/navigation";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
@@ -91,26 +102,40 @@ interface AQBreakdownResponse {
   breakdown: AQBreakdown[];
 }
 
-const supplierColors = [
-  "var(--chart-1)",
-  "var(--chart-2)", 
-  "var(--chart-3)",
-  "var(--chart-4)",
-  "var(--chart-5)",
+/** Reference palette: blue, orange, yellow, green, purple, pink */
+const DASH = {
+  blue: "#3B82F6",
+  orange: "#F97316",
+  yellow: "#FBBF24",
+  green: "#22c55e",
+  purple: "#a855f7",
+  pink: "#ec4899",
+  slate: "#94a3b8",
+} as const;
+
+const BAR_PERIOD_FILLS = [DASH.orange, DASH.yellow, DASH.blue] as const;
+
+const supplierBarColors = [
+  DASH.blue,
+  DASH.orange,
+  DASH.green,
+  DASH.purple,
+  DASH.yellow,
+  DASH.pink,
 ];
 
 const chartConfig = {
   renewals: {
     label: "Renewals",
-    color: "var(--chart-1)",
+    color: DASH.blue,
   },
   contacted: {
     label: "Contacted",
-    color: "var(--chart-2)",
+    color: DASH.blue,
   },
   notContacted: {
     label: "Not Contacted",
-    color: "var(--chart-3)",
+    color: DASH.slate,
   },
 };
 
@@ -139,20 +164,6 @@ export function EnergyRenewalsOverview({ userRole, employeeId }: EnergyRenewalsO
   // If employeeId is provided, user is salesperson (viewing only their data)
   const isAdmin = employeeId === undefined || employeeId === null;
 
-  // ✅ DEBUG LOGGING
-  useEffect(() => {
-    console.log("\n" + "=".repeat(80));
-    console.log("🎯 ENERGY RENEWALS OVERVIEW - INITIALIZATION");
-    console.log("=".repeat(80));
-    console.log("Props received:");
-    console.log("  - userRole:", userRole);
-    console.log("  - employeeId:", employeeId);
-    console.log("\nCalculated state:");
-    console.log("  - isAdmin:", isAdmin);
-    console.log("  - Will filter data:", !isAdmin);
-    console.log("=".repeat(80) + "\n");
-  }, [userRole, employeeId, isAdmin]);
-
   const loadEmployees = async () => {
     try {
       const token = localStorage.getItem("auth_token");
@@ -161,7 +172,6 @@ export function EnergyRenewalsOverview({ userRole, employeeId }: EnergyRenewalsO
       });
       if (res.ok) {
         const data = await res.json();
-        console.log("✅ Loaded employees:", data);
         setEmployees(data);
       }
     } catch (error) {
@@ -176,8 +186,6 @@ export function EnergyRenewalsOverview({ userRole, employeeId }: EnergyRenewalsO
       
       // ✅ Salespeople see their own stats, admins see everyone
       const employeeParam = !isAdmin && employeeId ? `?employee_id=${employeeId}` : '';
-      
-      console.log(`📊 Fetching AQ breakdown with param: ${employeeParam}`);
       
       const res = await fetch(
         `${API_BASE_URL}/energy-renewals/aq-breakdown${employeeParam}`,
@@ -212,25 +220,13 @@ export function EnergyRenewalsOverview({ userRole, employeeId }: EnergyRenewalsO
       // ✅ CRITICAL FIX: Only add employee_id param for salespeople
       const employeeParam = !isAdmin && employeeId ? `?employee_id=${employeeId}` : '';
 
-      console.log("\n" + "=".repeat(80));
-      console.log("📊 FETCHING RENEWAL STATS");
-      console.log("=".repeat(80));
-      console.log("Request details:");
-      console.log("  - isAdmin:", isAdmin);
-      console.log("  - employeeId:", employeeId);
-      console.log("  - URL:", `${API_BASE_URL}/energy-renewals/stats${employeeParam}`);
-      console.log("=".repeat(80) + "\n");
-
       const statsRes = await fetch(`${API_BASE_URL}/energy-renewals/stats${employeeParam}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
 
       if (statsRes.ok) {
         const statsData = await statsRes.json();
-        console.log("✅ Stats received:", statsData);
         setStats(statsData);
-      } else {
-        console.error("❌ Stats API failed:", await statsRes.text());
       }
 
       const supplierRes = await fetch(`${API_BASE_URL}/energy-renewals/supplier-breakdown${employeeParam}`, {
@@ -239,7 +235,6 @@ export function EnergyRenewalsOverview({ userRole, employeeId }: EnergyRenewalsO
 
       if (supplierRes.ok) {
         const supplierBreakdown = await supplierRes.json();
-        console.log("✅ Supplier breakdown received:", supplierBreakdown.length, "suppliers");
         setSupplierData(supplierBreakdown);
       }
     } catch (error) {
@@ -255,8 +250,6 @@ export function EnergyRenewalsOverview({ userRole, employeeId }: EnergyRenewalsO
       
       // ✅ Salespeople see only their own performance
       const employeeParam = !isAdmin && employeeId ? `&employee_id=${employeeId}` : '';
-
-      console.log(`📈 Fetching sales performance: period=${period}, employeeParam=${employeeParam}`);
 
       const res = await fetch(
         `${API_BASE_URL}/energy-renewals/salesperson-performance?period=${period}${employeeParam}`,
@@ -317,19 +310,27 @@ export function EnergyRenewalsOverview({ userRole, employeeId }: EnergyRenewalsO
   }
 
   const renewalsByPeriod = [
-    { period: "30-60 Days", renewals: stats?.total_renewals_30_60_days || 0 },
-    { period: "61-90 Days", renewals: stats?.total_renewals_61_90_days || 0 },
-    { period: "90+ Days", renewals: stats?.total_renewals_90_plus_days || 0 },
+    { period: "30 Days", renewals: stats?.total_renewals_30_60_days || 0 },
+    { period: "60 Days", renewals: stats?.total_renewals_61_90_days || 0 },
+    { period: "90 Days", renewals: stats?.total_renewals_90_plus_days || 0 },
   ];
 
   const contactStatus = [
-    { status: "Contacted", count: stats?.contacted_count || 0, fill: "var(--chart-2)" },
-    { status: "Not Contacted", count: stats?.not_contacted_count || 0, fill: "var(--chart-3)" },
+    { status: "Contacted", count: stats?.contacted_count || 0, fill: DASH.blue },
+    { status: "Pending", count: stats?.not_contacted_count || 0, fill: "#E5E7EB" },
   ];
 
-  const renewalPercentage = stats
-    ? ((stats.renewed_count / (stats.renewed_count + stats.lost_count + stats.contacted_count + stats.not_contacted_count)) * 100).toFixed(1)
-    : "0";
+  const renewalTotal =
+    stats &&
+    stats.renewed_count +
+      stats.lost_count +
+      stats.contacted_count +
+      stats.not_contacted_count;
+  const renewalPercentage =
+    stats && renewalTotal
+      ? ((stats.renewed_count / renewalTotal) * 100).toFixed(1)
+      : "0";
+  const renewalPctNum = Math.min(100, Math.max(0, parseFloat(renewalPercentage) || 0));
 
   const formatAQ = (aq: number) => {
     if (aq >= 1000000) {
@@ -341,215 +342,179 @@ export function EnergyRenewalsOverview({ userRole, employeeId }: EnergyRenewalsO
   };
 
   return (
-      <div className="space-y-4">
-        
-        {/* Top Stats Cards */}
+      <div className="space-y-6">
+        {/* KPI row — reference-style tinted cards + icon orbs */}
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-6">
-          {/* 30-60 Days */}
-          <Card 
-            className="border-orange-300 bg-orange-50/30 cursor-pointer hover:shadow-lg transition-shadow"
-            onClick={() => fetchPeriodBreakdown('30-60')}
+          <Card
+            className="cursor-pointer overflow-hidden rounded-xl border-0 bg-gradient-to-b from-orange-50 to-white shadow-md shadow-slate-200/50 ring-1 ring-orange-100 transition hover:shadow-lg"
+            onClick={() => fetchPeriodBreakdown("30-60")}
           >
-            <CardHeader>
-              <CardDescription>Renewals Due (30-60 Days)</CardDescription>
-              <CardTitle className="text-3xl font-semibold tabular-nums text-orange-900">
+            <CardHeader className="pb-2">
+              <div className="mb-2 flex h-12 w-12 items-center justify-center rounded-full bg-orange-100">
+                <AlertTriangle className="h-6 w-6 text-[#F97316]" strokeWidth={2} />
+              </div>
+              <CardTitle className="text-4xl font-bold tabular-nums text-slate-900">
                 {stats?.total_renewals_30_60_days || 0}
               </CardTitle>
-              <CardAction>
-                <Badge variant="outline" className="bg-orange-100 text-orange-700 border-orange-300">
-                  <AlertTriangle className="h-3 w-3" />
-                  Urgent
-                </Badge>
-              </CardAction>
+              <CardDescription className="text-sm font-semibold text-slate-700">Due in 30 days</CardDescription>
             </CardHeader>
-            <CardFooter className="flex-col items-start gap-1.5 text-sm">
-              <div className="line-clamp-1 flex gap-2 font-medium text-orange-800">
-                Immediate action required
-              </div>
-              <div className="text-orange-600 text-xs flex items-center gap-1">
-                Click for details <ChevronRight className="h-3 w-3" />
-              </div>
+            <CardFooter className="flex-col items-start gap-1 pt-0 text-sm text-slate-600">
+              <span>Immediate action</span>
+              <span className="flex items-center gap-1 text-xs font-medium text-[#F97316]">
+                Details <ChevronRight className="h-3 w-3" />
+              </span>
             </CardFooter>
           </Card>
 
-          {/* 61-90 Days */}
-          <Card 
-            className="border-yellow-300 bg-yellow-50/30 cursor-pointer hover:shadow-lg transition-shadow"
-            onClick={() => fetchPeriodBreakdown('61-90')}
+          <Card
+            className="cursor-pointer overflow-hidden rounded-xl border-0 bg-gradient-to-b from-amber-50 to-white shadow-md shadow-slate-200/50 ring-1 ring-amber-100 transition hover:shadow-lg"
+            onClick={() => fetchPeriodBreakdown("61-90")}
           >
-            <CardHeader>
-              <CardDescription>Renewals Due (61-90 Days)</CardDescription>
-              <CardTitle className="text-3xl font-semibold tabular-nums text-yellow-900">
+            <CardHeader className="pb-2">
+              <div className="mb-2 flex h-12 w-12 items-center justify-center rounded-full bg-amber-100">
+                <Clock className="h-6 w-6 text-[#FBBF24]" strokeWidth={2} />
+              </div>
+              <CardTitle className="text-4xl font-bold tabular-nums text-slate-900">
                 {stats?.total_renewals_61_90_days || 0}
               </CardTitle>
-              <CardAction>
-                <Badge variant="outline" className="bg-yellow-100 text-yellow-700 border-yellow-300">
-                  <TrendingUp className="h-3 w-3" />
-                  Plan Ahead
-                </Badge>
-              </CardAction>
+              <CardDescription className="text-sm font-semibold text-slate-700">Due in 60 days</CardDescription>
             </CardHeader>
-            <CardFooter className="flex-col items-start gap-1.5 text-sm">
-              <div className="line-clamp-1 flex gap-2 font-medium text-yellow-800">
-                Start engagement process
-              </div>
-              <div className="text-yellow-600 text-xs flex items-center gap-1">
-                Click for details <ChevronRight className="h-3 w-3" />
-              </div>
+            <CardFooter className="flex-col items-start gap-1 pt-0 text-sm text-slate-600">
+              <span>Start engagement</span>
+              <span className="flex items-center gap-1 text-xs font-medium text-amber-700">
+                Details <ChevronRight className="h-3 w-3" />
+              </span>
             </CardFooter>
           </Card>
 
-          {/* 91-180 Days */}
-          <Card 
-            className="border-blue-300 bg-blue-50/30 cursor-pointer hover:shadow-lg transition-shadow"
-            onClick={() => fetchPeriodBreakdown('91-180')}
+          <Card
+            className="cursor-pointer overflow-hidden rounded-xl border-0 bg-gradient-to-b from-blue-50 to-white shadow-md shadow-slate-200/50 ring-1 ring-blue-100 transition hover:shadow-lg"
+            onClick={() => fetchPeriodBreakdown("91-180")}
           >
-            <CardHeader>
-              <CardDescription>Renewals Due (91-180 Days)</CardDescription>
-              <CardTitle className="text-3xl font-semibold tabular-nums text-blue-900">
+            <CardHeader className="pb-2">
+              <div className="mb-2 flex h-12 w-12 items-center justify-center rounded-full bg-blue-100">
+                <TrendingUp className="h-6 w-6 text-[#3B82F6]" strokeWidth={2} />
+              </div>
+              <CardTitle className="text-4xl font-bold tabular-nums text-slate-900">
                 {stats?.total_renewals_90_plus_days || 0}
               </CardTitle>
-              <CardAction>
-                <Badge variant="outline" className="bg-blue-100 text-blue-700 border-blue-300">
-                  <TrendingUp className="h-3 w-3" />
-                  Monitor
-                </Badge>
-              </CardAction>
+              <CardDescription className="text-sm font-semibold text-slate-700">Due in 90 days</CardDescription>
             </CardHeader>
-            <CardFooter className="flex-col items-start gap-1.5 text-sm">
-              <div className="line-clamp-1 flex gap-2 font-medium text-blue-800">
-                Early pipeline building
-              </div>
-              <div className="text-blue-600 text-xs flex items-center gap-1">
-                Click for details <ChevronRight className="h-3 w-3" />
-              </div>
+            <CardFooter className="flex-col items-start gap-1 pt-0 text-sm text-slate-600">
+              <span>Pipeline building</span>
+              <span className="flex items-center gap-1 text-xs font-medium text-blue-600">
+                Details <ChevronRight className="h-3 w-3" />
+              </span>
             </CardFooter>
           </Card>
 
-          {/* Expired Contracts */}
-          <Card 
-            className="border-gray-400 bg-gray-50/50 cursor-pointer hover:shadow-lg transition-shadow"
-            onClick={() => fetchPeriodBreakdown('expired')}
+          <Card
+            className="cursor-pointer overflow-hidden rounded-xl border-0 bg-gradient-to-b from-slate-50 to-white shadow-md shadow-slate-200/50 ring-1 ring-slate-200 transition hover:shadow-lg"
+            onClick={() => fetchPeriodBreakdown("expired")}
           >
-            <CardHeader>
-              <CardDescription>Expired Contracts</CardDescription>
-              <CardTitle className="text-3xl font-semibold tabular-nums text-gray-900">
+            <CardHeader className="pb-2">
+              <div className="mb-2 flex h-12 w-12 items-center justify-center rounded-full bg-slate-200">
+                <AlertCircle className="h-6 w-6 text-slate-700" strokeWidth={2} />
+              </div>
+              <CardTitle className="text-4xl font-bold tabular-nums text-slate-900">
                 {stats?.expired_contracts || 0}
               </CardTitle>
-              <CardAction>
-                <Badge variant="outline" className="bg-gray-200 text-gray-700 border-gray-400">
-                  <AlertCircle className="h-3 w-3" />
-                  Overdue
-                </Badge>
-              </CardAction>
+              <CardDescription className="text-sm font-semibold text-slate-700">Expired</CardDescription>
             </CardHeader>
-            <CardFooter className="flex-col items-start gap-1.5 text-sm">
-              <div className="line-clamp-1 flex gap-2 font-medium text-gray-800">
-                Contracts already expired
-              </div>
-              <div className="text-gray-600 text-xs flex items-center gap-1">
-                Click for details <ChevronRight className="h-3 w-3" />
-              </div>
+            <CardFooter className="flex-col items-start gap-1 pt-0 text-sm text-slate-600">
+              <span>Needs follow-up</span>
+              <span className="flex items-center gap-1 text-xs font-medium text-slate-600">
+                Details <ChevronRight className="h-3 w-3" />
+              </span>
             </CardFooter>
           </Card>
 
-          {/* Total AQ */}
-          <Card 
-            className={`border-purple-300 bg-purple-50/30 ${isAdmin ? 'cursor-pointer hover:shadow-lg transition-shadow' : ''}`}
+          <Card
+            className={`overflow-hidden rounded-xl border-0 bg-gradient-to-b from-violet-50 to-white shadow-md shadow-slate-200/50 ring-1 ring-violet-100 ${isAdmin ? "cursor-pointer transition hover:shadow-lg" : ""}`}
             onClick={() => {
-              if (isAdmin) {
-                fetchAQBreakdown();
-              }
+              if (isAdmin) fetchAQBreakdown();
             }}
           >
-            <CardHeader>
-              <CardDescription>
-                {isAdmin ? "Total AQ" : "Your Total AQ"}
-              </CardDescription>
-              <CardTitle className="text-3xl font-semibold tabular-nums text-purple-900">
-                {formatAQ(stats?.total_aq || 0)} kWh
-              </CardTitle>
-              <CardAction>
-                <Badge variant="outline" className="bg-purple-100 text-purple-700 border-purple-300">
-                  <Zap className="h-3 w-3" />
-                  Energy
-                </Badge>
-              </CardAction>
-            </CardHeader>
-            <CardFooter className="flex-col items-start gap-1.5 text-sm">
-              <div className="line-clamp-1 flex gap-2 font-medium text-purple-800">
-                {isAdmin ? "Total consumption at risk" : "Your consumption at risk"}
+            <CardHeader className="pb-2">
+              <div className="mb-2 flex h-12 w-12 items-center justify-center rounded-full bg-violet-100">
+                <Zap className="h-6 w-6 text-[#a855f7]" strokeWidth={2} />
               </div>
-              {isAdmin ? (
-                <div className="text-purple-600 text-xs flex items-center gap-1">
-                  Click for breakdown <ChevronRight className="h-3 w-3" />
-                </div>
-              ) : (
-                <div className="text-purple-600 text-xs">Annual energy usage</div>
+              <CardTitle className="text-3xl font-bold tabular-nums text-slate-900">
+                {formatAQ(stats?.total_aq || 0)}{" "}
+                <span className="text-lg font-semibold text-slate-600">kWh</span>
+              </CardTitle>
+              <CardDescription className="text-sm font-semibold text-slate-700">
+                {isAdmin ? "Total AQ" : "Your AQ"}
+              </CardDescription>
+            </CardHeader>
+            <CardFooter className="flex-col items-start gap-1 pt-0 text-sm text-slate-600">
+              <span>{isAdmin ? "Consumption at risk" : "Your usage"}</span>
+              {isAdmin && (
+                <span className="flex items-center gap-1 text-xs font-medium text-violet-700">
+                  Breakdown <ChevronRight className="h-3 w-3" />
+                </span>
               )}
             </CardFooter>
           </Card>
 
-          {/* Revenue at Risk */}
-          <Card className="border-red-300 bg-red-50/30">
+          <Card className="overflow-hidden rounded-xl border-0 bg-gradient-to-b from-pink-50 to-white shadow-md shadow-slate-200/50 ring-1 ring-pink-100">
             <CardHeader className="pb-2">
-              <CardDescription>
-                {isAdmin ? "Total Revenue at Risk" : "Your Revenue at Risk"}
-              </CardDescription>
-              <CardTitle className="text-xl font-semibold tabular-nums text-red-900 break-all leading-tight">
-                £{(stats?.total_revenue_at_risk || 0).toLocaleString('en-GB', { 
-                  minimumFractionDigits: 2, 
-                  maximumFractionDigits: 2 
+              <div className="mb-2 flex h-12 w-12 items-center justify-center rounded-full bg-pink-100">
+                <PoundSterling className="h-6 w-6 text-[#ec4899]" strokeWidth={2} />
+              </div>
+              <CardTitle className="text-2xl font-bold tabular-nums leading-tight text-slate-900">
+                £
+                {(stats?.total_revenue_at_risk || 0).toLocaleString("en-GB", {
+                  minimumFractionDigits: 0,
+                  maximumFractionDigits: 0,
                 })}
               </CardTitle>
+              <CardDescription className="text-sm font-semibold text-slate-700">Revenue at risk</CardDescription>
             </CardHeader>
-            <CardFooter className="flex-col items-start gap-1.5 text-sm pt-2">
-              <Badge variant="outline" className="bg-red-100 text-red-700 border-red-300 mb-2">
-                <AlertTriangle className="h-3 w-3 mr-1" />
-                High Priority
-              </Badge>
-              <div className="line-clamp-2 text-xs font-medium text-red-800">
-                {isAdmin ? "Total contract value expiring" : "Your contract value expiring"}
-              </div>
+            <CardFooter className="pt-0 text-sm text-slate-600">
+              Total contract value expiring
             </CardFooter>
           </Card>
         </div>
 
-        {/* Charts Row */}
+        {/* Charts + suppliers */}
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-          {/* Renewals by Period */}
-          <Card>
+          <Card className="rounded-xl border-0 bg-white shadow-md shadow-slate-200/50 ring-1 ring-slate-100">
             <CardHeader>
-              <CardTitle>Renewals by Period</CardTitle>
+              <CardTitle className="text-lg font-bold text-slate-900">Upcoming expirations</CardTitle>
               <CardDescription>
-                {isAdmin ? "Upcoming contract expirations" : "Your upcoming expirations"}
+                {isAdmin ? "Volume by horizon" : "Your renewals by horizon"}
               </CardDescription>
             </CardHeader>
             <CardContent className="h-64">
               <ChartContainer config={chartConfig} className="h-full w-full">
-                <BarChart data={renewalsByPeriod} margin={{ left: 0, right: 0, top: 20, bottom: 20 }}>
-                  <XAxis 
-                    dataKey="period" 
-                    tickLine={false} 
-                    axisLine={false} 
-                    tickMargin={8}
+                <BarChart data={renewalsByPeriod} margin={{ left: 4, right: 4, top: 16, bottom: 8 }}>
+                  <XAxis
+                    dataKey="period"
+                    tickLine={false}
+                    axisLine={false}
+                    tickMargin={10}
+                    tick={{ fill: "#64748b", fontSize: 12 }}
                   />
                   <ChartTooltip content={<ChartTooltipContent />} />
-                  <Bar dataKey="renewals" fill="var(--color-renewals)" radius={[8, 8, 0, 0]} />
+                  <Bar dataKey="renewals" radius={[10, 10, 0, 0]} maxBarSize={56}>
+                    {renewalsByPeriod.map((_, i) => (
+                      <Cell key={`bar-${i}`} fill={BAR_PERIOD_FILLS[i] ?? DASH.blue} />
+                    ))}
+                  </Bar>
                 </BarChart>
               </ChartContainer>
             </CardContent>
           </Card>
 
-          {/* Contact Status */}
-          <Card>
+          <Card className="rounded-xl border-0 bg-white shadow-md shadow-slate-200/50 ring-1 ring-slate-100">
             <CardHeader>
-              <CardTitle>Contact Status</CardTitle>
+              <CardTitle className="text-lg font-bold text-slate-900">Engagement progress</CardTitle>
               <CardDescription>
-                {isAdmin ? "Customer engagement progress" : "Your engagement progress"}
+                {isAdmin ? "Contacted vs pending" : "Your pipeline"}
               </CardDescription>
             </CardHeader>
-            <CardContent className="h-64 flex items-center justify-center">
+            <CardContent className="flex h-64 items-center justify-center">
               <ChartContainer config={chartConfig} className="h-full w-full">
                 <PieChart>
                   <Pie
@@ -558,114 +523,125 @@ export function EnergyRenewalsOverview({ userRole, employeeId }: EnergyRenewalsO
                     nameKey="status"
                     cx="50%"
                     cy="50%"
-                    innerRadius={60}
-                    outerRadius={90}
+                    innerRadius={68}
+                    outerRadius={92}
+                    stroke="#fff"
+                    strokeWidth={2}
                   >
                     {contactStatus.map((entry, index) => (
                       <Cell key={`cell-${index}`} fill={entry.fill} />
                     ))}
-                    <LabelList
-                      dataKey="count"
-                      position="inside"
-                      className="fill-white font-bold"
-                    />
                   </Pie>
                   <ChartTooltip content={<ChartTooltipContent />} />
                 </PieChart>
               </ChartContainer>
             </CardContent>
-            <CardFooter className="flex justify-around text-sm">
+            <CardFooter className="flex flex-wrap justify-center gap-6 text-sm text-slate-700">
               <div className="flex items-center gap-2">
-                <div className="h-3 w-3 rounded-full bg-[var(--chart-2)]"></div>
+                <div className="h-3 w-3 rounded-full" style={{ backgroundColor: DASH.blue }} />
                 <span>Contacted: {stats?.contacted_count || 0}</span>
               </div>
               <div className="flex items-center gap-2">
-                <div className="h-3 w-3 rounded-full bg-[var(--chart-3)]"></div>
+                <div className="h-3 w-3 rounded-full bg-slate-300" />
                 <span>Pending: {stats?.not_contacted_count || 0}</span>
               </div>
             </CardFooter>
           </Card>
 
-          {/* Supplier Breakdown */}
-          <Card>
+          <Card className="rounded-xl border-0 bg-white shadow-md shadow-slate-200/50 ring-1 ring-slate-100">
             <CardHeader>
-              <CardTitle>Top Suppliers</CardTitle>
+              <CardTitle className="text-lg font-bold text-slate-900">Top suppliers</CardTitle>
               <CardDescription>
-                {isAdmin ? "Contracts expiring by supplier" : "Your contracts by supplier"}
+                {isAdmin ? "Share of expiring value" : "Your suppliers"}
               </CardDescription>
             </CardHeader>
-            <CardContent className="h-64 overflow-y-auto">
+            <CardContent className="h-64 overflow-y-auto pr-1">
               <div className="space-y-3">
-                {supplierData.slice(0, 6).map((supplier, index) => (
-                  <div key={supplier.supplier_name} className="space-y-1">
-                    <div className="flex items-center justify-between text-sm">
-                      <div className="flex items-center gap-2">
+                {supplierData.slice(0, 6).map((supplier, index) => {
+                  const c = supplierBarColors[index % supplierBarColors.length];
+                  return (
+                    <div key={supplier.supplier_name} className="space-y-1.5">
+                      <div className="flex items-center justify-between gap-2 text-sm">
+                        <div className="flex min-w-0 items-center gap-2">
+                          <div className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: c }} />
+                          <span className="truncate font-medium text-slate-800">{supplier.supplier_name}</span>
+                        </div>
+                        <div className="flex shrink-0 items-center gap-2 text-xs text-slate-500">
+                          <span>{supplier.renewal_count} contracts</span>
+                          <span className="font-semibold text-slate-900">
+                            £{(supplier.total_value / 1000).toFixed(0)}K
+                          </span>
+                        </div>
+                      </div>
+                      <div className="h-2 overflow-hidden rounded-full bg-slate-100">
                         <div
-                          className="h-3 w-3 rounded-full"
-                          style={{ backgroundColor: supplierColors[index % supplierColors.length] }}
+                          className="h-full rounded-full transition-all"
+                          style={{
+                            width: `${(supplier.total_value / (stats?.total_revenue_at_risk || 1)) * 100}%`,
+                            backgroundColor: c,
+                          }}
                         />
-                        <span className="font-medium truncate max-w-[150px]">
-                          {supplier.supplier_name}
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-3">
-                        <span className="text-muted-foreground">{supplier.renewal_count} contracts</span>
-                        <span className="font-semibold">£{(supplier.total_value / 1000).toFixed(0)}K</span>
                       </div>
                     </div>
-                    <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
-                      <div
-                        className="h-full rounded-full"
-                        style={{
-                          width: `${(supplier.total_value / (stats?.total_revenue_at_risk || 1)) * 100}%`,
-                          backgroundColor: supplierColors[index % supplierColors.length],
-                        }}
-                      />
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </CardContent>
           </Card>
         </div>
 
-        {/* Performance Summary */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Renewal Performance</CardTitle>
-            <CardDescription>
-              {isAdmin ? "Overall renewal success metrics" : "Your renewal success metrics"}
-            </CardDescription>
+        {/* Overall renewal success */}
+        <Card className="rounded-xl border-0 bg-white shadow-md shadow-slate-200/50 ring-1 ring-slate-100">
+          <CardHeader className="flex flex-col gap-4 space-y-0 pb-2 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <CardTitle className="text-lg font-bold text-slate-900">Overall renewal success</CardTitle>
+              <CardDescription>
+                {isAdmin ? "Pipeline outcomes across the book" : "Your renewal outcomes"}
+              </CardDescription>
+            </div>
+            <div className="flex w-full flex-col items-stretch gap-2 sm:w-auto sm:min-w-[200px] sm:items-end">
+              <span className="text-4xl font-bold tabular-nums text-slate-900">{renewalPercentage}%</span>
+              <span className="text-xs font-medium text-slate-500">Success rate</span>
+              <div className="h-1.5 w-full overflow-hidden rounded-full bg-slate-100 sm:w-48">
+                <div
+                  className="h-full rounded-full bg-emerald-500 transition-all"
+                  style={{ width: `${renewalPctNum}%` }}
+                />
+              </div>
+            </div>
           </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
-              <div className="text-center p-4 border rounded-lg bg-green-50">
-                <div className="text-3xl font-bold text-green-700">{stats?.renewed_count || 0}</div>
-                <div className="text-sm text-green-600 mt-1">Renewed</div>
-                <CheckCircle2 className="h-5 w-5 text-green-600 mx-auto mt-2" />
+          <CardContent className="pt-2">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              <div className="rounded-xl border border-emerald-100 bg-gradient-to-b from-emerald-50/80 to-white p-4 shadow-sm ring-1 ring-emerald-100/60">
+                <div className="mb-3 flex h-11 w-11 items-center justify-center rounded-full bg-emerald-100">
+                  <CheckCircle2 className="h-5 w-5 text-emerald-600" strokeWidth={2} />
+                </div>
+                <div className="text-3xl font-bold tabular-nums text-slate-900">{stats?.renewed_count ?? 0}</div>
+                <div className="mt-1 text-sm font-semibold text-emerald-800">Renewed</div>
               </div>
-              <div className="text-center p-4 border rounded-lg bg-blue-50">
-                <div className="text-3xl font-bold text-blue-700">{stats?.contacted_count || 0}</div>
-                <div className="text-sm text-blue-600 mt-1">In Progress</div>
-                <TrendingUp className="h-5 w-5 text-blue-600 mx-auto mt-2" />
+              <div className="rounded-xl border border-blue-100 bg-gradient-to-b from-blue-50/80 to-white p-4 shadow-sm ring-1 ring-blue-100/60">
+                <div className="mb-3 flex h-11 w-11 items-center justify-center rounded-full bg-blue-100">
+                  <TrendingUp className="h-5 w-5 text-blue-600" strokeWidth={2} />
+                </div>
+                <div className="text-3xl font-bold tabular-nums text-slate-900">{stats?.contacted_count ?? 0}</div>
+                <div className="mt-1 text-sm font-semibold text-blue-800">In progress</div>
               </div>
-              <div className="text-center p-4 border rounded-lg bg-orange-50">
-                <div className="text-3xl font-bold text-orange-700">{stats?.not_contacted_count || 0}</div>
-                <div className="text-sm text-orange-600 mt-1">Not Contacted</div>
-                <AlertTriangle className="h-5 w-5 text-orange-600 mx-auto mt-2" />
+              <div className="rounded-xl border border-amber-100 bg-gradient-to-b from-amber-50/80 to-white p-4 shadow-sm ring-1 ring-amber-100/60">
+                <div className="mb-3 flex h-11 w-11 items-center justify-center rounded-full bg-amber-100">
+                  <Clock className="h-5 w-5 text-amber-600" strokeWidth={2} />
+                </div>
+                <div className="text-3xl font-bold tabular-nums text-slate-900">{stats?.not_contacted_count ?? 0}</div>
+                <div className="mt-1 text-sm font-semibold text-amber-800">Not contacted</div>
               </div>
-              <div className="text-center p-4 border rounded-lg bg-red-50">
-                <div className="text-3xl font-bold text-red-700">{stats?.lost_count || 0}</div>
-                <div className="text-sm text-red-600 mt-1">Lost</div>
-                <TrendingDown className="h-5 w-5 text-red-600 mx-auto mt-2" />
+              <div className="rounded-xl border border-rose-100 bg-gradient-to-b from-rose-50/80 to-white p-4 shadow-sm ring-1 ring-rose-100/60">
+                <div className="mb-3 flex h-11 w-11 items-center justify-center rounded-full bg-rose-100">
+                  <TrendingDown className="h-5 w-5 text-rose-600" strokeWidth={2} />
+                </div>
+                <div className="text-3xl font-bold tabular-nums text-slate-900">{stats?.lost_count ?? 0}</div>
+                <div className="mt-1 text-sm font-semibold text-rose-800">Lost</div>
               </div>
             </div>
           </CardContent>
-          <CardFooter>
-            <div className="w-full text-center text-sm text-muted-foreground">
-              Renewal success rate: <span className="font-semibold text-foreground">{renewalPercentage}%</span>
-            </div>
-          </CardFooter>
         </Card>
         
         {/* Period Breakdown Modal */}
