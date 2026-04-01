@@ -167,12 +167,12 @@ export function EnergyRenewalsOverview({ userRole, employeeId }: EnergyRenewalsO
   const loadEmployees = async () => {
     try {
       const token = localStorage.getItem("auth_token");
-      const res = await fetch(`${API_BASE_URL}/employees`, {
+      const response = await fetch(`${API_BASE_URL}/employees`, {
         headers: { Authorization: `Bearer ${token}` },
       });
-      if (res.ok) {
-        const data = await res.json();
-        setEmployees(data);
+      if (response.ok) {
+        const data = await response.json();
+        setEmployees(Array.isArray(data?.data) ? data.data : Array.isArray(data) ? data : []);
       }
     } catch (error) {
       console.error("Error loading employees:", error);
@@ -183,17 +183,12 @@ export function EnergyRenewalsOverview({ userRole, employeeId }: EnergyRenewalsO
     setAQModalLoading(true);
     try {
       const token = localStorage.getItem("auth_token");
-      
-      // ✅ Salespeople see their own stats, admins see everyone
-      const employeeParam = !isAdmin && employeeId ? `?employee_id=${employeeId}` : '';
-      
-      const res = await fetch(
-        `${API_BASE_URL}/energy-renewals/aq-breakdown${employeeParam}`,
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-
-      if (res.ok) {
-        const data = await res.json();
+      const employeeParam = !isAdmin && employeeId ? `?employee_id=${employeeId}` : "";
+      const response = await fetch(`${API_BASE_URL}/energy-renewals/aq-breakdown${employeeParam}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (response.ok) {
+        const data = await response.json();
         setAQBreakdown(data);
         setShowAQModal(true);
       }
@@ -216,26 +211,24 @@ export function EnergyRenewalsOverview({ userRole, employeeId }: EnergyRenewalsO
     try {
       setLoading(true);
       const token = localStorage.getItem("auth_token");
+      const employeeParam = !isAdmin && employeeId ? `?employee_id=${employeeId}` : "";
 
-      // ✅ CRITICAL FIX: Only add employee_id param for salespeople
-      const employeeParam = !isAdmin && employeeId ? `?employee_id=${employeeId}` : '';
+      const [statsResponse, supplierResponse] = await Promise.all([
+        fetch(`${API_BASE_URL}/energy-renewals/stats${employeeParam}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        }),
+        fetch(`${API_BASE_URL}/energy-renewals/supplier-breakdown${employeeParam}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        }),
+      ]);
 
-      const statsRes = await fetch(`${API_BASE_URL}/energy-renewals/stats${employeeParam}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-
-      if (statsRes.ok) {
-        const statsData = await statsRes.json();
+      if (statsResponse.ok) {
+        const statsData = await statsResponse.json();
         setStats(statsData);
       }
-
-      const supplierRes = await fetch(`${API_BASE_URL}/energy-renewals/supplier-breakdown${employeeParam}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-
-      if (supplierRes.ok) {
-        const supplierBreakdown = await supplierRes.json();
-        setSupplierData(supplierBreakdown);
+      if (supplierResponse.ok) {
+        const supplierData = await supplierResponse.json();
+        setSupplierData(supplierData);
       }
     } catch (error) {
       console.error("❌ Error fetching renewal stats:", error);
@@ -247,17 +240,13 @@ export function EnergyRenewalsOverview({ userRole, employeeId }: EnergyRenewalsO
   const fetchSalesPerformance = async (period: 'week' | 'month') => {
     try {
       const token = localStorage.getItem("auth_token");
-      
-      // ✅ Salespeople see only their own performance
-      const employeeParam = !isAdmin && employeeId ? `&employee_id=${employeeId}` : '';
-
-      const res = await fetch(
+      const employeeParam = !isAdmin && employeeId ? `&employee_id=${employeeId}` : "";
+      const response = await fetch(
         `${API_BASE_URL}/energy-renewals/salesperson-performance?period=${period}${employeeParam}`,
-        { headers: { Authorization: `Bearer ${token}` } }
+        { headers: { Authorization: `Bearer ${token}` } },
       );
-
-      if (res.ok) {
-        const data = await res.json();
+      if (response.ok) {
+        const data = await response.json();
         setSalesPerformance(data.performance || []);
       }
     } catch (error) {
@@ -268,32 +257,28 @@ export function EnergyRenewalsOverview({ userRole, employeeId }: EnergyRenewalsO
   const fetchPeriodBreakdown = async (period: string, employeeOverride?: number | undefined | null) => {
     setModalLoading(true);
     try {
-      const token = localStorage.getItem("auth_token");
-      
-      let employeeParam = '';
-      
+      let employeeParam = "";
+
       if (!isAdmin && employeeId) {
-        // Salesperson - always filter by their employeeId
         employeeParam = `&employee_id=${employeeId}`;
       } else if (isAdmin) {
-        // Use the override if provided (from dropdown change), otherwise fall back to state
         const effectiveFilter = employeeOverride !== undefined ? employeeOverride : modalEmployeeFilter;
         if (effectiveFilter) {
           employeeParam = `&employee_id=${effectiveFilter}`;
         }
       }
 
-      const res = await fetch(
+      const token = localStorage.getItem("auth_token");
+      const response = await fetch(
         `${API_BASE_URL}/energy-renewals/period-breakdown?period=${period}${employeeParam}`,
-        { headers: { Authorization: `Bearer ${token}` } }
+        { headers: { Authorization: `Bearer ${token}` } },
       );
-
-      if (res.ok) {
-        const data = await res.json();
+      if (response.ok) {
+        const data = await response.json();
         setPeriodBreakdown(data.renewals || []);
-        setSelectedPeriod(period);
-        setShowPeriodModal(true);
       }
+      setSelectedPeriod(period);
+      setShowPeriodModal(true);
     } catch (error) {
       console.error("Error fetching period breakdown:", error);
     } finally {
@@ -486,8 +471,9 @@ export function EnergyRenewalsOverview({ userRole, employeeId }: EnergyRenewalsO
                 {isAdmin ? "Volume by horizon" : "Your renewals by horizon"}
               </CardDescription>
             </CardHeader>
-            <CardContent className="h-64">
-              <ChartContainer config={chartConfig} className="h-full w-full">
+            <CardContent className="pt-0">
+              {/* aspect-auto overrides ChartContainer's default aspect-video so ResponsiveContainer gets a real height */}
+              <ChartContainer config={chartConfig} className="aspect-auto h-[240px] w-full">
                 <BarChart data={renewalsByPeriod} margin={{ left: 4, right: 4, top: 16, bottom: 8 }}>
                   <XAxis
                     dataKey="period"
@@ -514,8 +500,8 @@ export function EnergyRenewalsOverview({ userRole, employeeId }: EnergyRenewalsO
                 {isAdmin ? "Contacted vs pending" : "Your pipeline"}
               </CardDescription>
             </CardHeader>
-            <CardContent className="flex h-64 items-center justify-center">
-              <ChartContainer config={chartConfig} className="h-full w-full">
+            <CardContent className="pt-0">
+              <ChartContainer config={chartConfig} className="aspect-auto h-[240px] w-full">
                 <PieChart>
                   <Pie
                     data={contactStatus}

@@ -76,14 +76,13 @@ export function RenewalsTable({ employeeId }: RenewalsTableProps = {}) {
       setLoading(true);
       const token = localStorage.getItem("auth_token");
 
-      // ✅ Add employee filter if provided
-      const employeeParam = employeeId ? `&employee_id=${employeeId}` : '';
+      const employeeParam = employeeId ? `&employee_id=${employeeId}` : "";
 
       const response = await fetch(
         `${API_BASE_URL}/energy-renewals?days=90${employeeParam}`,
         {
           headers: { Authorization: `Bearer ${token}` },
-        }
+        },
       );
 
       if (response.ok) {

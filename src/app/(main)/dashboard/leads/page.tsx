@@ -23,6 +23,11 @@ import { Badge } from "@/components/ui/badge";
 import { toast, Toaster } from "react-hot-toast";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  LeadsTeamPerformanceStrip,
+  loadTeamStatsWithFallback,
+  type LeadsTeamStatRow,
+} from "@/app/(main)/dashboard/default/_components/leads-team-performance-strip";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 const CUSTOMERS_PER_PAGE = 25;
@@ -102,13 +107,6 @@ interface LeadCustomer {
   display_order?: number;
 }
 
-interface TeamStat {
-  employee_id: number | null;
-  employee_name: string;
-  lead_count?: number;
-  count?: number;
-}
-
 interface Supplier { supplier_id: number; supplier_name: string; }
 interface Employee { employee_id: number; employee_name: string; email?: string; }
 interface Stage { stage_id: number; stage_name: string; stage_description?: string; }
@@ -159,7 +157,7 @@ export default function LeadsPage() {
   const [employees, setEmployees]         = useState<Employee[]>([]);
   const [stages, setStages]               = useState<Stage[]>([]);
   const [searchResults, setSearchResults] = useState<LeadCustomer[]>([]);
-  const [employeeStats, setEmployeeStats] = useState<TeamStat[]>([]);
+  const [teamStripStats, setTeamStripStats] = useState<LeadsTeamStatRow[]>([]);
 
   // ── Loading / error ────────────────────────────────────────────────────────
   const [isLoading, setIsLoading]     = useState(true);
@@ -236,41 +234,67 @@ export default function LeadsPage() {
     setIsLoading(true);
     setError(null);
     try {
-      const [leadsResp, suppResp, empResp, stagesResp] = await Promise.all([
+      const settled = await Promise.allSettled([
         fetchWithAuth(`/api/crm/leads?exclude_stage=Lost&service=${encodeURIComponent(service)}`),
         fetchWithAuth("/suppliers"),
         fetchWithAuth("/employees"),
         fetchWithAuth("/api/crm/stages"),
+        loadTeamStatsWithFallback(service),
       ]);
 
-      // ✅ Backend already scopes to the current user's employee_id (non-admin)
-      // or all tenant leads (admin). team_stats comes back in the same response.
+      const [leadsSettled, suppSettled, empSettled, stagesSettled, teamBundleSettled] = settled;
+
+      if (leadsSettled.status !== "fulfilled") {
+        const reason =
+          leadsSettled.reason instanceof Error
+            ? leadsSettled.reason.message
+            : "Failed to load leads";
+        throw new Error(reason);
+      }
+
+      const leadsResp = leadsSettled.value;
       const active: LeadCustomer[] = Array.isArray(leadsResp)
         ? leadsResp
         : (leadsResp?.data || []);
-
       setAllLeads(active);
-      setSuppliers(Array.isArray(suppResp) ? suppResp : (suppResp?.data || []));
-      const empList = Array.isArray(empResp?.data) ? empResp.data : (Array.isArray(empResp) ? empResp : []);
-      setEmployees(empList);
-      setStages(Array.isArray(stagesResp) ? stagesResp : (stagesResp?.data || []));
 
-      // ✅ Extract team_stats from the backend response (same shape as renewals)
-      if (leadsResp?.team_stats && Array.isArray(leadsResp.team_stats)) {
-        const stats: TeamStat[] = leadsResp.team_stats.map((s: any) => ({
-          employee_id:   s.employee_id,
-          employee_name: s.employee_name,
-          count:         s.lead_count || s.count || 0,
-        }));
-        setEmployeeStats(stats.filter(s => (s.count ?? 0) > 0));
+      if (suppSettled.status === "fulfilled") {
+        const suppResp = suppSettled.value;
+        setSuppliers(Array.isArray(suppResp) ? suppResp : (suppResp?.data || []));
       } else {
-        setEmployeeStats([]);
+        console.warn("suppliers fetch failed:", suppSettled.reason);
+        setSuppliers([]);
+      }
+
+      if (empSettled.status === "fulfilled") {
+        const empResp = empSettled.value;
+        const empList = Array.isArray(empResp?.data) ? empResp.data : (Array.isArray(empResp) ? empResp : []);
+        setEmployees(empList);
+      } else {
+        console.warn("employees fetch failed:", empSettled.reason);
+        setEmployees([]);
+      }
+
+      if (stagesSettled.status === "fulfilled") {
+        const stagesResp = stagesSettled.value;
+        setStages(Array.isArray(stagesResp) ? stagesResp : (stagesResp?.data || []));
+      } else {
+        console.warn("stages fetch failed:", stagesSettled.reason);
+        setStages([]);
+      }
+
+      if (teamBundleSettled.status === "fulfilled") {
+        const { teamStripStats: strip } = teamBundleSettled.value;
+        setTeamStripStats(strip.filter((s) => s.count > 0));
+      } else {
+        console.warn("team lead stats fetch failed:", teamBundleSettled.reason);
+        setTeamStripStats([]);
       }
     } catch (err: any) {
       console.error("❌ fetchLeads error:", err);
       setError(err.message || "Failed to load leads");
       setAllLeads([]);
-      setEmployeeStats([]);
+      setTeamStripStats([]);
     } finally {
       setIsLoading(false);
     }
@@ -731,41 +755,15 @@ export default function LeadsPage() {
         </div>
       </div>
 
-      {/* Team Overview (admin only) */}
-      {isAdmin && employeeStats.length > 0 && (
-        <div className="mb-6">
-          <h2 className="text-sm font-medium text-gray-700 mb-3">Team Overview</h2>
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
-            {employeeStats.map(stat => (
-              <div key={stat.employee_id ?? "unassigned"} className="bg-white border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow">
-                <div className="flex items-center gap-2 mb-2">
-                  <Users className="h-4 w-4 text-blue-600" />
-                  <span className="text-xs font-medium text-gray-500 truncate">{stat.employee_name}</span>
-                </div>
-                <div className="flex items-baseline gap-2">
-                  <span className="text-2xl font-bold text-gray-900">{stat.count ?? stat.lead_count ?? 0}</span>
-                  <span className="text-xs text-gray-500">lead{(stat.count ?? 0) !== 1 ? "s" : ""}</span>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* My Leads count (non-admin) */}
-      {!isAdmin && (
-        <div className="mb-6">
-          <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-lg p-4">
-            <div className="flex items-center gap-3">
-              <div className="bg-blue-600 p-2 rounded-lg"><Users className="h-5 w-5 text-white" /></div>
-              <div>
-                <p className="text-sm text-gray-600">Your Leads</p>
-                <p className="text-2xl font-bold text-gray-900">{allLeads.length}</p>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Team lead load — same shell as dashboard Team Performance (crm-panel, rings, legend) */}
+      <div className="mb-6">
+        <LeadsTeamPerformanceStrip
+          stats={teamStripStats}
+          loading={isLoading}
+          isAdmin={isAdmin}
+          myLeadCount={allLeads.length}
+        />
+      </div>
 
       {error && (
         <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg flex items-start gap-3">
@@ -802,36 +800,82 @@ export default function LeadsPage() {
         </div>
       )}
 
-      {/* Performance Metrics */}
+      {/* Performance metrics: same color pattern as renewals; full class names so Tailwind includes them */}
       <div className="mb-6">
         <div className="bg-white rounded-lg border border-gray-200 p-6">
           <div className="mb-4">
             <h2 className="text-xl font-semibold text-gray-900">Lead Performance</h2>
             <p className="text-sm text-gray-600">{isAdmin ? "Overall lead success metrics" : "Your lead success metrics"}</p>
           </div>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-            {[
-              { key: "converted",        label: "Converted",        color: "emerald", icon: <CheckCircle2 className="h-6 w-6 text-emerald-600 mx-auto" />, val: performanceStats.converted },
-              { key: "renewed",          label: "Renewed",          color: "green",   icon: <CheckCircle2 className="h-6 w-6 text-green-600 mx-auto" />,   val: performanceStats.renewed },
-              { key: "in_progress",      label: "In Progress",      color: "blue",    icon: <TrendingUp className="h-6 w-6 text-blue-600 mx-auto" />,      val: performanceStats.in_progress },
-              { key: "renewed_directly", label: "Renewed Directly", color: "teal",    icon: <CheckCircle2 className="h-6 w-6 text-teal-600 mx-auto" />,    val: performanceStats.renewed_directly },
-              { key: "end_date_changed", label: "End Date Changed", color: "purple",  icon: <Calendar className="h-6 w-6 text-purple-600 mx-auto" />,      val: performanceStats.end_date_changed },
-              { key: "priced",           label: "Priced",           color: "yellow",  icon: <TrendingUp className="h-6 w-6 text-yellow-600 mx-auto" />,    val: performanceStats.priced },
-              { key: "not_contacted",    label: "Not Contacted",    color: "orange",  icon: <AlertTriangle className="h-6 w-6 text-orange-600 mx-auto" />, val: performanceStats.not_contacted },
-              { key: "lost",             label: "Lost",             color: "red",     icon: <TrendingDown className="h-6 w-6 text-red-600 mx-auto" />,     val: performanceStats.lost },
-            ].map(({ key, label, color, icon, val }) => (
-              <div key={key}
-                className={`text-center p-6 border rounded-lg bg-${color}-50 cursor-pointer hover:shadow-md transition-shadow`}
-                onClick={() => handlePerformanceClick(key)}>
-                <div className={`text-4xl font-bold text-${color}-700`}>{val}</div>
-                <div className={`text-sm text-${color}-600 mt-2 font-medium`}>{label}</div>
-                <div className="mt-3">{icon}</div>
-              </div>
-            ))}
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 xl:grid-cols-8 gap-7">
+            <div
+              className="text-center p-6 border rounded-lg bg-emerald-50 cursor-pointer hover:shadow-md transition-shadow"
+              onClick={() => handlePerformanceClick("converted")}
+            >
+              <div className="text-4xl font-bold text-emerald-700">{performanceStats.converted}</div>
+              <div className="text-sm text-emerald-600 mt-2 font-medium">Converted</div>
+              <div className="mt-3"><CheckCircle2 className="h-6 w-6 text-emerald-600 mx-auto" /></div>
+            </div>
+            <div
+              className="text-center p-6 border rounded-lg bg-green-50 cursor-pointer hover:shadow-md transition-shadow"
+              onClick={() => handlePerformanceClick("renewed")}
+            >
+              <div className="text-4xl font-bold text-green-700">{performanceStats.renewed}</div>
+              <div className="text-sm text-green-600 mt-2 font-medium">Renewed</div>
+              <div className="mt-3"><CheckCircle2 className="h-6 w-6 text-green-600 mx-auto" /></div>
+            </div>
+            <div
+              className="text-center p-6 border rounded-lg bg-blue-50 cursor-pointer hover:shadow-md transition-shadow"
+              onClick={() => handlePerformanceClick("in_progress")}
+            >
+              <div className="text-4xl font-bold text-blue-700">{performanceStats.in_progress}</div>
+              <div className="text-sm text-blue-600 mt-2 font-medium">In Progress</div>
+              <div className="mt-3"><TrendingUp className="h-6 w-6 text-blue-600 mx-auto" /></div>
+            </div>
+            <div
+              className="text-center p-6 border rounded-lg bg-teal-50 cursor-pointer hover:shadow-md transition-shadow"
+              onClick={() => handlePerformanceClick("renewed_directly")}
+            >
+              <div className="text-4xl font-bold text-teal-700">{performanceStats.renewed_directly}</div>
+              <div className="text-sm text-teal-600 mt-2 font-medium">Renewed Directly</div>
+              <div className="mt-3"><CheckCircle2 className="h-6 w-6 text-teal-600 mx-auto" /></div>
+            </div>
+            <div
+              className="text-center p-6 border rounded-lg bg-purple-50 cursor-pointer hover:shadow-md transition-shadow"
+              onClick={() => handlePerformanceClick("end_date_changed")}
+            >
+              <div className="text-4xl font-bold text-purple-700">{performanceStats.end_date_changed}</div>
+              <div className="text-sm text-purple-600 mt-2 font-medium">End Date Changed</div>
+              <div className="mt-3"><Calendar className="h-6 w-6 text-purple-600 mx-auto" /></div>
+            </div>
+            <div
+              className="text-center p-6 border rounded-lg bg-yellow-50 cursor-pointer hover:shadow-md transition-shadow"
+              onClick={() => handlePerformanceClick("priced")}
+            >
+              <div className="text-4xl font-bold text-yellow-700">{performanceStats.priced}</div>
+              <div className="text-sm text-yellow-600 mt-2 font-medium">Priced</div>
+              <div className="mt-3"><TrendingUp className="h-6 w-6 text-yellow-600 mx-auto" /></div>
+            </div>
+            <div
+              className="text-center p-6 border rounded-lg bg-orange-50 cursor-pointer hover:shadow-md transition-shadow"
+              onClick={() => handlePerformanceClick("not_contacted")}
+            >
+              <div className="text-4xl font-bold text-orange-700">{performanceStats.not_contacted}</div>
+              <div className="text-sm text-orange-600 mt-2 font-medium">Not Contacted</div>
+              <div className="mt-3"><AlertTriangle className="h-6 w-6 text-orange-600 mx-auto" /></div>
+            </div>
+            <div
+              className="text-center p-6 border rounded-lg bg-red-50 cursor-pointer hover:shadow-md transition-shadow"
+              onClick={() => handlePerformanceClick("lost")}
+            >
+              <div className="text-4xl font-bold text-red-700">{performanceStats.lost}</div>
+              <div className="text-sm text-red-600 mt-2 font-medium">Lost</div>
+              <div className="mt-3"><TrendingDown className="h-6 w-6 text-red-600 mx-auto" /></div>
+            </div>
           </div>
           <div className="mt-4 text-center border-t pt-4">
             <div className="text-sm text-gray-600">
-              Success rate: <span className="font-semibold text-gray-900">{performanceStats.success_rate}%</span>
+              Lead success rate: <span className="font-semibold text-gray-900">{performanceStats.success_rate}%</span>
             </div>
           </div>
         </div>

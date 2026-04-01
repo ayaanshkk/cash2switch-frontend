@@ -216,6 +216,13 @@ const STATUS_TO_STAGE_FALLBACK: Record<string, number> = {
   'incorrect supplier': 15,
 };    
 
+const teamOverviewInitials = (name: string) => {
+  const p = name.trim().split(/\s+/);
+  if (p.length === 0) return "?";
+  if (p.length === 1) return p[0].slice(0, 2).toUpperCase();
+  return (p[0][0] + p[p.length - 1][0]).toUpperCase();
+};
+
 const getStageIdFromStatus = (status: string, stagesList?: Stage[]): number => {
   if (stagesList && stagesList.length > 0) {
     const match = stagesList.find(
@@ -1089,17 +1096,29 @@ export default function EnergyCustomersPage() {
 
       {isAdmin && employeeStats.length > 0 && (
         <div className="mb-6">
-          <h2 className="text-sm font-medium text-gray-700 mb-3">Team Overview</h2>
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
-            {employeeStats.map((stat) => (
-              <div key={stat.employee_id} className="bg-white border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow">
-                <div className="flex items-center gap-2 mb-2">
-                  <Users className="h-4 w-4 text-blue-600" />
-                  <span className="text-xs font-medium text-gray-500 truncate">{stat.employee_name}</span>
+          <h2 className="text-sm font-semibold text-gray-800 mb-1">Team Overview</h2>
+          <p className="text-xs text-gray-500 mb-3">Renewals assigned per salesperson</p>
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+            {employeeStats.map((stat, i) => (
+              <div
+                key={stat.employee_id}
+                className="bg-white border border-gray-200 rounded-xl p-4 hover:shadow-md transition-shadow"
+              >
+                <div className="flex items-center gap-3 mb-3">
+                  <div
+                    className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full text-base font-bold text-white shadow-md ring-2 ring-white"
+                    style={{
+                      background: `linear-gradient(135deg, ${["#2563eb", "#0d9488", "#7c3aed", "#c026d3", "#ea580c"][i % 5]} 0%, #64748b 115%)`,
+                    }}
+                    aria-hidden
+                  >
+                    {teamOverviewInitials(stat.employee_name)}
+                  </div>
+                  <span className="text-sm font-medium text-gray-700 leading-tight truncate">{stat.employee_name}</span>
                 </div>
                 <div className="flex items-baseline gap-2">
-                  <span className="text-2xl font-bold text-gray-900">{stat.count}</span>
-                  <span className="text-xs text-gray-500">customer{stat.count !== 1 ? 's' : ''}</span>
+                  <span className="text-3xl font-bold tabular-nums text-gray-900">{stat.count}</span>
+                  <span className="text-xs text-gray-500">customer{stat.count !== 1 ? "s" : ""}</span>
                 </div>
               </div>
             ))}

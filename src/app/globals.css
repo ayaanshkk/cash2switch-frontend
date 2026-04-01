@@ -253,3 +253,47 @@ These serve as the fallback; there is no separate default.css file. */
 .cp-action-link:hover .cp-action-arrow {
   transform: translateX(4px);
 }
+
+/* Team performance modals — motion + depth */
+@keyframes cp-modal-rise {
+  from {
+    opacity: 0;
+    transform: translateY(14px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes cp-bar-fill {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+
+@keyframes cp-shimmer-bg {
+  0%,
+  100% {
+    opacity: 0.35;
+  }
+  50% {
+    opacity: 0.55;
+  }
+}
+
+.cp-performance-modal-surface {
+  animation: cp-modal-rise 0.38s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.cp-conversion-bar-inner {
+  transform-origin: left;
+  animation: cp-bar-fill 0.9s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.cp-spotlight-glow {
+  animation: cp-shimmer-bg 5s ease-in-out infinite;
+}
