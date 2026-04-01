@@ -491,20 +491,9 @@ export default function LeadsPage() {
         body: JSON.stringify(payload),
       });
 
-      // ✅ Mirror renewals: assigning away removes from non-admin view
-      if (isAdmin) {
-        const empName = employees.find(e => e.employee_id === empId)?.employee_name || null;
-        setAllLeads(prev => prev.map(l =>
-          l.opportunity_id === assigningLeadId
-            ? { ...l, opportunity_owner_employee_id: empId, assigned_to_name: empName }
-            : l
-        ));
-        await fetchLeads(); // refresh team stats
-      } else {
-        // Non-admin: assigned lead moves away (becomes allocated), remove from view
-        setAllLeads(prev => prev.filter(l => l.opportunity_id !== assigningLeadId));
-        setSelectedLeads(prev => prev.filter(id => id !== assigningLeadId));
-      }
+      // ✅ When ANY user assigns away, the lead becomes allocated and disappears from their view
+      setAllLeads(prev => prev.filter(l => l.opportunity_id !== assigningLeadId));
+      setSelectedLeads(prev => prev.filter(id => id !== assigningLeadId));
 
       toast.success("✅ Salesperson assigned successfully");
       setShowAssignModal(false);
@@ -527,18 +516,8 @@ export default function LeadsPage() {
         body: JSON.stringify(payload),
       });
 
-      // ✅ Mirror renewals exactly
-      if (isAdmin) {
-        setAllLeads(prev => prev.map(l =>
-          selectedLeads.includes(l.opportunity_id)
-            ? { ...l, opportunity_owner_employee_id: bulkAssignEmployeeId, assigned_to_name: bulkAssignEmployeeName }
-            : l
-        ));
-        await fetchLeads(); // refresh team stats
-      } else {
-        // Non-admin: bulk assigned leads are removed from view (they go to allocated)
-        setAllLeads(prev => prev.filter(l => !selectedLeads.includes(l.opportunity_id)));
-      }
+      // ✅ When ANY user bulk assigns, those leads are removed from view (become allocated)
+      setAllLeads(prev => prev.filter(l => !selectedLeads.includes(l.opportunity_id)));
 
       setSelectedLeads([]); setIsSelectAllChecked(false);
       setShowBulkAssignModal(false); setBulkAssignmentNotes("");
