@@ -538,16 +538,36 @@ export default function LeadsPage() {
   };
 
   const bulkDeleteLeads = async () => {
-    if (!selectedLeads.length) { alert("Please select leads to delete"); return; }
-    if (!window.confirm(`Delete ${selectedLeads.length} lead(s)?`)) return;
+    if (!selectedLeads.length) { 
+      alert("Please select leads to delete"); 
+      return; 
+    }
+    if (!window.confirm(`Delete ${selectedLeads.length} lead(s)? This cannot be undone.`)) return;
+    
     try {
-      await Promise.all(selectedLeads.map(id =>
-        fetchWithAuth(`/api/crm/leads/${id}`, { method: "DELETE" })
-      ));
+      // ✅ Use POST method to match your route
+      const response = await fetchWithAuth(`/api/crm/leads/bulk-delete`, {
+        method: 'POST',  // ✅ Changed from DELETE to POST
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ opportunity_ids: selectedLeads })
+      });
+
+      if (!response || response.error) {
+        throw new Error(response?.error || 'Failed to delete leads');
+      }
+
+      // Remove deleted leads from state
       setAllLeads(prev => prev.filter(l => !selectedLeads.includes(l.opportunity_id)));
-      setSelectedLeads([]); setIsSelectAllChecked(false);
-      toast.success(`✅ Deleted ${selectedLeads.length} lead(s)`);
-    } catch { toast.error("Error deleting some leads"); }
+      setSelectedLeads([]); 
+      setIsSelectAllChecked(false);
+      
+      const deleted = response.deleted || selectedLeads.length;
+      toast.success(`✅ Deleted ${deleted} lead(s)`);
+      
+    } catch (error: any) {
+      console.error('Bulk delete error:', error);
+      toast.error(`❌ Error deleting leads: ${error.message}`);
+    }
   };
 
   // ── Selection ──────────────────────────────────────────────────────────────
