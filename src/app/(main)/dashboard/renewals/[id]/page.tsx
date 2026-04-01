@@ -836,8 +836,10 @@ export default function EnergyCustomerDetailsPage() {
           <div className="flex items-center space-x-3">
             <button
               onClick={() => router.push(
-                fromPage === 'allocated' 
-                  ? '/dashboard/allocated-renewals' 
+                fromPage === 'allocated'
+                  ? '/dashboard/allocated-renewals'
+                  : fromPage === 'recycle-bin'
+                  ? '/dashboard/recycle-bin'
                   : '/dashboard/renewals'
               )}
               className="rounded-lg p-2 hover:bg-gray-100"
