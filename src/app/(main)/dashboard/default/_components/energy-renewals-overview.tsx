@@ -13,12 +13,21 @@ import {
   Clock,
   PoundSterling,
 } from "lucide-react";
-import { Bar, BarChart, XAxis, Cell, Pie, PieChart } from "recharts";
+import {
+  Bar,
+  BarChart,
+  Cell,
+  Pie,
+  PieChart,
+  Rectangle,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+} from "recharts";
 import { useRouter } from "next/navigation";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardAction, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -123,21 +132,6 @@ const supplierBarColors = [
   DASH.yellow,
   DASH.pink,
 ];
-
-const chartConfig = {
-  renewals: {
-    label: "Renewals",
-    color: DASH.blue,
-  },
-  contacted: {
-    label: "Contacted",
-    color: DASH.blue,
-  },
-  notContacted: {
-    label: "Not Contacted",
-    color: DASH.slate,
-  },
-};
 
 export function EnergyRenewalsOverview({ userRole, employeeId }: EnergyRenewalsOverviewProps = {}) {
   const router = useRouter();
@@ -472,24 +466,54 @@ export function EnergyRenewalsOverview({ userRole, employeeId }: EnergyRenewalsO
               </CardDescription>
             </CardHeader>
             <CardContent className="pt-0">
-              {/* aspect-auto overrides ChartContainer's default aspect-video so ResponsiveContainer gets a real height */}
-              <ChartContainer config={chartConfig} className="aspect-auto h-[240px] w-full">
-                <BarChart data={renewalsByPeriod} margin={{ left: 4, right: 4, top: 16, bottom: 8 }}>
-                  <XAxis
-                    dataKey="period"
-                    tickLine={false}
-                    axisLine={false}
-                    tickMargin={10}
-                    tick={{ fill: "#64748b", fontSize: 12 }}
-                  />
-                  <ChartTooltip content={<ChartTooltipContent />} />
-                  <Bar dataKey="renewals" radius={[10, 10, 0, 0]} maxBarSize={56}>
-                    {renewalsByPeriod.map((_, i) => (
-                      <Cell key={`bar-${i}`} fill={BAR_PERIOD_FILLS[i] ?? DASH.blue} />
-                    ))}
-                  </Bar>
-                </BarChart>
-              </ChartContainer>
+              {/* ResponsiveContainer without shadcn ChartContainer so bar fills are not overridden by chart wrapper utilities (e.g. currentColor / muted). */}
+              <div className="h-[240px] w-full">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={renewalsByPeriod} margin={{ left: 4, right: 4, top: 16, bottom: 8 }}>
+                    <XAxis
+                      dataKey="period"
+                      tickLine={false}
+                      axisLine={false}
+                      tickMargin={10}
+                      tick={{ fill: "#64748b", fontSize: 12 }}
+                    />
+                    <Tooltip
+                      cursor={{ fill: "rgba(148, 163, 184, 0.12)" }}
+                      content={({ active, payload, label }) => {
+                        if (!active || !payload?.length) return null;
+                        return (
+                          <div className="rounded-lg border border-border/50 bg-background px-2.5 py-1.5 text-xs shadow-xl">
+                            <p className="font-medium text-foreground">{label}</p>
+                            <p className="text-muted-foreground">
+                              Renewals:{" "}
+                              <span className="font-mono font-medium tabular-nums text-foreground">
+                                {String(payload[0].value)}
+                              </span>
+                            </p>
+                          </div>
+                        );
+                      }}
+                    />
+                    <Bar
+                      dataKey="renewals"
+                      maxBarSize={56}
+                      radius={[10, 10, 0, 0]}
+                      shape={(props: Record<string, unknown> & { index?: number }) => {
+                        const i = typeof props.index === "number" ? props.index : 0;
+                        const fill = BAR_PERIOD_FILLS[i] ?? DASH.blue;
+                        return (
+                          <Rectangle
+                            {...props}
+                            fill={fill}
+                            stroke="none"
+                            radius={props.radius ?? [10, 10, 0, 0]}
+                          />
+                        );
+                      }}
+                    />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
             </CardContent>
           </Card>
 
@@ -501,26 +525,43 @@ export function EnergyRenewalsOverview({ userRole, employeeId }: EnergyRenewalsO
               </CardDescription>
             </CardHeader>
             <CardContent className="pt-0">
-              <ChartContainer config={chartConfig} className="aspect-auto h-[240px] w-full">
-                <PieChart>
-                  <Pie
-                    data={contactStatus}
-                    dataKey="count"
-                    nameKey="status"
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={68}
-                    outerRadius={92}
-                    stroke="#fff"
-                    strokeWidth={2}
-                  >
-                    {contactStatus.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.fill} />
-                    ))}
-                  </Pie>
-                  <ChartTooltip content={<ChartTooltipContent />} />
-                </PieChart>
-              </ChartContainer>
+              <div className="h-[240px] w-full">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={contactStatus}
+                      dataKey="count"
+                      nameKey="status"
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={68}
+                      outerRadius={92}
+                      stroke="#ffffff"
+                      strokeWidth={2}
+                    >
+                      {contactStatus.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={entry.fill} />
+                      ))}
+                    </Pie>
+                    <Tooltip
+                      content={({ active, payload }) => {
+                        if (!active || !payload?.length) return null;
+                        const p = payload[0];
+                        return (
+                          <div className="rounded-lg border border-border/50 bg-background px-2.5 py-1.5 text-xs shadow-xl">
+                            <p className="font-medium text-foreground">{p.name}</p>
+                            <p className="text-muted-foreground">
+                              <span className="font-mono font-medium tabular-nums text-foreground">
+                                {p.value != null ? String(p.value) : ""}
+                              </span>
+                            </p>
+                          </div>
+                        );
+                      }}
+                    />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
             </CardContent>
             <CardFooter className="flex flex-wrap justify-center gap-6 text-sm text-slate-700">
               <div className="flex items-center gap-2">

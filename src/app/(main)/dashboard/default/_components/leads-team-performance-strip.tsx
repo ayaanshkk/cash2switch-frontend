@@ -11,6 +11,7 @@ import {
   firstName,
   getInitials,
   TEAM_STRIP_RING_SIZE,
+  useTeamStripVisibleCount,
 } from "@/components/StaffPerformanceGrid";
 import {
   Dialog,
@@ -245,6 +246,9 @@ export function LeadsTeamPerformanceStrip({
     stages: { stage_name: string; count: number }[];
   }>({ open: false, name: "", total: 0, stages: [] });
 
+  const adminStripItemCount = isAdmin && !loading ? stats.length : 0;
+  const { ref: stripRowRef, visibleCount: stripVisibleCount } = useTeamStripVisibleCount(adminStripItemCount);
+
   const openBreakdown = (row: LeadsTeamStatRow) => {
     setModal({
       open: true,
@@ -340,6 +344,7 @@ export function LeadsTeamPerformanceStrip({
   }
 
   const strip = [...stats].sort((a, b) => a.employee_name.localeCompare(b.employee_name));
+  const stripVisible = strip.slice(0, stripVisibleCount);
   const maxCount = Math.max(...strip.map((s) => s.count), 1);
   const total = strip.reduce((s, x) => s + x.count, 0);
   const avgPerPerson = strip.length > 0 ? Math.round(total / strip.length) : 0;
@@ -381,8 +386,8 @@ export function LeadsTeamPerformanceStrip({
           )}
         </div>
 
-        <div className="flex gap-6 overflow-x-auto pb-2" style={{ scrollbarWidth: "thin" }}>
-          {strip.map((s, i) => (
+        <div ref={stripRowRef} className="min-w-0 flex gap-6 overflow-x-hidden pb-2">
+          {stripVisible.map((s, i) => (
             <LeadLoadStripCard
               key={s.employee_id ?? `emp-${i}`}
               row={s}

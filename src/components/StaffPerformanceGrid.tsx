@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useLayoutEffect, useRef } from "react";
 import {
   Users,
   ArrowRight,
@@ -118,6 +118,61 @@ function useCountUp(target: number, duration = 900) {
 
 /** Shared ring diameter for Team Performance (renewals) and Team lead load (leads) horizontal strips */
 export const TEAM_STRIP_RING_SIZE = 88;
+
+/** Matches StripCard `min-w-[108px]` + `gap-6` (24px) */
+const TEAM_STRIP_ITEM_MIN_PX = 108;
+const TEAM_STRIP_GAP_PX = 24;
+
+/**
+ * How many strip cards fit in the row without horizontal scroll; overflow is clipped — use "View all" for the rest.
+ */
+export function useTeamStripVisibleCount(itemCount: number) {
+  const ref = useRef<HTMLDivElement | null>(null);
+  const [visible, setVisible] = useState(0);
+
+  useLayoutEffect(() => {
+    if (itemCount <= 0) {
+      setVisible(0);
+      return;
+    }
+    const stride = TEAM_STRIP_ITEM_MIN_PX + TEAM_STRIP_GAP_PX;
+    let ro: ResizeObserver | undefined;
+    let raf1 = 0;
+    let raf2 = 0;
+
+    const bind = () => {
+      const el = ref.current;
+      if (!el) return;
+      const measure = () => {
+        const w = el.clientWidth;
+        if (w <= 0) return;
+        const n = Math.max(1, Math.floor((w + TEAM_STRIP_GAP_PX) / stride));
+        setVisible(Math.min(n, itemCount));
+      };
+      measure();
+      ro = new ResizeObserver(measure);
+      ro.observe(el);
+    };
+
+    if (ref.current) {
+      bind();
+    } else {
+      raf1 = requestAnimationFrame(() => {
+        if (ref.current) bind();
+        else raf2 = requestAnimationFrame(() => bind());
+      });
+    }
+
+    return () => {
+      cancelAnimationFrame(raf1);
+      cancelAnimationFrame(raf2);
+      ro?.disconnect();
+    };
+  }, [itemCount]);
+
+  const visibleCount = itemCount <= 0 ? 0 : Math.min(visible, itemCount);
+  return { ref, visibleCount };
+}
 
 /* ─── Progress ring ─── */
 export function ProgressRing({
@@ -377,6 +432,8 @@ export function StaffPerformanceGrid({ employeeId }: StaffPerformanceGridProps) 
 
   const stats = staffStats;
   const strip = [...stats].sort((a, b) => a.employee_name.localeCompare(b.employee_name));
+  const { ref: stripRowRef, visibleCount: stripVisibleCount } = useTeamStripVisibleCount(strip.length);
+  const stripVisible = strip.slice(0, stripVisibleCount);
 
   const filteredStats = stats.filter((stat) =>
     stat.employee_name.toLowerCase().includes(searchQuery.toLowerCase()),
@@ -451,8 +508,8 @@ export function StaffPerformanceGrid({ employeeId }: StaffPerformanceGridProps) 
         {strip.length === 0 ? (
           <p className="py-4 text-center text-sm text-stone-400">No data found.</p>
         ) : (
-          <div className="flex gap-6 overflow-x-auto pb-2" style={{ scrollbarWidth: "thin" }}>
-            {strip.map((s, i) => (
+          <div ref={stripRowRef} className="min-w-0 flex gap-6 overflow-x-hidden pb-2">
+            {stripVisible.map((s, i) => (
               <StripCard
                 key={s.employee_id}
                 stat={s}
