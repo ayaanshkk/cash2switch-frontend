@@ -299,6 +299,7 @@ export default function EnergyCustomersPage() {
     renewed_directly: 0,
     end_date_changed: 0,
     priced: 0,
+    not_due: 0,
   });
   const [showPerformanceModal, setShowPerformanceModal] = useState(false);
   const [performanceFilter, setPerformanceFilter] = useState<'renewed' | 'in_progress' | 'not_contacted' | 'lost' | 'renewed_directly' | 'end_date_changed' | 'priced' | null>(null);
@@ -326,6 +327,7 @@ export default function EnergyCustomersPage() {
           renewed_directly: response.renewed_directly_count || 0,
           end_date_changed: response.end_date_changed_count || 0,
           priced: response.priced_count || 0,
+          not_due: response.not_due_count || 0, // ✅ Add this
         });
       }
     } catch (err) {
@@ -974,7 +976,7 @@ export default function EnergyCustomersPage() {
     return suppliers.find(s => s.supplier_id === supplierId)?.supplier_name || "—";
   };
 
-  const handlePerformanceClick = async (type: 'renewed' | 'in_progress' | 'not_contacted' | 'lost' | 'renewed_directly' | 'end_date_changed' | 'priced') => {
+  const handlePerformanceClick = async (type: 'renewed' | 'in_progress' | 'not_contacted' | 'lost' | 'renewed_directly' | 'end_date_changed' | 'priced' | 'not_due') => {
     setPerformanceFilter(type);
     try {
       const response = await fetchWithAuth(`/energy-renewals?use_current_user=true&service=${encodeURIComponent(service)}`);
@@ -1015,6 +1017,15 @@ export default function EnergyCustomersPage() {
           case 'priced':
             filtered = response.filter(c => (c.status || '').toLowerCase() === 'priced');
             break;
+          case 'not_due': // ✅ Add this case
+            filtered = response.filter(c => {
+              if (!c.end_date) return false;
+              const today = new Date();
+              const endDate = new Date(c.end_date);
+              const daysUntilEnd = Math.ceil((endDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+              return daysUntilEnd > 365;
+            });
+            break;
         }
         setPerformanceFilteredCustomers(filtered);
         setShowPerformanceModal(true);
@@ -1036,6 +1047,7 @@ export default function EnergyCustomersPage() {
       case 'renewed_directly': return 'Renewed Directly';
       case 'end_date_changed': return 'End Date Changed';
       case 'priced': return 'Priced';
+      case 'not_due': return 'Not Due (365+ Days)'; // ✅ Add this
       default: return '';
     }
   };
@@ -1171,7 +1183,7 @@ export default function EnergyCustomersPage() {
             <h2 className="text-xl font-semibold text-gray-900">Renewal Performance</h2>
             <p className="text-sm text-gray-600">{isAdmin ? "Overall renewal success metrics" : "Your renewal success metrics"}</p>
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-7 gap-7">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-4">
             <div className="text-center p-6 border rounded-lg bg-green-50 cursor-pointer hover:shadow-md transition-shadow" onClick={() => handlePerformanceClick('renewed')}>
               <div className="text-4xl font-bold text-green-700">{performanceStats.renewed}</div>
               <div className="text-sm text-green-600 mt-2 font-medium">Renewed</div>
@@ -1196,6 +1208,11 @@ export default function EnergyCustomersPage() {
               <div className="text-4xl font-bold text-yellow-700">{performanceStats.priced}</div>
               <div className="text-sm text-yellow-600 mt-2 font-medium">Priced</div>
               <div className="mt-3"><TrendingUp className="h-6 w-6 text-yellow-600 mx-auto" /></div>
+            </div>
+            <div className="text-center p-6 border rounded-lg bg-cyan-50 cursor-pointer hover:shadow-md transition-shadow" onClick={() => handlePerformanceClick('not_due')}>
+              <div className="text-4xl font-bold text-cyan-700">{performanceStats.not_due}</div>
+              <div className="text-sm text-cyan-600 mt-2 font-medium">Not Due (365+)</div>
+              <div className="mt-3"><Calendar className="h-6 w-6 text-cyan-600 mx-auto" /></div>
             </div>
             <div className="text-center p-6 border rounded-lg bg-orange-50 cursor-pointer hover:shadow-md transition-shadow" onClick={() => handlePerformanceClick('not_contacted')}>
               <div className="text-4xl font-bold text-orange-700">{performanceStats.not_contacted}</div>

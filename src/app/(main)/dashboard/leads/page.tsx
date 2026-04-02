@@ -23,11 +23,7 @@ import { Badge } from "@/components/ui/badge";
 import { toast, Toaster } from "react-hot-toast";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Textarea } from "@/components/ui/textarea";
-import {
-  LeadsTeamPerformanceStrip,
-  loadTeamStatsWithFallback,
-  type LeadsTeamStatRow,
-} from "@/app/(main)/dashboard/default/_components/leads-team-performance-strip";
+import { LeadsPerformanceGrid } from "@/components/LeadsPerformanceGrid";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 const CUSTOMERS_PER_PAGE = 25;
@@ -157,7 +153,6 @@ export default function LeadsPage() {
   const [employees, setEmployees]         = useState<Employee[]>([]);
   const [stages, setStages]               = useState<Stage[]>([]);
   const [searchResults, setSearchResults] = useState<LeadCustomer[]>([]);
-  const [teamStripStats, setTeamStripStats] = useState<LeadsTeamStatRow[]>([]);
 
   // ── Loading / error ────────────────────────────────────────────────────────
   const [isLoading, setIsLoading]     = useState(true);
@@ -239,10 +234,9 @@ export default function LeadsPage() {
         fetchWithAuth("/suppliers"),
         fetchWithAuth("/employees"),
         fetchWithAuth("/api/crm/stages"),
-        loadTeamStatsWithFallback(service),
       ]);
 
-      const [leadsSettled, suppSettled, empSettled, stagesSettled, teamBundleSettled] = settled;
+      const [leadsSettled, suppSettled, empSettled, stagesSettled] = settled;
 
       if (leadsSettled.status !== "fulfilled") {
         const reason =
@@ -282,19 +276,10 @@ export default function LeadsPage() {
         console.warn("stages fetch failed:", stagesSettled.reason);
         setStages([]);
       }
-
-      if (teamBundleSettled.status === "fulfilled") {
-        const { teamStripStats: strip } = teamBundleSettled.value;
-        setTeamStripStats(strip.filter((s) => s.count > 0));
-      } else {
-        console.warn("team lead stats fetch failed:", teamBundleSettled.reason);
-        setTeamStripStats([]);
-      }
     } catch (err: any) {
       console.error("❌ fetchLeads error:", err);
       setError(err.message || "Failed to load leads");
       setAllLeads([]);
-      setTeamStripStats([]);
     } finally {
       setIsLoading(false);
     }
@@ -523,7 +508,7 @@ export default function LeadsPage() {
             ? { ...l, opportunity_owner_employee_id: empId, assigned_to_name: empName }
             : l
         ));
-        await fetchLeads(); // refresh team stats
+        // No fetchLeads() call needed - LeadsPerformanceGrid fetches its own data
       } else {
         // Non-admin: assigned lead moves away (becomes allocated), remove from view
         setAllLeads(prev => prev.filter(l => l.opportunity_id !== assigningLeadId));
@@ -558,7 +543,7 @@ export default function LeadsPage() {
             ? { ...l, opportunity_owner_employee_id: bulkAssignEmployeeId, assigned_to_name: bulkAssignEmployeeName }
             : l
         ));
-        await fetchLeads(); // refresh team stats
+        // No fetchLeads() call needed - LeadsPerformanceGrid fetches its own data
       } else {
         // Non-admin: bulk assigned leads are removed from view (they go to allocated)
         setAllLeads(prev => prev.filter(l => !selectedLeads.includes(l.opportunity_id)));
@@ -757,11 +742,9 @@ export default function LeadsPage() {
 
       {/* Team lead load — same shell as dashboard Team Performance (crm-panel, rings, legend) */}
       <div className="mb-6">
-        <LeadsTeamPerformanceStrip
-          stats={teamStripStats}
-          loading={isLoading}
-          isAdmin={isAdmin}
-          myLeadCount={allLeads.length}
+        <LeadsPerformanceGrid 
+          employeeId={isAdmin ? undefined : user?.employee_id}
+          service={service}
         />
       </div>
 
