@@ -76,14 +76,13 @@ export function RenewalsTable({ employeeId }: RenewalsTableProps = {}) {
       setLoading(true);
       const token = localStorage.getItem("auth_token");
 
-      // ✅ Add employee filter if provided
-      const employeeParam = employeeId ? `&employee_id=${employeeId}` : '';
+      const employeeParam = employeeId ? `&employee_id=${employeeId}` : "";
 
       const response = await fetch(
         `${API_BASE_URL}/energy-renewals?days=90${employeeParam}`,
         {
           headers: { Authorization: `Bearer ${token}` },
-        }
+        },
       );
 
       if (response.ok) {
@@ -227,8 +226,9 @@ export function RenewalsTable({ employeeId }: RenewalsTableProps = {}) {
       id: "actions",
       cell: ({ row }) => (
         <Button
-          variant="ghost"
+          variant="outline"
           size="sm"
+          className="border-slate-200 bg-white text-slate-800 hover:bg-slate-50 hover:text-slate-900"
           onClick={() => router.push(`/dashboard/renewals/${row.original.client_id}`)}
         >
           <Eye className="h-4 w-4" />
@@ -247,37 +247,41 @@ export function RenewalsTable({ employeeId }: RenewalsTableProps = {}) {
 
   if (loading) {
     return (
-      <Card>
-        <CardContent className="flex items-center justify-center h-64">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+      <Card className="rounded-xl border-0 bg-white shadow-md shadow-slate-200/50 ring-1 ring-slate-100">
+        <CardContent className="flex h-64 items-center justify-center">
+          <div className="h-12 w-12 animate-spin rounded-full border-b-2 border-primary"></div>
         </CardContent>
       </Card>
     );
   }
 
   return (
-    <Card>
+    <Card className="rounded-xl border-0 bg-white shadow-md shadow-slate-200/50 ring-1 ring-slate-100">
       <CardHeader>
-        <CardTitle>
-          {employeeId ? 'My Renewals' : 'Upcoming Renewals'}
+        <CardTitle className="text-lg font-bold text-slate-900">
+          {employeeId ? "My renewals" : "Upcoming renewals"}
         </CardTitle>
         <CardDescription>
-          {employeeId 
-            ? 'Your assigned contracts expiring in the next 90 days'
-            : 'All contracts expiring in the next 90 days'
-          }
+          {employeeId
+            ? "Your assigned contracts expiring in the next 90 days"
+            : "All contracts expiring in the next 90 days"}
         </CardDescription>
         <CardAction>
           <div className="flex items-center gap-2">
             <DataTableViewOptions table={table} />
-            <Button variant="outline" size="sm" onClick={fetchRenewals}>
+            <Button
+              variant="outline"
+              size="sm"
+              className="border-slate-200 bg-white text-slate-800 hover:bg-slate-50 hover:text-slate-900"
+              onClick={fetchRenewals}
+            >
               Refresh
             </Button>
           </div>
         </CardAction>
       </CardHeader>
       <CardContent className="flex size-full flex-col gap-4">
-        <div className="overflow-hidden rounded-md border">
+        <div className="overflow-hidden rounded-lg border border-slate-200/80 bg-slate-50/30">
           <DataTable table={table} columns={columns} />
         </div>
         <DataTablePagination table={table} />

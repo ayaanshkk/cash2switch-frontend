@@ -7,10 +7,10 @@ import {
   CheckCircle2,
   TrendingUp,
   Clock,
-  TrendingDown,
   Search,
   ChevronLeft,
   Sparkles,
+  BarChart3,
 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
@@ -18,27 +18,24 @@ import { cn } from "@/lib/utils";
 const API_BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
 
 /* ─── Types ─── */
-interface StaffStat {
+interface LeadStaffStat {
   employee_id: number;
   employee_name: string;
   total_contacts: number;
   converted_count: number;
-  total_value_touched: number;
   conversion_rate: number;
-  renewed_count: number;
   in_progress_count: number;
   not_contacted_count: number;
   lost_count: number;
-  renewed_directly_count: number;
-  end_date_changed_count: number;
-  priced_count: number;
+  by_stage?: { stage_name: string; count: number }[];
 }
 
-interface StaffPerformanceGridProps {
+interface LeadsPerformanceGridProps {
   employeeId?: number;
+  service?: string;
 }
 
-/* ─── Conversion color (original): green / amber / red / gray by band ─── */
+/* ─── Conversion color (green / amber / red / gray by band) ─── */
 export function rateColor(rate: number): string {
   if (rate >= 60) return "#16a34a";
   if (rate >= 35) return "#d97706";
@@ -46,7 +43,7 @@ export function rateColor(rate: number): string {
   return "#d1d5db";
 }
 
-/** Bar fill: green / amber / red / gray tiers (matches ring) */
+/** Bar fill: green / amber / red / gray tiers */
 function conversionBarGradient(rate: number): string {
   if (rate >= 60) return "linear-gradient(90deg, #15803d 0%, #22c55e 100%)";
   if (rate >= 35) return "linear-gradient(90deg, #b45309 0%, #f59e0b 100%)";
@@ -54,9 +51,9 @@ function conversionBarGradient(rate: number): string {
   return "linear-gradient(90deg, #9ca3af 0%, #d1d5db 100%)";
 }
 
-/* Muted but distinct outcome tiles — not a full rainbow; 4 related hues */
+/* Outcome tiles styling */
 const OUTCOME_STYLES = {
-  renewed_count: {
+  converted_count: {
     card: "border-emerald-200 bg-emerald-50",
     icon: "text-emerald-600",
     num: "text-emerald-950",
@@ -73,12 +70,6 @@ const OUTCOME_STYLES = {
     icon: "text-amber-600",
     num: "text-amber-950",
     label: "text-amber-900",
-  },
-  lost_count: {
-    card: "border-rose-200 bg-rose-50",
-    icon: "text-rose-600",
-    num: "text-rose-950",
-    label: "text-rose-900",
   },
 } as const;
 
@@ -116,7 +107,6 @@ function useCountUp(target: number, duration = 900) {
   return v;
 }
 
-/** Shared ring diameter for Team Performance (renewals) and Team lead load (leads) horizontal strips */
 export const TEAM_STRIP_RING_SIZE = 88;
 
 /* ─── Progress ring ─── */
@@ -127,7 +117,6 @@ export function ProgressRing({
 }: {
   rate: number;
   size?: number;
-  /** Defaults to renewal conversion bands; pass a custom mapper for e.g. lead load. */
   colorAtRate?: (rate: number) => string;
 }) {
   const sw = 5;
@@ -160,7 +149,15 @@ export function ProgressRing({
 }
 
 /* ─── Strip avatar ─── */
-function StripCard({ stat, onClick, delay }: { stat: StaffStat; onClick: () => void; delay: number }) {
+function StripCard({
+  stat,
+  onClick,
+  delay,
+}: {
+  stat: LeadStaffStat;
+  onClick: () => void;
+  delay: number;
+}) {
   const rate = useCountUp(stat.conversion_rate, 1000);
   const stroke = rateColor(stat.conversion_rate);
 
@@ -174,7 +171,7 @@ function StripCard({ stat, onClick, delay }: { stat: StaffStat; onClick: () => v
       <div className="relative flex-shrink-0 transition-transform duration-300 ease-out group-hover:scale-[1.04] group-active:scale-[0.98]">
         <ProgressRing rate={stat.conversion_rate} size={TEAM_STRIP_RING_SIZE} />
         <div className="absolute inset-0 flex items-center justify-center">
-          <div className="flex h-12 w-12 select-none items-center justify-center rounded-2xl bg-gradient-to-br from-stone-800 to-black text-xs font-bold text-white shadow-inner ring-2 ring-white/90 transition-shadow duration-300 group-hover:shadow-md">
+          <div className="flex h-12 w-12 select-none items-center justify-center rounded-2xl bg-gradient-to-br from-violet-800 to-violet-950 text-xs font-bold text-white shadow-inner ring-2 ring-white/90 transition-shadow duration-300 group-hover:shadow-md">
             {getInitials(stat.employee_name)}
           </div>
         </div>
@@ -192,14 +189,13 @@ function StripCard({ stat, onClick, delay }: { stat: StaffStat; onClick: () => v
 }
 
 const outcomeMeta = [
-  { key: "renewed_count", label: "Renewed", icon: CheckCircle2 },
+  { key: "converted_count", label: "Converted", icon: CheckCircle2 },
   { key: "in_progress_count", label: "In progress", icon: TrendingUp },
   { key: "not_contacted_count", label: "Not contacted", icon: Clock },
-  { key: "lost_count", label: "Lost", icon: TrendingDown },
 ] as const;
 
 /* ─── Team grid card ─── */
-function DetailCard({ stat, delay }: { stat: StaffStat; delay: number }) {
+function DetailCard({ stat, delay }: { stat: LeadStaffStat; delay: number }) {
   const rate = useCountUp(stat.conversion_rate, 1000);
   const stroke = rateColor(stat.conversion_rate);
 
@@ -212,7 +208,7 @@ function DetailCard({ stat, delay }: { stat: StaffStat; delay: number }) {
         <div className="relative flex-shrink-0">
           <ProgressRing rate={stat.conversion_rate} size={TEAM_STRIP_RING_SIZE} />
           <div className="absolute inset-0 flex items-center justify-center">
-            <div className="flex h-12 w-12 select-none items-center justify-center rounded-2xl bg-gradient-to-br from-stone-800 to-black text-xs font-bold text-white shadow-sm ring-2 ring-white">
+            <div className="flex h-12 w-12 select-none items-center justify-center rounded-2xl bg-gradient-to-br from-violet-800 to-violet-950 text-xs font-bold text-white shadow-sm ring-2 ring-white">
               {getInitials(stat.employee_name)}
             </div>
           </div>
@@ -220,7 +216,7 @@ function DetailCard({ stat, delay }: { stat: StaffStat; delay: number }) {
 
         <div className="min-w-0 flex-1">
           <p className="truncate text-base font-bold leading-tight text-stone-900">{stat.employee_name}</p>
-          <p className="mt-0.5 text-sm text-stone-500">{stat.total_contacts} contacts</p>
+          <p className="mt-0.5 text-sm text-stone-500">{stat.total_contacts} leads</p>
         </div>
 
         <div className="flex-shrink-0 text-right">
@@ -231,9 +227,9 @@ function DetailCard({ stat, delay }: { stat: StaffStat; delay: number }) {
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-2">
+      <div className="grid grid-cols-3 gap-2">
         {outcomeMeta.map(({ key, label, icon: Icon }) => {
-          const val = stat[key as keyof StaffStat] as number;
+          const val = stat[key as keyof LeadStaffStat] as number;
           const st = OUTCOME_STYLES[key as keyof typeof OUTCOME_STYLES];
           return (
             <div
@@ -258,8 +254,8 @@ function DetailCard({ stat, delay }: { stat: StaffStat; delay: number }) {
   );
 }
 
-/* ─── Single-member spotlight (richer layout, animations) ─── */
-function MemberSpotlight({ stat, delay }: { stat: StaffStat; delay: number }) {
+/* ─── Single-member spotlight ─── */
+function MemberSpotlight({ stat, delay }: { stat: LeadStaffStat; delay: number }) {
   const rate = useCountUp(stat.conversion_rate, 1100);
   const [barOn, setBarOn] = useState(false);
   const stroke = rateColor(stat.conversion_rate);
@@ -277,17 +273,17 @@ function MemberSpotlight({ stat, delay }: { stat: StaffStat; delay: number }) {
       <div className="relative z-[1] flex flex-col gap-8 md:flex-row md:items-start md:gap-10">
         <div className="flex flex-col items-center gap-4 md:items-start">
           <div
-            className="relative flex h-24 w-24 items-center justify-center rounded-3xl bg-gradient-to-br from-stone-800 to-black text-2xl font-bold tracking-tight text-white shadow-lg ring-4 ring-white/90"
+            className="relative flex h-24 w-24 items-center justify-center rounded-3xl bg-gradient-to-br from-violet-800 to-violet-950 text-2xl font-bold tracking-tight text-white shadow-lg ring-4 ring-white/90"
             style={{ animation: `cp-stagger-up 0.5s ${delay + 40}ms cubic-bezier(0.22,1,0.36,1) both` }}
           >
             {getInitials(stat.employee_name)}
             <span className="absolute -bottom-1 -right-1 flex h-7 w-7 items-center justify-center rounded-full bg-white shadow-md ring-2 ring-stone-200/80">
-              <Sparkles className="h-3.5 w-3.5 text-stone-700" />
+              <Sparkles className="h-3.5 w-3.5 text-violet-700" />
             </span>
           </div>
           <div className="text-center md:text-left">
             <h3 className="text-xl font-bold tracking-tight text-stone-900">{stat.employee_name}</h3>
-            <p className="mt-1 text-sm text-stone-500">Performance snapshot · {stat.total_contacts} contacts</p>
+            <p className="mt-1 text-sm text-stone-500">Lead performance · {stat.total_contacts} leads</p>
           </div>
         </div>
 
@@ -315,11 +311,11 @@ function MemberSpotlight({ stat, delay }: { stat: StaffStat; delay: number }) {
           </div>
 
           <div
-            className="grid grid-cols-2 gap-3 sm:grid-cols-4"
+            className="grid grid-cols-3 gap-3"
             style={{ animation: `cp-stagger-up 0.5s ${delay + 120}ms cubic-bezier(0.22,1,0.36,1) both` }}
           >
             {outcomeMeta.map(({ key, label, icon: Icon }, i) => {
-              const val = stat[key as keyof StaffStat] as number;
+              const val = stat[key as keyof LeadStaffStat] as number;
               const st = OUTCOME_STYLES[key as keyof typeof OUTCOME_STYLES];
               return (
                 <div
@@ -337,15 +333,36 @@ function MemberSpotlight({ stat, delay }: { stat: StaffStat; delay: number }) {
               );
             })}
           </div>
+
+          {/* Stage breakdown if available */}
+          {stat.by_stage && stat.by_stage.length > 0 && (
+            <div
+              className="rounded-xl border border-stone-200 bg-stone-50 p-4"
+              style={{ animation: `cp-stagger-up 0.5s ${delay + 200}ms cubic-bezier(0.22,1,0.36,1) both` }}
+            >
+              <div className="mb-3 flex items-center gap-2">
+                <BarChart3 className="h-4 w-4 text-violet-600" />
+                <h4 className="text-sm font-semibold text-stone-800">Breakdown by stage</h4>
+              </div>
+              <div className="space-y-2">
+                {stat.by_stage.map((stage, idx) => (
+                  <div key={idx} className="flex items-center justify-between text-sm">
+                    <span className="text-stone-700">{stage.stage_name}</span>
+                    <span className="font-semibold text-violet-700">{stage.count}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>
   );
 }
 
-/* ─── Main Component ─── */
-export function StaffPerformanceGrid({ employeeId, isLeadsDashboard = false }: StaffPerformanceGridProps & { isLeadsDashboard?: boolean }) {
-  const [staffStats, setStaffStats] = useState<StaffStat[]>([]);
+/* ─── Main ─── */
+export function LeadsPerformanceGrid({ employeeId, service = "energy" }: LeadsPerformanceGridProps) {
+  const [staffStats, setStaffStats] = useState<LeadStaffStat[]>([]);
   const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState(false);
   const [selectedEmployeeId, setSelectedEmployeeId] = useState<number | null>(null);
@@ -356,43 +373,37 @@ export function StaffPerformanceGrid({ employeeId, isLeadsDashboard = false }: S
 
   useEffect(() => {
     fetchPerformanceData();
-  }, [employeeId, isLeadsDashboard]);
+  }, [employeeId, service]);
 
   useEffect(() => {
     const calculateVisible = () => {
       if (!stripContainerRef.current) return;
       const containerWidth = stripContainerRef.current.offsetWidth;
-      const cardWidth = 108; // min-w-[108px]
-      const gap = 24; // gap-6 = 1.5rem = 24px
+      const cardWidth = 108;
+      const gap = 24;
       const count = Math.floor((containerWidth + gap) / (cardWidth + gap));
       setVisibleCount(Math.max(1, count));
     };
 
     calculateVisible();
-    window.addEventListener('resize', calculateVisible);
-    return () => window.removeEventListener('resize', calculateVisible);
+    window.addEventListener("resize", calculateVisible);
+    return () => window.removeEventListener("resize", calculateVisible);
   }, [staffStats]);
 
   const fetchPerformanceData = async () => {
     try {
       const token = localStorage.getItem("auth_token");
-      const employeeParam = employeeId ? `?employee_id=${employeeId}` : "";
-      
-      // ✅ Use different endpoint for leads vs renewals
-      const endpoint = isLeadsDashboard 
-        ? `/api/crm/leads/staff-performance${employeeParam}`
-        : `/energy-renewals/staff-status-counts${employeeParam}`;
-      
-      const response = await fetch(`${API_BASE_URL}${endpoint}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      
+      const employeeParam = employeeId ? `&employee_id=${employeeId}` : "";
+      const response = await fetch(
+        `${API_BASE_URL}/api/crm/leads/staff-performance?service=${service}${employeeParam}`,
+        { headers: { Authorization: `Bearer ${token}` } },
+      );
       if (response.ok) {
         const data = await response.json();
         setStaffStats(data);
       }
     } catch (error) {
-      console.error("Error fetching performance:", error);
+      console.error("Error fetching lead performance:", error);
     } finally {
       setLoading(false);
     }
@@ -413,12 +424,12 @@ export function StaffPerformanceGrid({ employeeId, isLeadsDashboard = false }: S
 
   const avgRate =
     stats.length > 0 ? Math.round(stats.reduce((s, m) => s + m.conversion_rate, 0) / stats.length) : 0;
-  const totalConverted = stats.reduce((s, m) => s + m.renewed_count, 0);
-  const totalContacts = stats.reduce((s, m) => s + m.total_contacts, 0);
+  const totalConverted = stats.reduce((s, m) => s + m.converted_count, 0);
+  const totalLeads = stats.reduce((s, m) => s + m.total_contacts, 0);
 
   const subtitle = employeeId
-    ? `${stats[0]?.total_contacts ?? 0} contacts · ${stats[0]?.conversion_rate ?? 0}% conversion`
-    : `${stats.length} members · avg ${avgRate}% conversion · ${totalConverted} renewed`;
+    ? `${stats[0]?.total_contacts ?? 0} leads · ${stats[0]?.conversion_rate ?? 0}% conversion`
+    : `${stats.length} members · avg ${avgRate}% conversion · ${totalConverted} converted`;
 
   const selectedStat = selectedEmployeeId ? stats.find((s) => s.employee_id === selectedEmployeeId) : null;
 
@@ -447,12 +458,12 @@ export function StaffPerformanceGrid({ employeeId, isLeadsDashboard = false }: S
     <>
       <div className="crm-panel rounded-[28px] px-5 pb-5 pt-4">
         <div className="mb-4 flex items-center gap-3">
-          <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-black text-white shadow-sm">
+          <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-violet-600 text-white shadow-sm">
             <Users className="h-4 w-4" />
           </div>
           <div>
             <p className="text-sm font-semibold text-stone-900">
-              {employeeId ? "My Performance" : "Team Performance"}
+              {employeeId ? "My Lead Performance" : "Team Lead Performance"}
             </p>
             <p className="text-xs text-stone-500">{subtitle}</p>
           </div>
@@ -514,7 +525,6 @@ export function StaffPerformanceGrid({ employeeId, isLeadsDashboard = false }: S
           )}
         >
           <div className="cp-performance-modal-surface flex max-h-[92vh] flex-col overflow-hidden rounded-2xl border border-stone-200 bg-white shadow-xl">
-            {/* Header — solid surface so title & KPIs never compete with blurred layers */}
             <div className="relative z-[1] border-b border-stone-200 bg-stone-50 px-6 py-6 md:px-8">
               <DialogHeader className="relative space-y-4">
                 <div className="flex flex-wrap items-center gap-3">
@@ -529,32 +539,31 @@ export function StaffPerformanceGrid({ employeeId, isLeadsDashboard = false }: S
                     </button>
                   )}
                   <DialogTitle className="flex flex-wrap items-center gap-3 text-xl font-bold tracking-tight text-stone-900">
-                    <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-black text-white shadow-md">
+                    <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-violet-600 text-white shadow-md">
                       <Users className="h-5 w-5" />
                     </span>
                     {selectedStat
                       ? `${selectedStat.employee_name}`
                       : employeeId
-                        ? "My Performance Overview"
-                        : "Team Performance Hub"}
+                        ? "My lead performance"
+                        : "Team lead performance hub"}
                   </DialogTitle>
                 </div>
                 <p className="text-sm text-stone-500">
                   {selectedStat
-                    ? "Detailed outcomes and conversion for this teammate."
+                    ? "Detailed lead conversion and outcomes for this teammate."
                     : employeeId
-                      ? "Your renewal activity and outcomes."
-                      : "Compare conversion and pipeline health across the team."}
+                      ? "Your lead activity and conversion."
+                      : "Compare lead conversion across the team."}
                 </p>
 
-                {/* Summary strip — team only (single member uses spotlight for metrics) */}
                 {!selectedStat && (
                   <div className="grid grid-cols-2 gap-3 pt-2 sm:grid-cols-4">
                     {[
-                      { label: "Members", val: stats.length, accent: "border-l-4 border-l-green-600 bg-green-50" },
+                      { label: "Members", val: stats.length, accent: "border-l-4 border-l-violet-600 bg-violet-50" },
                       { label: "Avg conversion", val: `${avgRate}%`, accent: "border-l-4 border-l-indigo-600 bg-indigo-50" },
-                      { label: "Renewed (total)", val: totalConverted, accent: "border-l-4 border-l-emerald-600 bg-emerald-50" },
-                      { label: "Contacts (total)", val: totalContacts, accent: "border-l-4 border-l-sky-600 bg-sky-50" },
+                      { label: "Converted (total)", val: totalConverted, accent: "border-l-4 border-l-emerald-600 bg-emerald-50" },
+                      { label: "Leads (total)", val: totalLeads, accent: "border-l-4 border-l-sky-600 bg-sky-50" },
                     ].map(({ label, val, accent }, i) => (
                       <div
                         key={label}
@@ -587,7 +596,7 @@ export function StaffPerformanceGrid({ employeeId, isLeadsDashboard = false }: S
                           className={cn(
                             "rounded-full px-4 py-2 text-sm font-medium transition-all duration-200",
                             sortBy === s
-                              ? "scale-[1.02] bg-stone-900 text-white shadow-md"
+                              ? "scale-[1.02] bg-violet-600 text-white shadow-md"
                               : "border border-stone-200 bg-white text-stone-600 shadow-sm hover:border-stone-300 hover:bg-stone-100",
                           )}
                         >
@@ -611,12 +620,7 @@ export function StaffPerformanceGrid({ employeeId, isLeadsDashboard = false }: S
                 {selectedStat ? (
                   <MemberSpotlight stat={selectedStat} delay={0} />
                 ) : (
-                  <div
-                    className={cn(
-                      "grid gap-4",
-                      "grid-cols-1 sm:grid-cols-2 xl:grid-cols-3",
-                    )}
-                  >
+                  <div className={cn("grid gap-4", "grid-cols-1 sm:grid-cols-2 xl:grid-cols-3")}>
                     {sorted.map((s, i) => (
                       <DetailCard key={s.employee_id} stat={s} delay={i * 40} />
                     ))}

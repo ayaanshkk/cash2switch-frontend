@@ -1,69 +1,77 @@
 "use client";
 
+import { useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { EnergyRenewalsOverview } from "./_components/energy-renewals-overview";
 import { StaffPerformanceGrid } from "@/components/StaffPerformanceGrid";
 import { RenewalsTable } from "./_components/renewals-table";
+import {
+  DashboardViewSwitcher,
+  type DashboardMainView,
+} from "./_components/dashboard-view-switcher";
+import { DashboardLeadsSection } from "./_components/dashboard-leads-section";
 
 export default function DashboardPage() {
   const { user } = useAuth();
+  const [view, setView] = useState<DashboardMainView>("renewals");
 
-  // ✅ Case-insensitive check for Platform Admin
-  const userRole = user?.role?.toLowerCase() || '';
-  const isPlatformAdmin = userRole.includes('platform') && userRole.includes('admin');
+  const userRole = user?.role?.toLowerCase() || "";
+  const isPlatformAdmin = userRole.includes("platform") && userRole.includes("admin");
 
   return (
-    <div className="flex flex-col gap-6 p-6">
+    <div className="flex flex-col gap-6 rounded-2xl bg-slate-50/90 p-6 md:p-8">
       {isPlatformAdmin ? (
-        /* ============================================
-           ADMIN DASHBOARD - COMPANY-WIDE VIEW
-           Same as before, no changes
-           ============================================ */
         <>
-          <div className="space-y-2">
-            <h1 className="text-3xl font-bold tracking-tight">
-              Company Dashboard
-            </h1>
-            <p className="text-muted-foreground">
-              Monitor team performance and manage all company renewals
-            </p>
+          <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between lg:gap-8">
+            <div className="min-w-0 flex-1 space-y-1">
+              <p className="text-xs font-semibold uppercase tracking-widest text-slate-500">
+                Admin / Company dashboard
+              </p>
+              <h1 className="text-3xl font-bold tracking-tight text-slate-900">Company Dashboard</h1>
+              <p className="max-w-xl text-[15px] text-slate-600">
+                {view === "renewals"
+                  ? "Monitor team performance and manage all company renewals."
+                  : "Pipeline health, stage mix, and outcomes across your lead funnel."}
+              </p>
+            </div>
+            <DashboardViewSwitcher value={view} onChange={setView} className="shrink-0 lg:pt-1" />
           </div>
 
-          {/* Team Performance Grid - Shows all salespeople */}
-          <StaffPerformanceGrid />
+          {view === "renewals" && (
+            <>
+              <StaffPerformanceGrid />
+              <EnergyRenewalsOverview userRole={user?.role} employeeId={undefined} />
+              <RenewalsTable employeeId={undefined} />
+            </>
+          )}
 
-          {/* Company-wide Stats - ALL data */}
-          <EnergyRenewalsOverview 
-            userRole={user?.role} 
-            employeeId={undefined}
-          />
-
-          {/* All Company Renewals */}
-          <RenewalsTable employeeId={undefined} />
+          {view === "leads" && <DashboardLeadsSection employeeId={undefined} />}
         </>
       ) : (
-        /* ============================================
-           SALESPERSON DASHBOARD - PERSONALIZED VIEW
-           Completely different, isolated view
-           ============================================ */
         <>
-          <div className="space-y-2">
-            <h1 className="text-3xl font-bold tracking-tight">
-              My Dashboard
-            </h1>
-            <p className="text-muted-foreground">
-              Welcome back, {user?.name || 'Salesperson'}! Here's your personal performance overview.
-            </p>
+          <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between lg:gap-8">
+            <div className="min-w-0 flex-1 space-y-1">
+              <p className="text-xs font-semibold uppercase tracking-widest text-slate-500">My dashboard</p>
+              <h1 className="text-3xl font-bold tracking-tight text-slate-900">
+                Welcome back{user?.name ? `, ${user.name.split(" ")[0]}` : ""}
+              </h1>
+              <p className="max-w-xl text-[15px] text-slate-600">
+                {view === "renewals"
+                  ? "Your personal performance and assigned renewals."
+                  : "Your pipeline, stages, and lead outcomes."}
+              </p>
+            </div>
+            <DashboardViewSwitcher value={view} onChange={setView} className="shrink-0 lg:pt-1" />
           </div>
 
-          {/* ✅ Personal Performance Stats - ONLY their data */}
-          <EnergyRenewalsOverview 
-            userRole={user?.role} 
-            employeeId={user?.employee_id}
-          />
+          {view === "renewals" && (
+            <>
+              <EnergyRenewalsOverview userRole={user?.role} employeeId={user?.employee_id} />
+              <RenewalsTable employeeId={user?.employee_id} />
+            </>
+          )}
 
-          {/* ✅ Only their assigned renewals */}
-          <RenewalsTable employeeId={user?.employee_id} />
+          {view === "leads" && <DashboardLeadsSection employeeId={user?.employee_id} />}
         </>
       )}
     </div>
