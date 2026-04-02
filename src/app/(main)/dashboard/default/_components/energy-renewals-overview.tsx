@@ -498,15 +498,19 @@ export function EnergyRenewalsOverview({ userRole, employeeId }: EnergyRenewalsO
                       dataKey="renewals"
                       maxBarSize={56}
                       radius={[10, 10, 0, 0]}
-                      shape={(props: Record<string, unknown> & { index?: number }) => {
-                        const i = typeof props.index === "number" ? props.index : 0;
+                      shape={(props: unknown) => {
+                        const p = props as {
+                          index?: number;
+                          radius?: number | [number, number, number, number];
+                        };
+                        const i = typeof p.index === "number" ? p.index : 0;
                         const fill = BAR_PERIOD_FILLS[i] ?? DASH.blue;
                         return (
                           <Rectangle
-                            {...props}
+                            {...(props as Record<string, unknown>)}
                             fill={fill}
                             stroke="none"
-                            radius={props.radius ?? [10, 10, 0, 0]}
+                            radius={p.radius ?? [10, 10, 0, 0]}
                           />
                         );
                       }}
