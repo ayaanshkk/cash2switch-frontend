@@ -66,6 +66,8 @@ export default function DashboardPage() {
 
           {view === "renewals" && (
             <>
+              {/* ✅ ADD: Show personal performance for non-admin users */}
+              <StaffPerformanceGrid employeeId={user?.employee_id} />
               <EnergyRenewalsOverview userRole={user?.role} employeeId={user?.employee_id} />
               <RenewalsTable employeeId={user?.employee_id} />
             </>

@@ -37,6 +37,11 @@ interface LeadStats {
   allocated_leads: number;
   unallocated_leads: number;
   stage_breakdown: { [key: string]: number };
+  leads_30_60_days: number;
+  leads_61_90_days: number;
+  leads_91_180_days: number;
+  not_due_leads: number;
+  total_annual_usage: number;
 }
 
 interface StageBreakdown {
@@ -67,9 +72,12 @@ interface LeadDetail {
   stage_name: string;
   opportunity_value: number;
   assigned_to_name: string;
+  assigned_to_id?: number;
   created_at: string;
   annual_usage: number;
   service_name: string;
+  end_date?: string;
+  days_until_due?: number;
 }
 
 interface LeadsOverviewProps {
@@ -117,6 +125,9 @@ export function LeadsOverview({ userRole, employeeId }: LeadsOverviewProps = {})
   const [stageLeads, setStageLeads] = useState<LeadDetail[]>([]);
   const [selectedStage, setSelectedStage] = useState<string>("");
   const [modalLoading, setModalLoading] = useState(false);
+  const [showPeriodModal, setShowPeriodModal] = useState(false);
+  const [periodLeads, setPeriodLeads] = useState<LeadDetail[]>([]);
+  const [selectedPeriod, setSelectedPeriod] = useState<string>("");
 
   const isAdmin = employeeId === undefined || employeeId === null;
 
@@ -246,6 +257,40 @@ export function LeadsOverview({ userRole, employeeId }: LeadsOverviewProps = {})
     }
   };
 
+  const fetchPeriodLeads = async (period: string, employeeOverride?: number | undefined | null) => {
+    setModalLoading(true);
+    try {
+      const token = localStorage.getItem("auth_token");
+      
+      let employeeParam = '';
+      
+      if (!isAdmin && employeeId) {
+        employeeParam = `&employee_id=${employeeId}`;
+      } else if (isAdmin) {
+        const effectiveFilter = employeeOverride !== undefined ? employeeOverride : modalEmployeeFilter;
+        if (effectiveFilter) {
+          employeeParam = `&employee_id=${effectiveFilter}`;
+        }
+      }
+
+      const res = await fetch(
+        `${API_BASE_URL}/api/crm/leads/period-breakdown?period=${period}${employeeParam}`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+
+      if (res.ok) {
+        const data = await res.json();
+        setPeriodLeads(data.leads || []);
+        setSelectedPeriod(period);
+        setShowPeriodModal(true);
+      }
+    } catch (error) {
+      console.error("Error fetching period leads:", error);
+    } finally {
+      setModalLoading(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -273,165 +318,158 @@ export function LeadsOverview({ userRole, employeeId }: LeadsOverviewProps = {})
   return (
     <div className="space-y-4">
       
-      {/* Top Stats Cards */}
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6">
-        {/* Total Pipeline */}
-        <Card 
-          className="border-violet-300 bg-violet-50/30 cursor-pointer hover:shadow-lg transition-shadow overflow-hidden"
-          onClick={() => fetchStageLeads('all')}
-        >
-          <CardHeader className="pb-2 px-4 pt-4">
-            <CardDescription className="text-sm">Active Pipeline</CardDescription>
-            <CardTitle className="text-3xl font-semibold tabular-nums text-violet-900">
-              {stats?.total_leads || 0}
-            </CardTitle>
-          </CardHeader>
-          <CardFooter className="flex-col items-start gap-1.5 text-sm px-4 pb-4 pt-2">
-            <Badge variant="outline" className="bg-violet-100 text-violet-700 border-violet-300 whitespace-nowrap">
-              <Users className="h-3 w-3" />
-              Pipeline
-            </Badge>
-            <div className="line-clamp-1 font-medium text-violet-800">
-              {isAdmin ? "Total active leads" : "Your active leads"}
-            </div>
-            <div className="text-violet-600 flex items-center gap-1">
-              Click for details <ChevronRight className="h-3 w-3" />
-            </div>
-          </CardFooter>
-        </Card>
+    {/* Top Stats Cards */}
+    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6">
+      {/* 30-60 Days */}
+      <Card 
+        className="border-orange-300 bg-orange-50/30 cursor-pointer hover:shadow-lg transition-shadow overflow-hidden"
+        onClick={() => fetchPeriodLeads('30-60')}
+      >
+        <CardHeader className="pb-2 px-4 pt-4">
+          <CardDescription className="text-sm">Leads Due (30-60 Days)</CardDescription>
+          <CardTitle className="text-3xl font-semibold tabular-nums text-orange-900">
+            {stats?.leads_30_60_days || 0}
+          </CardTitle>
+        </CardHeader>
+        <CardFooter className="flex-col items-start gap-1.5 text-sm px-4 pb-4 pt-2">
+          <Badge variant="outline" className="bg-orange-100 text-orange-700 border-orange-300 whitespace-nowrap">
+            <AlertTriangle className="h-3 w-3" />
+            Urgent
+          </Badge>
+          <div className="line-clamp-1 font-medium text-orange-800">
+            Immediate action required
+          </div>
+          <div className="text-orange-600 flex items-center gap-1">
+            Click for details <ChevronRight className="h-3 w-3" />
+          </div>
+        </CardFooter>
+      </Card>
 
-        {/* New Leads */}
-        <Card 
-          className="border-blue-300 bg-blue-50/30 cursor-pointer hover:shadow-lg transition-shadow overflow-hidden"
-          onClick={() => fetchStageLeads('new')}
-        >
-          <CardHeader className="pb-2 px-4 pt-4">
-            <CardDescription className="text-sm">New / Not Contacted</CardDescription>
-            <CardTitle className="text-3xl font-semibold tabular-nums text-blue-900">
-              {stats?.new_leads || 0}
-            </CardTitle>
-          </CardHeader>
-          <CardFooter className="flex-col items-start gap-1.5 text-sm px-4 pb-4 pt-2">
-            <Badge variant="outline" className="bg-blue-100 text-blue-700 border-blue-300 whitespace-nowrap">
-              <Sparkles className="h-3 w-3" />
-              Fresh
-            </Badge>
-            <div className="line-clamp-1 font-medium text-blue-800">
-              Needs first contact
-            </div>
-            <div className="text-blue-600 flex items-center gap-1">
-              Click for details <ChevronRight className="h-3 w-3" />
-            </div>
-          </CardFooter>
-        </Card>
+      {/* 61-90 Days */}
+      <Card 
+        className="border-yellow-300 bg-yellow-50/30 cursor-pointer hover:shadow-lg transition-shadow overflow-hidden"
+        onClick={() => fetchPeriodLeads('61-90')}
+      >
+        <CardHeader className="pb-2 px-4 pt-4">
+          <CardDescription className="text-sm">Leads Due (61-90 Days)</CardDescription>
+          <CardTitle className="text-3xl font-semibold tabular-nums text-yellow-900">
+            {stats?.leads_61_90_days || 0}
+          </CardTitle>
+        </CardHeader>
+        <CardFooter className="flex-col items-start gap-1.5 text-sm px-4 pb-4 pt-2">
+          <Badge variant="outline" className="bg-yellow-100 text-yellow-700 border-yellow-300 whitespace-nowrap">
+            <TrendingUp className="h-3 w-3" />
+            Plan Ahead
+          </Badge>
+          <div className="line-clamp-1 font-medium text-yellow-800">
+            Start engagement process
+          </div>
+          <div className="text-yellow-600 flex items-center gap-1">
+            Click for details <ChevronRight className="h-3 w-3" />
+          </div>
+        </CardFooter>
+      </Card>
 
-        {/* In Progress */}
-        <Card 
-          className="border-amber-300 bg-amber-50/30 cursor-pointer hover:shadow-lg transition-shadow overflow-hidden"
-          onClick={() => fetchStageLeads('in_progress')}
-        >
-          <CardHeader className="pb-2 px-4 pt-4">
-            <CardDescription className="text-sm">In Progress</CardDescription>
-            <CardTitle className="text-3xl font-semibold tabular-nums text-amber-900">
-              {stats?.in_progress || 0}
-            </CardTitle>
-          </CardHeader>
-          <CardFooter className="flex-col items-start gap-1.5 text-sm px-4 pb-4 pt-2">
-            <Badge variant="outline" className="bg-amber-100 text-amber-700 border-amber-300 whitespace-nowrap">
-              <Clock className="h-3 w-3" />
-              Active
-            </Badge>
-            <div className="line-clamp-1 font-medium text-amber-800">
-              Being worked on
-            </div>
-            <div className="text-amber-600 flex items-center gap-1">
-              Click for details <ChevronRight className="h-3 w-3" />
-            </div>
-          </CardFooter>
-        </Card>
+      {/* 91-180 Days */}
+      <Card 
+        className="border-blue-300 bg-blue-50/30 cursor-pointer hover:shadow-lg transition-shadow overflow-hidden"
+        onClick={() => fetchPeriodLeads('91-180')}
+      >
+        <CardHeader className="pb-2 px-4 pt-4">
+          <CardDescription className="text-sm">Leads Due (91-180 Days)</CardDescription>
+          <CardTitle className="text-3xl font-semibold tabular-nums text-blue-900">
+            {stats?.leads_91_180_days || 0}
+          </CardTitle>
+        </CardHeader>
+        <CardFooter className="flex-col items-start gap-1.5 text-sm px-4 pb-4 pt-2">
+          <Badge variant="outline" className="bg-blue-100 text-blue-700 border-blue-300 whitespace-nowrap">
+            <TrendingUp className="h-3 w-3" />
+            Monitor
+          </Badge>
+          <div className="line-clamp-1 font-medium text-blue-800">
+            Early pipeline building
+          </div>
+          <div className="text-blue-600 flex items-center gap-1">
+            Click for details <ChevronRight className="h-3 w-3" />
+          </div>
+        </CardFooter>
+      </Card>
 
-        {/* Converted */}
-        <Card 
-          className="border-green-300 bg-green-50/30 cursor-pointer hover:shadow-lg transition-shadow overflow-hidden"
-          onClick={() => fetchStageLeads('converted')}
-        >
-          <CardHeader className="pb-2 px-4 pt-4">
-            <CardDescription className="text-sm">Converted</CardDescription>
-            <CardTitle className="text-3xl font-semibold tabular-nums text-green-900">
-              {stats?.converted_leads || 0}
-            </CardTitle>
-          </CardHeader>
-          <CardFooter className="flex-col items-start gap-1.5 text-sm px-4 pb-4 pt-2">
-            <Badge variant="outline" className="bg-green-100 text-green-700 border-green-300 whitespace-nowrap">
-              <CheckCircle2 className="h-3 w-3" />
-              Won
-            </Badge>
-            <div className="line-clamp-1 font-medium text-green-800">
-              Successfully converted
-            </div>
-            <div className="text-green-600 flex items-center gap-1">
-              Click for details <ChevronRight className="h-3 w-3" />
-            </div>
-          </CardFooter>
-        </Card>
+      {/* Not Due (365+ Days) */}
+      <Card 
+        className="border-teal-300 bg-teal-50/30 cursor-pointer hover:shadow-lg transition-shadow overflow-hidden"
+        onClick={() => fetchPeriodLeads('not-due')}
+      >
+        <CardHeader className="pb-2 px-4 pt-4">
+          <CardDescription className="text-sm">Not Due (365+ Days)</CardDescription>
+          <CardTitle className="text-3xl font-semibold tabular-nums text-teal-900">
+            {stats?.not_due_leads || 0}
+          </CardTitle>
+        </CardHeader>
+        <CardFooter className="flex-col items-start gap-1.5 text-sm px-4 pb-4 pt-2">
+          <Badge variant="outline" className="bg-teal-100 text-teal-700 border-teal-300 whitespace-nowrap">
+            <CheckCircle2 className="h-3 w-3" />
+            Long Term
+          </Badge>
+          <div className="line-clamp-1 font-medium text-teal-800">
+            Leads not due soon
+          </div>
+          <div className="text-teal-600 flex items-center gap-1">
+            Click for details <ChevronRight className="h-3 w-3" />
+          </div>
+        </CardFooter>
+      </Card>
 
-        {/* Total Value */}
-        <Card 
-          className="border-purple-300 bg-purple-50/30 cursor-pointer hover:shadow-lg transition-shadow overflow-hidden"
-          onClick={() => setShowVolumeModal(true)}
-        >
-          <CardHeader className="pb-2 px-4 pt-4">
-            <CardDescription className="text-sm">
-              {isAdmin ? "Total Pipeline Value" : "Your Pipeline Value"}
-            </CardDescription>
-            <CardTitle className="text-xl font-semibold tabular-nums text-purple-900 break-all leading-tight">
-              £{(stats?.total_value || 0).toLocaleString('en-GB', { 
-                minimumFractionDigits: 0, 
-                maximumFractionDigits: 0 
-              })}
-            </CardTitle>
-          </CardHeader>
-          <CardFooter className="flex-col items-start gap-1.5 text-sm px-4 pb-4 pt-2">
-            <Badge variant="outline" className="bg-purple-100 text-purple-700 border-purple-300 whitespace-nowrap">
-              <Zap className="h-3 w-3" />
-              Value
-            </Badge>
-            <div className="line-clamp-1 font-medium text-purple-800">
-              {isAdmin ? "Total opportunity value" : "Your opportunity value"}
-            </div>
-            {isAdmin && (
-              <div className="text-purple-600 flex items-center gap-1">
-                Click for breakdown <ChevronRight className="h-3 w-3" />
-              </div>
-            )}
-          </CardFooter>
-        </Card>
+      {/* In Progress */}
+      <Card 
+        className="border-purple-300 bg-purple-50/30 cursor-pointer hover:shadow-lg transition-shadow overflow-hidden"
+        onClick={() => fetchStageLeads('in_progress')}
+      >
+        <CardHeader className="pb-2 px-4 pt-4">
+          <CardDescription className="text-sm">In Progress</CardDescription>
+          <CardTitle className="text-3xl font-semibold tabular-nums text-purple-900">
+            {stats?.in_progress || 0}
+          </CardTitle>
+        </CardHeader>
+        <CardFooter className="flex-col items-start gap-1.5 text-sm px-4 pb-4 pt-2">
+          <Badge variant="outline" className="bg-purple-100 text-purple-700 border-purple-300 whitespace-nowrap">
+            <Clock className="h-3 w-3" />
+            Active
+          </Badge>
+          <div className="line-clamp-1 font-medium text-purple-800">
+            Being worked on
+          </div>
+          <div className="text-purple-600 flex items-center gap-1">
+            Click for details <ChevronRight className="h-3 w-3" />
+          </div>
+        </CardFooter>
+      </Card>
 
-        {/* Lost */}
-        <Card 
-          className="border-red-300 bg-red-50/30 cursor-pointer hover:shadow-lg transition-shadow overflow-hidden"
-          onClick={() => fetchStageLeads('lost')}
-        >
-          <CardHeader className="pb-2 px-4 pt-4">
-            <CardDescription className="text-sm">Lost</CardDescription>
-            <CardTitle className="text-3xl font-semibold tabular-nums text-red-900">
-              {stats?.lost_leads || 0}
-            </CardTitle>
-          </CardHeader>
-          <CardFooter className="flex-col items-start gap-1.5 text-sm px-4 pb-4 pt-2">
-            <Badge variant="outline" className="bg-red-100 text-red-700 border-red-300 whitespace-nowrap">
-              <TrendingDown className="h-3 w-3" />
-              Lost
-            </Badge>
-            <div className="line-clamp-1 font-medium text-red-800">
-              Lost opportunities
-            </div>
-            <div className="text-red-600 flex items-center gap-1">
-              Click for details <ChevronRight className="h-3 w-3" />
-            </div>
-          </CardFooter>
-        </Card>
-      </div>
+      {/* Lost */}
+      <Card 
+        className="border-red-300 bg-red-50/30 cursor-pointer hover:shadow-lg transition-shadow overflow-hidden"
+        onClick={() => fetchStageLeads('lost')}
+      >
+        <CardHeader className="pb-2 px-4 pt-4">
+          <CardDescription className="text-sm">Lost Leads</CardDescription>
+          <CardTitle className="text-3xl font-semibold tabular-nums text-red-900">
+            {stats?.lost_leads || 0}
+          </CardTitle>
+        </CardHeader>
+        <CardFooter className="flex-col items-start gap-1.5 text-sm px-4 pb-4 pt-2">
+          <Badge variant="outline" className="bg-red-100 text-red-700 border-red-300 whitespace-nowrap">
+            <TrendingDown className="h-3 w-3" />
+            Lost
+          </Badge>
+          <div className="line-clamp-1 font-medium text-red-800">
+            Lost opportunities
+          </div>
+          <div className="text-red-600 flex items-center gap-1">
+            Click for details <ChevronRight className="h-3 w-3" />
+          </div>
+        </CardFooter>
+      </Card>
+    </div>
 
       {/* Charts Row */}
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
@@ -592,9 +630,9 @@ export function LeadsOverview({ userRole, employeeId }: LeadsOverviewProps = {})
         </CardFooter>
       </Card>
 
-      {/* Stage Leads Modal */}
-      <Dialog open={showStageModal} onOpenChange={(open) => {
-        setShowStageModal(open);
+      {/* Period Leads Modal */}
+      <Dialog open={showPeriodModal} onOpenChange={(open) => {
+        setShowPeriodModal(open);
         if (!open && isAdmin) {
           setModalEmployeeFilter(undefined);
         }
@@ -604,15 +642,14 @@ export function LeadsOverview({ userRole, employeeId }: LeadsOverviewProps = {})
             <div className="flex items-start justify-between gap-6">
               <div className="flex-1 min-w-0">
                 <DialogTitle className="text-2xl font-bold mb-2">
-                  {selectedStage === 'all' ? 'All Leads' :
-                  selectedStage === 'new' ? 'New / Not Contacted Leads' :
-                  selectedStage === 'in_progress' ? 'In Progress Leads' : 
-                  selectedStage === 'converted' ? 'Converted Leads' : 
-                  selectedStage === 'lost' ? 'Lost Leads' :
-                  `Leads in ${selectedStage}`}
+                  {selectedPeriod === 'not-due' ? 'Not Due Leads (365+ Days)' :
+                  selectedPeriod === '30-60' ? 'Leads Due: 30-60 Days' : 
+                  selectedPeriod === '61-90' ? 'Leads Due: 61-90 Days' : 
+                  selectedPeriod === '91-180' ? 'Leads Due: 91-180 Days' :
+                  'Leads in Progress'}
                 </DialogTitle>
                 <DialogDescription className="text-sm">
-                  Showing {stageLeads.length} lead{stageLeads.length !== 1 ? 's' : ''} in this category
+                  Showing {periodLeads.length} lead{periodLeads.length !== 1 ? 's' : ''} in this period
                 </DialogDescription>
               </div>
               
@@ -622,7 +659,7 @@ export function LeadsOverview({ userRole, employeeId }: LeadsOverviewProps = {})
                   onValueChange={(value) => {
                     const newEmployeeId = value === "all" ? undefined : parseInt(value);
                     setModalEmployeeFilter(newEmployeeId);
-                    fetchStageLeads(selectedStage, newEmployeeId);
+                    fetchPeriodLeads(selectedPeriod, newEmployeeId);
                   }}
                 >
                   <SelectTrigger className="w-[220px] flex-shrink-0">
@@ -646,17 +683,17 @@ export function LeadsOverview({ userRole, employeeId }: LeadsOverviewProps = {})
               <div className="flex items-center justify-center py-16">
                 <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
               </div>
-            ) : stageLeads.length === 0 ? (
+            ) : periodLeads.length === 0 ? (
               <div className="text-center py-16 text-gray-500">
-                <p className="text-lg">No leads found for this category</p>
+                <p className="text-lg">No leads found for this period</p>
               </div>
             ) : (
               <div className="space-y-3 py-4">
-                {stageLeads.map((lead) => (
+                {periodLeads.map((lead) => (
                   <div
                     key={lead.opportunity_id}
                     className="p-5 border rounded-xl hover:bg-gray-50 hover:shadow-sm cursor-pointer transition-all"
-                    onClick={() => router.push(`/dashboard/leads/${lead.opportunity_id}`)}
+                    onClick={() => window.open(`/dashboard/leads/${lead.opportunity_id}`, '_blank')}
                   >
                     <div className="flex items-start justify-between gap-4 mb-4">
                       <div className="flex-1 min-w-0">
@@ -673,10 +710,12 @@ export function LeadsOverview({ userRole, employeeId }: LeadsOverviewProps = {})
                       
                       <div className="text-right flex-shrink-0">
                         <p className="text-xl font-bold text-blue-700 whitespace-nowrap">
-                          £{(lead.opportunity_value || 0).toLocaleString()}
+                          {lead.annual_usage?.toLocaleString() || 0} kWh
                         </p>
                         <p className="text-xs text-gray-600 mt-1 whitespace-nowrap">
-                          {lead.service_name || 'Energy'}
+                          {lead.days_until_due 
+                            ? `In ${lead.days_until_due} days`
+                            : 'Date TBD'}
                         </p>
                       </div>
                     </div>

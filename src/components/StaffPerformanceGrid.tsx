@@ -36,6 +36,7 @@ interface StaffStat {
 
 interface StaffPerformanceGridProps {
   employeeId?: number;
+  isLeadsDashboard?: boolean; // ✅ ADD THIS
 }
 
 /* ─── Conversion color (original): green / amber / red / gray by band ─── */
@@ -127,7 +128,6 @@ export function ProgressRing({
 }: {
   rate: number;
   size?: number;
-  /** Defaults to renewal conversion bands; pass a custom mapper for e.g. lead load. */
   colorAtRate?: (rate: number) => string;
 }) {
   const sw = 5;
@@ -258,7 +258,7 @@ function DetailCard({ stat, delay }: { stat: StaffStat; delay: number }) {
   );
 }
 
-/* ─── Single-member spotlight (richer layout, animations) ─── */
+/* ─── Single-member spotlight ─── */
 function MemberSpotlight({ stat, delay }: { stat: StaffStat; delay: number }) {
   const rate = useCountUp(stat.conversion_rate, 1100);
   const [barOn, setBarOn] = useState(false);
@@ -344,7 +344,8 @@ function MemberSpotlight({ stat, delay }: { stat: StaffStat; delay: number }) {
 }
 
 /* ─── Main Component ─── */
-export function StaffPerformanceGrid({ employeeId, isLeadsDashboard = false }: StaffPerformanceGridProps & { isLeadsDashboard?: boolean }) {
+// ✅ FIX: Add isLeadsDashboard to props
+export function StaffPerformanceGrid({ employeeId, isLeadsDashboard = false }: StaffPerformanceGridProps) {
   const [staffStats, setStaffStats] = useState<StaffStat[]>([]);
   const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState(false);
@@ -356,14 +357,14 @@ export function StaffPerformanceGrid({ employeeId, isLeadsDashboard = false }: S
 
   useEffect(() => {
     fetchPerformanceData();
-  }, [employeeId, isLeadsDashboard]);
+  }, [employeeId, isLeadsDashboard]); // ✅ Now isLeadsDashboard is defined
 
   useEffect(() => {
     const calculateVisible = () => {
       if (!stripContainerRef.current) return;
       const containerWidth = stripContainerRef.current.offsetWidth;
-      const cardWidth = 108; // min-w-[108px]
-      const gap = 24; // gap-6 = 1.5rem = 24px
+      const cardWidth = 108;
+      const gap = 24;
       const count = Math.floor((containerWidth + gap) / (cardWidth + gap));
       setVisibleCount(Math.max(1, count));
     };
@@ -378,10 +379,12 @@ export function StaffPerformanceGrid({ employeeId, isLeadsDashboard = false }: S
       const token = localStorage.getItem("auth_token");
       const employeeParam = employeeId ? `?employee_id=${employeeId}` : "";
       
-      // ✅ Use different endpoint for leads vs renewals
+      // ✅ Now isLeadsDashboard is properly defined
       const endpoint = isLeadsDashboard 
         ? `/api/crm/leads/staff-performance${employeeParam}`
         : `/energy-renewals/staff-status-counts${employeeParam}`;
+      
+      console.log(`🔍 Fetching ${isLeadsDashboard ? 'LEADS' : 'RENEWALS'} performance from:`, endpoint);
       
       const response = await fetch(`${API_BASE_URL}${endpoint}`, {
         headers: { Authorization: `Bearer ${token}` },
@@ -389,7 +392,11 @@ export function StaffPerformanceGrid({ employeeId, isLeadsDashboard = false }: S
       
       if (response.ok) {
         const data = await response.json();
+        console.log(`✅ Received ${data.length} staff members:`, data);
         setStaffStats(data);
+      } else {
+        const errorText = await response.text();
+        console.error(`❌ Failed to fetch performance:`, errorText);
       }
     } catch (error) {
       console.error("Error fetching performance:", error);
@@ -398,6 +405,7 @@ export function StaffPerformanceGrid({ employeeId, isLeadsDashboard = false }: S
     }
   };
 
+  // ... rest of the component remains the same
   const stats = staffStats;
   const strip = [...stats].sort((a, b) => a.employee_name.localeCompare(b.employee_name)).slice(0, visibleCount);
 
@@ -442,7 +450,7 @@ export function StaffPerformanceGrid({ employeeId, isLeadsDashboard = false }: S
         ))}
       </div>
     );
-
+    
   return (
     <>
       <div className="crm-panel rounded-[28px] px-5 pb-5 pt-4">
