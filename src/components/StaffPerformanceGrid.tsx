@@ -191,17 +191,18 @@ function StripCard({ stat, onClick, delay }: { stat: StaffStat; onClick: () => v
   );
 }
 
-const outcomeMeta = [
-  { key: "renewed_count", label: "Renewed", icon: CheckCircle2 },
-  { key: "in_progress_count", label: "In progress", icon: TrendingUp },
-  { key: "not_contacted_count", label: "Not contacted", icon: Clock },
-  { key: "lost_count", label: "Lost", icon: TrendingDown },
-] as const;
-
 /* ─── Team grid card ─── */
-function DetailCard({ stat, delay }: { stat: StaffStat; delay: number }) {
-  const rate = useCountUp(stat.conversion_rate, 1000);
-  const stroke = rateColor(stat.conversion_rate);
+function DetailCard({ 
+  stat, 
+  delay, 
+  outcomeMeta 
+}: { 
+  stat: StaffStat; 
+  delay: number;
+  outcomeMeta: readonly { key: string; label: string; icon: any }[];
+}) {
+  const rate = useCountUp(stat.conversion_rate, 1000); 
+  const stroke = rateColor(stat.conversion_rate);       
 
   return (
     <div
@@ -259,10 +260,18 @@ function DetailCard({ stat, delay }: { stat: StaffStat; delay: number }) {
 }
 
 /* ─── Single-member spotlight ─── */
-function MemberSpotlight({ stat, delay }: { stat: StaffStat; delay: number }) {
-  const rate = useCountUp(stat.conversion_rate, 1100);
-  const [barOn, setBarOn] = useState(false);
-  const stroke = rateColor(stat.conversion_rate);
+function MemberSpotlight({ 
+  stat, 
+  delay,
+  outcomeMeta 
+}: { 
+  stat: StaffStat; 
+  delay: number;
+  outcomeMeta: readonly { key: string; label: string; icon: any }[];
+}) {
+  const rate = useCountUp(stat.conversion_rate, 1100);  // ✅ ADD THIS
+  const [barOn, setBarOn] = useState(false);            // ✅ ADD THIS
+  const stroke = rateColor(stat.conversion_rate);       // ✅ ADD THIS
 
   useEffect(() => {
     const t = requestAnimationFrame(() => setBarOn(true));
@@ -343,6 +352,7 @@ function MemberSpotlight({ stat, delay }: { stat: StaffStat; delay: number }) {
   );
 }
 
+
 /* ─── Main Component ─── */
 // ✅ FIX: Add isLeadsDashboard to props
 export function StaffPerformanceGrid({ employeeId, isLeadsDashboard = false }: StaffPerformanceGridProps) {
@@ -355,9 +365,24 @@ export function StaffPerformanceGrid({ employeeId, isLeadsDashboard = false }: S
   const stripContainerRef = useRef<HTMLDivElement>(null);
   const [visibleCount, setVisibleCount] = useState(10);
 
+  // ✅ CONDITIONAL OUTCOME META - Changes label based on dashboard type
+  const outcomeMeta = isLeadsDashboard 
+    ? [
+        { key: "renewed_count", label: "Converted", icon: CheckCircle2 },  // Shows "Converted" for Leads
+        { key: "in_progress_count", label: "In progress", icon: TrendingUp },
+        { key: "not_contacted_count", label: "Not contacted", icon: Clock },
+        { key: "lost_count", label: "Lost", icon: TrendingDown },
+      ] as const
+    : [
+        { key: "renewed_count", label: "Renewed", icon: CheckCircle2 },    // Shows "Renewed" for Renewals
+        { key: "in_progress_count", label: "In progress", icon: TrendingUp },
+        { key: "not_contacted_count", label: "Not contacted", icon: Clock },
+        { key: "lost_count", label: "Lost", icon: TrendingDown },
+      ] as const;
+
   useEffect(() => {
     fetchPerformanceData();
-  }, [employeeId, isLeadsDashboard]); // ✅ Now isLeadsDashboard is defined
+  }, [employeeId, isLeadsDashboard]);
 
   useEffect(() => {
     const calculateVisible = () => {
@@ -617,7 +642,7 @@ export function StaffPerformanceGrid({ employeeId, isLeadsDashboard = false }: S
                 )}
 
                 {selectedStat ? (
-                  <MemberSpotlight stat={selectedStat} delay={0} />
+                  <MemberSpotlight stat={selectedStat} delay={0} outcomeMeta={outcomeMeta} />
                 ) : (
                   <div
                     className={cn(
@@ -626,7 +651,7 @@ export function StaffPerformanceGrid({ employeeId, isLeadsDashboard = false }: S
                     )}
                   >
                     {sorted.map((s, i) => (
-                      <DetailCard key={s.employee_id} stat={s} delay={i * 40} />
+                      <DetailCard key={s.employee_id} stat={s} delay={i * 40} outcomeMeta={outcomeMeta} />
                     ))}
                   </div>
                 )}

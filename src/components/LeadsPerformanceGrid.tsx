@@ -6,6 +6,7 @@ import {
   ArrowRight,
   CheckCircle2,
   TrendingUp,
+  TrendingDown,
   Clock,
   Search,
   ChevronLeft,
@@ -70,6 +71,12 @@ const OUTCOME_STYLES = {
     icon: "text-amber-600",
     num: "text-amber-950",
     label: "text-amber-900",
+  },
+  lost_count: {
+    card: "border-red-200 bg-red-50",
+    icon: "text-red-600",
+    num: "text-red-950",
+    label: "text-red-800",
   },
 } as const;
 
@@ -192,6 +199,7 @@ const outcomeMeta = [
   { key: "converted_count", label: "Converted", icon: CheckCircle2 },
   { key: "in_progress_count", label: "In progress", icon: TrendingUp },
   { key: "not_contacted_count", label: "Not contacted", icon: Clock },
+  { key: "lost_count", label: "Lost", icon: TrendingDown },
 ] as const;
 
 /* ─── Team grid card ─── */
@@ -227,7 +235,7 @@ function DetailCard({ stat, delay }: { stat: LeadStaffStat; delay: number }) {
         </div>
       </div>
 
-      <div className="grid grid-cols-3 gap-2">
+      <div className="grid grid-cols-4 gap-2">
         {outcomeMeta.map(({ key, label, icon: Icon }) => {
           const val = stat[key as keyof LeadStaffStat] as number;
           const st = OUTCOME_STYLES[key as keyof typeof OUTCOME_STYLES];
@@ -311,9 +319,10 @@ function MemberSpotlight({ stat, delay }: { stat: LeadStaffStat; delay: number }
           </div>
 
           <div
-            className="grid grid-cols-3 gap-3"
+            className="grid grid-cols-4 gap-3"
             style={{ animation: `cp-stagger-up 0.5s ${delay + 120}ms cubic-bezier(0.22,1,0.36,1) both` }}
           >
+
             {outcomeMeta.map(({ key, label, icon: Icon }, i) => {
               const val = stat[key as keyof LeadStaffStat] as number;
               const st = OUTCOME_STYLES[key as keyof typeof OUTCOME_STYLES];
