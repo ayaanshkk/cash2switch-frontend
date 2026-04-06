@@ -985,18 +985,23 @@ export default function EnergyCustomersPage() {
   const handlePerformanceClick = async (type: 'renewed' | 'in_progress' | 'not_contacted' | 'lost' | 'renewed_directly' | 'end_date_changed' | 'priced' | 'not_due') => {
     setPerformanceFilter(type);
     try {
-      // ✅ Fetch both active and archived records
-      const [activeResponse, archiveResponse] = await Promise.all([
+      // ✅ For 'not_due', filter by end_date > 365 days
+      const [activeResponse, archiveResponse, recycleBinResponse] = await Promise.all([
         fetchWithAuth(`/energy-clients?service=${encodeURIComponent(service)}`),
-        fetchWithAuth(`/energy-clients/archives?service=${encodeURIComponent(service)}`).catch(() => [])
+        fetchWithAuth(`/energy-clients/archives?service=${encodeURIComponent(service)}`).catch(() => []),
+        type === 'lost' ? fetchWithAuth(`/energy-clients/recycle-bin?service=${encodeURIComponent(service)}`).catch(() => []) : Promise.resolve([])
       ]);
       
       const activeData = Array.isArray(activeResponse) ? activeResponse : (activeResponse?.data || []);
       const archivedData = Array.isArray(archiveResponse) ? archiveResponse : [];
-      const allRecords = [...activeData, ...archivedData];
+      const recycleBinData = Array.isArray(recycleBinResponse) ? recycleBinResponse : (recycleBinResponse?.data || []);
+      
+      const allRecords = [...activeData, ...archivedData, ...recycleBinData];
 
       if (allRecords.length > 0) {
         let filtered: EnergyCustomer[] = [];
+        const today = new Date();
+        
         switch (type) {
           case 'renewed':
             filtered = allRecords.filter(c => {
@@ -1018,8 +1023,8 @@ export default function EnergyCustomersPage() {
             });
             break;
           case 'lost':
-            // ✅ FIXED: Look for Lost status in archives
-            filtered = allRecords.filter(c => {
+            // ✅ FIX: Look in recycle bin (is_deleted = true) OR has Lost/Lost COT status
+            filtered = recycleBinData.filter(c => {
               const s = (c.status || '').toLowerCase();
               return s === 'lost' || s === 'lost cot';
             });
@@ -1034,9 +1039,9 @@ export default function EnergyCustomersPage() {
             filtered = allRecords.filter(c => (c.status || '').toLowerCase() === 'priced');
             break;
           case 'not_due':
+            // ✅ FIX: Filter by contracts ending > 365 days from now
             filtered = allRecords.filter(c => {
               if (!c.end_date) return false;
-              const today = new Date();
               const endDate = new Date(c.end_date);
               const daysUntilEnd = Math.ceil((endDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
               return daysUntilEnd > 365;
