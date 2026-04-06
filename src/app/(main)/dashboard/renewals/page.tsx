@@ -328,7 +328,7 @@ export default function EnergyCustomersPage() {
           renewed_directly: response.renewed_directly_count || 0,
           end_date_changed: response.end_date_changed_count || 0,
           priced: response.priced_count || 0,
-          not_due: response.not_due_count || 0, // ✅ Add this
+          not_due: response.not_due_count || 0, 
         });
       }
     } catch (err) {
@@ -341,11 +341,16 @@ export default function EnergyCustomersPage() {
     fetchSuppliers();
     fetchEmployees();
     fetchStages();
-    fetchPerformanceStats();
     if (isAdmin) {
       fetchEmployeeStats();
     }
   }, [service, isAdmin]);
+
+  useEffect(() => {
+    if (allCustomers.length > 0) {
+      fetchPerformanceStats();
+    }
+  }, [service, allCustomers]);
 
   useEffect(() => {
     setCurrentPage(1);
@@ -980,46 +985,56 @@ export default function EnergyCustomersPage() {
   const handlePerformanceClick = async (type: 'renewed' | 'in_progress' | 'not_contacted' | 'lost' | 'renewed_directly' | 'end_date_changed' | 'priced' | 'not_due') => {
     setPerformanceFilter(type);
     try {
-      const response = await fetchWithAuth(`/energy-renewals?use_current_user=true&service=${encodeURIComponent(service)}`);
-      if (response && Array.isArray(response)) {
+      // ✅ Fetch both active and archived records
+      const [activeResponse, archiveResponse] = await Promise.all([
+        fetchWithAuth(`/energy-clients?service=${encodeURIComponent(service)}`),
+        fetchWithAuth(`/energy-clients/archives?service=${encodeURIComponent(service)}`).catch(() => [])
+      ]);
+      
+      const activeData = Array.isArray(activeResponse) ? activeResponse : (activeResponse?.data || []);
+      const archivedData = Array.isArray(archiveResponse) ? archiveResponse : [];
+      const allRecords = [...activeData, ...archivedData];
+
+      if (allRecords.length > 0) {
         let filtered: EnergyCustomer[] = [];
         switch (type) {
           case 'renewed':
-            filtered = response.filter(c => {
+            filtered = allRecords.filter(c => {
               const s = (c.status || '').toLowerCase();
               return s === 'priced' || s === 'renewed' || s === 'already renewed' || s === 'end date changed';
             });
             break;
           case 'in_progress':
-            filtered = response.filter(c => {
+            filtered = allRecords.filter(c => {
               const s = (c.status || '').toLowerCase();
               return s === 'called' || s === 'callback' || s === 'contacted';
             });
             break;
           case 'not_contacted':
-            filtered = response.filter(c => {
+            filtered = allRecords.filter(c => {
               const s = (c.status || '').toLowerCase();
               const hasNoStatus = !c.status || s === '' || s === 'none' || s === 'pending';
               return hasNoStatus || s === 'not answered' || s === 'not contacted';
             });
             break;
           case 'lost':
-            filtered = response.filter(c => {
+            // ✅ FIXED: Look for Lost status in archives
+            filtered = allRecords.filter(c => {
               const s = (c.status || '').toLowerCase();
               return s === 'lost' || s === 'lost cot';
             });
             break;
           case 'renewed_directly':
-            filtered = response.filter(c => (c.status || '').toLowerCase() === 'renewed directly');
+            filtered = allRecords.filter(c => (c.status || '').toLowerCase() === 'renewed directly');
             break;
           case 'end_date_changed':
-            filtered = response.filter(c => (c.status || '').toLowerCase() === 'end date changed');
+            filtered = allRecords.filter(c => (c.status || '').toLowerCase() === 'end date changed');
             break;
           case 'priced':
-            filtered = response.filter(c => (c.status || '').toLowerCase() === 'priced');
+            filtered = allRecords.filter(c => (c.status || '').toLowerCase() === 'priced');
             break;
-          case 'not_due': // ✅ Add this case
-            filtered = response.filter(c => {
+          case 'not_due':
+            filtered = allRecords.filter(c => {
               if (!c.end_date) return false;
               const today = new Date();
               const endDate = new Date(c.end_date);
