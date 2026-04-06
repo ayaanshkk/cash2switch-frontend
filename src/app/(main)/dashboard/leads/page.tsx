@@ -97,6 +97,7 @@ interface LeadCustomer {
   created_at: string | null;
   opportunity_owner_employee_id: number | null;
   assigned_to_name: string | null;
+  is_archived?: boolean;
   is_allocated?: boolean;
   is_cleansed?: boolean;
   display_id?: number;
