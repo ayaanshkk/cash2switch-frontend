@@ -328,7 +328,7 @@ export default function EnergyCustomersPage() {
           renewed_directly: response.renewed_directly_count || 0,
           end_date_changed: response.end_date_changed_count || 0,
           priced: response.priced_count || 0,
-          not_due: response.not_due_count || 0, 
+          not_due: response.not_due || 0,  
         });
       }
     } catch (err) {
