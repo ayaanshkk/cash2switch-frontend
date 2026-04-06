@@ -1022,13 +1022,12 @@ export default function EnergyCustomersPage() {
               return hasNoStatus || s === 'not answered' || s === 'not contacted';
             });
             break;
-          case 'lost':
-            // ✅ FIX: Look in recycle bin (is_deleted = true) OR has Lost/Lost COT status
-            filtered = recycleBinData.filter(c => {
-              const s = (c.status || '').toLowerCase();
-              return s === 'lost' || s === 'lost cot';
-            });
-            break;
+            case 'lost':
+              filtered = recycleBinData.filter((c: EnergyCustomer) => {
+                const s = (c.status || '').toLowerCase();
+                return s === 'lost' || s === 'lost cot';
+              });
+              break;
           case 'renewed_directly':
             filtered = allRecords.filter(c => (c.status || '').toLowerCase() === 'renewed directly');
             break;
