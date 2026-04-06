@@ -98,6 +98,7 @@ interface LeadCustomer {
   opportunity_owner_employee_id: number | null;
   assigned_to_name: string | null;
   is_allocated?: boolean;
+  is_cleansed?: boolean;
   display_id?: number;
   display_order?: number;
 }
@@ -320,20 +321,20 @@ export default function LeadsPage() {
 
   // ── Derived lists ──────────────────────────────────────────────────────────
   const sortedLeads = useMemo(() => {
-    const base = [...allLeads];
+    const leadsToShow = searchTerm.trim() 
+      ? allLeads  
+      : allLeads.filter(l => !l.is_archived);
+    
     if (searchTerm && searchResults.length > 0) {
-      const existingIds = new Set(base.map(l => l.opportunity_id));
-      const extras = searchResults.filter(l => !existingIds.has(l.opportunity_id));
-      return [...base, ...extras].sort((a, b) => {
-        const orderA = a.display_order ?? 999999;
-        const orderB = b.display_order ?? 999999;
-        return orderA - orderB;  // ✅ ASCENDING
+      const assignedIds = new Set(leadsToShow.map(l => l.opportunity_id));
+      const uniqueSearchResults = searchResults.filter(l => !assignedIds.has(l.opportunity_id));
+      return [...leadsToShow, ...uniqueSearchResults].sort((a, b) => {
+        return new Date(a.created_at || new Date()).getTime() - new Date(b.created_at || new Date()).getTime();
       });
     }
-    return base.sort((a, b) => {
-      const orderA = a.display_order ?? 999999;
-      const orderB = b.display_order ?? 999999;
-      return orderA - orderB;  // ✅ ASCENDING
+    
+    return [...leadsToShow].sort((a, b) => {
+      return (a.display_order ?? 9999) - (b.display_order ?? 9999);
     });
   }, [allLeads, searchResults, searchTerm]);
 
@@ -377,10 +378,9 @@ export default function LeadsPage() {
   }, [filteredLeads, currentPage]);
 
   // A lead is "from search" when it's in search results but not in the user's own list
-  const isFromSearch = (l: LeadCustomer) => {
+  const isFromSearch = (lead: LeadCustomer) => {
     if (isAdmin) return false;
-    const ownIds = new Set(allLeads.map(x => x.opportunity_id));
-    return !ownIds.has(l.opportunity_id);
+    return lead.opportunity_owner_employee_id !== user?.employee_id;
   };
 
   const getSupplierName = (id?: number | null) =>
@@ -436,6 +436,9 @@ export default function LeadsPage() {
       if (cfg?.requiresSold) payload.is_sold = isSold === "yes";
       if (cfg?.requiresNewEndDate && newEndDate) payload.new_end_date = newEndDate;
       if (callbackStatus === "Already Renewed" && renewedBy) payload.renewed_by = renewedBy;
+      if (callbackStatus === "Converted" && assignToEmployeeId && assignToEmployeeId !== "0") {
+        payload.assigned_to = parseInt(assignToEmployeeId);
+      }  // ✅ FIXED - Added closing brace
       if (cfg?.requiresSupplierChange && newSupplier.trim()) payload.new_supplier = newSupplier.trim();
       if (cfg?.requiresAddressChange && newAddress.trim()) payload.new_address = newAddress.trim();
 
@@ -445,7 +448,13 @@ export default function LeadsPage() {
       );
       if (!response || response.error) throw new Error(response?.error || "Failed to save");
 
-      if (response.moved_to_recycle_bin) {
+      // ✅ Handle "Converted" with assignment
+      if (callbackStatus === "Converted" && response.allocated) {
+        // Lead was allocated to someone else - remove from view
+        setAllLeads(prev => prev.filter(l => l.opportunity_id !== selectedLeadForCallback));
+        setSelectedLeads(prev => prev.filter(id => id !== selectedLeadForCallback));
+        toast.success("✅ Lead converted and assigned - moved to allocated leads");
+      } else if (response.moved_to_recycle_bin) {
         setAllLeads(prev => prev.filter(l => l.opportunity_id !== selectedLeadForCallback));
         setSelectedLeads(prev => prev.filter(id => id !== selectedLeadForCallback));
         toast.success("🗑️ Moved to recycle bin");
@@ -959,22 +968,49 @@ export default function LeadsPage() {
             <thead className="bg-gray-50">
               <tr>
                 <th className="px-3 py-3 text-left w-8">
-                  <input type="checkbox" className="rounded border-gray-300"
+                  <input
+                    type="checkbox"
+                    className="rounded border-gray-300"
                     checked={selectedLeads.length === paginatedLeads.length && paginatedLeads.length > 0}
-                    onChange={handleSelectAll} />
+                    onChange={handleSelectAll}
+                  />
                 </th>
-                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase w-20 border-r-2 border-gray-300">ID</th>
-                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase w-[9%]">Client Name</th>
-                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase w-[11%]">Trading Name</th>
-                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase w-[8%]">Tel No</th>
-                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase w-[8%]">Mobile No</th>
-                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase w-[10%]">MPAN Top</th>
-                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase w-[9%]">Supplier</th>
-                <th className="px-3 py-3 text-right text-xs font-medium tracking-wider text-gray-500 uppercase w-[9%] whitespace-nowrap">Annual Usage</th>
-                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase w-[9%] whitespace-nowrap">Start Date</th>
-                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase w-[9%] whitespace-nowrap">Contract End</th>
-                <th className="px-3 py-3 text-center text-xs font-medium tracking-wider text-gray-500 uppercase w-[12%]">Status</th>
-                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase w-[9%]">Assigned To</th>
+                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase w-20 border-r-2 border-gray-300">
+                  ID
+                </th>
+                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase w-[9%]">
+                  Client Name
+                </th>
+                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase w-[11%]">
+                  Trading Name
+                </th>
+                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase w-[8%]">
+                  Tel No
+                </th>
+                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase w-[8%]">
+                  Mobile No
+                </th>
+                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase w-[10%]">
+                  MPAN Top
+                </th>
+                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase w-[9%]">
+                  Supplier
+                </th>
+                <th className="px-3 py-3 text-right text-xs font-medium tracking-wider text-gray-500 uppercase w-[9%] whitespace-nowrap">
+                  Annual Usage
+                </th>
+                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase w-[9%] whitespace-nowrap">
+                  Start Date
+                </th>
+                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase w-[9%] whitespace-nowrap">
+                  Contract End
+                </th>
+                <th className="px-3 py-3 text-center text-xs font-medium tracking-wider text-gray-500 uppercase w-[12%]">
+                  Status
+                </th>
+                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase w-[9%]">
+                  Assigned To
+                </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200 bg-white">
@@ -998,7 +1034,7 @@ export default function LeadsPage() {
               ) : paginatedLeads.map(lead => {
                 const isSelected = selectedLeads.includes(lead.opportunity_id);
                 const fromSearch = isFromSearch(lead);
-                const displayId = lead.tenant_lead_id || lead.opportunity_id;
+                const displayId = lead.display_order ?? lead.tenant_lead_id ?? lead.opportunity_id;
                 return (
                   <tr key={lead.opportunity_id}
                     className={`hover:bg-gray-50 transition-colors cursor-pointer ${isSelected ? "bg-blue-50" : fromSearch ? "bg-amber-50" : ""}`}
@@ -1017,48 +1053,103 @@ export default function LeadsPage() {
                       setTimeout(() => document.addEventListener("click", close), 0);
                     }}>
 
+                    {/* Checkbox */}
                     <td className="px-3 py-3 align-top" onClick={e => e.stopPropagation()}>
                       <input type="checkbox" className="rounded border-gray-300 mt-1"
                         checked={isSelected}
                         onChange={() => handleSelectLead(lead.opportunity_id)}
                         disabled={fromSearch} />
                     </td>
+
+                    {/* ID */}
                     <td className="px-3 py-3 text-sm font-medium text-gray-900 border-r-2 border-gray-300 align-top">
                       <div className="flex items-center gap-1 whitespace-nowrap">
                         {displayId}
                         {fromSearch && <span title="From team search" className="inline-flex"><Info className="h-3 w-3 text-amber-600" /></span>}
                       </div>
                     </td>
+
+                    {/* Client Name */}
                     <td className="px-3 py-3 text-sm text-gray-700 align-top overflow-hidden">
                       <div className="leading-tight">
-                        <div className="truncate" title={lead.contact_person || ""}>{lead.contact_person || "—"}</div>
-                        {fromSearch && <Badge variant="outline" className="mt-1 text-xs bg-amber-100 text-amber-800 border-amber-300">{lead.assigned_to_name || "Other team"}</Badge>}
+                        <div className="whitespace-normal break-words">{lead.contact_person || "—"}</div>
+                        {fromSearch && (
+                          <Badge variant="outline" className="mt-1 text-xs bg-amber-100 text-amber-800 border-amber-300">
+                            {lead.assigned_to_name || "Other team"}
+                          </Badge>
+                        )}
                       </div>
                     </td>
+
+                    {/* Trading Name */}
                     <td className="px-3 py-3 text-sm text-gray-900 align-top overflow-hidden">
-                      <div className="truncate" title={lead.business_name || ""}>{lead.business_name || "—"}</div>
+                      <div className="leading-tight">
+                        <div className="whitespace-normal break-words">{lead.business_name || "—"}</div>
+                        {lead.is_cleansed && (
+                          <Badge 
+                            variant="outline" 
+                            className="mt-1 text-xs bg-green-100 text-green-800 border-green-300 whitespace-nowrap animate-pulse cursor-pointer hover:animate-none"
+                            onClick={async (e) => {
+                              e.stopPropagation();
+                              try {
+                                await fetchWithAuth(`/api/crm/leads/${lead.opportunity_id}`, {
+                                  method: "PATCH",
+                                  headers: { "Content-Type": "application/json" },
+                                  body: JSON.stringify({ is_cleansed: false }),
+                                });
+                                setAllLeads(prev =>
+                                  prev.map(l => l.opportunity_id === lead.opportunity_id ? { ...l, is_cleansed: false } : l)
+                                );
+                                toast.success("✅ Cleansed tag removed");
+                              } catch {
+                                toast.error("Failed to remove tag");
+                              }
+                            }}
+                          >
+                            CLEANSED
+                          </Badge>
+                        )}
+                      </div>
                     </td>
+
+                    {/* Tel No */}
                     <td className="px-3 py-3 text-sm text-gray-900 align-top">
                       <div className="whitespace-nowrap">{lead.tel_number ? String(lead.tel_number).replace(/\.0$/, "") : "—"}</div>
                     </td>
+
+                    {/* Mobile No */}
                     <td className="px-3 py-3 text-sm text-gray-900 align-top">
                       <div className="whitespace-nowrap">{lead.mobile_no ? String(lead.mobile_no).replace(/\.0$/, "") : "—"}</div>
                     </td>
+
+                    {/* MPAN Top */}
                     <td className="px-3 py-3 text-sm text-gray-900 align-top overflow-hidden">
                       <div className="truncate" title={lead.mpan_mpr || ""}>{lead.mpan_mpr || "—"}</div>
                     </td>
+
+                    {/* Supplier */}
                     <td className="px-3 py-3 text-sm text-gray-900 align-top overflow-hidden">
-                      <div className="truncate">{lead.supplier_name || getSupplierName(lead.supplier_id)}</div>
+                      <div className="truncate" title={lead.supplier_name || ""}>
+                        {lead.supplier_name || getSupplierName(lead.supplier_id)}
+                      </div>
                     </td>
+
+                    {/* Annual Usage */}
                     <td className="px-3 py-3 text-sm text-gray-900 text-right align-top">
                       <div className="whitespace-nowrap">{lead.annual_usage ? lead.annual_usage.toLocaleString() : "—"}</div>
                     </td>
+
+                    {/* Start Date */}
                     <td className="px-3 py-3 text-sm text-gray-900 align-top">
                       <div className="whitespace-nowrap">{formatDate(lead.start_date)}</div>
                     </td>
+
+                    {/* Contract End */}
                     <td className="px-3 py-3 text-sm text-gray-900 align-top">
                       <div className="whitespace-nowrap">{formatDate(lead.end_date)}</div>
                     </td>
+
+                    {/* Status */}
                     <td className="px-3 py-3 align-top" onClick={e => e.stopPropagation()}>
                       <Select value={lead.stage_name || ""} onValueChange={v => { if (v === "CLEAR_STATUS") updateLeadStatus(lead.opportunity_id, ""); else updateLeadStatus(lead.opportunity_id, v); }}>
                         <SelectTrigger className="h-7 text-xs w-full max-w-[150px]">
@@ -1074,6 +1165,8 @@ export default function LeadsPage() {
                         </SelectContent>
                       </Select>
                     </td>
+
+                    {/* Assigned To */}
                     <td className="px-3 py-3 align-top" onClick={e => e.stopPropagation()}>
                       <Select
                         value={lead.opportunity_owner_employee_id?.toString() || "0"}
@@ -1248,6 +1341,33 @@ export default function LeadsPage() {
               <div className="space-y-2">
                 <label className="text-sm font-medium">New Address (Optional)</label>
                 <Textarea placeholder="Enter new address if changed" value={newAddress} onChange={e => setNewAddress(e.target.value)} rows={2} />
+              </div>
+            )}
+
+            {callbackStatus === "Converted" && (
+              <div className="space-y-2">
+                <label className="text-sm font-medium">
+                  Assign To <span className="text-gray-500">(Optional)</span>
+                </label>
+                <Select 
+                  value={assignToEmployeeId || "0"} 
+                  onValueChange={setAssignToEmployeeId}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Keep current assignment" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="0">Keep current assignment</SelectItem>
+                    {employees.map(e => (
+                      <SelectItem key={e.employee_id} value={e.employee_id.toString()}>
+                        {e.employee_name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-gray-500">
+                  Optionally reassign this converted lead to another team member
+                </p>
               </div>
             )}
             {statusConfig[callbackStatus]?.deletesRecord && (

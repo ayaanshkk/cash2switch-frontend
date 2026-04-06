@@ -222,7 +222,7 @@ export default function CleansingPage() {
           ? `/api/crm/leads/${fixingRecord.id}/cleanse`
           : `/energy-clients/${fixingRecord.client_id}/cleanse`;
 
-      await fetchWithAuth(endpoint, {
+      const response = await fetchWithAuth(endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -230,12 +230,19 @@ export default function CleansingPage() {
           tel_number: fixPhone.trim() || undefined,
           new_supplier: fixSupplier.trim() || undefined,
           notes: fixNotes.trim() || undefined,
+          is_cleansed: true, // ✅ Mark as cleansed
         }),
       });
 
+      if (!response || response.error) {
+        throw new Error(response?.error || "Failed to fix record");
+      }
+
       setAllRecords(prev => prev.filter(r => r.client_id !== fixingRecord.client_id));
       setSelectedRecords(prev => prev.filter(id => id !== fixingRecord.client_id));
-      toast.success("✅ Record fixed and sent back to Renewals");
+      
+      const destination = fixingRecord.source === "lead" ? "Leads" : "Renewals";
+      toast.success(`✅ Record fixed and restored to ${destination}`);
       setShowFixModal(false);
     } catch (e: any) {
       setFixError(e.message ?? "Failed to fix record");
@@ -462,7 +469,7 @@ export default function CleansingPage() {
                   />
                 </th>
                 {/* ID — same border-r-2 as renewals */}
-                <th className="px-2 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase w-10 border-r-2 border-gray-300">
+                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase w-20 border-r-2 border-gray-300">
                   ID
                 </th>
                 {/* Same widths as renewals */}
@@ -588,8 +595,8 @@ export default function CleansingPage() {
                       </td>
 
                       {/* ID — same as renewals with border-r-2 */}
-                      <td className="px-2 py-3 text-sm font-medium text-gray-900 border-r-2 border-gray-300 align-top">
-                        <div className="flex items-center gap-1">
+                      <td className="px-3 py-3 text-sm font-medium text-gray-900 border-r-2 border-gray-300 align-top">
+                        <div className="flex items-center gap-1 whitespace-nowrap">
                           {displayId}
                           {record.source === "lead" && (
                             <span title="From Leads" className="inline-flex">
@@ -728,9 +735,10 @@ export default function CleansingPage() {
           <DialogHeader>
             <DialogTitle>Fix & Restore Record</DialogTitle>
             <DialogDescription>
-              Correct the information below, then restore it back to Renewals.
+              Correct the information below, then restore it back to {fixingRecord?.source === "lead" ? "Leads" : "Renewals"}.
             </DialogDescription>
           </DialogHeader>
+
           {fixingRecord && (
             <div className="space-y-4 py-4">
               {fixError && (
@@ -811,7 +819,7 @@ export default function CleansingPage() {
               <Alert>
                 <RotateCcw className="h-4 w-4" />
                 <AlertDescription>
-                  Once fixed, this record will be restored to <strong>Renewals</strong> with the corrected information.
+                  Once fixed, this record will be restored to <strong>{fixingRecord.source === "lead" ? "Leads" : "Renewals"}</strong> with the corrected information.
                 </AlertDescription>
               </Alert>
             </div>
@@ -823,7 +831,7 @@ export default function CleansingPage() {
             <Button onClick={handleSubmitFix} disabled={isSubmittingFix}>
               {isSubmittingFix
                 ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Saving...</>
-                : "Fix & Restore to Renewals"}
+                : `Fix & Restore to ${fixingRecord?.source === "lead" ? "Leads" : "Renewals"}`}
             </Button>
           </div>
         </DialogContent>

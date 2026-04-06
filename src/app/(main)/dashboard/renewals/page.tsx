@@ -130,6 +130,7 @@ interface EnergyCustomer {
   home_street?: string;
   home_post_code?: string;
   is_archived?: boolean;
+  is_cleansed?: boolean;
 }
 
 interface Supplier {
@@ -1551,6 +1552,30 @@ export default function EnergyCustomersPage() {
                       <td className="px-3 py-3 text-sm text-gray-900 align-top overflow-hidden">
                         <div className="leading-tight">
                           <div className="whitespace-normal break-words">{customer.business_name}</div>
+                          {customer.is_cleansed && (
+                            <Badge 
+                              variant="outline" 
+                              className="mt-1 text-xs bg-green-100 text-green-800 border-green-300 whitespace-nowrap animate-pulse cursor-pointer hover:animate-none"
+                              onClick={async (e) => {
+                                e.stopPropagation();
+                                try {
+                                  await fetchWithAuth(`/energy-clients/${customer.client_id}`, {
+                                    method: "PUT",
+                                    headers: { "Content-Type": "application/json" },
+                                    body: JSON.stringify({ is_cleansed: false }),
+                                  });
+                                  setAllCustomers(prev =>
+                                    prev.map(c => c.client_id === customer.client_id ? { ...c, is_cleansed: false } : c)
+                                  );
+                                  toast.success("✅ Cleansed tag removed");
+                                } catch {
+                                  toast.error("Failed to remove tag");
+                                }
+                              }}
+                            >
+                              CLEANSED
+                            </Badge>
+                          )}
                           {isArchived && (
                             <Badge variant="outline" className="mt-1 text-xs bg-gray-200 text-gray-600 border-gray-400 whitespace-nowrap">
                               ARCHIVED

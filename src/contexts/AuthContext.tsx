@@ -14,6 +14,7 @@ interface User {
   full_name: string;
   phone?: string;
   role: string;
+  role_id?: number;
   department?: string;
   is_active: boolean;
   is_verified: boolean;
