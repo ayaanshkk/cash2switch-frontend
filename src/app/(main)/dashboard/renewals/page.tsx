@@ -303,7 +303,9 @@ export default function EnergyCustomersPage() {
     not_due: 0,
   });
   const [showPerformanceModal, setShowPerformanceModal] = useState(false);
-  const [performanceFilter, setPerformanceFilter] = useState<'renewed' | 'in_progress' | 'not_contacted' | 'lost' | 'renewed_directly' | 'end_date_changed' | 'priced' | null>(null);
+  const [performanceFilter, setPerformanceFilter] = useState
+    'priced' | 'lost' | 'renewed' | 'in_progress' | 'not_contacted' | 'renewed_directly' | 'end_date_changed' | 'not_due' | null  
+  >(null);
   const [performanceFilteredCustomers, setPerformanceFilteredCustomers] = useState<EnergyCustomer[]>([]);
   const [calledDate, setCalledDate] = useState(() => new Date().toISOString().split('T')[0]);
   const [renewedBy, setRenewedBy] = useState<"customer" | "agent" | "">("");
