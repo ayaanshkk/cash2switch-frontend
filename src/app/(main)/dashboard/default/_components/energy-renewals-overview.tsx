@@ -135,12 +135,8 @@ export function EnergyRenewalsOverview({ userRole, employeeId }: EnergyRenewalsO
   const [aqBreakdown, setAQBreakdown] = useState<AQBreakdownResponse | null>(null);
   const [aqModalLoading, setAQModalLoading] = useState(false);
 
-  // ✅ CRITICAL FIX: Determine admin status based on employeeId prop
-  // If employeeId is undefined/null, user is admin (viewing all data)
-  // If employeeId is provided, user is salesperson (viewing only their data)
   const isAdmin = employeeId === undefined || employeeId === null;
 
-  // ✅ DEBUG LOGGING
   useEffect(() => {
     console.log("\n" + "=".repeat(80));
     console.log("🎯 ENERGY RENEWALS OVERVIEW - INITIALIZATION");
@@ -175,7 +171,6 @@ export function EnergyRenewalsOverview({ userRole, employeeId }: EnergyRenewalsO
     try {
       const token = localStorage.getItem("auth_token");
       
-      // ✅ Salespeople see their own stats, admins see everyone
       const employeeParam = !isAdmin && employeeId ? `?employee_id=${employeeId}` : '';
       
       console.log(`📊 Fetching AQ breakdown with param: ${employeeParam}`);
@@ -201,7 +196,7 @@ export function EnergyRenewalsOverview({ userRole, employeeId }: EnergyRenewalsO
     fetchRenewalStats();
     fetchSalesPerformance('month');
     if (isAdmin) {
-      loadEmployees(); // ✅ Only admins need employee list for filters
+      loadEmployees();
     }
   }, [isAdmin, employeeId]);
 
@@ -210,7 +205,6 @@ export function EnergyRenewalsOverview({ userRole, employeeId }: EnergyRenewalsO
       setLoading(true);
       const token = localStorage.getItem("auth_token");
 
-      // ✅ CRITICAL FIX: Only add employee_id param for salespeople
       const employeeParam = !isAdmin && employeeId ? `?employee_id=${employeeId}` : '';
 
       console.log("\n" + "=".repeat(80));
@@ -254,7 +248,6 @@ export function EnergyRenewalsOverview({ userRole, employeeId }: EnergyRenewalsO
     try {
       const token = localStorage.getItem("auth_token");
       
-      // ✅ Salespeople see only their own performance
       const employeeParam = !isAdmin && employeeId ? `&employee_id=${employeeId}` : '';
 
       console.log(`📈 Fetching sales performance: period=${period}, employeeParam=${employeeParam}`);
@@ -281,10 +274,8 @@ export function EnergyRenewalsOverview({ userRole, employeeId }: EnergyRenewalsO
       let employeeParam = '';
       
       if (!isAdmin && employeeId) {
-        // Salesperson - always filter by their employeeId
         employeeParam = `&employee_id=${employeeId}`;
       } else if (isAdmin) {
-        // Use the override if provided (from dropdown change), otherwise fall back to state
         const effectiveFilter = employeeOverride !== undefined ? employeeOverride : modalEmployeeFilter;
         if (effectiveFilter) {
           employeeParam = `&employee_id=${effectiveFilter}`;
@@ -339,6 +330,15 @@ export function EnergyRenewalsOverview({ userRole, employeeId }: EnergyRenewalsO
       return `${(aq / 1000).toFixed(0)}K`;
     }
     return aq.toString();
+  };
+
+  const formatCurrency = (amount: number) => {
+    if (amount >= 1000000) {
+      return `£${(amount / 1000000).toFixed(1)}M`;
+    } else if (amount >= 1000) {
+      return `£${(amount / 1000).toFixed(0)}K`;
+    }
+    return `£${amount.toFixed(0)}`;
   };
 
   return (
@@ -513,10 +513,7 @@ export function EnergyRenewalsOverview({ userRole, employeeId }: EnergyRenewalsO
               {isAdmin ? "Total Revenue at Risk" : "Your Revenue at Risk"}
             </CardDescription>
             <CardTitle className="text-xl font-semibold tabular-nums text-red-900 break-all leading-tight">
-              £{(stats?.total_revenue_at_risk || 0).toLocaleString('en-GB', { 
-                minimumFractionDigits: 2, 
-                maximumFractionDigits: 2 
-              })}
+              {formatCurrency(stats?.total_revenue_at_risk || 0)}
             </CardTitle>
           </CardHeader>
           <CardFooter className="flex-col items-start gap-1.5 text-sm px-4 pb-4 pt-2">
@@ -626,7 +623,7 @@ export function EnergyRenewalsOverview({ userRole, employeeId }: EnergyRenewalsO
                     </div>
                     <div className="flex items-center gap-3">
                       <span className="text-muted-foreground">{supplier.renewal_count} contracts</span>
-                      <span className="font-semibold">£{(supplier.total_value / 1000).toFixed(0)}K</span>
+                      <span className="font-semibold">{formatCurrency(supplier.total_value)}</span>
                     </div>
                   </div>
                   <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
@@ -707,7 +704,6 @@ export function EnergyRenewalsOverview({ userRole, employeeId }: EnergyRenewalsO
                 </DialogDescription>
               </div>
               
-              {/* Only show filter dropdown for admins */}
               {isAdmin && (
                 <Select
                   value={modalEmployeeFilter?.toString() || "all"}
@@ -819,9 +815,9 @@ export function EnergyRenewalsOverview({ userRole, employeeId }: EnergyRenewalsO
 
       {/* AQ Breakdown Modal */}
       <Dialog open={showAQModal} onOpenChange={setShowAQModal}>
-        <DialogContent className="max-w-[98vw] w-[98vw] max-h-[90vh] overflow-y-auto p-6">
-          <DialogHeader className="pb-4">
-            <DialogTitle className="text-2xl">
+        <DialogContent className="max-w-[1400px] w-[95vw] max-h-[90vh] overflow-y-auto">
+          <DialogHeader className="pb-4 border-b">
+            <DialogTitle className="text-2xl font-bold">
               {isAdmin ? "AQ Breakdown by Salesperson" : "Your AQ Breakdown"}
             </DialogTitle>
             <DialogDescription className="text-base">
@@ -836,8 +832,9 @@ export function EnergyRenewalsOverview({ userRole, employeeId }: EnergyRenewalsO
               <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
             </div>
           ) : aqBreakdown ? (
-            <div className="space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div className="space-y-6 py-4">
+              {/* Summary Cards */}
+              <div className="grid grid-cols-4 gap-6">
                 <Card className="bg-purple-50">
                   <CardHeader className="pb-3">
                     <CardDescription className="text-sm">Total AQ</CardDescription>
@@ -850,7 +847,7 @@ export function EnergyRenewalsOverview({ userRole, employeeId }: EnergyRenewalsO
                   <CardHeader className="pb-3">
                     <CardDescription className="text-sm">Total Revenue</CardDescription>
                     <CardTitle className="text-3xl text-green-900">
-                      £{(aqBreakdown.total_revenue / 1000).toFixed(1)}K
+                      {formatCurrency(aqBreakdown.total_revenue)}
                     </CardTitle>
                   </CardHeader>
                 </Card>
@@ -874,73 +871,72 @@ export function EnergyRenewalsOverview({ userRole, employeeId }: EnergyRenewalsO
                 </Card>
               </div>
 
+              {/* Salesperson Table */}
               {isAdmin && (
                 <div className="rounded-lg border bg-white">
-                  <div className="overflow-x-auto">
-                    <table className="w-full">
-                      <thead className="bg-gray-50 border-b">
-                        <tr>
-                          <th className="px-6 py-4 text-left text-sm font-semibold whitespace-nowrap min-w-[200px]">
-                            Salesperson
-                          </th>
-                          <th className="px-6 py-4 text-right text-sm font-semibold whitespace-nowrap min-w-[120px]">
-                            Customers
-                          </th>
-                          <th className="px-6 py-4 text-right text-sm font-semibold whitespace-nowrap min-w-[150px]">
-                            Total AQ (kWh)
-                          </th>
-                          <th className="px-6 py-4 text-right text-sm font-semibold whitespace-nowrap min-w-[160px]">
-                            Avg AQ/Customer
-                          </th>
-                          <th className="px-6 py-4 text-right text-sm font-semibold whitespace-nowrap min-w-[130px]">
-                            Revenue (£)
-                          </th>
-                          <th className="px-6 py-4 text-right text-sm font-semibold whitespace-nowrap min-w-[250px]">
-                            % of Total AQ
-                          </th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y">
-                        {aqBreakdown.breakdown.map((sales) => {
-                          const aqPercentage = ((sales.total_aq / aqBreakdown.total_aq) * 100).toFixed(1);
-                          
-                          return (
-                            <tr key={sales.employee_id} className="hover:bg-gray-50">
-                              <td className="px-6 py-5 whitespace-nowrap">
-                                <div className="flex items-center gap-3">
-                                  <Users className="h-5 w-5 text-purple-600 flex-shrink-0" />
-                                  <span className="font-medium text-base">{sales.employee_name}</span>
+                  <table className="w-full">
+                    <thead className="bg-gray-50 border-b">
+                      <tr>
+                        <th className="px-6 py-4 text-left text-sm font-semibold w-[20%]">
+                          Salesperson
+                        </th>
+                        <th className="px-6 py-4 text-right text-sm font-semibold w-[12%]">
+                          Customers
+                        </th>
+                        <th className="px-6 py-4 text-right text-sm font-semibold w-[15%]">
+                          Total AQ (kWh)
+                        </th>
+                        <th className="px-6 py-4 text-right text-sm font-semibold w-[15%]">
+                          Avg AQ/Customer
+                        </th>
+                        <th className="px-6 py-4 text-right text-sm font-semibold w-[13%]">
+                          Revenue
+                        </th>
+                        <th className="px-6 py-4 text-right text-sm font-semibold w-[25%]">
+                          % of Total AQ
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y">
+                      {aqBreakdown.breakdown.map((sales) => {
+                        const aqPercentage = ((sales.total_aq / aqBreakdown.total_aq) * 100).toFixed(1);
+                        
+                        return (
+                          <tr key={sales.employee_id} className="hover:bg-gray-50">
+                            <td className="px-6 py-5">
+                              <div className="flex items-center gap-3">
+                                <Users className="h-5 w-5 text-purple-600 flex-shrink-0" />
+                                <span className="font-medium text-base">{sales.employee_name}</span>
+                              </div>
+                            </td>
+                            <td className="px-6 py-5 text-right text-base">
+                              {sales.customer_count}
+                            </td>
+                            <td className="px-6 py-5 text-right font-semibold text-lg text-purple-900">
+                              {formatAQ(sales.total_aq)}
+                            </td>
+                            <td className="px-6 py-5 text-right text-base text-gray-700">
+                              {formatAQ(sales.average_aq_per_customer)}
+                            </td>
+                            <td className="px-6 py-5 text-right font-semibold text-base text-green-700">
+                              {formatCurrency(sales.total_revenue)}
+                            </td>
+                            <td className="px-6 py-5 text-right">
+                              <div className="flex items-center justify-end gap-4">
+                                <div className="w-48 h-4 bg-gray-200 rounded-full overflow-hidden">
+                                  <div
+                                    className="h-full bg-purple-600 rounded-full transition-all"
+                                    style={{ width: `${aqPercentage}%` }}
+                                  />
                                 </div>
-                              </td>
-                              <td className="px-6 py-5 text-right text-base whitespace-nowrap">
-                                {sales.customer_count}
-                              </td>
-                              <td className="px-6 py-5 text-right font-semibold text-lg text-purple-900 whitespace-nowrap">
-                                {formatAQ(sales.total_aq)}
-                              </td>
-                              <td className="px-6 py-5 text-right text-base text-gray-700 whitespace-nowrap">
-                                {formatAQ(sales.average_aq_per_customer)}
-                              </td>
-                              <td className="px-6 py-5 text-right font-semibold text-base text-green-700 whitespace-nowrap">
-                                £{(sales.total_revenue / 1000).toFixed(1)}K
-                              </td>
-                              <td className="px-6 py-5 text-right whitespace-nowrap">
-                                <div className="flex items-center justify-end gap-4">
-                                  <div className="w-40 h-4 bg-gray-200 rounded-full overflow-hidden flex-shrink-0">
-                                    <div
-                                      className="h-full bg-purple-600 rounded-full transition-all"
-                                      style={{ width: `${aqPercentage}%` }}
-                                    />
-                                  </div>
-                                  <span className="text-base font-semibold w-16 text-right">{aqPercentage}%</span>
-                                </div>
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
+                                <span className="text-base font-semibold w-16 text-right">{aqPercentage}%</span>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
                 </div>
               )}
             </div>

@@ -51,6 +51,12 @@ interface StageBreakdown {
   total_value: number;
 }
 
+interface SupplierBreakdown {
+  supplier_name: string;
+  lead_count: number;
+  total_value: number;
+}
+
 interface SalespersonBreakdown {
   employee_id: number;
   employee_name: string;
@@ -93,6 +99,14 @@ const stageColors = [
   "var(--chart-5)",
 ];
 
+const supplierColors = [
+  "var(--chart-1)",
+  "var(--chart-2)", 
+  "var(--chart-3)",
+  "var(--chart-4)",
+  "var(--chart-5)",
+];
+
 const chartConfig = {
   leads: {
     label: "Leads",
@@ -112,6 +126,7 @@ export function LeadsOverview({ userRole, employeeId }: LeadsOverviewProps = {})
   const router = useRouter();
   const [stats, setStats] = useState<LeadStats | null>(null);
   const [stageData, setStageData] = useState<StageBreakdown[]>([]);
+  const [supplierData, setSupplierData] = useState<SupplierBreakdown[]>([]);
   const [salesData, setSalesData] = useState<SalespersonBreakdown[]>([]);
   const [loading, setLoading] = useState(true);
   
@@ -203,6 +218,17 @@ export function LeadsOverview({ userRole, employeeId }: LeadsOverviewProps = {})
         const stageBreakdown = await stageRes.json();
         console.log("✅ Stage breakdown received:", stageBreakdown.length, "stages");
         setStageData(stageBreakdown);
+      }
+
+      // Fetch supplier breakdown
+      const supplierRes = await fetch(`${API_BASE_URL}/api/crm/leads/supplier-breakdown${employeeParam}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      if (supplierRes.ok) {
+        const supplierBreakdown = await supplierRes.json();
+        console.log("✅ Supplier breakdown received:", supplierBreakdown.length, "suppliers");
+        setSupplierData(supplierBreakdown);
       }
 
       if (isAdmin) {
@@ -306,13 +332,13 @@ export function LeadsOverview({ userRole, employeeId }: LeadsOverviewProps = {})
 
   const conversionPercentage = stats?.conversion_rate?.toFixed(1) || "0";
 
-  const formatVolume = (vol: number) => {
-    if (vol >= 1000000) {
-      return `${(vol / 1000000).toFixed(1)}M`;
-    } else if (vol >= 1000) {
-      return `${(vol / 1000).toFixed(0)}K`;
+  const formatCurrency = (amount: number) => {
+    if (amount >= 1000000) {
+      return `£${(amount / 1000000).toFixed(1)}M`;
+    } else if (amount >= 1000) {
+      return `£${(amount / 1000).toFixed(0)}K`;
     }
-    return vol.toString();
+    return `£${amount.toFixed(0)}`;
   };
 
   return (
@@ -548,39 +574,39 @@ export function LeadsOverview({ userRole, employeeId }: LeadsOverviewProps = {})
           </CardFooter>
         </Card>
 
-        {/* Salesperson Breakdown */}
+        {/* Top Suppliers Breakdown */}
         <Card>
           <CardHeader>
-            <CardTitle>Top Salespeople</CardTitle>
+            <CardTitle>Top Suppliers</CardTitle>
             <CardDescription>
-              {isAdmin ? "Leads by salesperson" : "Your lead distribution"}
+              {isAdmin ? "Leads by current supplier" : "Your leads by supplier"}
             </CardDescription>
           </CardHeader>
           <CardContent className="h-64 overflow-y-auto">
             <div className="space-y-3">
-              {salesData.slice(0, 6).map((person, index) => (
-                <div key={person.employee_id} className="space-y-1">
+              {supplierData.slice(0, 6).map((supplier, index) => (
+                <div key={supplier.supplier_name} className="space-y-1">
                   <div className="flex items-center justify-between text-sm">
                     <div className="flex items-center gap-2">
                       <div
                         className="h-3 w-3 rounded-full"
-                        style={{ backgroundColor: stageColors[index % stageColors.length] }}
+                        style={{ backgroundColor: supplierColors[index % supplierColors.length] }}
                       />
                       <span className="font-medium truncate max-w-[150px]">
-                        {person.employee_name}
+                        {supplier.supplier_name}
                       </span>
                     </div>
                     <div className="flex items-center gap-3">
-                      <span className="text-muted-foreground">{person.total_leads} leads</span>
-                      <span className="font-semibold">£{(person.total_value / 1000).toFixed(0)}K</span>
+                      <span className="text-muted-foreground">{supplier.lead_count} leads</span>
+                      <span className="font-semibold">{formatCurrency(supplier.total_value)}</span>
                     </div>
                   </div>
                   <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
                     <div
                       className="h-full rounded-full"
                       style={{
-                        width: `${(person.total_leads / (stats?.total_leads || 1)) * 100}%`,
-                        backgroundColor: stageColors[index % stageColors.length],
+                        width: `${(supplier.lead_count / (stats?.total_leads || 1)) * 100}%`,
+                        backgroundColor: supplierColors[index % supplierColors.length],
                       }}
                     />
                   </div>
@@ -784,7 +810,7 @@ export function LeadsOverview({ userRole, employeeId }: LeadsOverviewProps = {})
                   <CardHeader className="pb-3">
                     <CardDescription className="text-sm">Total Pipeline Value</CardDescription>
                     <CardTitle className="text-3xl text-purple-900">
-                      £{((stats?.total_value || 0) / 1000).toFixed(1)}K
+                      {formatCurrency(stats?.total_value || 0)}
                     </CardTitle>
                   </CardHeader>
                 </Card>
@@ -834,7 +860,7 @@ export function LeadsOverview({ userRole, employeeId }: LeadsOverviewProps = {})
                               {sales.total_leads}
                             </td>
                             <td className="px-6 py-5 text-right font-semibold text-lg text-purple-900 whitespace-nowrap">
-                              £{(sales.total_value / 1000).toFixed(1)}K
+                              {formatCurrency(sales.total_value)}
                             </td>
                             <td className="px-6 py-5 text-right text-base text-gray-700 whitespace-nowrap">
                               {sales.conversion_rate}%
