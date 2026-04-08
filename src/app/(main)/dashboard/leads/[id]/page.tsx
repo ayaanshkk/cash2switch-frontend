@@ -1117,23 +1117,24 @@ export default function LeadDetailsPage() {
             <label className="text-sm font-medium text-gray-700">
               Status: <span className="text-red-500">*</span>
             </label>
-            {/* Show current DB stage as read-only badge if it's not a selectable status */}
-            {lead.stage_name && !STATUS_OPTIONS.find(o => o.value === lead.stage_name) && (
-              <div className="mt-1 px-3 py-2 bg-white border border-gray-200 rounded-md text-sm text-gray-700">
-                Current: <span className="font-medium">{lead.stage_name}</span>
-              </div>
-            )}
             <Select
               value={callbackStatus}
               onValueChange={v => {
-                if (v === "CLEAR_STATUS") { handleClearStatus(); return; }
+                if (v === "CLEAR_STATUS") { 
+                  handleClearStatus(); 
+                  return; 
+                }
                 setCallbackStatus(v);
-                setCallbackDate(""); setCallbackNotes(""); setIsSold("");
-                setNewEndDate(""); setNewSupplier(""); setNewAddress("");
+                setCallbackDate(""); 
+                setCallbackNotes(""); 
+                setIsSold("");
+                setNewEndDate(""); 
+                setNewSupplier(""); 
+                setNewAddress("");
                 setCalledDate(new Date().toISOString().split("T")[0]);
                 setRenewedBy("");
               }}>
-              <SelectTrigger className="w-full mt-1"><SelectValue placeholder="Set new status" /></SelectTrigger>
+              <SelectTrigger className="w-full mt-1"><SelectValue placeholder="Set status" /></SelectTrigger>
               <SelectContent>
                 {STATUS_OPTIONS.map(o => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
                 {lead.stage_name && (

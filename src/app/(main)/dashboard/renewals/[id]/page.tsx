@@ -73,7 +73,6 @@ const STATUS_OPTIONS = [
   { value: "Incorrect Supplier", label: "Incorrect Supplier" },
 ];
 
-// ✅ ADD THESE HELPER FUNCTIONS HERE
 const getStatusColor = (status: string | undefined): string => {
   if (!status) return "bg-gray-100 text-gray-800";
   
