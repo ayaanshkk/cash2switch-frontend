@@ -147,15 +147,17 @@ export function NavMain({ items }: NavMainProps) {
   const { state, isMobile } = useSidebar();
   const { user } = useAuth();
 
+  const normalizeNavUrl = (url: string) => url.split("?")[0];
+
   const isItemActive = (url: string, subItems?: NavMainItem["subItems"]) => {
     if (subItems?.length) {
-      return subItems.some((sub) => path.startsWith(sub.url));
+      return subItems.some((sub) => path.startsWith(normalizeNavUrl(sub.url)));
     }
-    return path === url;
+    return path === normalizeNavUrl(url);
   };
 
   const isSubmenuOpen = (subItems?: NavMainItem["subItems"]) => {
-    return subItems?.some((sub) => path.startsWith(sub.url)) ?? false;
+    return subItems?.some((sub) => path.startsWith(normalizeNavUrl(sub.url))) ?? false;
   };
 
   const filteredItems = items.map((group) => ({

@@ -133,6 +133,20 @@ const allSidebarItems: NavGroup[] = [
         icon: Calendar,
         roles: ["platform admin", "salesperson", "leads offshore"],
         isNew: true,
+        subItems: [
+          {
+            title: "Renewals Calendar",
+            url: "/dashboard/calendar?view=renewals",
+            icon: Calendar,
+            roles: ["platform admin", "salesperson", "leads offshore"],
+          },
+          {
+            title: "Leads Calendar",
+            url: "/dashboard/calendar?view=leads",
+            icon: Calendar,
+            roles: ["platform admin", "salesperson", "leads offshore"],
+          },
+        ],
       },
       {
         title: "Documents",
