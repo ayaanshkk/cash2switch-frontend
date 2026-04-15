@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useMemo } from "react";
+import { useSearchParams } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -40,8 +41,11 @@ interface Employee {
   email: string;
 }
 
+type CalendarView = "renewals" | "leads";
+
 export default function CalendarPage() {
   const { user } = useAuth();
+  const searchParams = useSearchParams();
   const isLeadsRole = useMemo(() => {
     const role = user?.role || '';
     const adminRoles = ['Platform Admin', 'Tenant Super Admin'];
@@ -50,11 +54,14 @@ export default function CalendarPage() {
     return role.toLowerCase().includes('leads offshore') || role.toLowerCase().includes('leads');
   }, [user?.role]);
 
-  const pageTitle = isLeadsRole ? "Leads Calendar" : "Renewals Calendar";
-  const pageSubtitle = isLeadsRole
+  const [calendarView, setCalendarView] = useState<CalendarView>("renewals");
+  const isLeadsView = calendarView === "leads";
+
+  const pageTitle = isLeadsView ? "Leads Calendar" : "Renewals Calendar";
+  const pageSubtitle = isLeadsView
     ? "View all leads contract end dates and callbacks"
     : "View all customers contract end dates and callbacks";
-  const detailsBasePath = isLeadsRole ? "/dashboard/leads" : "/dashboard/renewals";
+  const detailsBasePath = isLeadsView ? "/dashboard/leads" : "/dashboard/renewals";
   const [renewals, setRenewals] = useState<Renewal[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -71,6 +78,16 @@ export default function CalendarPage() {
   const [selectedEmployeeId, setSelectedEmployeeId] = useState<number | undefined>(undefined);
   const [isAdmin, setIsAdmin] = useState(false);
   const [loadingEmployees, setLoadingEmployees] = useState(false);
+
+  useEffect(() => {
+    const view = searchParams.get("view");
+    if (view === "leads" || view === "renewals") {
+      setCalendarView(view);
+      setError(null);
+      return;
+    }
+    setCalendarView(isLeadsRole ? "leads" : "renewals");
+  }, [searchParams, isLeadsRole]);
 
   // Check if user is admin
   useEffect(() => {
@@ -178,12 +195,12 @@ export default function CalendarPage() {
     return dateMap;
   }, [renewals]);
 
-  const loadRenewals = async () => {
+  const loadCalendarEvents = async () => {
     try {
       setLoading(true);
       setError(null);
 
-      const response = isLeadsRole
+      const response = isLeadsView
         ? await api.getCalendarLeads(selectedEmployeeId)
         : await api.getCalendarRenewals(selectedEmployeeId);
 
@@ -203,9 +220,9 @@ export default function CalendarPage() {
 
   useEffect(() => {
     if (user) {
-      loadRenewals();
+      loadCalendarEvents();
     }
-  }, [user, selectedEmployeeId]);
+  }, [user, selectedEmployeeId, calendarView]);
 
   const navigateMonth = (direction: "prev" | "next") => {
     const newDate = new Date(currentDate);
@@ -253,7 +270,7 @@ export default function CalendarPage() {
 
 
   const openCustomerDetails = (customerId: number) => {
-    window.open(`/dashboard/renewals/${customerId}`, '_blank', 'noopener,noreferrer');
+    window.open(`${detailsBasePath}/${customerId}`, '_blank', 'noopener,noreferrer');
   };
 
   if (!user) {
@@ -310,8 +327,8 @@ export default function CalendarPage() {
               )}
             </div>
           )}
-          
-          <Button onClick={loadRenewals} disabled={loading} variant="outline" size="sm">
+
+          <Button onClick={loadCalendarEvents} disabled={loading} variant="outline" size="sm">
             <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
             Refresh
           </Button>
@@ -326,7 +343,7 @@ export default function CalendarPage() {
             <h3 className="text-sm font-medium text-red-800">Error Loading Calendar</h3>
             <p className="mt-1 text-sm text-red-700">{error}</p>
             <Button 
-              onClick={loadRenewals} 
+              onClick={loadCalendarEvents} 
               variant="outline" 
               size="sm" 
               className="mt-3"

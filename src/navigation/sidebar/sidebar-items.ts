@@ -133,6 +133,20 @@ const allSidebarItems: NavGroup[] = [
         icon: Calendar,
         roles: ["platform admin", "salesperson", "leads offshore"],
         isNew: true,
+        subItems: [
+          {
+            title: "Renewals Calendar",
+            url: "/dashboard/calendar?view=renewals",
+            icon: Calendar,
+            roles: ["platform admin", "salesperson", "leads offshore"],
+          },
+          {
+            title: "Leads Calendar",
+            url: "/dashboard/calendar?view=leads",
+            icon: Calendar,
+            roles: ["platform admin", "salesperson", "leads offshore"],
+          },
+        ],
       },
       {
         title: "Documents",
@@ -209,7 +223,7 @@ export const getSidebarItems = (userRole: string, notificationCount?: number): N
   } else if (isLeadsOffshore) {
     allowedRoles = ['leads offshore'];
   }
-  
+
   return allSidebarItems
     .map((group) => ({
       ...group,
@@ -226,7 +240,7 @@ export const getSidebarItems = (userRole: string, notificationCount?: number): N
               badge: notificationCount > 9 ? '9+' : notificationCount,
             };
           }
-          
+
           if (item.subItems && item.subItems.length > 0) {
             return {
               ...item,
@@ -236,7 +250,7 @@ export const getSidebarItems = (userRole: string, notificationCount?: number): N
               }),
             };
           }
-          
+
           return item;
         }),
     }))

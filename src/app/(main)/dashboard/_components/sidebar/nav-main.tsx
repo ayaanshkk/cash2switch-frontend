@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 
 import { PlusCircleIcon, MailIcon, ChevronRight } from "lucide-react";
@@ -39,10 +39,12 @@ const IsComingSoon = () => (
 const NavItemExpanded = ({
   item,
   isActive,
+  isSubItemActive,
   isSubmenuOpen,
 }: {
   item: NavMainItem;
   isActive: (url: string, subItems?: NavMainItem["subItems"]) => boolean;
+  isSubItemActive: (url: string) => boolean;
   isSubmenuOpen: (subItems?: NavMainItem["subItems"]) => boolean;
 }) => {
   return (
@@ -80,7 +82,11 @@ const NavItemExpanded = ({
             <SidebarMenuSub>
               {item.subItems.map((subItem) => (
                 <SidebarMenuSubItem key={subItem.title}>
-                  <SidebarMenuSubButton aria-disabled={subItem.comingSoon} isActive={isActive(subItem.url)} asChild>
+                  <SidebarMenuSubButton
+                    aria-disabled={subItem.comingSoon}
+                    isActive={isSubItemActive(subItem.url)}
+                    asChild
+                  >
                     <Link href={subItem.url} target={subItem.newTab ? "_blank" : undefined}>
                       {subItem.icon && <subItem.icon />}
                       <span>{subItem.title}</span>
@@ -100,9 +106,11 @@ const NavItemExpanded = ({
 const NavItemCollapsed = ({
   item,
   isActive,
+  isSubItemActive,
 }: {
   item: NavMainItem;
   isActive: (url: string, subItems?: NavMainItem["subItems"]) => boolean;
+  isSubItemActive: (url: string) => boolean;
 }) => {
   return (
     <SidebarMenuItem key={item.title}>
@@ -126,7 +134,7 @@ const NavItemCollapsed = ({
                 asChild
                 className="focus-visible:ring-0"
                 aria-disabled={subItem.comingSoon}
-                isActive={isActive(subItem.url)}
+                isActive={isSubItemActive(subItem.url)}
               >
                 <Link href={subItem.url} target={subItem.newTab ? "_blank" : undefined}>
                   {subItem.icon && <subItem.icon className="[&>svg]:text-sidebar-foreground" />}
@@ -144,18 +152,46 @@ const NavItemCollapsed = ({
 
 export function NavMain({ items }: NavMainProps) {
   const path = usePathname();
+  const searchParams = useSearchParams();
   const { state, isMobile } = useSidebar();
   const { user } = useAuth();
 
-  const isItemActive = (url: string, subItems?: NavMainItem["subItems"]) => {
-    if (subItems?.length) {
-      return subItems.some((sub) => path.startsWith(sub.url));
-    }
-    return path === url;
+  const normalizeNavUrl = (url: string) => url.split("?")[0];
+
+  const getUrlQueryParams = (url: string): URLSearchParams | null => {
+    const [, query] = url.split("?");
+    return query ? new URLSearchParams(query) : null;
   };
 
-  const isSubmenuOpen = (subItems?: NavMainItem["subItems"]) => {
-    return subItems?.some((sub) => path.startsWith(sub.url)) ?? false;
+  // Exact match for sub-items: checks both pathname AND query params
+  const isSubItemActive = (url: string): boolean => {
+    const normalizedPath = normalizeNavUrl(url);
+    const queryParams = getUrlQueryParams(url);
+
+    // No query params — exact pathname match
+    if (!queryParams) {
+      return path === normalizedPath;
+    }
+
+    // Has query params — must match pathname AND every query param
+    if (path !== normalizedPath) return false;
+    for (const [key, value] of queryParams.entries()) {
+      if (searchParams.get(key) !== value) return false;
+    }
+    return true;
+  };
+
+  // Parent item is active if any sub-item is active (using exact sub-item check)
+  const isItemActive = (url: string, subItems?: NavMainItem["subItems"]): boolean => {
+    if (subItems?.length) {
+      return subItems.some((sub) => isSubItemActive(sub.url));
+    }
+    return path === normalizeNavUrl(url);
+  };
+
+  // Submenu starts open only if a sub-item is currently active
+  const isSubmenuOpen = (subItems?: NavMainItem["subItems"]): boolean => {
+    return subItems?.some((sub) => isSubItemActive(sub.url)) ?? false;
   };
 
   const filteredItems = items.map((group) => ({
@@ -194,7 +230,6 @@ export function NavMain({ items }: NavMainProps) {
         </SidebarGroupContent>
       </SidebarGroup>
 
-      {/* ✅ Use filteredItems instead of items */}
       {filteredItems.map((group) => (
         <SidebarGroup key={group.id}>
           {group.label && <SidebarGroupLabel>{group.label}</SidebarGroupLabel>}
@@ -219,10 +254,23 @@ export function NavMain({ items }: NavMainProps) {
                       </SidebarMenuItem>
                     );
                   }
-                  return <NavItemCollapsed key={item.title} item={item} isActive={isItemActive} />;
+                  return (
+                    <NavItemCollapsed
+                      key={item.title}
+                      item={item}
+                      isActive={isItemActive}
+                      isSubItemActive={isSubItemActive}
+                    />
+                  );
                 }
                 return (
-                  <NavItemExpanded key={item.title} item={item} isActive={isItemActive} isSubmenuOpen={isSubmenuOpen} />
+                  <NavItemExpanded
+                    key={item.title}
+                    item={item}
+                    isActive={isItemActive}
+                    isSubItemActive={isSubItemActive}
+                    isSubmenuOpen={isSubmenuOpen}
+                  />
                 );
               })}
             </SidebarMenu>

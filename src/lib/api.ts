@@ -18,6 +18,22 @@ function getRequestKey(url: string, options: RequestInit = {}): string {
   return `${method}:${url}:${body}`;
 }
 
+/** Browser / proxy closed the socket or DB dropped mid-request — safe to retry GET once */
+function isTransientNetworkError(err: unknown): boolean {
+  const m = String((err as Error)?.message || err || "").toLowerCase();
+  return (
+    m.includes("failed to fetch") ||
+    m.includes("networkerror") ||
+    m.includes("network request failed") ||
+    m.includes("load failed") ||
+    m.includes("connection") ||
+    m.includes("terminated") ||
+    m.includes("unexpectedly") ||
+    m.includes("econnreset") ||
+    m.includes("aborted")
+  );
+}
+
 // ================= BACKEND CALLS =================
 export async function fetchWithAuth(url: string, options: RequestInit = {}) {
   const token = localStorage.getItem("auth_token") || localStorage.getItem("token");
@@ -44,7 +60,11 @@ export async function fetchWithAuth(url: string, options: RequestInit = {}) {
   if (token) headers["Authorization"] = `Bearer ${token}`;
   headers["X-Tenant-ID"] = tenantId || "2";
 
-  const fullUrl = url.startsWith("http") ? url : `${API_BASE_URL}${url}`;
+  // ✅ CRITICAL FIX: Only /backend-api/ should be treated as proxy, not /api/crm/
+  const isProxyPath = url.startsWith("/backend-api/");
+  const fullUrl = (url.startsWith("http") || isProxyPath) ? url : `${API_BASE_URL}${url}`;
+
+  console.log("🔗 fetchWithAuth URL:", fullUrl); // Debug logging
 
   // ⭐ DEDUPLICATION: Check if identical request is in flight
   const requestKey = getRequestKey(fullUrl, options);
@@ -112,6 +132,10 @@ export async function fetchWithAuth(url: string, options: RequestInit = {}) {
           console.warn(`⚠️ Retrying GET request after timeout (${Math.ceil(retryTimeoutMs / 1000)}s):`, fullUrl);
           return await runRequest(retryTimeoutMs);
         }
+        if (method === "GET" && isTransientNetworkError(err)) {
+          console.warn("⚠️ Retrying GET after transient network error:", fullUrl);
+          return await runRequest(timeoutMs);
+        }
         throw err;
       }
     } finally {
@@ -140,7 +164,9 @@ export async function fetchPublic(url: string, options: RequestInit = {}) {
     headers["Content-Type"] = "application/json";
   }
 
-  const fullUrl = url.startsWith("http") ? url : `${API_BASE_URL}${url}`;
+  // ✅ CRITICAL FIX: Only /backend-api/ should be treated as proxy
+  const isProxyPath = url.startsWith("/backend-api/");
+  const fullUrl = (url.startsWith("http") || isProxyPath) ? url : `${API_BASE_URL}${url}`;
 
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 30000); // 30s timeout
@@ -236,24 +262,24 @@ export const api = {
     }),
 
   // ==================== CALENDAR ====================
-  getContractSchedule: () => fetchWithAuth("/api/calendar/contracts"),
-  getCalendarClients: () => fetchWithAuth("/api/calendar/clients"),
-  getCalendarEmployees: () => fetchWithAuth("/api/calendar/employees"),
+  getContractSchedule: () => fetchWithAuth("/backend-api/api/calendar/contracts"),
+  getCalendarClients: () => fetchWithAuth("/backend-api/api/calendar/clients"),
+  getCalendarEmployees: () => fetchWithAuth("/backend-api/api/calendar/employees"),
   
   getCalendarRenewals: (employeeId?: number) => {
     const params = new URLSearchParams();
     if (employeeId !== undefined) {
       params.append('employee_id', employeeId.toString());
     }
-    const url = `/api/calendar/renewals${params.toString() ? '?' + params.toString() : ''}`;
+    const url = `/backend-api/api/calendar/renewals${params.toString() ? '?' + params.toString() : ''}`;
     console.log("📡 Calendar API URL:", url);
-    return fetchWithAuth(url);
+    return fetchWithAuth(url, { timeoutMs: 120000 } as RequestInit & { timeoutMs: number });
   },
 
   getCalendarLeads: (employeeId?: number, service = 'utilities') => {
     const params = new URLSearchParams({ service });
     if (employeeId) params.set('employee_id', String(employeeId));
-    return fetchWithAuth(`/api/calendar/leads?${params}`);
+    return fetchWithAuth(`/backend-api/api/calendar/leads?${params}`, { timeoutMs: 120000 } as RequestInit & { timeoutMs: number });
   },
 
   // ==================== NOTIFICATIONS ====================
