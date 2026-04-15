@@ -138,7 +138,7 @@ const allSidebarItems: NavGroup[] = [
             title: "Renewals Calendar",
             url: "/dashboard/calendar?view=renewals",
             icon: Calendar,
-            roles: ["platform admin", "salesperson", "leads offshore"],
+            roles: ["platform admin", "salesperson"],
           },
           {
             title: "Leads Calendar",
