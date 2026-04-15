@@ -18,6 +18,13 @@ import {
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
 
+export interface TeamLeadStat {
+  employee_id: number | null;
+  employee_name: string;
+  lead_count?: number;
+  count?: number;
+}
+
 interface Employee {
   employee_id: number;
   employee_name: string;
