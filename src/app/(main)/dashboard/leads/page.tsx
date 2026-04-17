@@ -240,13 +240,11 @@ export default function LeadsPage() {
     try {
       const [leadsResp, suppResp, empResp, stagesResp] = await Promise.all([
         fetchWithAuth(`/api/crm/leads?exclude_stage=Lost&service=${encodeURIComponent(service)}`),
-        fetchWithAuth("/suppliers"),
-        fetchWithAuth("/employees"),
+        fetchWithAuth("/api/crm/suppliers"),
+        fetchWithAuth("/api/calendar/employees"),
         fetchWithAuth("/api/crm/stages"),
       ]);
-
-      // ✅ Backend already scopes to the current user's employee_id (non-admin)
-      // or all tenant leads (admin). team_stats comes back in the same response.
+      
       const active: LeadCustomer[] = Array.isArray(leadsResp)
         ? leadsResp
         : (leadsResp?.data || []);
@@ -254,7 +252,7 @@ export default function LeadsPage() {
       setAllLeads(active);
       setSuppliers(Array.isArray(suppResp) ? suppResp : (suppResp?.data || []));
       const empList = Array.isArray(empResp?.data) ? empResp.data : (Array.isArray(empResp) ? empResp : []);
-      setEmployees(empList);
+      setEmployees(empList.filter(e => e.employee_id != null));
       setStages(Array.isArray(stagesResp) ? stagesResp : (stagesResp?.data || []));
 
       // ✅ Extract team_stats from the backend response (same shape as renewals)
