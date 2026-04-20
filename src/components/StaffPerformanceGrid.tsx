@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useLayoutEffect, useRef } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   Users,
   ArrowRight,
@@ -21,6 +21,7 @@ const API_BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:50
 interface StaffStat {
   employee_id: number;
   employee_name: string;
+  role_id?: number;
   total_contacts: number;
   converted_count: number;
   total_value_touched: number;
@@ -32,11 +33,19 @@ interface StaffStat {
   renewed_directly_count: number;
   end_date_changed_count: number;
   priced_count: number;
+  goal_target?: number;
+  goal_achieved?: number;
+  goal_progress_pct?: number;
+  goal_hit?: boolean;
+  period?: "daily" | "weekly" | "monthly";
 }
 
 interface StaffPerformanceGridProps {
   employeeId?: number;
+  isLeadsDashboard?: boolean; // ✅ ADD THIS
 }
+
+type PerformancePeriod = "daily" | "weekly" | "monthly";
 
 /* ─── Conversion color (original): green / amber / red / gray by band ─── */
 export function rateColor(rate: number): string {
@@ -119,61 +128,6 @@ function useCountUp(target: number, duration = 900) {
 /** Shared ring diameter for Team Performance (renewals) and Team lead load (leads) horizontal strips */
 export const TEAM_STRIP_RING_SIZE = 88;
 
-/** Matches StripCard `min-w-[108px]` + `gap-6` (24px) */
-const TEAM_STRIP_ITEM_MIN_PX = 108;
-const TEAM_STRIP_GAP_PX = 24;
-
-/**
- * How many strip cards fit in the row without horizontal scroll; overflow is clipped — use "View all" for the rest.
- */
-export function useTeamStripVisibleCount(itemCount: number) {
-  const ref = useRef<HTMLDivElement | null>(null);
-  const [visible, setVisible] = useState(0);
-
-  useLayoutEffect(() => {
-    if (itemCount <= 0) {
-      setVisible(0);
-      return;
-    }
-    const stride = TEAM_STRIP_ITEM_MIN_PX + TEAM_STRIP_GAP_PX;
-    let ro: ResizeObserver | undefined;
-    let raf1 = 0;
-    let raf2 = 0;
-
-    const bind = () => {
-      const el = ref.current;
-      if (!el) return;
-      const measure = () => {
-        const w = el.clientWidth;
-        if (w <= 0) return;
-        const n = Math.max(1, Math.floor((w + TEAM_STRIP_GAP_PX) / stride));
-        setVisible(Math.min(n, itemCount));
-      };
-      measure();
-      ro = new ResizeObserver(measure);
-      ro.observe(el);
-    };
-
-    if (ref.current) {
-      bind();
-    } else {
-      raf1 = requestAnimationFrame(() => {
-        if (ref.current) bind();
-        else raf2 = requestAnimationFrame(() => bind());
-      });
-    }
-
-    return () => {
-      cancelAnimationFrame(raf1);
-      cancelAnimationFrame(raf2);
-      ro?.disconnect();
-    };
-  }, [itemCount]);
-
-  const visibleCount = itemCount <= 0 ? 0 : Math.min(visible, itemCount);
-  return { ref, visibleCount };
-}
-
 /* ─── Progress ring ─── */
 export function ProgressRing({
   rate,
@@ -182,7 +136,6 @@ export function ProgressRing({
 }: {
   rate: number;
   size?: number;
-  /** Defaults to renewal conversion bands; pass a custom mapper for e.g. lead load. */
   colorAtRate?: (rate: number) => string;
 }) {
   const sw = 5;
@@ -218,6 +171,9 @@ export function ProgressRing({
 function StripCard({ stat, onClick, delay }: { stat: StaffStat; onClick: () => void; delay: number }) {
   const rate = useCountUp(stat.conversion_rate, 1000);
   const stroke = rateColor(stat.conversion_rate);
+  const goalAchieved = stat.goal_achieved ?? stat.total_contacts ?? 0;
+  const goalTarget = stat.goal_target ?? 0;
+  const goalHit = stat.goal_hit ?? false;
 
   return (
     <button
@@ -241,22 +197,30 @@ function StripCard({ stat, onClick, delay }: { stat: StaffStat; onClick: () => v
         <p className="text-[11px] font-bold tabular-nums" style={{ color: stroke }}>
           {rate}%
         </p>
+        <p className={cn("mt-0.5 text-[10px] font-semibold tabular-nums", goalHit ? "text-emerald-700" : "text-stone-500")}>
+          {goalAchieved}/{goalTarget}
+        </p>
       </div>
     </button>
   );
 }
 
-const outcomeMeta = [
-  { key: "renewed_count", label: "Renewed", icon: CheckCircle2 },
-  { key: "in_progress_count", label: "In progress", icon: TrendingUp },
-  { key: "not_contacted_count", label: "Not contacted", icon: Clock },
-  { key: "lost_count", label: "Lost", icon: TrendingDown },
-] as const;
-
 /* ─── Team grid card ─── */
-function DetailCard({ stat, delay }: { stat: StaffStat; delay: number }) {
-  const rate = useCountUp(stat.conversion_rate, 1000);
-  const stroke = rateColor(stat.conversion_rate);
+function DetailCard({ 
+  stat, 
+  delay, 
+  outcomeMeta 
+}: { 
+  stat: StaffStat; 
+  delay: number;
+  outcomeMeta: readonly { key: string; label: string; icon: any }[];
+}) {
+  const rate = useCountUp(stat.conversion_rate, 1000); 
+  const stroke = rateColor(stat.conversion_rate);       
+  const goalAchieved = stat.goal_achieved ?? stat.total_contacts ?? 0;
+  const goalTarget = stat.goal_target ?? 0;
+  const goalProgress = stat.goal_progress_pct ?? 0;
+  const goalHit = stat.goal_hit ?? false;
 
   return (
     <div
@@ -283,6 +247,22 @@ function DetailCard({ stat, delay }: { stat: StaffStat; delay: number }) {
             {rate}%
           </p>
           <p className="mt-1 text-[10px] font-medium uppercase tracking-wider text-stone-400">conversion</p>
+          <p className={cn("mt-1 rounded-full px-2 py-0.5 text-[10px] font-semibold", goalHit ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700")}>
+            {goalHit ? "Goal hit" : "Behind goal"}
+          </p>
+        </div>
+      </div>
+
+      <div className="rounded-xl border border-stone-200 bg-stone-50 px-3.5 py-3">
+        <div className="flex items-center justify-between gap-2">
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-stone-500">Target progress</p>
+          <p className="text-sm font-bold tabular-nums text-stone-800">{goalAchieved}/{goalTarget}</p>
+        </div>
+        <div className="mt-2 h-2 overflow-hidden rounded-full bg-stone-200">
+          <div
+            className={cn("h-full rounded-full transition-all duration-500", goalHit ? "bg-emerald-500" : "bg-amber-500")}
+            style={{ width: `${Math.min(100, Math.max(0, goalProgress))}%` }}
+          />
         </div>
       </div>
 
@@ -313,11 +293,23 @@ function DetailCard({ stat, delay }: { stat: StaffStat; delay: number }) {
   );
 }
 
-/* ─── Single-member spotlight (richer layout, animations) ─── */
-function MemberSpotlight({ stat, delay }: { stat: StaffStat; delay: number }) {
-  const rate = useCountUp(stat.conversion_rate, 1100);
-  const [barOn, setBarOn] = useState(false);
-  const stroke = rateColor(stat.conversion_rate);
+/* ─── Single-member spotlight ─── */
+function MemberSpotlight({ 
+  stat, 
+  delay,
+  outcomeMeta 
+}: { 
+  stat: StaffStat; 
+  delay: number;
+  outcomeMeta: readonly { key: string; label: string; icon: any }[];
+}) {
+  const rate = useCountUp(stat.conversion_rate, 1100);  // ✅ ADD THIS
+  const [barOn, setBarOn] = useState(false);            // ✅ ADD THIS
+  const stroke = rateColor(stat.conversion_rate);       // ✅ ADD THIS
+  const goalAchieved = stat.goal_achieved ?? stat.total_contacts ?? 0;
+  const goalTarget = stat.goal_target ?? 0;
+  const goalProgress = stat.goal_progress_pct ?? 0;
+  const goalHit = stat.goal_hit ?? false;
 
   useEffect(() => {
     const t = requestAnimationFrame(() => setBarOn(true));
@@ -342,7 +334,7 @@ function MemberSpotlight({ stat, delay }: { stat: StaffStat; delay: number }) {
           </div>
           <div className="text-center md:text-left">
             <h3 className="text-xl font-bold tracking-tight text-stone-900">{stat.employee_name}</h3>
-            <p className="mt-1 text-sm text-stone-500">Performance snapshot · {stat.total_contacts} contacts</p>
+            <p className="mt-1 text-sm text-stone-500">Performance snapshot - {stat.total_contacts} contacts</p>
           </div>
         </div>
 
@@ -366,6 +358,19 @@ function MemberSpotlight({ stat, delay }: { stat: StaffStat; delay: number }) {
                   transition: "width 1s cubic-bezier(0.22, 1, 0.36, 1)",
                 }}
               />
+            </div>
+            <div className="mt-3 rounded-xl border border-stone-200 bg-white p-3">
+              <div className="flex items-center justify-between text-xs font-semibold uppercase tracking-wide text-stone-500">
+                <span>Goal progress</span>
+                <span className={cn(goalHit ? "text-emerald-700" : "text-amber-700")}>{goalHit ? "Hit" : "Not hit"}</span>
+              </div>
+              <div className="mt-1 text-lg font-bold tabular-nums text-stone-900">{goalAchieved}/{goalTarget}</div>
+              <div className="mt-2 h-2 overflow-hidden rounded-full bg-stone-200">
+                <div
+                  className={cn("h-full rounded-full transition-all duration-500", goalHit ? "bg-emerald-500" : "bg-amber-500")}
+                  style={{ width: `${Math.min(100, Math.max(0, goalProgress))}%` }}
+                />
+              </div>
             </div>
           </div>
 
@@ -398,30 +403,79 @@ function MemberSpotlight({ stat, delay }: { stat: StaffStat; delay: number }) {
   );
 }
 
-/* ─── Main ─── */
-export function StaffPerformanceGrid({ employeeId }: StaffPerformanceGridProps) {
+
+/* ─── Main Component ─── */
+// ✅ FIX: Add isLeadsDashboard to props
+export function StaffPerformanceGrid({ employeeId, isLeadsDashboard = false }: StaffPerformanceGridProps) {
   const [staffStats, setStaffStats] = useState<StaffStat[]>([]);
   const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState(false);
   const [selectedEmployeeId, setSelectedEmployeeId] = useState<number | null>(null);
-  const [sortBy, setSortBy] = useState<"highest" | "lowest" | "converted_count" | "total_contacts">("highest");
+  const [sortBy, setSortBy] = useState<"highest" | "lowest">("highest");
   const [searchQuery, setSearchQuery] = useState("");
+  const [period, setPeriod] = useState<PerformancePeriod>("daily");
+  const stripContainerRef = useRef<HTMLDivElement>(null);
+  const [visibleCount, setVisibleCount] = useState(10);
+
+  // ✅ CONDITIONAL OUTCOME META - Changes label based on dashboard type
+  const outcomeMeta = isLeadsDashboard 
+    ? [
+        { key: "renewed_count", label: "Converted", icon: CheckCircle2 },  // Shows "Converted" for Leads
+        { key: "in_progress_count", label: "In progress", icon: TrendingUp },
+        { key: "not_contacted_count", label: "Not contacted", icon: Clock },
+        { key: "lost_count", label: "Lost", icon: TrendingDown },
+      ] as const
+    : [
+        { key: "renewed_count", label: "Renewed", icon: CheckCircle2 },    // Shows "Renewed" for Renewals
+        { key: "in_progress_count", label: "In progress", icon: TrendingUp },
+        { key: "not_contacted_count", label: "Not contacted", icon: Clock },
+        { key: "lost_count", label: "Lost", icon: TrendingDown },
+      ] as const;
 
   useEffect(() => {
     fetchPerformanceData();
-  }, [employeeId]);
+  }, [employeeId, isLeadsDashboard, period]);
+
+  useEffect(() => {
+    const calculateVisible = () => {
+      if (!stripContainerRef.current) return;
+      const containerWidth = stripContainerRef.current.offsetWidth;
+      const cardWidth = 108;
+      const gap = 24;
+      const count = Math.floor((containerWidth + gap) / (cardWidth + gap));
+      setVisibleCount(Math.max(1, count));
+    };
+
+    calculateVisible();
+    window.addEventListener('resize', calculateVisible);
+    return () => window.removeEventListener('resize', calculateVisible);
+  }, [staffStats]);
 
   const fetchPerformanceData = async () => {
     try {
       const token = localStorage.getItem("auth_token");
-      const employeeParam = employeeId ? `?employee_id=${employeeId}` : "";
-      const response = await fetch(
-        `${API_BASE_URL}/energy-renewals/staff-status-counts${employeeParam}`,
-        { headers: { Authorization: `Bearer ${token}` } },
-      );
+      const params = new URLSearchParams();
+      params.set("period", period);
+      if (employeeId) params.set("employee_id", String(employeeId));
+      
+      // ✅ Now isLeadsDashboard is properly defined
+      const endpoint = isLeadsDashboard 
+        ? `/api/crm/leads/staff-performance?${params.toString()}`
+        : `/energy-renewals/staff-status-counts?${params.toString()}`;
+      
+      console.log(`🔍 Fetching ${isLeadsDashboard ? 'LEADS' : 'RENEWALS'} performance from:`, endpoint);
+      
+      const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      
       if (response.ok) {
         const data = await response.json();
+        console.log(`✅ Received ${data.length} staff members:`, data);
         setStaffStats(data);
+      } else {
+        const errorText = await response.text();
+        console.error(`❌ Failed to fetch performance:`, errorText);
       }
     } catch (error) {
       console.error("Error fetching performance:", error);
@@ -430,18 +484,15 @@ export function StaffPerformanceGrid({ employeeId }: StaffPerformanceGridProps) 
     }
   };
 
+  // ... rest of the component remains the same
   const stats = staffStats;
-  const strip = [...stats].sort((a, b) => a.employee_name.localeCompare(b.employee_name));
-  const { ref: stripRowRef, visibleCount: stripVisibleCount } = useTeamStripVisibleCount(strip.length);
-  const stripVisible = strip.slice(0, stripVisibleCount);
+  const strip = [...stats].sort((a, b) => a.employee_name.localeCompare(b.employee_name)).slice(0, visibleCount);
 
   const filteredStats = stats.filter((stat) =>
     stat.employee_name.toLowerCase().includes(searchQuery.toLowerCase()),
   );
 
   const sorted = [...filteredStats].sort((a, b) => {
-    if (sortBy === "converted_count") return b.converted_count - a.converted_count;
-    if (sortBy === "total_contacts") return b.total_contacts - a.total_contacts;
     if (sortBy === "highest") return b.conversion_rate - a.conversion_rate;
     if (sortBy === "lowest") return a.conversion_rate - b.conversion_rate;
     return a.employee_name.localeCompare(b.employee_name);
@@ -451,10 +502,14 @@ export function StaffPerformanceGrid({ employeeId }: StaffPerformanceGridProps) 
     stats.length > 0 ? Math.round(stats.reduce((s, m) => s + m.conversion_rate, 0) / stats.length) : 0;
   const totalConverted = stats.reduce((s, m) => s + m.renewed_count, 0);
   const totalContacts = stats.reduce((s, m) => s + m.total_contacts, 0);
+  const totalGoal = stats.reduce((s, m) => s + (m.goal_target ?? 0), 0);
+  const totalGoalDone = stats.reduce((s, m) => s + (m.goal_achieved ?? m.total_contacts ?? 0), 0);
+  const goalHits = stats.filter((m) => m.goal_hit).length;
+  const periodLabel = period === "daily" ? "Today" : period === "weekly" ? "This week" : "This month";
 
   const subtitle = employeeId
-    ? `${stats[0]?.total_contacts ?? 0} contacts · ${stats[0]?.conversion_rate ?? 0}% conversion`
-    : `${stats.length} members · avg ${avgRate}% conversion · ${totalConverted} renewed`;
+    ? `${periodLabel}: ${stats[0]?.goal_achieved ?? 0}/${stats[0]?.goal_target ?? 0} - ${stats[0]?.conversion_rate ?? 0}% conversion`
+    : `${periodLabel}: ${totalGoalDone}/${totalGoal} - ${goalHits}/${stats.length} hit goal`;
 
   const selectedStat = selectedEmployeeId ? stats.find((s) => s.employee_id === selectedEmployeeId) : null;
 
@@ -478,7 +533,7 @@ export function StaffPerformanceGrid({ employeeId }: StaffPerformanceGridProps) 
         ))}
       </div>
     );
-
+    
   return (
     <>
       <div className="crm-panel rounded-[28px] px-5 pb-5 pt-4">
@@ -504,12 +559,31 @@ export function StaffPerformanceGrid({ employeeId }: StaffPerformanceGridProps) 
             <ArrowRight className="h-3 w-3 transition-transform duration-200 group-hover:translate-x-0.5" />
           </button>
         </div>
+        <div className="mb-4 inline-flex rounded-xl border border-stone-200 bg-white p-1 shadow-sm">
+          {([
+            { id: "daily", label: "Daily" },
+            { id: "weekly", label: "Weekly" },
+            { id: "monthly", label: "Monthly" },
+          ] as const).map((item) => (
+            <button
+              key={item.id}
+              type="button"
+              onClick={() => setPeriod(item.id)}
+              className={cn(
+                "rounded-lg px-3 py-1.5 text-xs font-semibold transition",
+                period === item.id ? "bg-stone-900 text-white shadow-sm" : "text-stone-600 hover:bg-stone-100"
+              )}
+            >
+              {item.label}
+            </button>
+          ))}
+        </div>
 
         {strip.length === 0 ? (
           <p className="py-4 text-center text-sm text-stone-400">No data found.</p>
         ) : (
-          <div ref={stripRowRef} className="min-w-0 flex gap-6 overflow-x-hidden pb-2">
-            {stripVisible.map((s, i) => (
+          <div ref={stripContainerRef} className="flex gap-6 pb-2">
+            {strip.map((s, i) => (
               <StripCard
                 key={s.employee_id}
                 stat={s}
@@ -524,18 +598,14 @@ export function StaffPerformanceGrid({ employeeId }: StaffPerformanceGridProps) 
         )}
 
         <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-stone-200/80 pt-3 text-[11px] text-stone-500">
-          <span className="font-medium text-stone-600">Conversion bands</span>
+          <span className="font-medium text-stone-600">{periodLabel} goals</span>
           <span className="flex items-center gap-1.5">
-            <span className="inline-block h-2 w-2 rounded-full" style={{ background: "#16a34a" }} />
-            ≥ 60% great
+            <span className="inline-block h-2 w-2 rounded-full" style={{ background: "#10b981" }} />
+            hit goal
           </span>
           <span className="flex items-center gap-1.5">
-            <span className="inline-block h-2 w-2 rounded-full" style={{ background: "#d97706" }} />
-            35–59% good
-          </span>
-          <span className="flex items-center gap-1.5">
-            <span className="inline-block h-2 w-2 rounded-full" style={{ background: "#dc2626" }} />
-            {"< 35%"} focus
+            <span className="inline-block h-2 w-2 rounded-full" style={{ background: "#f59e0b" }} />
+            below goal
           </span>
         </div>
       </div>
@@ -571,8 +641,8 @@ export function StaffPerformanceGrid({ employeeId }: StaffPerformanceGridProps) 
                     {selectedStat
                       ? `${selectedStat.employee_name}`
                       : employeeId
-                        ? "My performance overview"
-                        : "Team performance hub"}
+                        ? "My Performance Overview"
+                        : "Team Performance Hub"}
                   </DialogTitle>
                 </div>
                 <p className="text-sm text-stone-500">
@@ -615,7 +685,7 @@ export function StaffPerformanceGrid({ employeeId }: StaffPerformanceGridProps) 
                   <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                     <div className="flex flex-wrap items-center gap-2">
                       <span className="text-sm font-medium text-stone-500">Sort</span>
-                      {(["highest", "lowest", "converted_count", "total_contacts"] as const).map((s) => (
+                      {(["highest", "lowest"] as const).map((s) => (
                         <button
                           key={s}
                           type="button"
@@ -627,13 +697,7 @@ export function StaffPerformanceGrid({ employeeId }: StaffPerformanceGridProps) 
                               : "border border-stone-200 bg-white text-stone-600 shadow-sm hover:border-stone-300 hover:bg-stone-100",
                           )}
                         >
-                          {s === "highest"
-                            ? "Highest %"
-                            : s === "lowest"
-                              ? "Lowest %"
-                              : s === "converted_count"
-                                ? "Most renewed"
-                                : "Most contacts"}
+                          {s === "highest" ? "Highest %" : "Lowest %"}
                         </button>
                       ))}
                     </div>
@@ -641,7 +705,7 @@ export function StaffPerformanceGrid({ employeeId }: StaffPerformanceGridProps) 
                       <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-stone-400" />
                       <input
                         type="text"
-                        placeholder="Search by name…"
+                        placeholder="Search by name..."
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
                         className="w-full rounded-full border border-stone-200/90 bg-white py-2 pl-10 pr-4 text-sm text-stone-900 shadow-sm transition placeholder:text-stone-400 focus:border-stone-400 focus:outline-none focus:ring-2 focus:ring-stone-400/25"
@@ -651,7 +715,7 @@ export function StaffPerformanceGrid({ employeeId }: StaffPerformanceGridProps) 
                 )}
 
                 {selectedStat ? (
-                  <MemberSpotlight stat={selectedStat} delay={0} />
+                  <MemberSpotlight stat={selectedStat} delay={0} outcomeMeta={outcomeMeta} />
                 ) : (
                   <div
                     className={cn(
@@ -660,7 +724,7 @@ export function StaffPerformanceGrid({ employeeId }: StaffPerformanceGridProps) 
                     )}
                   >
                     {sorted.map((s, i) => (
-                      <DetailCard key={s.employee_id} stat={s} delay={i * 40} />
+                      <DetailCard key={s.employee_id} stat={s} delay={i * 40} outcomeMeta={outcomeMeta} />
                     ))}
                   </div>
                 )}
