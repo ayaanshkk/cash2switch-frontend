@@ -167,6 +167,33 @@ export function ProgressRing({
   );
 }
 
+/**
+ * Shared helper for horizontal team strips.
+ * Computes how many cards can fit in the visible row and updates on resize.
+ */
+export function useTeamStripVisibleCount(itemCount: number) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [visibleCount, setVisibleCount] = useState(10);
+
+  useEffect(() => {
+    const calculateVisible = () => {
+      if (!ref.current) return;
+      const containerWidth = ref.current.offsetWidth;
+      const cardWidth = 108;
+      const gap = 24;
+      const count = Math.floor((containerWidth + gap) / (cardWidth + gap));
+      const safeCount = Math.max(1, count);
+      setVisibleCount(Math.min(Math.max(itemCount, 1), safeCount));
+    };
+
+    calculateVisible();
+    window.addEventListener("resize", calculateVisible);
+    return () => window.removeEventListener("resize", calculateVisible);
+  }, [itemCount]);
+
+  return { ref, visibleCount };
+}
+
 /* ─── Strip avatar ─── */
 function StripCard({ stat, onClick, delay }: { stat: StaffStat; onClick: () => void; delay: number }) {
   const rate = useCountUp(stat.conversion_rate, 1000);
