@@ -240,11 +240,13 @@ export default function LeadsPage() {
     try {
       const [leadsResp, suppResp, empResp, stagesResp] = await Promise.all([
         fetchWithAuth(`/api/crm/leads?exclude_stage=Lost&service=${encodeURIComponent(service)}`),
-        fetchWithAuth("/api/crm/suppliers"),
-        fetchWithAuth("/api/calendar/employees"),
+        fetchWithAuth("/suppliers"),
+        fetchWithAuth("/employees"),
         fetchWithAuth("/api/crm/stages"),
       ]);
-      
+
+      // ✅ Backend already scopes to the current user's employee_id (non-admin)
+      // or all tenant leads (admin). team_stats comes back in the same response.
       const active: LeadCustomer[] = Array.isArray(leadsResp)
         ? leadsResp
         : (leadsResp?.data || []);
@@ -252,7 +254,7 @@ export default function LeadsPage() {
       setAllLeads(active);
       setSuppliers(Array.isArray(suppResp) ? suppResp : (suppResp?.data || []));
       const empList = Array.isArray(empResp?.data) ? empResp.data : (Array.isArray(empResp) ? empResp : []);
-      setEmployees(empList.filter(e => e.employee_id != null));
+      setEmployees(empList);
       setStages(Array.isArray(stagesResp) ? stagesResp : (stagesResp?.data || []));
 
       // ✅ Extract team_stats from the backend response (same shape as renewals)
@@ -437,7 +439,7 @@ export default function LeadsPage() {
       if (callbackStatus === "Already Renewed" && renewedBy) payload.renewed_by = renewedBy;
       if (callbackStatus === "Converted" && assignToEmployeeId && assignToEmployeeId !== "0") {
         payload.assigned_to = parseInt(assignToEmployeeId);
-      }  // ✅ FIXED - Added closing brace
+      }
       if (cfg?.requiresSupplierChange && newSupplier.trim()) payload.new_supplier = newSupplier.trim();
       if (cfg?.requiresAddressChange && newAddress.trim()) payload.new_address = newAddress.trim();
 
@@ -447,9 +449,17 @@ export default function LeadsPage() {
       );
       if (!response || response.error) throw new Error(response?.error || "Failed to save");
 
+      // ✅ CRITICAL FIX: Update local state with returned lead data
+      if (response.lead) {
+        setAllLeads(prev => prev.map(l => 
+          l.opportunity_id === selectedLeadForCallback 
+            ? { ...l, ...response.lead }  // ✅ Merge updated fields
+            : l
+        ));
+      }
+
       // ✅ Handle "Converted" with assignment
       if (callbackStatus === "Converted" && response.allocated) {
-        // Lead was allocated to someone else - remove from view
         setAllLeads(prev => prev.filter(l => l.opportunity_id !== selectedLeadForCallback));
         setSelectedLeads(prev => prev.filter(id => id !== selectedLeadForCallback));
         toast.success("✅ Lead converted and assigned - moved to allocated leads");
@@ -462,20 +472,12 @@ export default function LeadsPage() {
         setSelectedLeads(prev => prev.filter(id => id !== selectedLeadForCallback));
         toast.success("✅ Moved to Priced page");
       } else if (callbackStatus === "End Date Changed" || callbackStatus === "Already Renewed") {
-        if (callbackStatus === "Already Renewed" && newSupplier.trim()) {
-          setAllLeads(prev => prev.map(l =>
-            l.opportunity_id === selectedLeadForCallback ? { ...l, supplier_name: newSupplier.trim() } : l
-          ));
-        }
-        await fetchLeads();
-        await fetchPerformanceStats();
+        // ✅ The state is already updated above from response.lead
         toast.success(`✅ ${callbackStatus === "Already Renewed" ? "Lead updated" : "End date updated"}`);
       } else {
-        setAllLeads(prev => prev.map(l =>
-          l.opportunity_id === selectedLeadForCallback ? { ...l, stage_name: callbackStatus } : l
-        ));
         toast.success("✅ Callback saved");
       }
+      
       setShowCallbackModal(false);
     } catch (err: any) {
       setCallbackError(err.message || "Failed to save callback");

@@ -434,8 +434,16 @@ export default function LeadDetailsPage() {
 
       if (!data || data.error) throw new Error(data?.error || "Failed to save");
 
-      // Reload to reflect backend changes (stage, end_date, supplier, etc.)
-      await loadLead();
+      // ✅ CRITICAL FIX: Update local state with returned lead data
+      if (data.lead) {
+        setLead(prev => prev ? { ...prev, ...data.lead } : data.lead);
+        setEditedLead(prev => ({ ...prev, ...data.lead }));
+        
+        // ✅ Update the status in the action panel
+        if (data.lead.stage_name) {
+          setCallbackStatus(data.lead.stage_name);
+        }
+      }
 
       if (data.moved_to_cleansing) {
         alert("🧹 Moved to Cleansing");
