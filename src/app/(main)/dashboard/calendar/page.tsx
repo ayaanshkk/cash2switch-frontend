@@ -72,7 +72,6 @@ export default function CalendarPage() {
   const [showDayEventsDialog, setShowDayEventsDialog] = useState(false);
   const [showMonthPicker, setShowMonthPicker] = useState(false);
 
-  
   // ✅ Employee filter states
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [selectedEmployeeId, setSelectedEmployeeId] = useState<number | undefined>(undefined);
@@ -82,14 +81,17 @@ export default function CalendarPage() {
   useEffect(() => {
     const view = searchParams.get("view");
     if (view === "leads" || view === "renewals") {
+      console.log("🔄 Setting view from URL:", view);
       setCalendarView(view);
-      setError(null);
-      return;
+    } else if (isLeadsRole) {
+      console.log("🔄 Setting view from role: leads");
+      setCalendarView("leads");
+    } else {
+      console.log("🔄 Setting view from role: renewals");
+      setCalendarView("renewals");
     }
-    setCalendarView(isLeadsRole ? "leads" : "renewals");
   }, [searchParams, isLeadsRole]);
 
-  // Check if user is admin
   useEffect(() => {
     if (user) {
       const adminRoles = ['Platform Admin', 'Tenant Super Admin'];
@@ -110,7 +112,6 @@ export default function CalendarPage() {
           
           console.log("✅ Employees raw response:", response);
           
-          // Handle different response formats
           let employeesList: Employee[] = [];
           
           if (Array.isArray(response)) {
@@ -200,6 +201,8 @@ export default function CalendarPage() {
       setLoading(true);
       setError(null);
 
+      console.log(`📅 Loading ${calendarView} calendar for employee:`, selectedEmployeeId || 'all');
+
       const response = isLeadsView
         ? await api.getCalendarLeads(selectedEmployeeId)
         : await api.getCalendarRenewals(selectedEmployeeId);
@@ -208,6 +211,7 @@ export default function CalendarPage() {
         ? response
         : (response?.data || []);
 
+      console.log(`✅ Loaded ${renewalsList.length} ${calendarView} events`);
       setRenewals(renewalsList);
     } catch (err) {
       console.error("❌ Error loading calendar:", err);
@@ -219,10 +223,11 @@ export default function CalendarPage() {
   };
 
   useEffect(() => {
-    if (user) {
+    if (user && calendarView) {
+      console.log(`🔄 Triggering calendar load - view: ${calendarView}, employee: ${selectedEmployeeId || 'all'}`);
       loadCalendarEvents();
     }
-  }, [user, selectedEmployeeId, calendarView]);
+  }, [user, selectedEmployeeId, calendarView]); 
 
   const navigateMonth = (direction: "prev" | "next") => {
     const newDate = new Date(currentDate);
