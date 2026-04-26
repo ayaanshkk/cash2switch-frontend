@@ -43,6 +43,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { fetchWithAuth } from "@/lib/api";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
+const LEADS_SYNC_KEY = "c2s:lead-sync";
 
 const TABS = [
   { id: "contact",  label: "Contact Information",           icon: User },
@@ -204,6 +205,13 @@ const statusConfig: Record<string, {
   "Incorrect Supplier":{ requiresDate: false, requiresSold: false, deletesRecord: false, requiresNotes: true,  requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
 };
 
+const emitLeadSync = (leadId: number | string) => {
+  if (typeof window === "undefined") return;
+  const payload = JSON.stringify({ leadId: String(leadId), ts: Date.now() });
+  localStorage.setItem(LEADS_SYNC_KEY, payload);
+  window.dispatchEvent(new CustomEvent("leads-sync", { detail: payload }));
+};
+
 // ─────────────────────────────────────────────────────────────────────────────
 export default function LeadDetailsPage() {
   const params       = useParams();
@@ -259,6 +267,41 @@ export default function LeadDetailsPage() {
     loadStages();
     loadSuppliers();
     loadHistory();
+  }, [id]);
+
+  useEffect(() => {
+    const shouldRefresh = (payloadText?: string | null) => {
+      if (!payloadText) return true;
+      try {
+        const payload = JSON.parse(payloadText) as { leadId?: string };
+        if (!payload?.leadId) return true;
+        return payload.leadId === String(id);
+      } catch {
+        return true;
+      }
+    };
+
+    const refreshLead = () => {
+      loadLead();
+      loadHistory();
+    };
+
+    const onStorage = (e: StorageEvent) => {
+      if (e.key !== LEADS_SYNC_KEY) return;
+      if (shouldRefresh(e.newValue)) refreshLead();
+    };
+
+    const onLocalSync = (event: Event) => {
+      const detail = (event as CustomEvent<string>)?.detail;
+      if (shouldRefresh(detail)) refreshLead();
+    };
+
+    window.addEventListener("storage", onStorage);
+    window.addEventListener("leads-sync", onLocalSync as EventListener);
+    return () => {
+      window.removeEventListener("storage", onStorage);
+      window.removeEventListener("leads-sync", onLocalSync as EventListener);
+    };
   }, [id]);
 
   const loadLead = async () => {
@@ -320,22 +363,29 @@ export default function LeadDetailsPage() {
 
   const loadEmployees = async () => {
     try {
-      const data = await fetchWithAuth("/employees");
-      setEmployees(Array.isArray(data) ? data : (data?.data || []));
+      const data = await fetchWithAuth("/api/crm/employees");
+      const empList = Array.isArray(data?.data) ? data.data : (Array.isArray(data) ? data : []);
+      setEmployees(empList);
     } catch { /* silent */ }
   };
 
   const loadStages = async () => {
     try {
-      const data = await fetchWithAuth("/stages");
+      const data = await fetchWithAuth("/api/crm/stages");
       setStages(Array.isArray(data) ? data : (data?.data || []));
     } catch { /* silent */ }
   };
 
   const loadSuppliers = async () => {
     try {
-      const data = await fetchWithAuth("/suppliers");
-      setSuppliers(Array.isArray(data) ? data : (data?.data || []));
+      const data = await fetchWithAuth("/api/crm/suppliers");
+      const raw = Array.isArray(data) ? data : (data?.data || []);
+      setSuppliers(
+        raw.map((s: any) => ({
+          supplier_id: s.supplier_id,
+          supplier_name: s.supplier_name ?? s.supplier_company_name ?? "",
+        }))
+      );
     } catch { /* silent */ }
   };
 
@@ -389,7 +439,8 @@ export default function LeadDetailsPage() {
         body: JSON.stringify(safePayload),
       });
       if (data?.error) throw new Error(data.error);
-      setLead(data?.lead || data);
+      await loadLead();
+      emitLeadSync(id);
       setIsEditing(false);
       alert("✅ Lead updated successfully!");
     } catch (e: any) {
@@ -436,6 +487,7 @@ export default function LeadDetailsPage() {
 
       // Reload to reflect backend changes (stage, end_date, supplier, etc.)
       await loadLead();
+      emitLeadSync(id);
 
       if (data.moved_to_cleansing) {
         alert("🧹 Moved to Cleansing");
@@ -474,9 +526,8 @@ export default function LeadDetailsPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ stage_id: 1 }), // 1 = "Lead" — never send null
       });
-      // Update local lead state so UI shows "Lead" immediately
-      setLead(prev => prev ? { ...prev, stage_id: 1, stage_name: "Lead" } : null);
-      setEditedLead(prev => ({ ...prev, stage_id: 1, stage_name: "Lead" }));
+      await loadLead();
+      emitLeadSync(id);
       setCallbackStatus(""); // clear the action panel selection
       alert("✅ Status cleared successfully");
     } catch { alert("❌ Failed to clear status"); }
@@ -509,6 +560,7 @@ export default function LeadDetailsPage() {
       } : null);
 
       alert("✅ Salesperson assigned successfully");
+      emitLeadSync(id);
       setShowAssignmentModal(false);
       setAssigningEmployeeId(""); setAssignmentNotes("");
       loadHistory();

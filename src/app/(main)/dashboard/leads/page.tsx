@@ -34,6 +34,7 @@ const CUSTOMERS_PER_PAGE = 25;
 
 // ✅ Use the same base URL pattern as renewals import
 const API_BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
+const LEADS_SYNC_KEY = "c2s:lead-sync";
 
 const STATUS_OPTIONS = [
   { value: "Callback",           label: "Callback" },
@@ -76,6 +77,7 @@ const statusConfig: Record<string, {
 };
 
 const STATUS_TO_STAGE_FALLBACK: Record<string, number> = {
+  "not called": 1,
   "callback": 1, "not answered": 3, "priced": 4, "lost": 5, "lost cot": 6,
   "already renewed": 7, "invalid number": 8, "meter de-energised": 9,
   "broker in place": 10, "end date changed": 11, "complaint": 12,
@@ -143,6 +145,13 @@ const getStageIdFromStatus = (status: string, stagesList?: Stage[]): number => {
   const id = STATUS_TO_STAGE_FALLBACK[status.toLowerCase()];
   if (!id) { console.warn(`⚠️ No stage_id for status: ${status}`); return 0; }
   return id;
+};
+
+const emitLeadSync = (leadId: number | string) => {
+  if (typeof window === "undefined") return;
+  const payload = JSON.stringify({ leadId: String(leadId), ts: Date.now() });
+  localStorage.setItem(LEADS_SYNC_KEY, payload);
+  window.dispatchEvent(new CustomEvent("leads-sync", { detail: payload }));
 };
 
 // ─── Component ────────────────────────────────────────────────────────────────
@@ -236,8 +245,8 @@ export default function LeadsPage() {
     try {
       const settled = await Promise.allSettled([
         fetchWithAuth(`/api/crm/leads?exclude_stage=Lost&service=${encodeURIComponent(service)}`),
-        fetchWithAuth("/suppliers"),
-        fetchWithAuth("/employees"),
+        fetchWithAuth("/api/crm/suppliers"),
+        fetchWithAuth("/api/crm/employees"),
         fetchWithAuth("/api/crm/stages"),
         loadTeamStatsWithFallback(service),
       ]);
@@ -324,6 +333,34 @@ export default function LeadsPage() {
   useEffect(() => {
     fetchLeads();
     fetchPerformanceStats();
+  }, [service]);
+
+  useEffect(() => {
+    const refreshFromServer = () => {
+      fetchLeads();
+      fetchPerformanceStats();
+    };
+
+    const onWindowFocus = () => refreshFromServer();
+    const onVisibility = () => {
+      if (document.visibilityState === "visible") refreshFromServer();
+    };
+    const onStorage = (e: StorageEvent) => {
+      if (e.key === LEADS_SYNC_KEY) refreshFromServer();
+    };
+    const onLocalSync = () => refreshFromServer();
+
+    window.addEventListener("focus", onWindowFocus);
+    document.addEventListener("visibilitychange", onVisibility);
+    window.addEventListener("storage", onStorage);
+    window.addEventListener("leads-sync", onLocalSync as EventListener);
+
+    return () => {
+      window.removeEventListener("focus", onWindowFocus);
+      document.removeEventListener("visibilitychange", onVisibility);
+      window.removeEventListener("storage", onStorage);
+      window.removeEventListener("leads-sync", onLocalSync as EventListener);
+    };
   }, [service]);
 
   // ── Cross-team text search (debounced) ─────────────────────────────────────
@@ -424,11 +461,11 @@ export default function LeadsPage() {
       fetchWithAuth(`/api/crm/leads/${leadId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ stage_id: 1 }),
-      }).then(() => {
-        setAllLeads(prev => prev.map(l =>
-          l.opportunity_id === leadId ? { ...l, stage_name: null, stage_id: 1 } : l
-        ));
+        body: JSON.stringify({ stage_id: getStageIdFromStatus("Not Called", stages.length ? stages : undefined) }),
+      }).then(async () => {
+        await fetchLeads();
+        await fetchPerformanceStats();
+        emitLeadSync(leadId);
         toast.success("✅ Status cleared");
       }).catch((e: any) => toast.error(`Failed to clear status: ${e?.message || ""}`));
       return;
@@ -469,27 +506,19 @@ export default function LeadsPage() {
       );
       if (!response || response.error) throw new Error(response?.error || "Failed to save");
 
+      await fetchLeads();
+      await fetchPerformanceStats();
+      emitLeadSync(selectedLeadForCallback);
+
       if (response.moved_to_recycle_bin) {
-        setAllLeads(prev => prev.filter(l => l.opportunity_id !== selectedLeadForCallback));
         setSelectedLeads(prev => prev.filter(id => id !== selectedLeadForCallback));
         toast.success("🗑️ Moved to recycle bin");
       } else if (response.moved_to_priced) {
-        setAllLeads(prev => prev.filter(l => l.opportunity_id !== selectedLeadForCallback));
         setSelectedLeads(prev => prev.filter(id => id !== selectedLeadForCallback));
         toast.success("✅ Moved to Priced page");
       } else if (callbackStatus === "End Date Changed" || callbackStatus === "Already Renewed") {
-        if (callbackStatus === "Already Renewed" && newSupplier.trim()) {
-          setAllLeads(prev => prev.map(l =>
-            l.opportunity_id === selectedLeadForCallback ? { ...l, supplier_name: newSupplier.trim() } : l
-          ));
-        }
-        await fetchLeads();
-        await fetchPerformanceStats();
         toast.success(`✅ ${callbackStatus === "Already Renewed" ? "Lead updated" : "End date updated"}`);
       } else {
-        setAllLeads(prev => prev.map(l =>
-          l.opportunity_id === selectedLeadForCallback ? { ...l, stage_name: callbackStatus } : l
-        ));
         toast.success("✅ Callback saved");
       }
       setShowCallbackModal(false);
@@ -531,6 +560,7 @@ export default function LeadsPage() {
       }
 
       toast.success("✅ Salesperson assigned successfully");
+      emitLeadSync(assigningLeadId);
       setShowAssignModal(false);
       setAssignToEmployeeId(""); setAssignmentNotes(""); setAssigningLeadId(null);
     } catch { toast.error("Failed to assign salesperson"); }
@@ -564,6 +594,7 @@ export default function LeadsPage() {
         setAllLeads(prev => prev.filter(l => !selectedLeads.includes(l.opportunity_id)));
       }
 
+      selectedLeads.forEach(id => emitLeadSync(id));
       setSelectedLeads([]); setIsSelectAllChecked(false);
       setShowBulkAssignModal(false); setBulkAssignmentNotes("");
       toast.success(`✅ ${selectedLeads.length} leads assigned to ${bulkAssignEmployeeName}`);
@@ -1047,7 +1078,14 @@ export default function LeadsPage() {
                 return (
                   <tr key={lead.opportunity_id}
                     className={`hover:bg-gray-50 transition-colors cursor-pointer ${isSelected ? "bg-blue-50" : fromSearch ? "bg-amber-50" : ""}`}
-                    onClick={() => window.open(`/dashboard/leads/${lead.opportunity_id}`, "_blank")}
+                    onClick={(e) => {
+                      const target = e.target as HTMLElement | null;
+                      const clickedInteractive = !!target?.closest(
+                        'input,button,a,[role="combobox"],[role="listbox"],[role="option"],[data-no-row-open="true"]'
+                      );
+                      if (clickedInteractive) return;
+                      window.open(`/dashboard/leads/${lead.opportunity_id}`, "_blank");
+                    }}
                     onContextMenu={e => {
                       e.preventDefault();
                       const menu = document.createElement("div");
