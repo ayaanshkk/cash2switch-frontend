@@ -78,6 +78,9 @@ export default function CalendarPage() {
   const [isAdmin, setIsAdmin] = useState(false);
   const [loadingEmployees, setLoadingEmployees] = useState(false);
 
+  // ✅ NEW: Refetch trigger for when callbacks are updated
+  const [refetchTrigger, setRefetchTrigger] = useState(0);
+
   useEffect(() => {
     const view = searchParams.get("view");
     if (view === "leads" || view === "renewals") {
@@ -148,6 +151,31 @@ export default function CalendarPage() {
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [showMonthPicker]);
+
+  // ✅ NEW: Listen for storage events from lead details page
+  useEffect(() => {
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === 'calendar-refetch-trigger') {
+        console.log('🔔 Received calendar refetch signal from another tab');
+        setRefetchTrigger(prev => prev + 1);
+      }
+    };
+
+    const handleCustomEvent = (e: CustomEvent) => {
+      if (e.detail?.action === 'refetch-calendar') {
+        console.log('🔔 Received calendar refetch signal from same page');
+        setRefetchTrigger(prev => prev + 1);
+      }
+    };
+
+    window.addEventListener('storage', handleStorageChange as EventListener);
+    window.addEventListener('calendar-refetch' as any, handleCustomEvent as EventListener);
+
+    return () => {
+      window.removeEventListener('storage', handleStorageChange as EventListener);
+      window.removeEventListener('calendar-refetch' as any, handleCustomEvent as EventListener);
+    };
+  }, []);
 
   const formatDateKey = (date: Date | string) => {
     if (typeof date === "string") {
@@ -227,7 +255,7 @@ export default function CalendarPage() {
       console.log(`🔄 Triggering calendar load - view: ${calendarView}, employee: ${selectedEmployeeId || 'all'}`);
       loadCalendarEvents();
     }
-  }, [user, selectedEmployeeId, calendarView]); 
+  }, [user, selectedEmployeeId, calendarView, refetchTrigger]); // ✅ Added refetchTrigger
 
   const navigateMonth = (direction: "prev" | "next") => {
     const newDate = new Date(currentDate);
