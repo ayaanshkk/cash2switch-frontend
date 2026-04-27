@@ -432,53 +432,16 @@ export default function LeadsPage() {
     try {
       const stageId = getStageIdFromStatus(callbackStatus, stages.length ? stages : undefined);
       const payload: any = { stage_id: stageId, status: callbackStatus, notes: callbackNotes };
-      
-      // ✅ FIX: Always send dates in YYYY-MM-DD format
-      if (calledDate) {
-        const calledParts = calledDate.split('/');
-        if (calledParts.length === 3 && calledParts[0].length === 2) {
-          // DD/MM/YYYY -> YYYY-MM-DD
-          payload.called_date = `${calledParts[2]}-${calledParts[1]}-${calledParts[0]}`;
-        } else {
-          // Already in YYYY-MM-DD format
-          payload.called_date = calledDate;
-        }
-      }
-      
-      // ✅ FIX: Convert callback_date to YYYY-MM-DD format
-      if (isDateRequired() && callbackDate) {
-        const dateParts = callbackDate.split('/');
-        if (dateParts.length === 3 && dateParts[0].length === 2) {
-          // DD/MM/YYYY -> YYYY-MM-DD
-          payload.callback_date = `${dateParts[2]}-${dateParts[1]}-${dateParts[0]}`;
-        } else {
-          // Already in YYYY-MM-DD format
-          payload.callback_date = callbackDate;
-        }
-      }
-      
+      if (calledDate) payload.called_date = calledDate;
+      if (isDateRequired() && callbackDate) payload.callback_date = callbackDate;
       if (cfg?.requiresSold) payload.is_sold = isSold === "yes";
-      
-      // ✅ FIX: Convert new_end_date to YYYY-MM-DD format
-      if (cfg?.requiresNewEndDate && newEndDate) {
-        const endParts = newEndDate.split('/');
-        if (endParts.length === 3 && endParts[0].length === 2) {
-          // DD/MM/YYYY -> YYYY-MM-DD
-          payload.new_end_date = `${endParts[2]}-${endParts[1]}-${endParts[0]}`;
-        } else {
-          // Already in YYYY-MM-DD format
-          payload.new_end_date = newEndDate;
-        }
-      }
-      
+      if (cfg?.requiresNewEndDate && newEndDate) payload.new_end_date = newEndDate;
       if (callbackStatus === "Already Renewed" && renewedBy) payload.renewed_by = renewedBy;
       if (callbackStatus === "Converted" && assignToEmployeeId && assignToEmployeeId !== "0") {
         payload.assigned_to = parseInt(assignToEmployeeId);
       }
       if (cfg?.requiresSupplierChange && newSupplier.trim()) payload.new_supplier = newSupplier.trim();
       if (cfg?.requiresAddressChange && newAddress.trim()) payload.new_address = newAddress.trim();
-
-      console.log('📅 Sending callback payload:', payload); // ✅ Debug log
 
       const response = await fetchWithAuth(
         `/api/crm/leads/${selectedLeadForCallback}/callback`,

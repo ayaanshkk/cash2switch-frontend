@@ -248,19 +248,30 @@ export default function UnifiedRecycleBinPage() {
     try {
       setLeadsLoading(true);
       setLeadsError(null);
-      const leadsData = await fetchWithAuth("/api/crm/leads");
-      const allLeadsData = Array.isArray(leadsData.data) ? leadsData.data : [];
-      const deletedLeads = allLeadsData.filter((lead: any) =>
-        lead.stage_name?.toLowerCase() === "lost"
-      );
+      
+      // ✅ CORRECT: Call the dedicated recycle bin endpoint
+      const leadsData = await fetchWithAuth("/api/crm/leads/recycle-bin");
+      
+      // The endpoint already returns only soft-deleted leads
+      const deletedLeads = Array.isArray(leadsData.data) ? leadsData.data : [];
+      
       setAllLeads(deletedLeads);
-      if (selectedEmployee === 'all') setLeads(deletedLeads);
-      else setLeads(deletedLeads.filter((l: any) => l.assigned_to_id === selectedEmployee));
+      if (selectedEmployee === 'all') {
+        setLeads(deletedLeads);
+      } else {
+        setLeads(deletedLeads.filter((l: any) => l.assigned_to_id === selectedEmployee));
+      }
+      
+      // Still need to get "Not Called" stage for restore functionality
       if (!notCalledStageId) {
-        const notCalledLead = allLeadsData.find((lead: any) =>
-          lead.stage_name?.toLowerCase() === "not called"
+        const stagesData = await fetchWithAuth("/api/crm/stages");
+        const stages = Array.isArray(stagesData.data) ? stagesData.data : [];
+        const notCalledStage = stages.find((stage: any) =>
+          stage.stage_name?.toLowerCase() === "not called"
         );
-        if (notCalledLead?.stage_id) setNotCalledStageId(notCalledLead.stage_id);
+        if (notCalledStage?.stage_id) {
+          setNotCalledStageId(notCalledStage.stage_id);
+        }
       }
     } catch (err: any) {
       setLeadsError(err.message || "Failed to load deleted leads");
