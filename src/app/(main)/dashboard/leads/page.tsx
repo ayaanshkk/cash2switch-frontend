@@ -508,6 +508,8 @@ export default function LeadsPage() {
       if (cfg?.requiresSupplierChange && newSupplier.trim()) payload.new_supplier = newSupplier.trim();
       if (cfg?.requiresAddressChange && newAddress.trim()) payload.new_address = newAddress.trim();
 
+      console.log("🔄 Submitting callback:", { leadId: selectedLeadForCallback, payload });
+
       const response = await fetchWithAuth(
         `/api/crm/leads/${selectedLeadForCallback}/callback`,
         { 
@@ -517,11 +519,13 @@ export default function LeadsPage() {
         }
       );
       
+      console.log("✅ Callback response:", response);
+      
       if (!response || response.error) {
         throw new Error(response?.error || "Failed to save");
       }
 
-      // ✅ CRITICAL FIX: Update local state with the returned lead data (like details page does)
+      // ✅ CRITICAL FIX: Update local state with the returned lead data
       setAllLeads(prev => prev.map(l => {
         if (l.opportunity_id === selectedLeadForCallback) {
           // Merge the response data into the lead
@@ -531,6 +535,7 @@ export default function LeadsPage() {
             stage_name: callbackStatus,  // ✅ Use the selected status
             ...(response.lead || {}),     // ✅ Merge any other fields from backend
           };
+          console.log("✅ Updated lead in local state:", updatedLead);
           return updatedLead;
         }
         return l;
@@ -570,6 +575,7 @@ export default function LeadsPage() {
       setAssignToEmployeeId("");
       
     } catch (err: any) {
+      console.error("❌ Callback error:", err);
       setCallbackError(err.message || "Failed to save callback");
     } finally {
       setIsSubmittingCallback(false);
@@ -1242,17 +1248,44 @@ export default function LeadsPage() {
 
                     {/* Status */}
                     <td className="px-3 py-3 align-top" onClick={e => e.stopPropagation()}>
-                      <Select value={lead.stage_name || ""} onValueChange={v => { if (v === "CLEAR_STATUS") updateLeadStatus(lead.opportunity_id, ""); else updateLeadStatus(lead.opportunity_id, v); }}>
+                      <Select 
+                        value={lead.stage_name || ""} 
+                        onValueChange={v => { 
+                          console.log("📝 Status dropdown changed:", { 
+                            leadId: lead.opportunity_id, 
+                            from: lead.stage_name, 
+                            to: v 
+                          });
+                          if (v === "CLEAR_STATUS") {
+                            updateLeadStatus(lead.opportunity_id, "");
+                          } else {
+                            updateLeadStatus(lead.opportunity_id, v);
+                          }
+                        }}
+                      >
                         <SelectTrigger className="h-7 text-xs w-full max-w-[150px]">
                           <SelectValue placeholder="Set status">
                             {lead.stage_name
-                              ? <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-semibold ${getStatusColor(lead.stage_name)}`}>{getStatusLabel(lead.stage_name)}</span>
+                              ? <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-semibold ${getStatusColor(lead.stage_name)}`}>
+                                  {getStatusLabel(lead.stage_name)}
+                                </span>
                               : <span className="text-gray-500">Set status</span>}
                           </SelectValue>
                         </SelectTrigger>
                         <SelectContent>
-                          {STATUS_OPTIONS.map(o => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
-                          {lead.stage_name && (<><div className="border-t my-1" /><SelectItem value="CLEAR_STATUS" className="text-red-600 font-medium">✕ Clear Status</SelectItem></>)}
+                          {STATUS_OPTIONS.map(o => (
+                            <SelectItem key={o.value} value={o.value}>
+                              {o.label}
+                            </SelectItem>
+                          ))}
+                          {lead.stage_name && (
+                            <>
+                              <div className="border-t my-1" />
+                              <SelectItem value="CLEAR_STATUS" className="text-red-600 font-medium">
+                                ✕ Clear Status
+                              </SelectItem>
+                            </>
+                          )}
                         </SelectContent>
                       </Select>
                     </td>
