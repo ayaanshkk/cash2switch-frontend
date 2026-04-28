@@ -4,9 +4,33 @@
 const BACKEND_URL = process.env.NEXT_PUBLIC_API_URL || process.env.NEXT_PUBLIC_BACKEND_URL || "http://127.0.0.1:5000";
 export const API_BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://127.0.0.1:5000";
 const DEFAULT_TIMEOUT_MS = Number(process.env.NEXT_PUBLIC_API_TIMEOUT_MS || 60000);
+const DEFAULT_TENANT_ID = String(process.env.NEXT_PUBLIC_DEFAULT_TENANT_ID || 2);
 
 if (typeof window !== "undefined") {
   console.log("🌐 API_BASE_URL:", API_BASE_URL);
+}
+
+/** Dev-only hint when the wrong Flask app is bound to this port (e.g. c2s-backend vs cash2switch-backend). */
+function crmBackendMismatchHint(fullUrl: string, status: number): string {
+  if (typeof window === "undefined" || process.env.NODE_ENV === "production") return "";
+  if (status !== 404) return "";
+  try {
+    const p = new URL(fullUrl).pathname;
+    if (
+      p.includes("/api/crm") ||
+      p.includes("/energy-") ||
+      p.includes("/energy-clients") ||
+      p.startsWith("/employees") ||
+      p.startsWith("/suppliers") ||
+      p.startsWith("/stages") ||
+      p.includes("/notifications/")
+    ) {
+      return " This path is served by Cash2Switch/cash2switch-backend — if you started c2s-backend on port 5000, stop it and run cash2switch-backend (see start-cash2switch-backend.ps1).";
+    }
+  } catch {
+    /* ignore */
+  }
+  return "";
 }
 
 // ================= REQUEST DEDUPLICATION =================
@@ -41,8 +65,8 @@ export async function fetchWithAuth(url: string, options: RequestInit = {}) {
 
   // ✅ Set default tenant if missing
   if (!tenantId) {
-    console.warn("⚠️ No tenant_id found - setting default to '2'");
-    localStorage.setItem("tenant_id", "2");
+    console.warn(`⚠️ No tenant_id found - setting default to '${DEFAULT_TENANT_ID}'`);
+    localStorage.setItem("tenant_id", DEFAULT_TENANT_ID);
   }
 
   const isFormData =
@@ -58,10 +82,10 @@ export async function fetchWithAuth(url: string, options: RequestInit = {}) {
   }
 
   if (token) headers["Authorization"] = `Bearer ${token}`;
-  headers["X-Tenant-ID"] = tenantId || "2";
+  headers["X-Tenant-ID"] = tenantId || DEFAULT_TENANT_ID;
 
-  const isProxyPath = url.startsWith("/backend-api/") || url.startsWith("/api/");
-  const fullUrl = (url.startsWith("http") || isProxyPath) ? url : `${API_BASE_URL}${url}`;
+  const isNextRewritePath = url.startsWith("/backend-api/");
+  const fullUrl = (url.startsWith("http") || isNextRewritePath) ? url : `${API_BASE_URL}${url}`;
 
   // ⭐ DEDUPLICATION: Check if identical request is in flight
   const requestKey = getRequestKey(fullUrl, options);
@@ -106,10 +130,25 @@ export async function fetchWithAuth(url: string, options: RequestInit = {}) {
           : response;
 
         if (!response.ok) {
-          const msg =
+          const baseMsg =
             typeof data === "object" && (data?.message || data?.error)
               ? (data.message || data.error)
               : `Request failed: ${response.status}`;
+          const msg = baseMsg + crmBackendMismatchHint(fullUrl, response.status);
+          if (
+            response.status === 401 &&
+            typeof window !== "undefined" &&
+            /token|auth|unauthorized/i.test(String(msg))
+          ) {
+            localStorage.removeItem("auth_token");
+            localStorage.removeItem("token");
+            localStorage.removeItem("auth_user");
+            localStorage.removeItem("user_role");
+            document.cookie = "auth-token=;expires=Thu, 01 Jan 1970 00:00:00 UTC;path=/;";
+            if (!window.location.pathname.includes("/login")) {
+              window.location.assign("/login");
+            }
+          }
           throw new Error(msg);
         }
 
@@ -161,8 +200,8 @@ export async function fetchPublic(url: string, options: RequestInit = {}) {
     headers["Content-Type"] = "application/json";
   }
 
-  const isProxyPath = url.startsWith("/backend-api/") || url.startsWith("/api/");
-  const fullUrl = (url.startsWith("http") || isProxyPath) ? url : `${API_BASE_URL}${url}`;
+  const isNextRewritePath = url.startsWith("/backend-api/");
+  const fullUrl = (url.startsWith("http") || isNextRewritePath) ? url : `${API_BASE_URL}${url}`;
 
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 30000); // 30s timeout
@@ -191,7 +230,7 @@ export async function fetchPublic(url: string, options: RequestInit = {}) {
 // ================= API METHODS =================
 export const api = {
   // ==================== AUTH ====================
-  async login(username: string, password: string, tenant_id: number = 2) {
+  async login(username: string, password: string, tenant_id: number = Number(DEFAULT_TENANT_ID)) {
     localStorage.setItem("tenant_id", tenant_id.toString());
     console.log("✅ Setting tenant_id:", tenant_id);
     
