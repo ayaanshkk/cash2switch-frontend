@@ -399,33 +399,19 @@ export default function LeadsPage() {
   const updateLeadStatus = (leadId: number, newStatus: string) => {
     // Handle clearing status
     if (!newStatus || newStatus === "CLEAR_STATUS") {
-      const notCalledStage = stages.find(s => 
-        s.stage_name.toLowerCase() === "not called" || 
-        s.stage_name.toLowerCase() === "lead"
-      );
-      
-      if (!notCalledStage) {
-        console.error("❌ 'Not Called' or 'Lead' stage not found in stages:", stages);
-        toast.error("Configuration error: Default stage not found");
-        return;
-      }
-      
-      const defaultStageId = notCalledStage.stage_id;
-      const defaultStageName = notCalledStage.stage_name;
-      
       fetchWithAuth(`/api/crm/leads/${leadId}/status`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ stage_id: defaultStageId }),
+        body: JSON.stringify({ stage_id: null }),  // ✅ Set to NULL (same as renewals)
       })
       .then(() => {
-        // ✅ Update local state with stage_name, not status
+        // ✅ Update local state with NULL values
         setAllLeads(prev => prev.map(l =>
           l.opportunity_id === leadId 
             ? { 
                 ...l, 
-                stage_name: defaultStageName,  // ✅ KEY FIX
-                stage_id: defaultStageId 
+                stage_name: null,  // ✅ NULL = no status (like renewals)
+                stage_id: null 
               } 
             : l
         ));
