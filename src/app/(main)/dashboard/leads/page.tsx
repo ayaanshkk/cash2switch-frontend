@@ -397,25 +397,39 @@ export default function LeadsPage() {
 
   // ── Status / callback ──────────────────────────────────────────────────────
   const updateLeadStatus = (leadId: number, newStatus: string) => {
+    // Handle clearing status
     if (!newStatus || newStatus === "CLEAR_STATUS") {
-      fetchWithAuth(`/api/crm/leads/${leadId}`, {
+      const notCalledStageId = stages.find(s => 
+        s.stage_name.toLowerCase() === "not called"
+      )?.stage_id || 1;
+      
+      fetchWithAuth(`/api/crm/leads/${leadId}/status`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ stage_id: 1 }),
+        body: JSON.stringify({ stage_id: notCalledStageId }),
       }).then(() => {
         setAllLeads(prev => prev.map(l =>
-          l.opportunity_id === leadId ? { ...l, stage_name: null, stage_id: 1 } : l
+          l.opportunity_id === leadId 
+            ? { ...l, stage_name: "Not Called", stage_id: notCalledStageId } 
+            : l
         ));
         toast.success("✅ Status cleared");
       }).catch((e: any) => toast.error(`Failed to clear status: ${e?.message || ""}`));
       return;
     }
+
+    // For all other statuses, open the callback modal
     setSelectedLeadForCallback(leadId);
     setCallbackStatus(newStatus);
-    setCallbackDate(""); setCallbackNotes(""); setIsSold("");
-    setNewEndDate(""); setNewSupplier(""); setNewAddress("");
+    setCallbackDate("");
+    setCallbackNotes("");
+    setIsSold("");
+    setNewEndDate("");
+    setNewSupplier("");
+    setNewAddress("");
     setCalledDate(new Date().toISOString().split("T")[0]);
-    setCallbackError(""); setRenewedBy("");
+    setCallbackError("");
+    setRenewedBy("");
     setShowCallbackModal(true);
   };
 
