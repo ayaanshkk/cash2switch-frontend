@@ -399,22 +399,34 @@ export default function LeadsPage() {
   const updateLeadStatus = (leadId: number, newStatus: string) => {
     // Handle clearing status
     if (!newStatus || newStatus === "CLEAR_STATUS") {
-      const notCalledStageId = stages.find(s => 
+      const notCalledStage = stages.find(s => 
         s.stage_name.toLowerCase() === "not called"
-      )?.stage_id || 1;
+      );
+      const notCalledStageId = notCalledStage?.stage_id || 1;
+      const notCalledStageName = notCalledStage?.stage_name || "Not Called";
       
       fetchWithAuth(`/api/crm/leads/${leadId}/status`, {
         method: "PATCH",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json" },  // ✅ CRITICAL FIX: Add headers
         body: JSON.stringify({ stage_id: notCalledStageId }),
-      }).then(() => {
+      })
+      .then(() => {
+        // ✅ Update both stage_id AND stage_name
         setAllLeads(prev => prev.map(l =>
           l.opportunity_id === leadId 
-            ? { ...l, stage_name: "Not Called", stage_id: notCalledStageId } 
+            ? { 
+                ...l, 
+                stage_name: notCalledStageName,
+                stage_id: notCalledStageId 
+              } 
             : l
         ));
         toast.success("✅ Status cleared");
-      }).catch((e: any) => toast.error(`Failed to clear status: ${e?.message || ""}`));
+      })
+      .catch((e: any) => {
+        console.error("Failed to clear status:", e);
+        toast.error(`Failed to clear status: ${e?.message || "Unknown error"}`);
+      });
       return;
     }
 
@@ -430,6 +442,7 @@ export default function LeadsPage() {
     setCalledDate(new Date().toISOString().split("T")[0]);
     setCallbackError("");
     setRenewedBy("");
+    setAssignToEmployeeId("");
     setShowCallbackModal(true);
   };
 
