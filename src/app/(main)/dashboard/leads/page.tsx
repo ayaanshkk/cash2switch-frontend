@@ -400,31 +400,48 @@ export default function LeadsPage() {
     // Handle clearing status
     if (!newStatus || newStatus === "CLEAR_STATUS") {
       const notCalledStage = stages.find(s => 
-        s.stage_name.toLowerCase() === "not called"
+        s.stage_name.toLowerCase() === "not called" || 
+        s.stage_name.toLowerCase() === "lead"
       );
-      const notCalledStageId = notCalledStage?.stage_id || 1;
-      const notCalledStageName = notCalledStage?.stage_name || "Not Called";
+      
+      if (!notCalledStage) {
+        console.error("❌ 'Not Called' or 'Lead' stage not found in stages:", stages);
+        toast.error("Configuration error: Default stage not found");
+        return;
+      }
+      
+      const defaultStageId = notCalledStage.stage_id;
+      const defaultStageName = notCalledStage.stage_name;
+      
+      console.log("🔄 Clearing status:", { 
+        leadId, 
+        defaultStageId, 
+        defaultStageName 
+      });
       
       fetchWithAuth(`/api/crm/leads/${leadId}/status`, {
         method: "PATCH",
-        headers: { "Content-Type": "application/json" },  // ✅ CRITICAL FIX: Add headers
-        body: JSON.stringify({ stage_id: notCalledStageId }),
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ stage_id: defaultStageId }),
       })
-      .then(() => {
-        // ✅ Update both stage_id AND stage_name
+      .then((response) => {
+        console.log("✅ Status cleared successfully:", response);
+        
+        // ✅ Update local state with correct stage info
         setAllLeads(prev => prev.map(l =>
           l.opportunity_id === leadId 
             ? { 
                 ...l, 
-                stage_name: notCalledStageName,
-                stage_id: notCalledStageId 
+                stage_name: defaultStageName,
+                stage_id: defaultStageId,
+                ...(response?.lead || {}), // ✅ Merge any additional fields from backend
               } 
             : l
         ));
         toast.success("✅ Status cleared");
       })
       .catch((e: any) => {
-        console.error("Failed to clear status:", e);
+        console.error("❌ Failed to clear status:", e);
         toast.error(`Failed to clear status: ${e?.message || "Unknown error"}`);
       });
       return;
@@ -504,20 +521,22 @@ export default function LeadsPage() {
         throw new Error(response?.error || "Failed to save");
       }
 
-      // ✅ CRITICAL FIX: Update local state with correct stage_name from callbackStatus
+      // ✅ CRITICAL FIX: Update local state with the returned lead data (like details page does)
       setAllLeads(prev => prev.map(l => {
         if (l.opportunity_id === selectedLeadForCallback) {
-          return {
+          // Merge the response data into the lead
+          const updatedLead = {
             ...l,
             stage_id: stageId,
-            stage_name: callbackStatus,  // ✅ Use the selected status directly
-            ...(response.lead || {}),     // Merge any other fields from backend
+            stage_name: callbackStatus,  // ✅ Use the selected status
+            ...(response.lead || {}),     // ✅ Merge any other fields from backend
           };
+          return updatedLead;
         }
         return l;
       }));
 
-      // Handle special cases (deletion, conversion, etc.)
+      // Handle special cases (same as details page)
       if (callbackStatus === "Converted" && response.allocated) {
         setAllLeads(prev => prev.filter(l => l.opportunity_id !== selectedLeadForCallback));
         setSelectedLeads(prev => prev.filter(id => id !== selectedLeadForCallback));
@@ -556,6 +575,7 @@ export default function LeadsPage() {
       setIsSubmittingCallback(false);
     }
   };
+
   // ── Assignment ─────────────────────────────────────────────────────────────
   const handleAssignWithNotes = async () => {
     if (!assigningLeadId) return;
