@@ -396,71 +396,122 @@ export default function LeadsPage() {
   };
 
   // ── Status / callback ──────────────────────────────────────────────────────
-  const updateLeadStatus = (leadId: number, newStatus: string) => {
+  const updateLeadStatus = async (leadId: number, newStatus: string) => {
     // Handle clearing status
     if (!newStatus || newStatus === "CLEAR_STATUS") {
-      const notCalledStage = stages.find(s => 
-        s.stage_name.toLowerCase() === "not called" || 
-        s.stage_name.toLowerCase() === "lead"
-      );
-      
-      if (!notCalledStage) {
-        console.error("❌ 'Not Called' or 'Lead' stage not found in stages:", stages);
-        toast.error("Configuration error: Default stage not found");
-        return;
-      }
-      
-      const defaultStageId = notCalledStage.stage_id;
-      const defaultStageName = notCalledStage.stage_name;
-      
-      console.log("🔄 Clearing status:", { 
-        leadId, 
-        defaultStageId, 
-        defaultStageName 
-      });
-      
-      fetchWithAuth(`/api/crm/leads/${leadId}/status`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ stage_id: defaultStageId }),
-      })
-      .then((response) => {
-        console.log("✅ Status cleared successfully:", response);
+      try {
+        // Clear by setting to null or empty - let backend handle the default
+        const response = await fetchWithAuth(`/api/crm/leads/${leadId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ stage_name: null }), // Clear the status
+        });
         
-        // ✅ Update local state with correct stage info
         setAllLeads(prev => prev.map(l =>
           l.opportunity_id === leadId 
             ? { 
                 ...l, 
-                stage_name: defaultStageName,
-                stage_id: defaultStageId,
-                ...(response?.lead || {}), // ✅ Merge any additional fields from backend
+                stage_name: null,
+                stage_id: null,
+                ...(response?.lead || {}),
               } 
             : l
         ));
         toast.success("✅ Status cleared");
-      })
-      .catch((e: any) => {
+      } catch (e: any) {
         console.error("❌ Failed to clear status:", e);
         toast.error(`Failed to clear status: ${e?.message || "Unknown error"}`);
-      });
+      }
       return;
     }
 
-    // For all other statuses, open the callback modal
-    setSelectedLeadForCallback(leadId);
-    setCallbackStatus(newStatus);
-    setCallbackDate("");
-    setCallbackNotes("");
-    setIsSold("");
-    setNewEndDate("");
-    setNewSupplier("");
-    setNewAddress("");
-    setCalledDate(new Date().toISOString().split("T")[0]);
-    setCallbackError("");
-    setRenewedBy("");
-    setAssignToEmployeeId("");
-    setShowCallbackModal(true);
+    // Check if this status requires additional fields (modal)
+    const cfg = statusConfig[newStatus];
+    const requiresModal = cfg && (
+      cfg.requiresDate || 
+      cfg.requiresSold || 
+      cfg.requiresNotes || 
+      cfg.requiresNewEndDate || 
+      cfg.requiresSupplierChange || 
+      cfg.requiresAddressChange ||
+      newStatus === "Already Renewed" ||
+      newStatus === "Converted"
+    );
+
+    // If status requires additional info, open modal
+    if (requiresModal) {
+      setSelectedLeadForCallback(leadId);
+      setCallbackStatus(newStatus);
+      setCallbackDate("");
+      setCallbackNotes("");
+      setIsSold("");
+      setNewEndDate("");
+      setNewSupplier("");
+      setNewAddress("");
+      setCalledDate(new Date().toISOString().split("T")[0]);
+      setCallbackError("");
+      setRenewedBy("");
+      setAssignToEmployeeId("");
+      setShowCallbackModal(true);
+      return;
+    }
+
+    // For simple status changes, update immediately using callback endpoint
+    try {
+      console.log("🔄 Updating status directly:", { 
+        leadId, 
+        newStatus 
+      });
+
+      // ✅ Use the callback endpoint which properly handles Project_Details.status
+      const response = await fetchWithAuth(`/api/crm/leads/${leadId}/callback`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ 
+          status: newStatus,  // ✅ Send the actual status name, not stage_id
+          called_date: new Date().toISOString().split("T")[0],
+          notes: `Status changed to ${newStatus}`,
+        }),
+      });
+
+      console.log("✅ Backend response:", response);
+
+      if (!response || response.error) {
+        throw new Error(response?.error || "Failed to update status");
+      }
+
+      // ✅ Update local state with the exact status we sent
+      setAllLeads(prev => prev.map(l => {
+        if (l.opportunity_id === leadId) {
+          const updatedLead = {
+            ...l,
+            stage_name: newStatus,  // ✅ Set to the exact status name we selected
+            ...(response.lead || {}),
+          };
+          console.log("✅ Local state updated:", updatedLead);
+          return updatedLead;
+        }
+        return l;
+      }));
+
+      // Handle special response cases
+      if (response.moved_to_cleansing) {
+        setAllLeads(prev => prev.filter(l => l.opportunity_id !== leadId));
+        toast.success("🧹 Moved to Cleansing");
+      } else if (response.moved_to_recycle_bin) {
+        setAllLeads(prev => prev.filter(l => l.opportunity_id !== leadId));
+        toast.success("🗑️ Moved to Recycle Bin");
+      } else if (response.moved_to_priced) {
+        setAllLeads(prev => prev.filter(l => l.opportunity_id !== leadId));
+        toast.success("✅ Moved to Priced");
+      } else {
+        toast.success(`✅ Status updated to ${newStatus}`);
+      }
+
+    } catch (err: any) {
+      console.error("❌ Failed to update status:", err);
+      toast.error(`Failed to update status: ${err?.message || "Unknown error"}`);
+    }
   };
 
   const handleSubmitCallback = async () => {
