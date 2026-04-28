@@ -435,17 +435,38 @@ export default function LeadsPage() {
 
   const handleSubmitCallback = async () => {
     setCallbackError("");
-    if (!callbackStatus || !selectedLeadForCallback) { setCallbackError("Please select a status"); return; }
+    if (!callbackStatus || !selectedLeadForCallback) { 
+      setCallbackError("Please select a status"); 
+      return; 
+    }
+    
     const cfg = statusConfig[callbackStatus];
-    if (cfg?.requiresSold && !isSold) { setCallbackError("Please select if the contract was sold"); return; }
-    if (cfg?.requiresNotes && !callbackNotes.trim()) { setCallbackError("Please enter the reason for this status"); return; }
-    if (callbackStatus === "Already Renewed" && !renewedBy) { setCallbackError("Please select if renewed by customer or agent"); return; }
-    if (callbackStatus === "End Date Changed" && !newEndDate) { setCallbackError("Please enter the new contract end date"); return; }
+    if (cfg?.requiresSold && !isSold) { 
+      setCallbackError("Please select if the contract was sold"); 
+      return; 
+    }
+    if (cfg?.requiresNotes && !callbackNotes.trim()) { 
+      setCallbackError("Please enter the reason for this status"); 
+      return; 
+    }
+    if (callbackStatus === "Already Renewed" && !renewedBy) { 
+      setCallbackError("Please select if renewed by customer or agent"); 
+      return; 
+    }
+    if (callbackStatus === "End Date Changed" && !newEndDate) { 
+      setCallbackError("Please enter the new contract end date"); 
+      return; 
+    }
 
     setIsSubmittingCallback(true);
     try {
       const stageId = getStageIdFromStatus(callbackStatus, stages.length ? stages : undefined);
-      const payload: any = { stage_id: stageId, status: callbackStatus, notes: callbackNotes };
+      const payload: any = { 
+        stage_id: stageId, 
+        status: callbackStatus, 
+        notes: callbackNotes 
+      };
+      
       if (calledDate) payload.called_date = calledDate;
       if (isDateRequired() && callbackDate) payload.callback_date = callbackDate;
       if (cfg?.requiresSold) payload.is_sold = isSold === "yes";
@@ -459,20 +480,31 @@ export default function LeadsPage() {
 
       const response = await fetchWithAuth(
         `/api/crm/leads/${selectedLeadForCallback}/callback`,
-        { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) }
+        { 
+          method: "POST", 
+          headers: { "Content-Type": "application/json" }, 
+          body: JSON.stringify(payload) 
+        }
       );
-      if (!response || response.error) throw new Error(response?.error || "Failed to save");
-
-      // ✅ CRITICAL FIX: Update local state with returned lead data
-      if (response.lead) {
-        setAllLeads(prev => prev.map(l => 
-          l.opportunity_id === selectedLeadForCallback 
-            ? { ...l, ...response.lead }  // ✅ Merge updated fields
-            : l
-        ));
+      
+      if (!response || response.error) {
+        throw new Error(response?.error || "Failed to save");
       }
 
-      // ✅ Handle "Converted" with assignment
+      // ✅ CRITICAL FIX: Update local state with correct stage_name from callbackStatus
+      setAllLeads(prev => prev.map(l => {
+        if (l.opportunity_id === selectedLeadForCallback) {
+          return {
+            ...l,
+            stage_id: stageId,
+            stage_name: callbackStatus,  // ✅ Use the selected status directly
+            ...(response.lead || {}),     // Merge any other fields from backend
+          };
+        }
+        return l;
+      }));
+
+      // Handle special cases (deletion, conversion, etc.)
       if (callbackStatus === "Converted" && response.allocated) {
         setAllLeads(prev => prev.filter(l => l.opportunity_id !== selectedLeadForCallback));
         setSelectedLeads(prev => prev.filter(id => id !== selectedLeadForCallback));
@@ -486,20 +518,31 @@ export default function LeadsPage() {
         setSelectedLeads(prev => prev.filter(id => id !== selectedLeadForCallback));
         toast.success("✅ Moved to Priced page");
       } else if (callbackStatus === "End Date Changed" || callbackStatus === "Already Renewed") {
-        // ✅ The state is already updated above from response.lead
         toast.success(`✅ ${callbackStatus === "Already Renewed" ? "Lead updated" : "End date updated"}`);
       } else {
         toast.success("✅ Callback saved");
       }
       
       setShowCallbackModal(false);
+      
+      // ✅ Reset all modal fields
+      setSelectedLeadForCallback(null);
+      setCallbackStatus("");
+      setCallbackDate("");
+      setCallbackNotes("");
+      setIsSold("");
+      setNewEndDate("");
+      setNewSupplier("");
+      setNewAddress("");
+      setRenewedBy("");
+      setAssignToEmployeeId("");
+      
     } catch (err: any) {
       setCallbackError(err.message || "Failed to save callback");
     } finally {
       setIsSubmittingCallback(false);
     }
   };
-
   // ── Assignment ─────────────────────────────────────────────────────────────
   const handleAssignWithNotes = async () => {
     if (!assigningLeadId) return;
