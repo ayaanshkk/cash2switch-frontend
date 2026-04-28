@@ -396,122 +396,61 @@ export default function LeadsPage() {
   };
 
   // ── Status / callback ──────────────────────────────────────────────────────
-  const updateLeadStatus = async (leadId: number, newStatus: string) => {
+  const updateLeadStatus = (leadId: number, newStatus: string) => {
     // Handle clearing status
     if (!newStatus || newStatus === "CLEAR_STATUS") {
-      try {
-        // Clear by setting to null or empty - let backend handle the default
-        const response = await fetchWithAuth(`/api/crm/leads/${leadId}`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ stage_name: null }), // Clear the status
-        });
-        
+      const notCalledStage = stages.find(s => 
+        s.stage_name.toLowerCase() === "not called" || 
+        s.stage_name.toLowerCase() === "lead"
+      );
+      
+      if (!notCalledStage) {
+        console.error("❌ 'Not Called' or 'Lead' stage not found in stages:", stages);
+        toast.error("Configuration error: Default stage not found");
+        return;
+      }
+      
+      const defaultStageId = notCalledStage.stage_id;
+      const defaultStageName = notCalledStage.stage_name;
+      
+      fetchWithAuth(`/api/crm/leads/${leadId}/status`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ stage_id: defaultStageId }),
+      })
+      .then(() => {
+        // ✅ Update local state with stage_name, not status
         setAllLeads(prev => prev.map(l =>
           l.opportunity_id === leadId 
             ? { 
                 ...l, 
-                stage_name: null,
-                stage_id: null,
-                ...(response?.lead || {}),
+                stage_name: defaultStageName,  // ✅ KEY FIX
+                stage_id: defaultStageId 
               } 
             : l
         ));
         toast.success("✅ Status cleared");
-      } catch (e: any) {
-        console.error("❌ Failed to clear status:", e);
+      })
+      .catch((e: any) => {
         toast.error(`Failed to clear status: ${e?.message || "Unknown error"}`);
-      }
+      });
       return;
     }
 
-    // Check if this status requires additional fields (modal)
-    const cfg = statusConfig[newStatus];
-    const requiresModal = cfg && (
-      cfg.requiresDate || 
-      cfg.requiresSold || 
-      cfg.requiresNotes || 
-      cfg.requiresNewEndDate || 
-      cfg.requiresSupplierChange || 
-      cfg.requiresAddressChange ||
-      newStatus === "Already Renewed" ||
-      newStatus === "Converted"
-    );
-
-    // If status requires additional info, open modal
-    if (requiresModal) {
-      setSelectedLeadForCallback(leadId);
-      setCallbackStatus(newStatus);
-      setCallbackDate("");
-      setCallbackNotes("");
-      setIsSold("");
-      setNewEndDate("");
-      setNewSupplier("");
-      setNewAddress("");
-      setCalledDate(new Date().toISOString().split("T")[0]);
-      setCallbackError("");
-      setRenewedBy("");
-      setAssignToEmployeeId("");
-      setShowCallbackModal(true);
-      return;
-    }
-
-    // For simple status changes, update immediately using callback endpoint
-    try {
-      console.log("🔄 Updating status directly:", { 
-        leadId, 
-        newStatus 
-      });
-
-      // ✅ Use the callback endpoint which properly handles Project_Details.status
-      const response = await fetchWithAuth(`/api/crm/leads/${leadId}/callback`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ 
-          status: newStatus,  // ✅ Send the actual status name, not stage_id
-          called_date: new Date().toISOString().split("T")[0],
-          notes: `Status changed to ${newStatus}`,
-        }),
-      });
-
-      console.log("✅ Backend response:", response);
-
-      if (!response || response.error) {
-        throw new Error(response?.error || "Failed to update status");
-      }
-
-      // ✅ Update local state with the exact status we sent
-      setAllLeads(prev => prev.map(l => {
-        if (l.opportunity_id === leadId) {
-          const updatedLead = {
-            ...l,
-            stage_name: newStatus,  // ✅ Set to the exact status name we selected
-            ...(response.lead || {}),
-          };
-          console.log("✅ Local state updated:", updatedLead);
-          return updatedLead;
-        }
-        return l;
-      }));
-
-      // Handle special response cases
-      if (response.moved_to_cleansing) {
-        setAllLeads(prev => prev.filter(l => l.opportunity_id !== leadId));
-        toast.success("🧹 Moved to Cleansing");
-      } else if (response.moved_to_recycle_bin) {
-        setAllLeads(prev => prev.filter(l => l.opportunity_id !== leadId));
-        toast.success("🗑️ Moved to Recycle Bin");
-      } else if (response.moved_to_priced) {
-        setAllLeads(prev => prev.filter(l => l.opportunity_id !== leadId));
-        toast.success("✅ Moved to Priced");
-      } else {
-        toast.success(`✅ Status updated to ${newStatus}`);
-      }
-
-    } catch (err: any) {
-      console.error("❌ Failed to update status:", err);
-      toast.error(`Failed to update status: ${err?.message || "Unknown error"}`);
-    }
+    // For all other statuses, open the callback modal
+    setSelectedLeadForCallback(leadId);
+    setCallbackStatus(newStatus);
+    setCallbackDate("");
+    setCallbackNotes("");
+    setIsSold("");
+    setNewEndDate("");
+    setNewSupplier("");
+    setNewAddress("");
+    setCalledDate(new Date().toISOString().split("T")[0]);
+    setCallbackError("");
+    setRenewedBy("");
+    setAssignToEmployeeId("");
+    setShowCallbackModal(true);
   };
 
   const handleSubmitCallback = async () => {
@@ -572,7 +511,7 @@ export default function LeadsPage() {
         throw new Error(response?.error || "Failed to save");
       }
 
-      // ✅ CRITICAL FIX: Update local state EXACTLY like RenewalsPage does
+      // ✅ CRITICAL FIX: Update state IMMEDIATELY with stage_name (like RenewalsPage)
       if (response.moved_to_cleansing) {
         setAllLeads(prev => prev.filter(l => l.opportunity_id !== selectedLeadForCallback));
         setSelectedLeads(prev => prev.filter(id => id !== selectedLeadForCallback));
@@ -588,42 +527,25 @@ export default function LeadsPage() {
       } else if (callbackStatus === "Converted" && response.allocated) {
         setAllLeads(prev => prev.filter(l => l.opportunity_id !== selectedLeadForCallback));
         setSelectedLeads(prev => prev.filter(id => id !== selectedLeadForCallback));
-        toast.success("✅ Lead converted and assigned - moved to allocated leads");
+        toast.success("✅ Lead converted and assigned");
       } else {
-        // ✅ CRITICAL FIX: Update state with the status IMMEDIATELY (like RenewalsPage)
-        if (callbackStatus === "End Date Changed" || callbackStatus === "Already Renewed") {
-          // For these statuses, refetch to get updated data
-          if (callbackStatus === "Already Renewed" && newSupplier.trim()) {
-            setAllLeads(prev =>
-              prev.map(l =>
-                l.opportunity_id === selectedLeadForCallback
-                  ? { ...l, supplier_name: newSupplier.trim(), stage_name: callbackStatus, stage_id: stageId }
-                  : l
-              )
-            );
-          }
-          toast.success(`✅ ${callbackStatus === "Already Renewed" ? "Lead updated" : "End date updated"}`);
-        } else {
-          // ✅ THIS IS THE KEY FIX: Update state immediately like RenewalsPage does
-          setAllLeads(prev =>
-            prev.map(l =>
-              l.opportunity_id === selectedLeadForCallback
-                ? { 
-                    ...l, 
-                    stage_name: callbackStatus,  // ✅ Use the selected status directly
-                    stage_id: stageId,           // ✅ Update stage_id too
-                    ...(response.lead || {}),    // ✅ Merge any other fields from backend
-                  }
-                : l
-            )
-          );
-          toast.success("✅ Callback saved");
-        }
+        // ✅ THIS IS THE KEY FIX: Set stage_name immediately
+        setAllLeads(prev =>
+          prev.map(l =>
+            l.opportunity_id === selectedLeadForCallback
+              ? { 
+                  ...l, 
+                  stage_name: callbackStatus,  // ✅ KEY FIX: Use stage_name
+                  stage_id: stageId,
+                  ...(response.lead || {}),
+                }
+              : l
+          )
+        );
+        toast.success("✅ Callback saved");
       }
       
       setShowCallbackModal(false);
-      
-      // ✅ Reset all modal fields
       setSelectedLeadForCallback(null);
       setCallbackStatus("");
       setCallbackDate("");
@@ -1307,43 +1229,36 @@ export default function LeadsPage() {
                     </td>
 
                     {/* Status */}
-                    <td className="px-3 py-3 align-top" onClick={e => e.stopPropagation()}>
-                      <Select 
-                        value={lead.stage_name || ""} 
-                        onValueChange={v => { 
-                          console.log("📝 Status dropdown changed:", { 
-                            leadId: lead.opportunity_id, 
-                            from: lead.stage_name, 
-                            to: v 
-                          });
-                          if (v === "CLEAR_STATUS") {
+                    <td className="px-3 py-3 align-top" onClick={(e) => e.stopPropagation()}>
+                      <Select
+                        value={lead.stage_name || ""}  // ✅ Use stage_name, not status
+                        onValueChange={(value) => {
+                          if (value === "CLEAR_STATUS") {
                             updateLeadStatus(lead.opportunity_id, "");
                           } else {
-                            updateLeadStatus(lead.opportunity_id, v);
+                            updateLeadStatus(lead.opportunity_id, value);
                           }
                         }}
                       >
                         <SelectTrigger className="h-7 text-xs w-full max-w-[150px]">
                           <SelectValue placeholder="Set status">
-                            {lead.stage_name
-                              ? <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-semibold ${getStatusColor(lead.stage_name)}`}>
-                                  {getStatusLabel(lead.stage_name)}
-                                </span>
-                              : <span className="text-gray-500">Set status</span>}
+                            {lead.stage_name ? (  // ✅ Use stage_name here too
+                              <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-semibold ${getStatusColor(lead.stage_name)}`}>
+                                {getStatusLabel(lead.stage_name)}
+                              </span>
+                            ) : (
+                              <span className="text-gray-500">Set status</span>
+                            )}
                           </SelectValue>
                         </SelectTrigger>
                         <SelectContent>
-                          {STATUS_OPTIONS.map(o => (
-                            <SelectItem key={o.value} value={o.value}>
-                              {o.label}
-                            </SelectItem>
+                          {STATUS_OPTIONS.map((option) => (
+                            <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
                           ))}
-                          {lead.stage_name && (
+                          {lead.stage_name && (  // ✅ Check stage_name
                             <>
-                              <div className="border-t my-1" />
-                              <SelectItem value="CLEAR_STATUS" className="text-red-600 font-medium">
-                                ✕ Clear Status
-                              </SelectItem>
+                              <div className="border-t my-1"></div>
+                              <SelectItem value="CLEAR_STATUS" className="text-red-600 font-medium">✕ Clear Status</SelectItem>
                             </>
                           )}
                         </SelectContent>
