@@ -559,8 +559,6 @@ export default function LeadsPage() {
       if (cfg?.requiresSupplierChange && newSupplier.trim()) payload.new_supplier = newSupplier.trim();
       if (cfg?.requiresAddressChange && newAddress.trim()) payload.new_address = newAddress.trim();
 
-      console.log("🔄 Submitting callback:", { leadId: selectedLeadForCallback, payload });
-
       const response = await fetchWithAuth(
         `/api/crm/leads/${selectedLeadForCallback}/callback`,
         { 
@@ -570,34 +568,16 @@ export default function LeadsPage() {
         }
       );
       
-      console.log("✅ Callback response:", response);
-      
       if (!response || response.error) {
         throw new Error(response?.error || "Failed to save");
       }
 
-      // ✅ CRITICAL FIX: Update local state with the returned lead data
-      setAllLeads(prev => prev.map(l => {
-        if (l.opportunity_id === selectedLeadForCallback) {
-          // Merge the response data into the lead
-          const updatedLead = {
-            ...l,
-            stage_id: stageId,
-            stage_name: callbackStatus,  // ✅ Use the selected status
-            ...(response.lead || {}),     // ✅ Merge any other fields from backend
-          };
-          console.log("✅ Updated lead in local state:", updatedLead);
-          return updatedLead;
-        }
-        return l;
-      }));
-
-      // Handle special cases (same as details page)
-      if (callbackStatus === "Converted" && response.allocated) {
+      // ✅ CRITICAL FIX: Update local state EXACTLY like RenewalsPage does
+      if (response.moved_to_cleansing) {
         setAllLeads(prev => prev.filter(l => l.opportunity_id !== selectedLeadForCallback));
         setSelectedLeads(prev => prev.filter(id => id !== selectedLeadForCallback));
-        toast.success("✅ Lead converted and assigned - moved to allocated leads");
-      } else if (response.moved_to_recycle_bin) {
+        toast.success("🧹 Moved to Cleansing");
+      } else if (response.moved_to_recycle_bin || response.deleted) {
         setAllLeads(prev => prev.filter(l => l.opportunity_id !== selectedLeadForCallback));
         setSelectedLeads(prev => prev.filter(id => id !== selectedLeadForCallback));
         toast.success("🗑️ Moved to recycle bin");
@@ -605,10 +585,40 @@ export default function LeadsPage() {
         setAllLeads(prev => prev.filter(l => l.opportunity_id !== selectedLeadForCallback));
         setSelectedLeads(prev => prev.filter(id => id !== selectedLeadForCallback));
         toast.success("✅ Moved to Priced page");
-      } else if (callbackStatus === "End Date Changed" || callbackStatus === "Already Renewed") {
-        toast.success(`✅ ${callbackStatus === "Already Renewed" ? "Lead updated" : "End date updated"}`);
+      } else if (callbackStatus === "Converted" && response.allocated) {
+        setAllLeads(prev => prev.filter(l => l.opportunity_id !== selectedLeadForCallback));
+        setSelectedLeads(prev => prev.filter(id => id !== selectedLeadForCallback));
+        toast.success("✅ Lead converted and assigned - moved to allocated leads");
       } else {
-        toast.success("✅ Callback saved");
+        // ✅ CRITICAL FIX: Update state with the status IMMEDIATELY (like RenewalsPage)
+        if (callbackStatus === "End Date Changed" || callbackStatus === "Already Renewed") {
+          // For these statuses, refetch to get updated data
+          if (callbackStatus === "Already Renewed" && newSupplier.trim()) {
+            setAllLeads(prev =>
+              prev.map(l =>
+                l.opportunity_id === selectedLeadForCallback
+                  ? { ...l, supplier_name: newSupplier.trim(), stage_name: callbackStatus, stage_id: stageId }
+                  : l
+              )
+            );
+          }
+          toast.success(`✅ ${callbackStatus === "Already Renewed" ? "Lead updated" : "End date updated"}`);
+        } else {
+          // ✅ THIS IS THE KEY FIX: Update state immediately like RenewalsPage does
+          setAllLeads(prev =>
+            prev.map(l =>
+              l.opportunity_id === selectedLeadForCallback
+                ? { 
+                    ...l, 
+                    stage_name: callbackStatus,  // ✅ Use the selected status directly
+                    stage_id: stageId,           // ✅ Update stage_id too
+                    ...(response.lead || {}),    // ✅ Merge any other fields from backend
+                  }
+                : l
+            )
+          );
+          toast.success("✅ Callback saved");
+        }
       }
       
       setShowCallbackModal(false);
@@ -626,7 +636,6 @@ export default function LeadsPage() {
       setAssignToEmployeeId("");
       
     } catch (err: any) {
-      console.error("❌ Callback error:", err);
       setCallbackError(err.message || "Failed to save callback");
     } finally {
       setIsSubmittingCallback(false);
