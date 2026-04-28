@@ -529,15 +529,14 @@ export default function LeadsPage() {
         setSelectedLeads(prev => prev.filter(id => id !== selectedLeadForCallback));
         toast.success("✅ Lead converted and assigned");
       } else {
-        // ✅ THIS IS THE KEY FIX: Set stage_name immediately
         setAllLeads(prev =>
           prev.map(l =>
             l.opportunity_id === selectedLeadForCallback
               ? { 
-                  ...l, 
-                  stage_name: callbackStatus,  // ✅ KEY FIX: Use stage_name
-                  stage_id: stageId,
-                  ...(response.lead || {}),
+                  ...l,
+                  ...(response.lead || {}),      
+                  stage_name: callbackStatus,    
+                  stage_id: stageId,             
                 }
               : l
           )
