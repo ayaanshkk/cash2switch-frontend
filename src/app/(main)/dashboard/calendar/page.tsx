@@ -4,10 +4,11 @@ import { useEffect, useState, useMemo } from "react";
 import { useSearchParams } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ChevronLeft, ChevronRight, Loader2, RefreshCw, ExternalLink, AlertCircle } from "lucide-react";
-import { api } from "@/lib/api";
+import { api, fetchWithAuth } from "@/lib/api";
 import { format } from "date-fns";
 
 interface Renewal {
@@ -33,6 +34,7 @@ interface Renewal {
   display_type: string;
   status: string;
   assigned_to?: string;
+  is_overdue?: boolean;
 }
 
 interface Employee {
@@ -42,6 +44,16 @@ interface Employee {
 }
 
 type CalendarView = "renewals" | "leads";
+const CALENDAR_VIEW_STORAGE_KEY = "cash2switch_calendar_view";
+
+const getInitialCalendarView = (): CalendarView => {
+  if (typeof window === "undefined") return "renewals";
+  const urlView = new URLSearchParams(window.location.search).get("view");
+  if (urlView === "leads" || urlView === "renewals") return urlView;
+  const storedView = localStorage.getItem(CALENDAR_VIEW_STORAGE_KEY);
+  if (storedView === "leads" || storedView === "renewals") return storedView;
+  return "renewals";
+};
 
 export default function CalendarPage() {
   const { user } = useAuth();
@@ -51,15 +63,15 @@ export default function CalendarPage() {
     const adminRoles = ['Platform Admin', 'Tenant Super Admin'];
     // Don't treat admins as leads role - they see renewals with full access
     if (adminRoles.includes(role)) return false;
-    return role.toLowerCase().includes('leads offshore') || role.toLowerCase().includes('leads');
+    return role.toLowerCase().includes('lead');
   }, [user?.role]);
 
-  const [calendarView, setCalendarView] = useState<CalendarView>("renewals");
+  const [calendarView, setCalendarView] = useState<CalendarView>(getInitialCalendarView);
   const isLeadsView = calendarView === "leads";
 
   const pageTitle = isLeadsView ? "Leads Calendar" : "Renewals Calendar";
   const pageSubtitle = isLeadsView
-    ? "View all leads contract end dates and callbacks"
+    ? "View all scheduled lead callbacks"
     : "View all customers contract end dates and callbacks";
   const detailsBasePath = isLeadsView ? "/dashboard/leads" : "/dashboard/renewals";
   const [renewals, setRenewals] = useState<Renewal[]>([]);
@@ -70,6 +82,10 @@ export default function CalendarPage() {
   const [showDetailDialog, setShowDetailDialog] = useState(false);
   const [selectedDayRenewals, setSelectedDayRenewals] = useState<Renewal[]>([]);
   const [showDayEventsDialog, setShowDayEventsDialog] = useState(false);
+  const [rescheduleDate, setRescheduleDate] = useState("");
+  const [contractEndDateInput, setContractEndDateInput] = useState("");
+  const [isRescheduling, setIsRescheduling] = useState(false);
+  const [rescheduleError, setRescheduleError] = useState<string | null>(null);
   const [showMonthPicker, setShowMonthPicker] = useState(false);
 
   // ✅ Employee filter states
@@ -81,11 +97,37 @@ export default function CalendarPage() {
   // ✅ NEW: Refetch trigger for when callbacks are updated
   const [refetchTrigger, setRefetchTrigger] = useState(0);
 
+  const updateCalendarView = (view: CalendarView) => {
+    setCalendarView(view);
+    setSelectedRenewal(null);
+    setShowDetailDialog(false);
+    setSelectedDayRenewals([]);
+    setShowDayEventsDialog(false);
+    if (typeof window !== "undefined") {
+      localStorage.setItem(CALENDAR_VIEW_STORAGE_KEY, view);
+      const url = new URL(window.location.href);
+      url.searchParams.set("view", view);
+      window.history.replaceState(null, "", url.toString());
+    }
+  };
+
   useEffect(() => {
     const view = searchParams.get("view");
     if (view === "leads" || view === "renewals") {
       console.log("🔄 Setting view from URL:", view);
       setCalendarView(view);
+      if (typeof window !== "undefined") {
+        localStorage.setItem(CALENDAR_VIEW_STORAGE_KEY, view);
+      }
+      return;
+    }
+
+    const storedView = typeof window !== "undefined"
+      ? localStorage.getItem(CALENDAR_VIEW_STORAGE_KEY)
+      : null;
+    if (storedView === "leads" || storedView === "renewals") {
+      console.log("ðŸ”„ Setting view from saved preference:", storedView);
+      setCalendarView(storedView);
     } else if (isLeadsRole) {
       console.log("🔄 Setting view from role: leads");
       setCalendarView("leads");
@@ -269,6 +311,10 @@ export default function CalendarPage() {
   };
 
   const getRenewalColor = (renewal: Renewal) => {
+    if (renewal.is_overdue) {
+      return "bg-red-100 text-red-800 border-red-300";
+    }
+
     const displayType = renewal.display_type.toLowerCase();
     
     // Contract end dates (orange)
@@ -306,6 +352,113 @@ export default function CalendarPage() {
     window.open(`${detailsBasePath}/${customerId}`, '_blank', 'noopener,noreferrer');
   };
 
+  useEffect(() => {
+    if (!selectedRenewal) {
+      setRescheduleDate("");
+      setContractEndDateInput("");
+      setRescheduleError(null);
+      return;
+    }
+    setRescheduleDate(selectedRenewal.reminder_date ? String(selectedRenewal.reminder_date).slice(0, 10) : "");
+    setContractEndDateInput(selectedRenewal.contract_end_date ? String(selectedRenewal.contract_end_date).slice(0, 10) : "");
+    setRescheduleError(null);
+  }, [selectedRenewal]);
+
+  const handlePopupReschedule = async () => {
+    if (!selectedRenewal) {
+      setRescheduleError("Please select a customer.");
+      return;
+    }
+
+    const existingCallbackDate = selectedRenewal.reminder_date ? String(selectedRenewal.reminder_date).slice(0, 10) : "";
+    const existingEndDate = selectedRenewal.contract_end_date ? String(selectedRenewal.contract_end_date).slice(0, 10) : "";
+    const callbackChanged = Boolean(rescheduleDate) && rescheduleDate !== existingCallbackDate;
+    const endDateChanged = !isLeadsView && Boolean(contractEndDateInput) && contractEndDateInput !== existingEndDate;
+
+    if (!callbackChanged && !endDateChanged) {
+      setRescheduleError("No changes detected. Update callback date or contract end date.");
+      return;
+    }
+
+    setIsRescheduling(true);
+    setRescheduleError(null);
+    try {
+      const callbackDateForEndDateUpdate =
+        rescheduleDate || existingCallbackDate || new Date().toISOString().slice(0, 10);
+
+      if (isLeadsView) {
+        if (callbackChanged) {
+          await fetchWithAuth(`/api/crm/leads/${selectedRenewal.customer_id}/callback`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              status: "Callback",
+              callback_date: rescheduleDate,
+              notes: selectedRenewal.notes || "Rescheduled from calendar",
+            }),
+          });
+        }
+      } else {
+        if (callbackChanged) {
+          await fetchWithAuth(`/energy-clients/${selectedRenewal.customer_id}/callback`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              status: "Callback",
+              callback_date: rescheduleDate,
+              notes: selectedRenewal.notes || "Rescheduled from calendar",
+            }),
+          });
+        }
+
+        if (endDateChanged) {
+          await fetchWithAuth(`/energy-clients/${selectedRenewal.customer_id}/callback`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              status: "End Date Changed",
+              callback_date: callbackDateForEndDateUpdate,
+              new_end_date: contractEndDateInput,
+              notes: selectedRenewal.notes || "Contract end date updated from calendar",
+            }),
+          });
+        }
+      }
+
+      setSelectedRenewal(prev => prev ? {
+        ...prev,
+        reminder_date: callbackChanged ? rescheduleDate : prev.reminder_date,
+        contract_end_date: endDateChanged ? contractEndDateInput : prev.contract_end_date,
+        display_date:
+          prev.type === "contract_end"
+            ? (endDateChanged ? contractEndDateInput : prev.display_date)
+            : (callbackChanged ? rescheduleDate : prev.display_date),
+      } : prev);
+
+      setRenewals(prev => prev.map(item =>
+        item.id === selectedRenewal.id
+          ? {
+              ...item,
+              reminder_date: callbackChanged ? rescheduleDate : item.reminder_date,
+              contract_end_date: endDateChanged ? contractEndDateInput : item.contract_end_date,
+              display_date:
+                item.type === "contract_end"
+                  ? (endDateChanged ? contractEndDateInput : item.display_date)
+                  : (callbackChanged ? rescheduleDate : item.display_date),
+            }
+          : item
+      ));
+
+      localStorage.setItem('calendar-refetch-trigger', Date.now().toString());
+      window.dispatchEvent(new CustomEvent('calendar-refetch', { detail: { action: 'refetch-calendar' } }));
+      await loadCalendarEvents();
+    } catch (err: any) {
+      setRescheduleError(err?.message || "Failed to reschedule callback.");
+    } finally {
+      setIsRescheduling(false);
+    }
+  };
+
   if (!user) {
     return (
       <div className="flex min-h-screen items-center justify-center">
@@ -325,6 +478,24 @@ export default function CalendarPage() {
           </p>
         </div>
         <div className="flex items-center gap-3">
+          <div className="flex rounded-md border border-gray-200 bg-white p-1">
+            <Button
+              type="button"
+              size="sm"
+              variant={calendarView === "leads" ? "default" : "ghost"}
+              onClick={() => updateCalendarView("leads")}
+            >
+              Leads
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant={calendarView === "renewals" ? "default" : "ghost"}
+              onClick={() => updateCalendarView("renewals")}
+            >
+              Renewals
+            </Button>
+          </div>
           {/* ✅ Employee Filter Dropdown (Admin Only) */}
           {isAdmin && (
             <div className="flex flex-col gap-1">
@@ -633,17 +804,50 @@ export default function CalendarPage() {
                   <p className="text-sm mt-1 whitespace-pre-wrap">{selectedRenewal.notes}</p>
                 </div>
               )}
-              <div className="flex justify-between items-center pt-4 border-t">
-                <Button variant="outline" onClick={() => setShowDetailDialog(false)}>
-                  Close
-                </Button>
-                <Button 
-                  onClick={() => openCustomerDetails(selectedRenewal.customer_id)}
-                  className="gap-2"
-                >
-                  View Full Details
-                  <ExternalLink className="h-4 w-4" />
-                </Button>
+              <div className="space-y-4 pt-4 border-t">
+                <div className="rounded-md border border-gray-200 bg-gray-50 p-3">
+                  <p className="text-sm font-medium text-gray-900 mb-3">
+                    {isLeadsView ? "Schedule / Reschedule Callback" : "Schedule Updates"}
+                  </p>
+                  <div className="flex flex-wrap gap-3 items-end">
+                    <div>
+                      <p className="text-xs text-gray-500 mb-1">Callback Date</p>
+                      <Input
+                        type="date"
+                        value={rescheduleDate}
+                        onChange={(e) => setRescheduleDate(e.target.value)}
+                        className="w-[190px] bg-white"
+                      />
+                    </div>
+                    {!isLeadsView && (
+                      <div>
+                        <p className="text-xs text-gray-500 mb-1">Contract End Date</p>
+                        <Input
+                          type="date"
+                          value={contractEndDateInput}
+                          onChange={(e) => setContractEndDateInput(e.target.value)}
+                          className="w-[190px] bg-white"
+                        />
+                      </div>
+                    )}
+                    <Button onClick={handlePopupReschedule} disabled={isRescheduling}>
+                      {isRescheduling ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Saving...</> : "Save Updates"}
+                    </Button>
+                  </div>
+                  {rescheduleError && <p className="text-xs text-red-600 mt-2">{rescheduleError}</p>}
+                </div>
+                <div className="flex justify-between items-center">
+                  <Button variant="outline" onClick={() => setShowDetailDialog(false)}>
+                    Close
+                  </Button>
+                  <Button 
+                    onClick={() => openCustomerDetails(selectedRenewal.customer_id)}
+                    className="gap-2"
+                  >
+                    View Full Details
+                    <ExternalLink className="h-4 w-4" />
+                  </Button>
+                </div>
               </div>
             </div>
           )}

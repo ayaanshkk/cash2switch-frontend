@@ -60,9 +60,24 @@ export async function fetchWithAuth(url: string, options: RequestInit = {}) {
   if (token) headers["Authorization"] = `Bearer ${token}`;
   headers["X-Tenant-ID"] = tenantId || "2";
 
-  // ✅ CRITICAL FIX: Only /backend-api/ should be treated as proxy, not /api/crm/
+  const isAbsoluteUrl = url.startsWith("http");
   const isProxyPath = url.startsWith("/backend-api/");
-  const fullUrl = (url.startsWith("http") || isProxyPath) ? url : `${API_BASE_URL}${url}`;
+  const isAuthProxyPath = url.startsWith("/auth/");
+  const isBackendApiPath =
+    url.startsWith("/api/crm/") ||
+    url.startsWith("/api/calendar/") ||
+    url.startsWith("/api/task-status/");
+  const isOtherNextApiPath = url.startsWith("/api/") && !isBackendApiPath;
+  const isBackendRootPath = url.startsWith("/") && !isProxyPath && !isAuthProxyPath && !isOtherNextApiPath;
+
+  let fullUrl = url;
+  if (isAbsoluteUrl || isProxyPath || isAuthProxyPath || isOtherNextApiPath) {
+    fullUrl = url;
+  } else if (isBackendApiPath || isBackendRootPath) {
+    fullUrl = `/backend-api${url}`;
+  } else {
+    fullUrl = `${API_BASE_URL}${url}`;
+  }
 
   console.log("🔗 fetchWithAuth URL:", fullUrl); // Debug logging
 

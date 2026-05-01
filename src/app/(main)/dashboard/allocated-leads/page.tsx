@@ -30,6 +30,7 @@ const STATUS_OPTIONS = [
   { value: "Callback",           label: "Callback" },
   { value: "Not Answered",       label: "Not Answered" },
   { value: "Priced",             label: "Priced" },
+  { value: "Won",                label: "Won" },
   { value: "Converted",          label: "Converted" },
   { value: "Already Renewed",    label: "Already Renewed" },
   { value: "Renewed Directly",   label: "Renewed Directly" },
@@ -63,15 +64,10 @@ const statusConfig: Record<string, {
   "Email Only":        { requiresDate: true,  requiresSold: false, deletesRecord: false, requiresNotes: false, requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
   "Renewed Directly":  { requiresDate: true,  requiresSold: false, deletesRecord: false, requiresNotes: true,  requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
   "Incorrect Supplier":{ requiresDate: false, requiresSold: false, deletesRecord: false, requiresNotes: true,  requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
+  "Won":               { requiresDate: false, requiresSold: false, deletesRecord: false, requiresNotes: false, requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
   "Converted":         { requiresDate: false, requiresSold: false, deletesRecord: false, requiresNotes: false, requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
 };
 
-const STATUS_TO_STAGE_FALLBACK: Record<string, number> = {
-  "callback": 1, "not answered": 3, "priced": 4, "lost": 5, "lost cot": 6,
-  "already renewed": 7, "invalid number": 8, "meter de-energised": 9,
-  "broker in place": 10, "end date changed": 11, "complaint": 12,
-  "email only": 13, "renewed directly": 14, "incorrect supplier": 15, "converted": 16,
-};
 
 // ---------------- Types ----------------
 interface AllocatedLead {
@@ -110,7 +106,7 @@ const formatDate = (d?: string | null) => {
 const getStatusColor = (s?: string | null) => {
   if (!s) return "bg-gray-100 text-gray-800";
   const l = s.toLowerCase();
-  if (["callback", "priced", "called", "converted"].includes(l)) return "bg-green-100 text-green-800";
+  if (["callback", "priced", "called", "converted", "won"].includes(l)) return "bg-green-100 text-green-800";
   if (l === "not answered") return "bg-yellow-100 text-yellow-800";
   if (["lost", "lost cot"].includes(l)) return "bg-red-100 text-red-800";
   return "bg-gray-100 text-gray-800";
@@ -122,12 +118,12 @@ const getStatusLabel = (s?: string | null) => {
     STATUS_OPTIONS.find(o => o.value.toLowerCase() === s.toLowerCase())?.label || s;
 };
 
-const getStageIdFromStatus = (status: string, stages?: Stage[]): number => {
+const getStageIdFromStatus = (status: string, stages?: Stage[]): number | null => {
   if (stages?.length) {
     const m = stages.find(s => s.stage_name.toLowerCase() === status.toLowerCase());
     if (m) return m.stage_id;
   }
-  return STATUS_TO_STAGE_FALLBACK[status.toLowerCase()] || 0;
+  return null;
 };
 
 // ---------------- Component ----------------
@@ -361,7 +357,8 @@ export default function AllocatedLeadsPage() {
     setIsSubmittingCallback(true);
     try {
       const stageId = getStageIdFromStatus(callbackStatus, stages.length ? stages : undefined);
-      const payload: any = { stage_id: stageId, status: callbackStatus, notes: callbackNotes };
+      const payload: any = { status: callbackStatus, notes: callbackNotes };
+      if (stageId) payload.stage_id = stageId;
       if (calledDate) payload.called_date = calledDate;
       if (isDateRequired() && callbackDate) payload.callback_date = callbackDate;
       if (cfg?.requiresSold) payload.is_sold = isSold === "yes";
@@ -680,7 +677,7 @@ export default function AllocatedLeadsPage() {
                     <tr
                       key={lead.opportunity_id}
                       className="hover:bg-gray-50 transition-colors cursor-pointer"
-                      onClick={() => window.open(`/dashboard/leads/${displayId}`, "_blank")}
+                      onClick={() => window.open(`/dashboard/leads/${lead.opportunity_id}`, "_blank")}
                     >
                       <td className="px-2 py-3 text-sm font-medium text-gray-900 border-r-2 border-gray-300 align-top">
                         {displayId}
@@ -977,3 +974,4 @@ export default function AllocatedLeadsPage() {
     </div>
   );
 }
+

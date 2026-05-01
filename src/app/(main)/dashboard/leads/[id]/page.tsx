@@ -57,6 +57,7 @@ const STATUS_OPTIONS = [
   { value: "Callback",           label: "Callback" },
   { value: "Not Answered",       label: "Not Answered" },
   { value: "Priced",             label: "Priced" },
+  { value: "Won",                label: "Won" },
   { value: "Converted",          label: "Converted" },
   { value: "Lost",               label: "Lost" },
   { value: "Lost COT",           label: "Lost COT" },
@@ -71,17 +72,11 @@ const STATUS_OPTIONS = [
   { value: "Incorrect Supplier", label: "Incorrect Supplier" },
 ];
 
-const STATUS_TO_STAGE_FALLBACK: Record<string, number> = {
-  "callback": 1, "not answered": 3, "priced": 4, "lost": 5, "lost cot": 6,
-  "already renewed": 7, "invalid number": 8, "meter de-energised": 9,
-  "broker in place": 10, "end date changed": 11, "complaint": 12,
-  "email only": 13, "renewed directly": 14, "incorrect supplier": 15, "converted": 16,
-};
 
 const getStatusColor = (status: string | undefined): string => {
   if (!status) return "bg-gray-100 text-gray-800";
   const l = status.toLowerCase();
-  if (["called", "priced", "callback", "converted"].includes(l)) return "bg-green-100 text-green-800";
+  if (["called", "priced", "callback", "converted", "won"].includes(l)) return "bg-green-100 text-green-800";
   if (l === "not answered") return "bg-yellow-100 text-yellow-800";
   if (["lost", "lost cot"].includes(l)) return "bg-red-100 text-red-800";
   return "bg-gray-100 text-gray-800";
@@ -201,6 +196,7 @@ const statusConfig: Record<string, {
   "Complaint":         { requiresDate: true,  requiresSold: false, deletesRecord: false, requiresNotes: true,  requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
   "Email Only":        { requiresDate: true,  requiresSold: false, deletesRecord: false, requiresNotes: false, requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
   "Renewed Directly":  { requiresDate: true,  requiresSold: false, deletesRecord: false, requiresNotes: true,  requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
+  "Won":               { requiresDate: false, requiresSold: false, deletesRecord: false, requiresNotes: false, requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
   "Incorrect Supplier":{ requiresDate: false, requiresSold: false, deletesRecord: false, requiresNotes: true,  requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
 };
 
@@ -343,18 +339,26 @@ export default function LeadDetailsPage() {
     setLoadingHistory(true);
     try {
       const data = await fetchWithAuth(`/api/crm/leads/${id}/history`);
-      setHistory(data?.interactions || []);
+      const interactions = data?.interactions || [];
+      setHistory(interactions);
+
+      // Prefill callback date from the latest reminder so rescheduling is easy.
+      const latestWithReminder = interactions.find((i: InteractionHistory) => Boolean(i.reminder_date));
+      if (latestWithReminder?.reminder_date) {
+        const nextDate = String(latestWithReminder.reminder_date).slice(0, 10);
+        setCallbackDate(nextDate);
+      }
     } catch { /* silent */ }
     finally { setLoadingHistory(false); }
   };
 
   // ── helpers ──────────────────────────────────────────────────────────────
-  const getStageIdFromStatus = (status: string): number => {
+  const getStageIdFromStatus = (status: string): number | null => {
     if (stages.length) {
       const m = stages.find(s => s.stage_name.toLowerCase() === status.toLowerCase());
       if (m) return m.stage_id;
     }
-    return STATUS_TO_STAGE_FALLBACK[status.toLowerCase()] || 0;
+    return null;
   };
 
   const isDateRequired = () => {
@@ -366,6 +370,15 @@ export default function LeadDetailsPage() {
   };
 
   const currentConfig = callbackStatus ? statusConfig[callbackStatus] : null;
+  const callbackDateStatuses = new Set([
+    "Callback",
+    "Not Answered",
+    "Broker in Place",
+    "Email Only",
+    "End Date Changed",
+    "Already Renewed",
+    "Renewed Directly",
+  ]);
 
   // ── edit / save ──────────────────────────────────────────────────────────
   const handleSave = async () => {
@@ -409,6 +422,10 @@ export default function LeadDetailsPage() {
     setCallbackError("");
     if (!callbackStatus) { setCallbackError("Please select a status"); return; }
     const cfg = statusConfig[callbackStatus];
+    if (callbackDateStatuses.has(callbackStatus) && !callbackDate) {
+      setCallbackError("Please select callback date.");
+      return;
+    }
     if (cfg?.requiresSold && !isSold) { setCallbackError("Please select if the contract was sold"); return; }
     if (cfg?.requiresNotes && !callbackNotes.trim()) { setCallbackError("Please enter the reason for this status"); return; }
     if (callbackStatus === "Already Renewed" && !renewedBy) { setCallbackError("Please select if renewed by customer or agent"); return; }
@@ -417,9 +434,10 @@ export default function LeadDetailsPage() {
     setIsSubmittingCallback(true);
     try {
       const stageId = getStageIdFromStatus(callbackStatus);
-      const payload: any = { stage_id: stageId, status: callbackStatus, notes: callbackNotes };
+      const payload: any = { status: callbackStatus, notes: callbackNotes };
+      if (stageId) payload.stage_id = stageId;
       if (calledDate) payload.called_date = calledDate;
-      if (isDateRequired() && callbackDate) payload.callback_date = callbackDate;
+      if (callbackDate) payload.callback_date = callbackDate;
       if (cfg?.requiresSold) payload.is_sold = isSold === "yes";
       if (cfg?.requiresNewEndDate && newEndDate) payload.new_end_date = newEndDate;
       if (callbackStatus === "Already Renewed" && renewedBy) payload.renewed_by = renewedBy;
@@ -461,11 +479,23 @@ export default function LeadDetailsPage() {
         else alert("✅ Action saved successfully");
 
         // Reset action panel fields (keep status so it reflects current state)
-        setCallbackDate(""); setCallbackNotes(""); setIsSold("");
+        setCallbackDate(
+          callbackDate ||
+          (data?.lead?.reminder_date ? String(data.lead.reminder_date).slice(0, 10) : "")
+        );
+        setCallbackNotes(""); setIsSold("");
         setNewEndDate(""); setNewSupplier(""); setNewAddress("");
         setCalledDate(new Date().toISOString().split("T")[0]);
         setRenewedBy("");
         loadHistory();
+      }
+
+      // Notify calendar page to refetch in same tab and other tabs.
+      try {
+        localStorage.setItem('calendar-refetch-trigger', Date.now().toString());
+        window.dispatchEvent(new CustomEvent('calendar-refetch', { detail: { action: 'refetch-calendar' } }));
+      } catch {
+        // Non-blocking; callback save is already successful.
       }
     } catch (err: any) {
       setCallbackError(err.message || "Failed to save action");
@@ -473,6 +503,15 @@ export default function LeadDetailsPage() {
       setIsSubmittingCallback(false);
     }
   };
+
+  useEffect(() => {
+    if (!callbackStatus || callbackDate) return;
+    if (!callbackDateStatuses.has(callbackStatus)) return;
+    const latestWithReminder = history.find((i) => Boolean(i.reminder_date));
+    if (latestWithReminder?.reminder_date) {
+      setCallbackDate(String(latestWithReminder.reminder_date).slice(0, 10));
+    }
+  }, [history, callbackStatus, callbackDate]);
 
   const handleClearStatus = async () => {
     if (!window.confirm("Are you sure you want to clear the status?")) return;
@@ -1133,7 +1172,6 @@ export default function LeadDetailsPage() {
                   return; 
                 }
                 setCallbackStatus(v);
-                setCallbackDate(""); 
                 setCallbackNotes(""); 
                 setIsSold("");
                 setNewEndDate(""); 
@@ -1178,7 +1216,7 @@ export default function LeadDetailsPage() {
           )}
 
           {/* Callback Date */}
-          {isDateRequired() && (
+          {callbackStatus && (
             <div>
               <label className="text-sm font-medium text-gray-700">Callback Date:</label>
               <Input type="date" className="mt-1" value={callbackDate} onChange={e => setCallbackDate(e.target.value)} />
@@ -1344,3 +1382,4 @@ export default function LeadDetailsPage() {
     </div>   
   );
 }
+

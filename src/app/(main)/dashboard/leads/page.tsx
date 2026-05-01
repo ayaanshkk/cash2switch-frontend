@@ -26,14 +26,19 @@ import { Textarea } from "@/components/ui/textarea";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 const CUSTOMERS_PER_PAGE = 25;
+const CRM_PROXY = "/backend-api/api/crm";
+const BACKEND_PROXY = "/backend-api";
+const LEADS_CACHE_PREFIX = "cash2switch_leads_cache";
+const LEADS_PERFORMANCE_CACHE_PREFIX = "cash2switch_leads_performance_cache";
+const MAX_CACHED_LEADS = 1200;
 
 // ✅ Use the same base URL pattern as renewals import
-const API_BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
 
 const STATUS_OPTIONS = [
   { value: "Callback",           label: "Callback" },
   { value: "Not Answered",       label: "Not Answered" },
   { value: "Priced",             label: "Priced" },
+  { value: "Won",                label: "Won" },
   { value: "Converted",          label: "Converted" },
   { value: "Already Renewed",    label: "Already Renewed" },
   { value: "Renewed Directly",   label: "Renewed Directly" },
@@ -67,14 +72,8 @@ const statusConfig: Record<string, {
   "Email Only":        { requiresDate: true,  requiresSold: false, deletesRecord: false, requiresNotes: false, requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
   "Renewed Directly":  { requiresDate: true,  requiresSold: false, deletesRecord: false, requiresNotes: true,  requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
   "Incorrect Supplier":{ requiresDate: false, requiresSold: false, deletesRecord: false, requiresNotes: true,  requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
+  "Won":               { requiresDate: false, requiresSold: false, deletesRecord: false, requiresNotes: false, requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
   "Converted":         { requiresDate: false, requiresSold: false, deletesRecord: false, requiresNotes: false, requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
-};
-
-const STATUS_TO_STAGE_FALLBACK: Record<string, number> = {
-  "callback": 1, "not answered": 3, "priced": 4, "lost": 5, "lost cot": 6,
-  "already renewed": 7, "invalid number": 8, "meter de-energised": 9,
-  "broker in place": 10, "end date changed": 11, "complaint": 12,
-  "email only": 13, "renewed directly": 14, "incorrect supplier": 15, "converted": 16,
 };
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -127,7 +126,7 @@ const formatUsage = (u: number | null | undefined) => u ? `${u.toLocaleString()}
 const getStatusColor = (s: string | undefined) => {
   if (!s) return "bg-gray-100 text-gray-800";
   const l = s.toLowerCase();
-  if (["callback", "priced", "called", "converted"].includes(l)) return "bg-green-100 text-green-800";
+  if (["callback", "priced", "called", "converted", "won"].includes(l)) return "bg-green-100 text-green-800";
   if (l === "not answered") return "bg-yellow-100 text-yellow-800";
   if (["lost", "lost cot"].includes(l)) return "bg-red-100 text-red-800";
   return "bg-gray-100 text-gray-800";
@@ -139,14 +138,12 @@ const getStatusLabel = (s: string | undefined) => {
     STATUS_OPTIONS.find(o => o.value.toLowerCase() === s.toLowerCase())?.label || s;
 };
 
-const getStageIdFromStatus = (status: string, stagesList?: Stage[]): number => {
+const getStageIdFromStatus = (status: string, stagesList?: Stage[]): number | null => {
   if (stagesList?.length) {
     const m = stagesList.find(s => s.stage_name.toLowerCase() === status.toLowerCase());
     if (m) return m.stage_id;
   }
-  const id = STATUS_TO_STAGE_FALLBACK[status.toLowerCase()];
-  if (!id) { console.warn(`⚠️ No stage_id for status: ${status}`); return 0; }
-  return id;
+  return null;
 };
 
 // ─── Component ────────────────────────────────────────────────────────────────
@@ -233,17 +230,47 @@ export default function LeadsPage() {
   // Reset page when filters change
   useEffect(() => { setCurrentPage(1); }, [searchTerm, supplierFilter, statusFilter, usageSort, endDateFilter]);
 
+  const leadsCacheKey = `${LEADS_CACHE_PREFIX}_${service}`;
+  const performanceCacheKey = `${LEADS_PERFORMANCE_CACHE_PREFIX}_${service}`;
+
+  const saveLeadsCache = (leads: LeadCustomer[], teamStats: TeamStat[]) => {
+    // Avoid quota errors from very large tenants; cache only a bounded snapshot.
+    if (leads.length > MAX_CACHED_LEADS) return;
+    try {
+      sessionStorage.setItem(leadsCacheKey, JSON.stringify({ leads, teamStats }));
+    } catch (e) {
+      console.warn("Leads cache skipped (storage quota/availability):", e);
+    }
+  };
+
+  const savePerformanceCache = (stats: typeof performanceStats) => {
+    try {
+      sessionStorage.setItem(performanceCacheKey, JSON.stringify(stats));
+    } catch (e) {
+      console.warn("Performance cache skipped (storage quota/availability):", e);
+    }
+  };
+
   // ─── Fetch helpers ──────────────────────────────────────────────────────────
   const fetchLeads = async () => {
     setIsLoading(true);
     setError(null);
     try {
-      const [leadsResp, suppResp, empResp, stagesResp] = await Promise.all([
-        fetchWithAuth(`/api/crm/leads?exclude_stage=Lost&service=${encodeURIComponent(service)}`),
-        fetchWithAuth("/suppliers"),
-        fetchWithAuth("/employees"),
-        fetchWithAuth("/api/crm/stages"),
+      const [leadsResult, suppResult, empResult, stagesResult] = await Promise.allSettled([
+        fetchWithAuth(`${CRM_PROXY}/leads?exclude_stage=Lost&service=${encodeURIComponent(service)}`),
+        fetchWithAuth(`${BACKEND_PROXY}/suppliers`),
+        fetchWithAuth(`${BACKEND_PROXY}/employees`),
+        fetchWithAuth(`${CRM_PROXY}/stages`),
       ]);
+
+      if (leadsResult.status === "rejected") {
+        throw leadsResult.reason;
+      }
+
+      const leadsResp = leadsResult.value;
+      const suppResp = suppResult.status === "fulfilled" ? suppResult.value : null;
+      const empResp = empResult.status === "fulfilled" ? empResult.value : null;
+      const stagesResp = stagesResult.status === "fulfilled" ? stagesResult.value : null;
 
       // ✅ Backend already scopes to the current user's employee_id (non-admin)
       // or all tenant leads (admin). team_stats comes back in the same response.
@@ -264,15 +291,33 @@ export default function LeadsPage() {
           employee_name: s.employee_name,
           count:         s.lead_count || s.count || 0,
         }));
-        setEmployeeStats(stats.filter(s => (s.count ?? 0) > 0));
+        const visibleStats = stats.filter(s => (s.count ?? 0) > 0);
+        setEmployeeStats(visibleStats);
+        saveLeadsCache(active, visibleStats);
       } else {
         setEmployeeStats([]);
+        saveLeadsCache(active, []);
       }
     } catch (err: any) {
       console.error("❌ fetchLeads error:", err);
-      setError(err.message || "Failed to load leads");
-      setAllLeads([]);
-      setEmployeeStats([]);
+      const cached = sessionStorage.getItem(leadsCacheKey);
+      if (cached) {
+        try {
+          const parsed = JSON.parse(cached);
+          setAllLeads(Array.isArray(parsed.leads) ? parsed.leads : []);
+          setEmployeeStats(Array.isArray(parsed.teamStats) ? parsed.teamStats : []);
+          setError(null);
+        } catch {
+          sessionStorage.removeItem(leadsCacheKey);
+          setError(err?.message || "Failed to load leads");
+          setAllLeads([]);
+          setEmployeeStats([]);
+        }
+      } else {
+        setError(err?.message || "Failed to load leads");
+        setAllLeads([]);
+        setEmployeeStats([]);
+      }
     } finally {
       setIsLoading(false);
     }
@@ -281,10 +326,10 @@ export default function LeadsPage() {
   const fetchPerformanceStats = async () => {
     try {
       const resp = await fetchWithAuth(
-        `/api/crm/leads/performance?service=${encodeURIComponent(service)}`
+        `${CRM_PROXY}/leads/performance?service=${encodeURIComponent(service)}`
       );
       if (resp && !resp.error) {
-        setPerformanceStats({
+        const nextStats = {
           converted:        resp.converted_count        || 0,
           renewed:          resp.renewed_count          || 0,
           in_progress:      resp.contacted_count        || 0,
@@ -294,9 +339,21 @@ export default function LeadsPage() {
           renewed_directly: resp.renewed_directly_count || 0,
           end_date_changed: resp.end_date_changed_count || 0,
           priced:           resp.priced_count           || 0,
-        });
+        };
+        setPerformanceStats(nextStats);
+        savePerformanceCache(nextStats);
       }
-    } catch { /* optional */ }
+    } catch (err) {
+      console.error("Error fetching lead performance stats:", err);
+      const cached = sessionStorage.getItem(performanceCacheKey);
+      if (cached) {
+        try {
+          setPerformanceStats(JSON.parse(cached));
+        } catch {
+          sessionStorage.removeItem(performanceCacheKey);
+        }
+      }
+    }
   };
 
   useEffect(() => {
@@ -311,7 +368,7 @@ export default function LeadsPage() {
       setIsSearching(true);
       try {
         const resp = await fetchWithAuth(
-          `/api/crm/leads/search-all?q=${encodeURIComponent(searchTerm)}&service=${encodeURIComponent(service)}`
+          `${CRM_PROXY}/leads/search-all?q=${encodeURIComponent(searchTerm)}&service=${encodeURIComponent(service)}`
         );
         setSearchResults(Array.isArray(resp) ? resp : (resp?.data || []));
       } catch { setSearchResults([]); }
@@ -399,7 +456,7 @@ export default function LeadsPage() {
   const updateLeadStatus = (leadId: number, newStatus: string) => {
     // Handle clearing status
     if (!newStatus || newStatus === "CLEAR_STATUS") {
-      fetchWithAuth(`/api/crm/leads/${leadId}/status`, {
+      fetchWithAuth(`${CRM_PROXY}/leads/${leadId}/status`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ stage_id: null }),  // ✅ Set to NULL (same as renewals)
@@ -467,25 +524,25 @@ export default function LeadsPage() {
     setIsSubmittingCallback(true);
     try {
       const stageId = getStageIdFromStatus(callbackStatus, stages.length ? stages : undefined);
-      const payload: any = { 
-        stage_id: stageId, 
-        status: callbackStatus, 
-        notes: callbackNotes 
+      const payload: any = {
+        status: callbackStatus,
+        notes: callbackNotes,
       };
+      if (stageId) payload.stage_id = stageId;
       
       if (calledDate) payload.called_date = calledDate;
       if (isDateRequired() && callbackDate) payload.callback_date = callbackDate;
       if (cfg?.requiresSold) payload.is_sold = isSold === "yes";
       if (cfg?.requiresNewEndDate && newEndDate) payload.new_end_date = newEndDate;
       if (callbackStatus === "Already Renewed" && renewedBy) payload.renewed_by = renewedBy;
-      if (callbackStatus === "Converted" && assignToEmployeeId && assignToEmployeeId !== "0") {
+      if ((callbackStatus === "Converted" || callbackStatus === "Won") && assignToEmployeeId && assignToEmployeeId !== "0") {
         payload.assigned_to = parseInt(assignToEmployeeId);
       }
       if (cfg?.requiresSupplierChange && newSupplier.trim()) payload.new_supplier = newSupplier.trim();
       if (cfg?.requiresAddressChange && newAddress.trim()) payload.new_address = newAddress.trim();
 
       const response = await fetchWithAuth(
-        `/api/crm/leads/${selectedLeadForCallback}/callback`,
+        `${CRM_PROXY}/leads/${selectedLeadForCallback}/callback`,
         { 
           method: "POST", 
           headers: { "Content-Type": "application/json" }, 
@@ -510,7 +567,7 @@ export default function LeadsPage() {
         setAllLeads(prev => prev.filter(l => l.opportunity_id !== selectedLeadForCallback));
         setSelectedLeads(prev => prev.filter(id => id !== selectedLeadForCallback));
         toast.success("✅ Moved to Priced page");
-      } else if (callbackStatus === "Converted" && response.allocated) {
+      } else if ((callbackStatus === "Converted" || callbackStatus === "Won") && response.allocated) {
         setAllLeads(prev => prev.filter(l => l.opportunity_id !== selectedLeadForCallback));
         setSelectedLeads(prev => prev.filter(id => id !== selectedLeadForCallback));
         toast.success("✅ Lead converted and assigned");
@@ -522,8 +579,7 @@ export default function LeadsPage() {
                   ...l,
                   ...(response.lead || {}),      
                   stage_name: callbackStatus,    
-                  stage_id: stageId,             
-                }
+                  stage_id: stageId ?? l.stage_id, }
               : l
           )
         );
@@ -558,7 +614,7 @@ export default function LeadsPage() {
       const payload: any = { employee_id: empId, lead_ids: [assigningLeadId] };
       if (assignmentNotes.trim()) payload.assignment_notes = assignmentNotes.trim();
 
-      await fetchWithAuth("/api/crm/leads/assign", {
+      await fetchWithAuth(`${CRM_PROXY}/leads/assign`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
@@ -584,7 +640,7 @@ export default function LeadsPage() {
       const payload: any = { lead_ids: selectedLeads, employee_id: bulkAssignEmployeeId };
       if (bulkAssignmentNotes.trim()) payload.assignment_notes = bulkAssignmentNotes.trim();
 
-      await fetchWithAuth("/api/crm/leads/assign", {
+      await fetchWithAuth(`${CRM_PROXY}/leads/assign`, {
         method: "PATCH", headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
@@ -603,7 +659,7 @@ export default function LeadsPage() {
   const deleteLead = async (id: number) => {
     if (!window.confirm("Delete this lead and all related records?")) return;
     try {
-      await fetchWithAuth(`/api/crm/leads/${id}`, { method: "DELETE" });
+      await fetchWithAuth(`${CRM_PROXY}/leads/${id}`, { method: "DELETE" });
       setAllLeads(prev => prev.filter(l => l.opportunity_id !== id));
       setSelectedLeads(prev => prev.filter(x => x !== id));
       toast.success("Lead deleted");
@@ -619,7 +675,7 @@ export default function LeadsPage() {
     
     try {
       // ✅ Use POST method to match your route
-      const response = await fetchWithAuth(`/api/crm/leads/bulk-delete`, {
+      const response = await fetchWithAuth(`${CRM_PROXY}/leads/bulk-delete`, {
         method: 'POST',  // ✅ Changed from DELETE to POST
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ opportunity_ids: selectedLeads })
@@ -665,7 +721,7 @@ export default function LeadsPage() {
     const token    = localStorage.getItem("auth_token");
     const tenantId = localStorage.getItem("tenant_id") || "";
     try {
-      const res = await fetch(`${API_BASE_URL}/import/leads/template`, {
+      const res = await fetch(`${BACKEND_PROXY}/import/leads/template`, {
         headers: { Authorization: `Bearer ${token}`, "X-Tenant-ID": tenantId },
       });
       if (!res.ok) throw new Error("Failed to download");
@@ -695,7 +751,7 @@ export default function LeadsPage() {
       }
 
       const res = await fetch(
-        `${API_BASE_URL}/import/leads?service=${encodeURIComponent(service)}`,
+        `${BACKEND_PROXY}/import/leads?service=${encodeURIComponent(service)}`,
         {
           method: "POST",
           headers: {
@@ -739,12 +795,12 @@ export default function LeadsPage() {
     setPerformanceFilter(type);
     try {
       const resp = await fetchWithAuth(
-        `/api/crm/leads?service=${encodeURIComponent(service)}`
+        `${CRM_PROXY}/leads?service=${encodeURIComponent(service)}`
       );
       const all: LeadCustomer[] = Array.isArray(resp) ? resp : (resp?.data || []);
       let filtered: LeadCustomer[] = [];
       switch (type) {
-        case "converted":       filtered = all.filter(l => (l.stage_name || "").toLowerCase() === "converted"); break;
+        case "converted":       filtered = all.filter(l => { const s = (l.stage_name || "").toLowerCase(); return s === "converted" || s === "won"; }); break;
         case "renewed":         filtered = all.filter(l => { const s = (l.stage_name || "").toLowerCase(); return ["priced","already renewed","end date changed"].includes(s); }); break;
         case "in_progress":     filtered = all.filter(l => { const s = (l.stage_name || "").toLowerCase(); return ["callback","not answered"].includes(s); }); break;
         case "not_contacted":   filtered = all.filter(l => { const s = (l.stage_name || "").toLowerCase(); return !s || s === "not called"; }); break;
@@ -845,7 +901,7 @@ export default function LeadsPage() {
           <div className="flex-1">
             <h3 className="text-sm font-medium text-red-800">Error Loading Leads</h3>
             <p className="mt-1 text-sm text-red-700">{error}</p>
-            <Button onClick={fetchLeads} variant="outline" size="sm" className="mt-3">Try Again</Button>
+            <Button onClick={() => { fetchLeads(); fetchPerformanceStats(); }} variant="outline" size="sm" className="mt-3">Try Again</Button>
           </div>
         </div>
       )}
@@ -1156,7 +1212,7 @@ export default function LeadsPage() {
                             onClick={async (e) => {
                               e.stopPropagation();
                               try {
-                                await fetchWithAuth(`/api/crm/leads/${lead.opportunity_id}`, {
+                                await fetchWithAuth(`${CRM_PROXY}/leads/${lead.opportunity_id}`, {
                                   method: "PATCH",
                                   headers: { "Content-Type": "application/json" },
                                   body: JSON.stringify({ is_cleansed: false }),
@@ -1525,3 +1581,5 @@ export default function LeadsPage() {
     </div>
   );
 }
+
+
