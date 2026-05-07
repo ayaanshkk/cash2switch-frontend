@@ -459,15 +459,14 @@ export default function LeadsPage() {
       fetchWithAuth(`${CRM_PROXY}/leads/${leadId}/status`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ stage_id: null }),  // ✅ Set to NULL (same as renewals)
+        body: JSON.stringify({ stage_id: null }),
       })
       .then(() => {
-        // ✅ Update local state with NULL values
         setAllLeads(prev => prev.map(l =>
           l.opportunity_id === leadId 
             ? { 
                 ...l, 
-                stage_name: null,  // ✅ NULL = no status (like renewals)
+                stage_name: null,
                 stage_id: null 
               } 
             : l
@@ -549,12 +548,21 @@ export default function LeadsPage() {
           body: JSON.stringify(payload) 
         }
       );
+
+      // ✅ ADD THIS DEBUG LOGGING
+      console.log("📥 Callback API Response:", response);
+      console.log("📥 response.lead:", response.lead);
+      console.log("📥 response.lead.stage_name:", response.lead?.stage_name);
+
+      if (!response || response.error) {
+        throw new Error(response?.error || "Failed to save");
+      }
       
       if (!response || response.error) {
         throw new Error(response?.error || "Failed to save");
       }
 
-      // ✅ CRITICAL FIX: Update state IMMEDIATELY with stage_name (like RenewalsPage)
+      // ✅ CRITICAL: Update state with the ACTUAL response from backend
       if (response.moved_to_cleansing) {
         setAllLeads(prev => prev.filter(l => l.opportunity_id !== selectedLeadForCallback));
         setSelectedLeads(prev => prev.filter(id => id !== selectedLeadForCallback));
@@ -572,20 +580,24 @@ export default function LeadsPage() {
         setSelectedLeads(prev => prev.filter(id => id !== selectedLeadForCallback));
         toast.success("✅ Lead converted and assigned");
       } else {
+        // ✅ KEY FIX: Use response.lead.stage_name from backend, NOT the local callbackStatus
         setAllLeads(prev =>
           prev.map(l =>
             l.opportunity_id === selectedLeadForCallback
               ? { 
                   ...l,
-                  ...(response.lead || {}),      
-                  stage_name: callbackStatus,    
-                  stage_id: stageId ?? l.stage_id, }
+                  // ✅ Use the ACTUAL stage_name returned from backend
+                  stage_name: response.lead?.stage_name || callbackStatus,
+                  stage_id: response.lead?.stage_id || stageId || l.stage_id,
+                  // ✅ Update any other fields the backend returns
+                  ...(response.lead || {}),
+                }
               : l
           )
         );
         toast.success("✅ Callback saved");
       }
-      
+
       setShowCallbackModal(false);
       setSelectedLeadForCallback(null);
       setCallbackStatus("");
