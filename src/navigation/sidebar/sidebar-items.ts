@@ -38,6 +38,7 @@ import {
   Archive,
   UserCheck,
   Sparkles,
+  FilePenLine,
 } from "lucide-react";
 
 export interface NavSubItem {
@@ -125,6 +126,13 @@ const allSidebarItems: NavGroup[] = [
         url: "/dashboard/priced",
         icon: BadgePoundSterling,
         roles: ["platform admin", "salesperson"],
+        isNew: true,
+      },
+      {
+        title: "Drafts",
+        url: "/dashboard/drafts",
+        icon: FilePenLine,
+        roles: ["platform admin"],
         isNew: true,
       },
       {
