@@ -1,10 +1,10 @@
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
+
 import { Upload, RefreshCw, Users, Loader2, Trash2 } from "lucide-react";
 import { toast, Toaster } from "react-hot-toast";
 
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -13,7 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { fetchWithAuth } from "@/lib/api";
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
+const API_BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL ?? "http://localhost:5000";
 
 type DraftKind = "leads" | "renewals";
 
@@ -24,24 +24,40 @@ interface Employee {
 
 interface DraftLead {
   opportunity_id: number;
-  tenant_lead_id?: number;
+  tenant_lead_id?: number | null;
   business_name?: string | null;
   contact_person?: string | null;
-  tel_number?: string | null;
+  tel_number?: string | number | null;
+  mobile_no?: string | number | null;
   email?: string | null;
+  mpan_mpr?: string | null;
+  supplier_id?: number | null;
+  supplier_name?: string | null;
   stage_name?: string | null;
+  start_date?: string | null;
+  end_date?: string | null;
+  annual_usage?: number | string | null;
   assigned_to_name?: string | null;
   opportunity_owner_employee_id?: number | null;
   created_at?: string | null;
 }
 
 interface DraftRenewal {
+  id?: number;
   client_id: number;
+  display_id?: number | null;
+  display_order?: number | null;
   business_name?: string | null;
   contact_person?: string | null;
   phone?: string | null;
+  mobile_no?: string | null;
   email?: string | null;
+  mpan_top?: string | null;
+  mpan_mpr?: string | null;
   supplier_name?: string | null;
+  start_date?: string | null;
+  end_date?: string | null;
+  annual_usage?: number | string | null;
   status?: string | null;
   assigned_to_id?: number | null;
   assigned_to_name?: string | null;
@@ -50,13 +66,55 @@ interface DraftRenewal {
 
 const isUnassigned = (value: unknown) => value === null || value === undefined || value === "" || value === 0;
 
-function formatDate(value?: string | null) {
-  if (!value) return "-";
+/** Same pattern as `/dashboard/leads` and `/dashboard/renewals` list tables. */
+function formatListDate(value?: string | null) {
+  if (!value) return "—";
   try {
-    return new Date(value).toLocaleDateString("en-GB");
+    return new Date(value).toLocaleDateString("en-GB", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+    });
   } catch {
-    return "-";
+    return "—";
   }
+}
+
+function formatTel(value: string | number | null | undefined) {
+  if (value === null || value === undefined || value === "") return "—";
+  return String(value).replace(/\.0$/, "");
+}
+
+/** Mirrors `getStatusColor` on the main Leads page (pipeline / stage chip). */
+function leadDraftStatusColor(stage: string | undefined) {
+  if (!stage) return "bg-gray-100 text-gray-800";
+  const l = stage.toLowerCase();
+  if (["callback", "priced", "called", "converted"].includes(l)) return "bg-green-100 text-green-800";
+  if (l === "not answered") return "bg-yellow-100 text-yellow-800";
+  if (["lost", "lost cot"].includes(l)) return "bg-red-100 text-red-800";
+  return "bg-gray-100 text-gray-800";
+}
+
+/** Mirrors `getStatusColor` on the main Renewals page. */
+function renewalDraftStatusColor(status: string | undefined) {
+  if (!status) return "bg-gray-100 text-gray-800";
+  const statusLower = status.toLowerCase();
+  if (statusLower === "called" || statusLower === "priced" || statusLower === "callback") {
+    return "bg-green-100 text-green-800";
+  }
+  if (statusLower === "not answered") {
+    return "bg-yellow-100 text-yellow-800";
+  }
+  if (statusLower === "lost" || statusLower === "lost cot") {
+    return "bg-red-100 text-red-800";
+  }
+  return "bg-gray-100 text-gray-800";
+}
+
+function parseAnnualUsage(value: number | string | null | undefined): number | null {
+  if (value === null || value === undefined || value === "") return null;
+  const n = typeof value === "number" ? value : Number(String(value).replace(/,/g, ""));
+  return Number.isFinite(n) ? n : null;
 }
 
 export default function DraftsPage() {
@@ -76,14 +134,8 @@ export default function DraftsPage() {
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
-  const draftLeads = useMemo(
-    () => leads.filter((lead) => isUnassigned(lead.opportunity_owner_employee_id)),
-    [leads],
-  );
-  const draftRenewals = useMemo(
-    () => renewals.filter((renewal) => isUnassigned(renewal.assigned_to_id)),
-    [renewals],
-  );
+  const draftLeads = useMemo(() => leads.filter((lead) => isUnassigned(lead.opportunity_owner_employee_id)), [leads]);
+  const draftRenewals = useMemo(() => renewals.filter((renewal) => isUnassigned(renewal.assigned_to_id)), [renewals]);
   const selectedIds = activeTab === "leads" ? selectedLeadIds : selectedRenewalIds;
 
   const loadData = async () => {
@@ -279,12 +331,85 @@ export default function DraftsPage() {
             onToggle={(row) => toggleLead(row.opportunity_id)}
             onToggleAll={toggleAllLeads}
             columns={[
-              ["Business", (row) => row.business_name || "-"],
-              ["Contact", (row) => row.contact_person || "-"],
-              ["Phone", (row) => row.tel_number || "-"],
-              ["Email", (row) => row.email || "-"],
-              ["Status", (row) => <Badge variant="outline">{row.stage_name || "Draft"}</Badge>],
-              ["Created", (row) => formatDate(row.created_at)],
+              [
+                "ID",
+                (row) => (
+                  <span className="font-mono text-sm font-medium text-gray-900">
+                    {row.tenant_lead_id ?? row.opportunity_id}
+                  </span>
+                ),
+              ],
+              [
+                "Client Name",
+                (row) => (
+                  <div className="max-w-[140px] truncate text-sm text-gray-700" title={row.contact_person ?? ""}>
+                    {row.contact_person ?? "—"}
+                  </div>
+                ),
+              ],
+              [
+                "Trading Name",
+                (row) => (
+                  <div className="max-w-[160px] truncate text-sm text-gray-900" title={row.business_name ?? ""}>
+                    {row.business_name ?? "—"}
+                  </div>
+                ),
+              ],
+              [
+                "Tel No",
+                (row) => <div className="text-sm whitespace-nowrap text-gray-900">{formatTel(row.tel_number)}</div>,
+              ],
+              [
+                "Mobile No",
+                (row) => <div className="text-sm whitespace-nowrap text-gray-900">{formatTel(row.mobile_no)}</div>,
+              ],
+              [
+                "MPAN Top",
+                (row) => (
+                  <div className="max-w-[120px] truncate text-sm text-gray-900" title={row.mpan_mpr ?? ""}>
+                    {row.mpan_mpr ?? "—"}
+                  </div>
+                ),
+              ],
+              [
+                "Supplier",
+                (row) => <div className="max-w-[120px] truncate text-sm text-gray-900">{row.supplier_name ?? "—"}</div>,
+              ],
+              [
+                "Annual Usage",
+                (row) => {
+                  const aq = parseAnnualUsage(row.annual_usage);
+                  return (
+                    <div className="text-right text-sm whitespace-nowrap text-gray-900">
+                      {aq != null ? aq.toLocaleString() : "—"}
+                    </div>
+                  );
+                },
+              ],
+              [
+                "Start Date",
+                (row) => (
+                  <div className="text-sm whitespace-nowrap text-gray-900">{formatListDate(row.start_date)}</div>
+                ),
+              ],
+              [
+                "Contract End",
+                (row) => <div className="text-sm whitespace-nowrap text-gray-900">{formatListDate(row.end_date)}</div>,
+              ],
+              [
+                "Status",
+                (row) => (
+                  <span
+                    className={`inline-flex rounded-full px-2 py-0.5 text-xs font-semibold ${leadDraftStatusColor(row.stage_name ?? undefined)}`}
+                  >
+                    {row.stage_name ?? "—"}
+                  </span>
+                ),
+              ],
+              [
+                "Assigned To",
+                (row) => <span className="text-sm text-gray-900">{row.assigned_to_name ?? "Unassigned"}</span>,
+              ],
             ]}
             onAssign={(row) => openAssign(row.opportunity_id)}
           />
@@ -300,12 +425,96 @@ export default function DraftsPage() {
             onToggle={(row) => toggleRenewal(row.client_id)}
             onToggleAll={toggleAllRenewals}
             columns={[
-              ["Business", (row) => row.business_name || "-"],
-              ["Contact", (row) => row.contact_person || "-"],
-              ["Phone", (row) => row.phone || "-"],
-              ["Email", (row) => row.email || "-"],
-              ["Supplier", (row) => row.supplier_name || "-"],
-              ["Status", (row) => <Badge variant="outline">{row.status || "Draft"}</Badge>],
+              [
+                "ID",
+                (row) => (
+                  <span className="font-mono text-sm font-medium text-gray-900">
+                    {row.display_order ?? row.display_id ?? row.id ?? row.client_id}
+                  </span>
+                ),
+              ],
+              [
+                "Client Name",
+                (row) => (
+                  <div className="max-w-[140px] text-sm leading-tight break-words text-gray-700">
+                    {row.contact_person ?? "—"}
+                  </div>
+                ),
+              ],
+              [
+                "Trading Name",
+                (row) => (
+                  <div className="max-w-[160px] text-sm leading-tight break-words text-gray-900">
+                    {row.business_name ?? "—"}
+                  </div>
+                ),
+              ],
+              [
+                "Tel No",
+                (row) => <div className="text-sm whitespace-nowrap text-gray-900">{formatTel(row.phone)}</div>,
+              ],
+              [
+                "Mobile No",
+                (row) => <div className="text-sm whitespace-nowrap text-gray-900">{formatTel(row.mobile_no)}</div>,
+              ],
+              [
+                "MPAN Top",
+                (row) => {
+                  const mpan = row.mpan_top ?? row.mpan_mpr;
+                  return (
+                    <div className="max-w-[120px] truncate text-sm text-gray-900" title={mpan ?? ""}>
+                      {mpan ?? "—"}
+                    </div>
+                  );
+                },
+              ],
+              [
+                "Supplier",
+                (row) => (
+                  <div className="max-w-[120px] truncate text-sm text-gray-900" title={row.supplier_name ?? ""}>
+                    {row.supplier_name ?? "—"}
+                  </div>
+                ),
+              ],
+              [
+                "Annual Usage",
+                (row) => {
+                  const aq = parseAnnualUsage(row.annual_usage);
+                  return (
+                    <div className="text-right text-sm whitespace-nowrap text-gray-900">
+                      {aq != null ? aq.toLocaleString() : "—"}
+                    </div>
+                  );
+                },
+              ],
+              [
+                "Start Date",
+                (row) => (
+                  <div className="text-sm whitespace-nowrap text-gray-900">{formatListDate(row.start_date)}</div>
+                ),
+              ],
+              [
+                "Contract End",
+                (row) => <div className="text-sm whitespace-nowrap text-gray-900">{formatListDate(row.end_date)}</div>,
+              ],
+              [
+                "Status",
+                (row) => {
+                  const raw = row.status?.trim();
+                  const label = raw ? raw : "—";
+                  return (
+                    <span
+                      className={`inline-flex rounded-full px-2 py-0.5 text-xs font-semibold ${renewalDraftStatusColor(raw)}`}
+                    >
+                      {label}
+                    </span>
+                  );
+                },
+              ],
+              [
+                "Assigned To",
+                (row) => <span className="text-sm text-gray-900">{row.assigned_to_name ?? "Unassigned"}</span>,
+              ],
             ]}
             onAssign={(row) => openAssign(row.client_id)}
           />
@@ -318,9 +527,15 @@ export default function DraftsPage() {
             <DialogTitle>Import {activeTab === "leads" ? "Lead" : "Renewal"} Drafts</DialogTitle>
             <DialogDescription>Imported records stay in drafts until they are assigned.</DialogDescription>
           </DialogHeader>
-          <Input type="file" accept=".xlsx,.xls,.csv" onChange={(event) => setImportFile(event.target.files?.[0] || null)} />
+          <Input
+            type="file"
+            accept=".xlsx,.xls,.csv"
+            onChange={(event) => setImportFile(event.target.files?.[0] ?? null)}
+          />
           <div className="flex justify-end gap-2">
-            <Button variant="outline" onClick={() => setImportOpen(false)}>Cancel</Button>
+            <Button variant="outline" onClick={() => setImportOpen(false)}>
+              Cancel
+            </Button>
             <Button onClick={handleImport} disabled={!importFile || importing}>
               {importing && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Import
@@ -334,12 +549,19 @@ export default function DraftsPage() {
           <DialogHeader>
             <DialogTitle>Delete selected drafts?</DialogTitle>
             <DialogDescription>
-              This will permanently delete the selected draft {activeTab === "leads" ? "leads" : "renewals"} from the database.
+              This will permanently delete the selected draft {activeTab === "leads" ? "leads" : "renewals"} from the
+              database.
             </DialogDescription>
           </DialogHeader>
           <div className="flex justify-end gap-2">
-            <Button variant="outline" onClick={() => setDeleteOpen(false)} disabled={deleting}>Cancel</Button>
-            <Button variant="destructive" onClick={deleteSelectedDrafts} disabled={selectedIds.length === 0 || deleting}>
+            <Button variant="outline" onClick={() => setDeleteOpen(false)} disabled={deleting}>
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={deleteSelectedDrafts}
+              disabled={selectedIds.length === 0 || deleting}
+            >
               {deleting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Delete {selectedIds.length}
             </Button>
@@ -351,7 +573,9 @@ export default function DraftsPage() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Assign Draft</DialogTitle>
-            <DialogDescription>Assigned drafts will appear in the salesperson account and the normal admin table.</DialogDescription>
+            <DialogDescription>
+              Assigned drafts will appear in the salesperson account and the normal admin table.
+            </DialogDescription>
           </DialogHeader>
           <Select value={assignEmployeeId} onValueChange={setAssignEmployeeId}>
             <SelectTrigger>
@@ -366,7 +590,9 @@ export default function DraftsPage() {
             </SelectContent>
           </Select>
           <div className="flex justify-end gap-2">
-            <Button variant="outline" onClick={() => setAssigningId(null)}>Cancel</Button>
+            <Button variant="outline" onClick={() => setAssigningId(null)}>
+              Cancel
+            </Button>
             <Button onClick={assignDraft} disabled={!assignEmployeeId || assigning}>
               {assigning && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Assign
@@ -404,8 +630,8 @@ function DraftTable<T>({
   return (
     <div className="overflow-hidden rounded-lg border border-gray-200 bg-white">
       <div className="overflow-x-auto">
-        <table className="w-full min-w-[900px] text-sm">
-          <thead className="bg-gray-100 text-left text-xs uppercase text-gray-600">
+        <table className="w-full min-w-[1500px] text-sm">
+          <thead className="bg-gray-50 text-left text-xs font-medium tracking-wider text-gray-500 uppercase">
             <tr>
               <th className="w-12 px-4 py-3">
                 <Checkbox
@@ -416,7 +642,9 @@ function DraftTable<T>({
                 />
               </th>
               {columns.map(([label]) => (
-                <th key={label} className="px-4 py-3 font-medium">{label}</th>
+                <th key={label} className="px-4 py-3 font-medium">
+                  {label}
+                </th>
               ))}
               <th className="px-4 py-3 text-right font-medium">Action</th>
             </tr>
@@ -431,7 +659,9 @@ function DraftTable<T>({
               </tr>
             ) : rows.length === 0 ? (
               <tr>
-                <td className="px-4 py-10 text-center text-gray-500" colSpan={columns.length + 2}>{emptyLabel}</td>
+                <td className="px-4 py-10 text-center text-gray-500" colSpan={columns.length + 2}>
+                  {emptyLabel}
+                </td>
               </tr>
             ) : (
               rows.map((row) => (
@@ -444,7 +674,9 @@ function DraftTable<T>({
                     />
                   </td>
                   {columns.map(([label, render]) => (
-                    <td key={label} className="px-4 py-3 text-gray-800">{render(row)}</td>
+                    <td key={label} className="px-4 py-3 text-gray-800">
+                      {render(row)}
+                    </td>
                   ))}
                   <td className="px-4 py-3 text-right">
                     <Button size="sm" onClick={() => onAssign(row)}>
