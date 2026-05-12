@@ -230,13 +230,18 @@ export async function fetchPublic(url: string, options: RequestInit = {}) {
 // ================= API METHODS =================
 export const api = {
   // ==================== AUTH ====================
-  async login(username: string, password: string, tenant_id: number = Number(DEFAULT_TENANT_ID)) {
-    localStorage.setItem("tenant_id", tenant_id.toString());
-    console.log("✅ Setting tenant_id:", tenant_id);
-    
+  async login(username: string, password: string, tenant_id?: number) {
+    if (tenant_id != null) {
+      localStorage.setItem("tenant_id", tenant_id.toString());
+      console.log("✅ Setting tenant_id:", tenant_id);
+    }
+
+    const body: Record<string, unknown> = { username, password };
+    if (tenant_id != null) body.tenant_id = tenant_id;
+
     const res = await fetchPublic("/auth/login", {
       method: "POST",
-      body: JSON.stringify({ username, password, tenant_id }),
+      body: JSON.stringify(body),
       headers: { "Content-Type": "application/json" },
     });
     

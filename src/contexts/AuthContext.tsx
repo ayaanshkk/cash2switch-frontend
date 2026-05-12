@@ -14,6 +14,7 @@ interface User {
   full_name: string;
   phone?: string;
   role: string;
+  tenant_id?: number | string;
   department?: string;
   is_active: boolean;
   is_verified: boolean;
@@ -113,13 +114,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);
 
   // ✅ LOGIN - Sets both localStorage AND cookie
-  const login = async (username: string, password: string, tenantId: number = 1): Promise<{ success: boolean; error?: string }> => {
+  // Do not send tenant_id unless the caller passes it: backend rejects when tenant_id ≠ user's tenant
+  // (403 "different workspace"), which looks like bad credentials when the default was wrong (e.g. 1 vs 2).
+  const login = async (username: string, password: string, tenantId?: number): Promise<{ success: boolean; error?: string }> => {
     try {
       console.log("🔄 Attempting login...");
 
+      const payload: Record<string, unknown> = { username, password };
+      if (tenantId != null) payload.tenant_id = tenantId;
+
       const response = await fetchPublic("/auth/login", {
         method: "POST",
-        body: JSON.stringify({ username, password, tenant_id: tenantId }),
+        body: JSON.stringify(payload),
       });
 
       let data;
@@ -141,6 +147,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         localStorage.setItem("auth_token", data.token);
         localStorage.setItem("auth_user", JSON.stringify(data.user));
         localStorage.setItem("user_role", data.user.role); // ✅ ADD THIS LINE
+        if (data.user?.tenant_id != null && data.user.tenant_id !== "") {
+          localStorage.setItem("tenant_id", String(data.user.tenant_id));
+        }
 
         // ✅ Save to cookie (for middleware)
         setCookie("auth-token", data.token, 7);

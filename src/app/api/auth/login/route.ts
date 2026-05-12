@@ -8,17 +8,23 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const username = body.username || body.email; // accept legacy email if sent
     const password = body.password;
-    const tenant_id = body.tenant_id ?? 1;
+    // Only forward tenant_id when client sent it — backend rejects wrong tenant as 403.
+    const tenant_id = body.tenant_id;
     
     console.log('🔄 Proxying login to backend:', { username, tenant_id, backend: BACKEND_URL });
     
+    const backendBody: Record<string, unknown> = { username, password };
+    if (tenant_id !== undefined && tenant_id !== null && tenant_id !== "") {
+      backendBody.tenant_id = tenant_id;
+    }
+
     // ✅ Call your REAL backend login endpoint
     const response = await fetch(`${BACKEND_URL}/auth/login`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ username, password, tenant_id }),
+      body: JSON.stringify(backendBody),
     });
 
     console.log('📡 Backend response status:', response.status);

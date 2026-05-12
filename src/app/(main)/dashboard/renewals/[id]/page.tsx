@@ -173,6 +173,11 @@ interface EnergyCustomer {
   
   charity_ltd_company_number?: string;
   partner_details?: string;
+
+  /** Contract free-text; shown as "Agent Sold" on consumer details */
+  terms_of_sale?: string;
+  /** Project free-text; shown as "Data Source" */
+  project_description?: string;
 }
 
 interface Employee {
@@ -270,6 +275,7 @@ export default function EnergyCustomerDetailsPage() {
 
       setCustomer(data);
       setEditedCustomer(data);
+      setIsEditing(true);
 
       // ✅ ADD THIS: Populate the status dropdown with the value from API
       if (data.status) {
@@ -615,8 +621,10 @@ export default function EnergyCustomerDetailsPage() {
       if (response.ok) {
         const data = await response.json();
         console.log('💾 Save response customer:', data.customer);
-        setCustomer(data.customer || data);
-        setIsEditing(false);
+        const next = data.customer || data;
+        setCustomer(next);
+        setEditedCustomer(next);
+        setIsEditing(true);
         alert("✅ Customer updated successfully!");
       } else {
         const errorData = await response.json().catch(() => ({ error: "Unknown error" }));
@@ -875,7 +883,19 @@ export default function EnergyCustomerDetailsPage() {
               </>
             ) : (
               <>
-                <Button onClick={() => setIsEditing(true)} variant="outline">
+                <Button
+                  onClick={() => {
+                    if (customer) {
+                      try {
+                        setEditedCustomer(structuredClone(customer));
+                      } catch {
+                        setEditedCustomer({ ...customer });
+                      }
+                    }
+                    setIsEditing(true);
+                  }}
+                  variant="outline"
+                >
                   <Edit className="mr-2 h-4 w-4" />
                   Edit
                 </Button>
@@ -1051,10 +1071,16 @@ export default function EnergyCustomerDetailsPage() {
                   )}
                 </div>
 
-                {/* Agent Sold */}
+                {/* Agent Sold — stored on contract as terms_of_sale */}
                 <div>
                   <label className="text-sm font-medium text-gray-700">Agent Sold</label>
-                  <Input disabled className="mt-1 bg-gray-50" placeholder="—" />
+                  <Input
+                    value={displayCustomer.terms_of_sale || ""}
+                    onChange={(e) => handleUpdateField("terms_of_sale", e.target.value)}
+                    disabled={!isEditing}
+                    className="mt-1"
+                    placeholder="—"
+                  />
                 </div>
               </div>
             </div>
@@ -1174,10 +1200,16 @@ export default function EnergyCustomerDetailsPage() {
                   />
                 </div>
 
-                {/* Data Source */}
+                {/* Data Source — stored on project as project_description */}
                 <div>
                   <label className="text-sm font-medium text-gray-700">Data Source</label>
-                  <Input disabled className="mt-1 bg-gray-50" placeholder="—" />
+                  <Input
+                    value={displayCustomer.project_description || ""}
+                    onChange={(e) => handleUpdateField("project_description", e.target.value)}
+                    disabled={!isEditing}
+                    className="mt-1"
+                    placeholder="—"
+                  />
                 </div>
 
                 {/* Annual Usage */}
