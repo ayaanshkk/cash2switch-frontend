@@ -379,22 +379,29 @@ export default function LeadsPage() {
 
   // ── Derived lists ──────────────────────────────────────────────────────────
   const sortedLeads = useMemo(() => {
-    const leadsToShow = searchTerm.trim() 
-      ? allLeads  
-      : allLeads.filter(l => !l.is_archived);
-    
-    if (searchTerm && searchResults.length > 0) {
-      const assignedIds = new Set(leadsToShow.map(l => l.opportunity_id));
-      const uniqueSearchResults = searchResults.filter(l => !assignedIds.has(l.opportunity_id));
-      return [...leadsToShow, ...uniqueSearchResults].sort((a, b) => {
-        return new Date(a.created_at || new Date()).getTime() - new Date(b.created_at || new Date()).getTime();
+      const leadsToShow = searchTerm.trim() 
+        ? allLeads  
+        : allLeads.filter(l => !l.is_archived && !l.is_allocated);
+      
+      if (searchTerm && searchResults.length > 0) {
+        const assignedIds = new Set(leadsToShow.map(l => l.opportunity_id));
+        const uniqueSearchResults = searchResults.filter(l => !assignedIds.has(l.opportunity_id));
+        return [...leadsToShow, ...uniqueSearchResults].sort((a, b) => {
+          // Sort by created_at DESC as primary, display_order as tiebreaker
+          const dateA = new Date(a.created_at || 0).getTime();
+          const dateB = new Date(b.created_at || 0).getTime();
+          if (dateB !== dateA) return dateB - dateA;
+          return (a.display_order ?? 9999) - (b.display_order ?? 9999);
+        });
+      }
+      
+      return [...leadsToShow].sort((a, b) => {
+        const dateA = new Date(a.created_at || 0).getTime();
+        const dateB = new Date(b.created_at || 0).getTime();
+        if (dateB !== dateA) return dateB - dateA;
+        return (a.display_order ?? 9999) - (b.display_order ?? 9999);
       });
-    }
-    
-    return [...leadsToShow].sort((a, b) => {
-      return (a.display_order ?? 9999) - (b.display_order ?? 9999);
-    });
-  }, [allLeads, searchResults, searchTerm]);
+    }, [allLeads, searchResults, searchTerm]);
 
   const filteredLeads = useMemo(() => {
     let list = sortedLeads.filter(l => {
@@ -686,11 +693,11 @@ export default function LeadsPage() {
     if (!window.confirm(`Delete ${selectedLeads.length} lead(s)? This cannot be undone.`)) return;
     
     try {
-      // ✅ Use POST method to match your route
+      // ✅ SIMPLIFIED: Send opportunity_ids directly (no conversion needed)
       const response = await fetchWithAuth(`${CRM_PROXY}/leads/bulk-delete`, {
-        method: 'POST',  // ✅ Changed from DELETE to POST
+        method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ opportunity_ids: selectedLeads })
+        body: JSON.stringify({ opportunity_ids: selectedLeads })  // ✅ Send as-is
       });
 
       if (!response || response.error) {
@@ -1179,7 +1186,11 @@ export default function LeadsPage() {
                       const del = document.createElement("button");
                       del.className = "w-full px-4 py-2 text-left text-sm hover:bg-red-50 text-red-600 flex items-center gap-2";
                       del.innerHTML = `<svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg> Delete`;
-                      del.onclick = () => { deleteLead(lead.opportunity_id); document.body.removeChild(menu); };
+                        del.onclick = () => { 
+                          // ✅ Send tenant_lead_id (the display ID) instead of opportunity_id
+                          deleteLead(lead.opportunity_id);  
+                          document.body.removeChild(menu); 
+                        };
                       menu.appendChild(del); document.body.appendChild(menu);
                       const close = (ev: MouseEvent) => { if (!menu.contains(ev.target as Node)) { try { document.body.removeChild(menu); } catch {} document.removeEventListener("click", close); } };
                       setTimeout(() => document.addEventListener("click", close), 0);
