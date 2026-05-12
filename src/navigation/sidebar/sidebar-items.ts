@@ -38,6 +38,7 @@ import {
   Archive,
   UserCheck,
   Sparkles,
+  FilePenLine,
 } from "lucide-react";
 
 export interface NavSubItem {
@@ -138,7 +139,7 @@ const allSidebarItems: NavGroup[] = [
             title: "Renewals Calendar",
             url: "/dashboard/calendar?view=renewals",
             icon: Calendar,
-            roles: ["platform admin", "salesperson"],
+            roles: ["platform admin", "salesperson", "leads offshore"],
           },
           {
             title: "Leads Calendar",
@@ -179,6 +180,13 @@ const allSidebarItems: NavGroup[] = [
         url: "/dashboard/cleansing",
         icon: Sparkles,  
         roles: ["platform admin", "salesperson"],
+      },
+      {
+        title: "Drafts",
+        url: "/dashboard/drafts",
+        icon: FilePenLine,
+        roles: ["platform admin"],
+        isNew: true,
       },
       {
         title: "Recycle Bin",
@@ -223,7 +231,7 @@ export const getSidebarItems = (userRole: string, notificationCount?: number): N
   } else if (isLeadsOffshore) {
     allowedRoles = ['leads offshore'];
   }
-
+  
   return allSidebarItems
     .map((group) => ({
       ...group,
@@ -240,7 +248,7 @@ export const getSidebarItems = (userRole: string, notificationCount?: number): N
               badge: notificationCount > 9 ? '9+' : notificationCount,
             };
           }
-
+          
           if (item.subItems && item.subItems.length > 0) {
             return {
               ...item,
@@ -250,7 +258,7 @@ export const getSidebarItems = (userRole: string, notificationCount?: number): N
               }),
             };
           }
-
+          
           return item;
         }),
     }))
