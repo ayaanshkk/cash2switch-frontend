@@ -1328,6 +1328,7 @@ export default function LeadDetailsPage() {
         {/* ── History ─────────────────────────────────────────────────────── */}
         <div className="mt-8">
           <h3 className="mb-3 text-lg font-semibold text-gray-900">History</h3>
+          
           {loadingHistory ? (
             <div className="flex items-center justify-center py-4">
               <Loader2 className="h-5 w-5 animate-spin text-gray-400" />
@@ -1336,38 +1337,59 @@ export default function LeadDetailsPage() {
             <p className="text-sm text-gray-500">No interactions yet</p>
           ) : (
             <div className="space-y-3">
-              {history.map(interaction => {
-                const rawNotes      = interaction.notes || "";
-                const cleanNotes    = rawNotes.replace(/^\[.*?\]\s*/, "");
-                const displayStatus = interaction.interaction_type || "Unknown";
+              {history.map((interaction) => {
+                const rawNotes = interaction.notes || '';
+                const cleanNotes = rawNotes.replace(/^\[.*?\]\s*/, '');
+                const displayStatus = interaction.interaction_type || 'Unknown';
+                
+                // ✅ Check if this is a callback with a reminder date
+                const hasCallback = interaction.reminder_date && 
+                  ['Callback', 'Called', 'Not Answered', 'Broker in Place', 
+                  'End Date Changed', 'Already Renewed'].includes(displayStatus);
+                
                 return (
-                  <div key={interaction.interaction_id}
-                    className="p-3 bg-white border border-gray-200 rounded-lg text-sm relative group">
+                  <div 
+                    key={interaction.interaction_id} 
+                    className="p-3 bg-white border border-gray-200 rounded-lg text-sm relative group"
+                  >
+                    {/* ✅ DELETE BUTTON - Shows on hover */}
                     <button
                       onClick={() => handleDeleteInteraction(interaction.interaction_id)}
                       className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:bg-red-50 rounded"
-                      title="Delete this entry">
+                      title="Delete this entry"
+                    >
                       <Trash2 className="h-4 w-4 text-red-600" />
                     </button>
+
+                    {/* ✅ Show the actual status */}
                     <div className="mb-2">
-                      <span className="font-semibold text-gray-900">{displayStatus}</span>
+                      <span className="font-semibold text-gray-900">
+                        {displayStatus}
+                      </span>
                     </div>
+                    
+                    {/* ✅ ALWAYS show notes if they exist */}
                     {cleanNotes && (
                       <p className="text-gray-600 text-xs mb-2 pr-8">{cleanNotes}</p>
                     )}
-                    {interaction.reminder_date &&
-                      ["Callback","Called","Not Answered","Broker in Place","End Date Changed","Already Renewed"]
-                        .includes(displayStatus) && (
-                      <div className="flex items-center gap-1 text-xs text-purple-700">
+                    
+                    {/* ✅ Show callback/reminder date with calendar icon - ONLY for callback-type statuses */}
+                    {hasCallback && (
+                      <div className="flex items-center gap-1 text-xs text-purple-700 mb-1">
                         <Calendar className="h-3 w-3" />
                         <span>Callback: {formatDate(interaction.reminder_date)}</span>
                       </div>
                     )}
+                    
+                    {/* ✅ Show timestamp for when this was created */}
                     {interaction.created_at && (
                       <div className="text-xs text-gray-400 mt-1">
-                        {new Date(interaction.created_at).toLocaleString("en-GB", {
-                          day: "2-digit", month: "2-digit", year: "numeric",
-                          hour: "2-digit", minute: "2-digit",
+                        {new Date(interaction.created_at).toLocaleString('en-GB', {
+                          day: '2-digit',
+                          month: '2-digit',
+                          year: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit'
                         })}
                       </div>
                     )}

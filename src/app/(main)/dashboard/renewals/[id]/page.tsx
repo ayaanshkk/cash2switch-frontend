@@ -2312,12 +2312,14 @@ export default function EnergyCustomerDetailsPage() {
           ) : (
             <div className="space-y-3">
               {history.map((interaction) => {
-                // ✅ Extract clean notes (remove [Status] prefix if it exists)
                 const rawNotes = interaction.notes || '';
                 const cleanNotes = rawNotes.replace(/^\[.*?\]\s*/, '');
-                
-                // ✅ Use the actual interaction_type as the status
                 const displayStatus = interaction.interaction_type || 'Unknown';
+                
+                // ✅ Check if this is a callback with a reminder date
+                const hasCallback = interaction.reminder_date && 
+                  ['Callback', 'Called', 'Not Answered', 'Broker in Place', 
+                  'End Date Changed', 'Already Renewed'].includes(displayStatus);
                 
                 return (
                   <div 
@@ -2340,14 +2342,14 @@ export default function EnergyCustomerDetailsPage() {
                       </span>
                     </div>
                     
-                    {/* ✅ Show notes if they exist */}
+                    {/* ✅ ALWAYS show notes if they exist */}
                     {cleanNotes && (
                       <p className="text-gray-600 text-xs mb-2 pr-8">{cleanNotes}</p>
                     )}
                     
-                    {/* ✅ Show callback/reminder date with calendar icon - ONLY if it's actually a callback-type status */}
-                    {interaction.reminder_date && ['Callback', 'Called', 'Not Answered', 'Broker in Place', 'End Date Changed', 'Already Renewed'].includes(displayStatus) && (
-                      <div className="flex items-center gap-1 text-xs text-purple-700">
+                    {/* ✅ Show callback/reminder date with calendar icon - ONLY for callback-type statuses */}
+                    {hasCallback && (
+                      <div className="flex items-center gap-1 text-xs text-purple-700 mb-1">
                         <Calendar className="h-3 w-3" />
                         <span>Callback: {formatDate(interaction.reminder_date)}</span>
                       </div>
