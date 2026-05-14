@@ -221,7 +221,7 @@ export default function DraftsPage() {
       const endpoint =
         activeTab === "leads"
           ? `${API_BASE_URL}/import/leads?service=utilities`
-          : `${API_BASE_URL}/import/energy-customers?service=utilities`;
+          : `${API_BASE_URL}/import/renewals?service=utilities`;
 
       const token = localStorage.getItem("auth_token") || localStorage.getItem("token");
       const tenantId = localStorage.getItem("tenant_id") || "2";
