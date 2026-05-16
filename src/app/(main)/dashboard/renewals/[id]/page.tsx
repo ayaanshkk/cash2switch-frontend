@@ -55,9 +55,10 @@ const TABS = [
 
 // Status options
 const STATUS_OPTIONS = [
+  { value: "Not Called", label: "Not Called" },
   { value: "Callback", label: "Callback" },
-  // { value: "Called", label: "Called" },
   { value: "Not Answered", label: "Not Answered" },
+  { value: "Dead", label: "Dead" },
   { value: "Priced", label: "Priced" },
   { value: "Sold", label: "Sold" },
   { value: "Lost", label: "Lost" },
@@ -75,7 +76,6 @@ const STATUS_OPTIONS = [
 
 const getStatusColor = (status: string | undefined): string => {
   if (!status) return "bg-gray-100 text-gray-800";
-  
   const statusLower = status.toLowerCase();
   if (statusLower === 'called' || statusLower === 'priced' || statusLower === 'callback') {
     return "bg-green-100 text-green-800";
@@ -85,6 +85,12 @@ const getStatusColor = (status: string | undefined): string => {
   }
   if (statusLower === 'lost' || statusLower === 'lost cot') {
     return "bg-red-100 text-red-800";
+  }
+  if (statusLower === 'not called') {
+    return "bg-gray-100 text-gray-500";
+  }
+  if (statusLower === 'dead') {
+    return "bg-red-200 text-red-900";
   }
   return "bg-gray-100 text-gray-800";
 };
@@ -364,7 +370,9 @@ export default function EnergyCustomerDetailsPage() {
     "Complaint": { requiresDate: true, requiresSold: false, deletesRecord: false, requiresNotes: true, requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
     "Email Only": { requiresDate: true, requiresSold: false, deletesRecord: false, requiresNotes: false, requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
     "Renewed Directly": { requiresDate: true, requiresSold: false, deletesRecord: false, requiresNotes: true, requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
-    "Incorrect Supplier": { requiresDate: false, requiresSold: false, deletesRecord: false, requiresNotes: true, requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false }
+    "Incorrect Supplier": { requiresDate: false, requiresSold: false, deletesRecord: false, requiresNotes: true, requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
+    "Not Called": { requiresDate: false, requiresSold: false, deletesRecord: false, requiresNotes: false, requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
+    "Dead": { requiresDate: false, requiresSold: false, deletesRecord: false, requiresNotes: false, requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
   };
 
   const isDateRequired = () => {
@@ -2074,11 +2082,12 @@ export default function EnergyCustomerDetailsPage() {
                 <SelectValue placeholder="Set status" />
               </SelectTrigger>
               <SelectContent>
+                <SelectItem value="Not Called">Not Called</SelectItem>
                 <SelectItem value="Callback">Callback</SelectItem>
-                {/* <SelectItem value="Called">Called</SelectItem> */}
                 <SelectItem value="Not Answered">Not Answered</SelectItem>
+                <SelectItem value="Dead">Dead</SelectItem>
                 <SelectItem value="Priced">Priced</SelectItem>
-                <SelectItem value="Sold">Sold</SelectItem>  
+                <SelectItem value="Sold">Sold</SelectItem>
                 <SelectItem value="Lost">Lost</SelectItem>
                 <SelectItem value="Lost COT">Lost COT</SelectItem>
                 <SelectItem value="Already Renewed">Already Renewed</SelectItem>
@@ -2090,7 +2099,6 @@ export default function EnergyCustomerDetailsPage() {
                 <SelectItem value="End Date Changed">End Date Changed</SelectItem>
                 <SelectItem value="Complaint">Complaint</SelectItem>
                 <SelectItem value="Email Only">Email Only</SelectItem>
-
                 {customer.status && (
                   <>
                     <div className="border-t my-1" />

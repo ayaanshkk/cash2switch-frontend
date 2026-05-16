@@ -38,9 +38,11 @@ const API_BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:50
 
 // Status options for dropdown
 const STATUS_OPTIONS = [
+  { value: "Not Called", label: "Not Called" },
   { value: "Callback", label: "Callback" },
   // { value: "Called", label: "Called" },
   { value: "Not Answered", label: "Not Answered" },
+  { value: "Dead", label: "Dead" },
   { value: "Priced", label: "Priced" },
   { value: "Sold", label: "Sold" },
   { value: "Already Renewed", label: "Already Renewed" },
@@ -80,6 +82,8 @@ const statusConfig: Record<string, {
   "Email Only": { requiresDate: true, requiresSold: false, deletesRecord: false, requiresNotes: false, requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
   "Renewed Directly": { requiresDate: true, requiresSold: false, deletesRecord: false, requiresNotes: true, requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
   "Incorrect Supplier": { requiresDate: false, requiresSold: false, deletesRecord: false, requiresNotes: true, requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
+  "Not Called": { requiresDate: false, requiresSold: false, deletesRecord: false, requiresNotes: false, requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
+  "Dead": { requiresDate: false, requiresSold: false, deletesRecord: false, requiresNotes: false, requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
 };
 
 // ---------------- Types ----------------
@@ -185,6 +189,12 @@ const getStatusColor = (status: string | undefined): string => {
   if (statusLower === 'lost' || statusLower === 'lost cot') {
     return "bg-red-100 text-red-800";
   }
+  if (statusLower === 'not called') {
+    return "bg-gray-100 text-gray-500";
+  }
+  if (statusLower === 'dead') {
+    return "bg-red-200 text-red-900";
+  }
   return "bg-gray-100 text-gray-800";
 };
 
@@ -215,6 +225,8 @@ const STATUS_TO_STAGE_FALLBACK: Record<string, number> = {
   'email only': 13,
   'renewed directly': 14,
   'incorrect supplier': 15,
+  'not called': 16,
+  'dead': 18,
 };    
 
 const getStageIdFromStatus = (status: string, stagesList?: Stage[]): number => {
@@ -238,10 +250,13 @@ export default function EnergyCustomersPage() {
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [stages, setStages] = useState<Stage[]>([]);
-  const [searchTerm, setSearchTerm] = useState("");
-  const [supplierFilter, setSupplierFilter] = useState<number | "All">("All");
-  const [statusFilter, setStatusFilter] = useState<string | "All">("All");
-  const [service, setService] = useState("utilities");
+  const [searchTerm, setSearchTerm] = useState(() => sessionStorage.getItem('renewals_search') || "");
+  const [supplierFilter, setSupplierFilter] = useState<number | "All">(() => {
+    const saved = sessionStorage.getItem('renewals_supplier');
+    return saved && saved !== "All" ? parseInt(saved) : "All";
+  });
+  const [statusFilter, setStatusFilter] = useState<string | "All">(() => sessionStorage.getItem('renewals_status') || "All");
+  const [service, setService] = useState(() => sessionStorage.getItem('renewals_service') || "utilities");
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showImportModal, setShowImportModal] = useState(false);
   const [bulkImportFile, setBulkImportFile] = useState<File | null>(null);
@@ -289,8 +304,8 @@ export default function EnergyCustomersPage() {
   const [callbackError, setCallbackError] = useState("");
   const [newSupplier, setNewSupplier] = useState("");
   const [newAddress, setNewAddress] = useState("");
-  const [usageSort, setUsageSort] = useState<"none" | "low-high" | "high-low">("none");
-  const [endDateFilter, setEndDateFilter] = useState<"all" | "expired" | "30" | "60" | "90" | "90+">("all");
+  const [usageSort, setUsageSort] = useState<"none" | "low-high" | "high-low">(() => (sessionStorage.getItem('renewals_usage_sort') as any) || "none");
+  const [endDateFilter, setEndDateFilter] = useState<"all" | "expired" | "30" | "60" | "90" | "90+">(() => (sessionStorage.getItem('renewals_end_date') as any) || "all");
   const [performanceStats, setPerformanceStats] = useState({
     renewed: 0,
     in_progress: 0,
@@ -335,26 +350,52 @@ export default function EnergyCustomersPage() {
       console.error("Error fetching performance stats:", err);
     }
   };
-
+  
   useEffect(() => {
-    fetchCustomers();
-    fetchSuppliers();
-    fetchEmployees();
-    fetchStages();
-    if (isAdmin) {
-      fetchEmployeeStats();
-    }
+    const loadPageData = async () => {
+      // 1. Fetch customers first — paints the table ASAP
+      await fetchCustomers();
+
+      // 2. Fetch dropdowns in a single combined call
+      await fetchInitData();
+
+      // 3. Non-critical stats — after table is usable
+      await fetchPerformanceStats();
+      if (isAdmin) {
+        await fetchEmployeeStats();
+      }
+    };
+
+    loadPageData();
   }, [service, isAdmin]);
-
-  useEffect(() => {
-    if (allCustomers.length > 0) {
-      fetchPerformanceStats();
-    }
-  }, [service, allCustomers]);
 
   useEffect(() => {
     setCurrentPage(1);
   }, [searchTerm, supplierFilter, statusFilter, usageSort, endDateFilter]);
+
+  useEffect(() => {
+    sessionStorage.setItem('renewals_search', searchTerm);
+  }, [searchTerm]);
+
+  useEffect(() => {
+    sessionStorage.setItem('renewals_supplier', supplierFilter.toString());
+  }, [supplierFilter]);
+
+  useEffect(() => {
+    sessionStorage.setItem('renewals_status', statusFilter.toString());
+  }, [statusFilter]);
+
+  useEffect(() => {
+    sessionStorage.setItem('renewals_service', service);
+  }, [service]);
+
+  useEffect(() => {
+    sessionStorage.setItem('renewals_usage_sort', usageSort);
+  }, [usageSort]);
+
+  useEffect(() => {
+    sessionStorage.setItem('renewals_end_date', endDateFilter);
+  }, [endDateFilter]);
 
   // ---------------- Fetch Functions ----------------
   const fetchCustomers = async () => {
@@ -363,18 +404,19 @@ export default function EnergyCustomersPage() {
     try {
       const response = await fetchWithAuth(`/energy-clients?service=${encodeURIComponent(service)}`);
       const activeData = Array.isArray(response) ? response : (response?.data || []);
-      
-      let archivedData: EnergyCustomer[] = [];
+      setAllCustomers(activeData);
+
+      // Archives fetched separately after active data is painted
       try {
         const archiveResponse = await fetchWithAuth(`/energy-clients/archives?service=${encodeURIComponent(service)}`);
-        archivedData = Array.isArray(archiveResponse) ? archiveResponse : [];
-      } catch (archiveErr) {
-        console.log('No archived records available');
+        const archivedData = Array.isArray(archiveResponse) ? archiveResponse : [];
+        if (archivedData.length > 0) {
+          setAllCustomers(prev => [...prev, ...archivedData]);
+        }
+      } catch {
+        // Archives optional — silent fail
       }
-      
-      setAllCustomers([...activeData, ...archivedData]);
     } catch (err) {
-      console.error("❌ Error fetching clients:", err);
       const errorMessage = err instanceof Error ? err.message : "Unknown error occurred";
       setError(errorMessage);
       setAllCustomers([]);
@@ -383,39 +425,16 @@ export default function EnergyCustomersPage() {
     }
   };
 
-  const fetchSuppliers = async () => {
+  const fetchInitData = async () => {
     try {
-      const response = await fetchWithAuth("/suppliers");
-      const data = Array.isArray(response) ? response : (response?.data || []);
-      setSuppliers(data);
+      const response = await fetchWithAuth("/energy-clients/init-data");
+      if (response && !response.error) {
+        setSuppliers(response.suppliers || []);
+        setEmployees(response.employees || []);
+        setStages(response.stages || []);
+      }
     } catch (err) {
-      console.error("❌ Error fetching suppliers:", err);
-      setSuppliers([]);
-    }
-  };
-
-  const fetchEmployees = async () => {
-    try {
-      const employeesBody = await fetchWithAuth("/employees");
-      const employeesList = Array.isArray(employeesBody.data)
-        ? employeesBody.data
-        : Array.isArray(employeesBody)
-        ? employeesBody
-        : [];
-      setEmployees(employeesList);
-    } catch (err) {
-      console.error("❌ Error fetching employees:", err);
-    }
-  };
-
-  const fetchStages = async () => {
-    try {
-      const response = await fetchWithAuth("/stages");
-      const stagesList = Array.isArray(response) ? response : (response?.data || []);
-      setStages(stagesList);
-    } catch (err) {
-      console.error("❌ Error fetching stages:", err);
-      setStages([]);
+      console.error("❌ Error fetching init data:", err);
     }
   };
 
@@ -985,75 +1004,78 @@ export default function EnergyCustomersPage() {
   const handlePerformanceClick = async (type: 'renewed' | 'in_progress' | 'not_contacted' | 'lost' | 'renewed_directly' | 'end_date_changed' | 'priced' | 'not_due') => {
     setPerformanceFilter(type);
     try {
-      // ✅ For 'not_due', filter by end_date > 365 days
-      const [activeResponse, archiveResponse, recycleBinResponse] = await Promise.all([
-        fetchWithAuth(`/energy-clients?service=${encodeURIComponent(service)}`),
-        fetchWithAuth(`/energy-clients/archives?service=${encodeURIComponent(service)}`).catch(() => []),
-        type === 'lost' ? fetchWithAuth(`/energy-clients/recycle-bin?service=${encodeURIComponent(service)}`).catch(() => []) : Promise.resolve([])
-      ]);
-      
-      const activeData = Array.isArray(activeResponse) ? activeResponse : (activeResponse?.data || []);
-      const archivedData = Array.isArray(archiveResponse) ? archiveResponse : [];
-      const recycleBinData = Array.isArray(recycleBinResponse) ? recycleBinResponse : (recycleBinResponse?.data || []);
-      
-      const allRecords = [...activeData, ...archivedData, ...recycleBinData];
+      const today = new Date();
 
-      if (allRecords.length > 0) {
-        let filtered: EnergyCustomer[] = [];
-        const today = new Date();
-        
-        switch (type) {
-          case 'renewed':
-            filtered = allRecords.filter(c => {
-              const s = (c.status || '').toLowerCase();
-              return s === 'priced' || s === 'renewed' || s === 'already renewed' || s === 'end date changed';
-            });
-            break;
-          case 'in_progress':
-            filtered = allRecords.filter(c => {
-              const s = (c.status || '').toLowerCase();
-              return s === 'called' || s === 'callback' || s === 'contacted';
-            });
-            break;
-          case 'not_contacted':
-            filtered = allRecords.filter(c => {
-              const s = (c.status || '').toLowerCase();
-              const hasNoStatus = !c.status || s === '' || s === 'none' || s === 'pending';
-              return hasNoStatus || s === 'not answered' || s === 'not contacted';
-            });
-            break;
-            case 'lost':
-              filtered = recycleBinData.filter((c: EnergyCustomer) => {
-                const s = (c.status || '').toLowerCase();
-                return s === 'lost' || s === 'lost cot';
-              });
-              break;
-          case 'renewed_directly':
-            filtered = allRecords.filter(c => (c.status || '').toLowerCase() === 'renewed directly');
-            break;
-          case 'end_date_changed':
-            filtered = allRecords.filter(c => (c.status || '').toLowerCase() === 'end date changed');
-            break;
-          case 'priced':
-            filtered = allRecords.filter(c => (c.status || '').toLowerCase() === 'priced');
-            break;
-          case 'not_due':
-            // ✅ FIX: Filter by contracts ending > 365 days from now
-            filtered = allRecords.filter(c => {
-              if (!c.end_date) return false;
-              const endDate = new Date(c.end_date);
-              const daysUntilEnd = Math.ceil((endDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-              return daysUntilEnd > 365;
-            });
-            break;
+      // ✅ Reuse already-fetched allCustomers (filtered to current user)
+      // For archived records, they're already in allCustomers from fetchCustomers
+      const activeRecords = allCustomers.filter(c => !c.is_archived);
+      const archivedRecords = allCustomers.filter(c => c.is_archived === true);
+      const allActive = [...activeRecords, ...archivedRecords];
+
+      // ✅ For lost, fetch recycle bin separately (already employee-filtered by backend)
+      let recycleBinData: EnergyCustomer[] = [];
+      if (type === 'lost') {
+        try {
+          const recycleBinResponse = await fetchWithAuth(`/energy-clients/recycle-bin?service=${encodeURIComponent(service)}`);
+          recycleBinData = Array.isArray(recycleBinResponse) ? recycleBinResponse : [];
+        } catch {
+          recycleBinData = [];
         }
-        setPerformanceFilteredCustomers(filtered);
-        setShowPerformanceModal(true);
-      } else {
-        toast.error("Failed to load customers");
       }
+
+      let filtered: EnergyCustomer[] = [];
+
+      switch (type) {
+        case 'renewed':
+          filtered = allActive.filter(c => (c.status || '').toLowerCase() === 'already renewed');
+          break;
+        case 'in_progress':
+          filtered = allActive.filter(c => {
+            const s = (c.status || '').toLowerCase();
+            return ['called', 'callback', 'contacted', 'not answered', 'broker in place', 'email only'].includes(s);
+          });
+          break;
+        case 'not_contacted':
+          filtered = allActive.filter(c => {
+            const s = (c.status || '').toLowerCase();
+            const knownStatuses = [
+              'already renewed', 'renewed directly', 'end date changed', 'priced', 'sold',
+              'called', 'callback', 'contacted', 'not answered', 'broker in place', 'email only',
+              'lost', 'lost cot', 'invalid number', 'incorrect supplier',
+              'meter de-energised', 'complaint',
+            ];
+            return !c.status || s === '' || s === 'not called' || s === 'dead' || !knownStatuses.includes(s);
+          });
+          break;
+        case 'lost':
+          filtered = recycleBinData.filter(c => {
+            const s = ((c as any).deleted_reason || c.status || '').toLowerCase();
+            return s === 'lost' || s === 'lost cot';
+          });
+          break;
+        case 'renewed_directly':
+          filtered = allActive.filter(c => (c.status || '').toLowerCase() === 'renewed directly');
+          break;
+        case 'end_date_changed':
+          filtered = allActive.filter(c => (c.status || '').toLowerCase() === 'end date changed');
+          break;
+        case 'priced':
+          filtered = allActive.filter(c => (c.status || '').toLowerCase() === 'priced');
+          break;
+        case 'not_due':
+          filtered = allActive.filter(c => {
+            if (!c.end_date) return false;
+            const endDate = new Date(c.end_date);
+            const daysUntilEnd = Math.ceil((endDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+            return daysUntilEnd > 365;
+          });
+          break;
+      }
+
+      setPerformanceFilteredCustomers(filtered);
+      setShowPerformanceModal(true);
     } catch (err) {
-      console.error("❌ Error fetching performance customers:", err);
+      console.error("❌ Error in performance click:", err);
       toast.error("Failed to load customers");
     }
   };
@@ -1651,13 +1673,13 @@ export default function EnergyCustomersPage() {
                           disabled={isArchived}
                         >
                           <SelectTrigger className="h-7 text-xs w-full max-w-[150px]">
-                            <SelectValue placeholder="Set status">
+                            <SelectValue placeholder="Not Called">
                               {customer.status ? (
                                 <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-semibold ${getStatusColor(customer.status)}`}>
                                   {getStatusLabel(customer.status)}
                                 </span>
                               ) : (
-                                <span className="text-gray-500">Set status</span>
+                                <span className="text-gray-500">Not Called</span>
                               )}
                             </SelectValue>
                           </SelectTrigger>

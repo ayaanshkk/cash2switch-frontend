@@ -35,8 +35,10 @@ const MAX_CACHED_LEADS = 1200;
 // ✅ Use the same base URL pattern as renewals import
 
 const STATUS_OPTIONS = [
+  { value: "Not Called",         label: "Not Called" },
   { value: "Callback",           label: "Callback" },
   { value: "Not Answered",       label: "Not Answered" },
+  { value: "Dead",               label: "Dead" },
   { value: "Priced",             label: "Priced" },
   { value: "Won",                label: "Won" },
   { value: "Converted",          label: "Converted" },
@@ -74,6 +76,8 @@ const statusConfig: Record<string, {
   "Incorrect Supplier":{ requiresDate: false, requiresSold: false, deletesRecord: false, requiresNotes: true,  requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
   "Won":               { requiresDate: false, requiresSold: false, deletesRecord: false, requiresNotes: false, requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
   "Converted":         { requiresDate: false, requiresSold: false, deletesRecord: false, requiresNotes: false, requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
+  "Not Called": { requiresDate: false, requiresSold: false, deletesRecord: false, requiresNotes: false, requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
+  "Dead":       { requiresDate: false, requiresSold: false, deletesRecord: false, requiresNotes: false, requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
 };
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -129,6 +133,8 @@ const getStatusColor = (s: string | undefined) => {
   if (["callback", "priced", "called", "converted", "won"].includes(l)) return "bg-green-100 text-green-800";
   if (l === "not answered") return "bg-yellow-100 text-yellow-800";
   if (["lost", "lost cot"].includes(l)) return "bg-red-100 text-red-800";
+  if (l === "not called") return "bg-gray-100 text-gray-500";
+  if (l === "dead") return "bg-red-200 text-red-900";
   return "bg-gray-100 text-gray-800";
 };
 
@@ -167,12 +173,15 @@ export default function LeadsPage() {
 
   // ── Filters / pagination ───────────────────────────────────────────────────
   const [currentPage, setCurrentPage] = useState(1);
-  const [service, setService]         = useState("utilities");
-  const [searchTerm, setSearchTerm]         = useState("");
-  const [supplierFilter, setSupplierFilter] = useState<number | "All">("All");
-  const [statusFilter, setStatusFilter]     = useState<string | "All">("All");
-  const [endDateFilter, setEndDateFilter]   = useState<"all" | "expired" | "30" | "60" | "90" | "90+">("all");
-  const [usageSort, setUsageSort]           = useState<"none" | "low-high" | "high-low">("none");
+  const [service, setService] = useState(() => sessionStorage.getItem('leads_service') || "utilities");
+  const [searchTerm, setSearchTerm] = useState(() => sessionStorage.getItem('leads_search') || "");
+  const [supplierFilter, setSupplierFilter] = useState<number | "All">(() => {
+    const saved = sessionStorage.getItem('leads_supplier');
+    return saved && saved !== "All" ? parseInt(saved) : "All";
+  });
+  const [statusFilter, setStatusFilter] = useState<string | "All">(() => sessionStorage.getItem('leads_status') || "All");
+  const [endDateFilter, setEndDateFilter] = useState<"all" | "expired" | "30" | "60" | "90" | "90+">(() => (sessionStorage.getItem('leads_end_date') as any) || "all");
+  const [usageSort, setUsageSort] = useState<"none" | "low-high" | "high-low">(() => (sessionStorage.getItem('leads_usage_sort') as any) || "none");
 
   // ── Selection ──────────────────────────────────────────────────────────────
   const [selectedLeads, setSelectedLeads]           = useState<number[]>([]);
@@ -360,6 +369,30 @@ export default function LeadsPage() {
     fetchLeads();
     fetchPerformanceStats();
   }, [service]);
+
+  useEffect(() => {
+    sessionStorage.setItem('leads_search', searchTerm);
+  }, [searchTerm]);
+
+  useEffect(() => {
+    sessionStorage.setItem('leads_supplier', supplierFilter.toString());
+  }, [supplierFilter]);
+
+  useEffect(() => {
+    sessionStorage.setItem('leads_status', statusFilter.toString());
+  }, [statusFilter]);
+
+  useEffect(() => {
+    sessionStorage.setItem('leads_service', service);
+  }, [service]);
+
+  useEffect(() => {
+    sessionStorage.setItem('leads_usage_sort', usageSort);
+  }, [usageSort]);
+
+  useEffect(() => {
+    sessionStorage.setItem('leads_end_date', endDateFilter);
+  }, [endDateFilter]);
 
   // ── Cross-team text search (debounced) ─────────────────────────────────────
   useEffect(() => {

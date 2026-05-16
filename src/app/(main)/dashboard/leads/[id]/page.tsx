@@ -54,8 +54,10 @@ const TABS = [
 ];
 
 const STATUS_OPTIONS = [
+  { value: "Not Called",         label: "Not Called" },
   { value: "Callback",           label: "Callback" },
   { value: "Not Answered",       label: "Not Answered" },
+  { value: "Dead",               label: "Dead" },
   { value: "Priced",             label: "Priced" },
   { value: "Won",                label: "Won" },
   { value: "Converted",          label: "Converted" },
@@ -79,6 +81,8 @@ const getStatusColor = (status: string | undefined): string => {
   if (["called", "priced", "callback", "converted", "won"].includes(l)) return "bg-green-100 text-green-800";
   if (l === "not answered") return "bg-yellow-100 text-yellow-800";
   if (["lost", "lost cot"].includes(l)) return "bg-red-100 text-red-800";
+  if (l === "not called") return "bg-gray-100 text-gray-500";
+  if (l === "dead") return "bg-red-200 text-red-900";
   return "bg-gray-100 text-gray-800";
 };
 
@@ -198,6 +202,8 @@ const statusConfig: Record<string, {
   "Renewed Directly":  { requiresDate: true,  requiresSold: false, deletesRecord: false, requiresNotes: true,  requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
   "Won":               { requiresDate: false, requiresSold: false, deletesRecord: false, requiresNotes: false, requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
   "Incorrect Supplier":{ requiresDate: false, requiresSold: false, deletesRecord: false, requiresNotes: true,  requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
+  "Not Called": { requiresDate: false, requiresSold: false, deletesRecord: false, requiresNotes: false, requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
+  "Dead":       { requiresDate: false, requiresSold: false, deletesRecord: false, requiresNotes: false, requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
