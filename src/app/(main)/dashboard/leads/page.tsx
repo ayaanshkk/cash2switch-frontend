@@ -796,8 +796,6 @@ export default function LeadsPage() {
       const tenantId = localStorage.getItem("tenant_id") || "";
       const fd = new FormData();
       fd.append("file", bulkImportFile);
-      // ✅ If no employee selected, DO NOT append assigned_employee_id at all.
-      // The backend (/import/leads) will default to the authenticated user's employee_id.
       if (assignToEmployee) {
         fd.append("assigned_employee_id", assignToEmployee.toString());
       }
@@ -815,13 +813,78 @@ export default function LeadsPage() {
       );
       const data = await res.json();
 
+      if (!res.ok) {
+        setBulkImportResult({ success: false, successful: 0, errors: [data.error || "Import failed"] });
+        toast.error(data.error || "Import failed");
+        return;
+      }
+
+      // ── Async job: poll /import/status/<job_id> ─────────────────────────
+      if (data.job_id) {
+        const jobId = data.job_id;
+        toast.success("⏳ Import started, processing in background...");
+
+        const poll = async (): Promise<void> => {
+          await new Promise(r => setTimeout(r, 2000));
+          try {
+            const statusRes = await fetch(`${BACKEND_PROXY}/import/status/${jobId}`, {
+              headers: { Authorization: `Bearer ${token}`, "X-Tenant-ID": tenantId },
+            });
+            const statusData = await statusRes.json();
+
+            if (statusData.status === "done") {
+              const successful = statusData.successful || 0;
+              const duplicates = statusData.duplicates || 0;
+              const errors: string[] = statusData.errors || [];
+
+              setBulkImportResult({
+                success: successful > 0,
+                successful,
+                duplicates,
+                errors,
+                assigned_to: assignToEmployee
+                  ? employees.find(e => e.employee_id === assignToEmployee)?.employee_name
+                  : "You",
+              });
+
+              if (successful > 0) {
+                toast.success(`✅ Imported ${successful} leads!`);
+                await fetchLeads();
+                setBulkImportFile(null);
+                setAssignToEmployee(null);
+              } else {
+                toast.error("Import completed but no leads were inserted.");
+              }
+              return;
+            }
+
+            if (statusData.status === "failed") {
+              const errors: string[] = statusData.errors || ["Import failed"];
+              setBulkImportResult({ success: false, successful: 0, errors });
+              toast.error("Import failed");
+              return;
+            }
+
+            // Still running — keep polling
+            return poll();
+          } catch {
+            setBulkImportResult({ success: false, successful: 0, errors: ["Network error while polling"] });
+            toast.error("Network error");
+          }
+        };
+
+        await poll();
+        return;
+      }
+
+      // ── Fallback: synchronous response (shouldn't happen but handle anyway) ──
       if (res.ok && data.success) {
         setBulkImportResult({
-          success:          true,
-          successful:       data.successful,
-          duplicates:       data.duplicates,
-          errors:           data.errors || [],
-          assigned_to:      data.assigned_to,
+          success: true,
+          successful: data.successful,
+          duplicates: data.duplicates,
+          errors: data.errors || [],
+          assigned_to: data.assigned_to,
           duplicate_report: data.duplicate_report,
         });
         toast.success(`✅ Imported ${data.successful} leads!`);
@@ -830,16 +893,18 @@ export default function LeadsPage() {
         setAssignToEmployee(null);
       } else {
         setBulkImportResult({
-          success:    false,
+          success: false,
           successful: data.successful || 0,
-          errors:     data.errors || [data.error || "Import failed"],
+          errors: data.errors || [data.error || "Import failed"],
         });
         toast.error(data.error || "Import failed");
       }
     } catch {
       toast.error("Network error");
       setBulkImportResult({ success: false, successful: 0, errors: ["Network error"] });
-    } finally { setBulkImporting(false); }
+    } finally {
+      setBulkImporting(false);
+    }
   };
 
   // ── Performance modal ──────────────────────────────────────────────────────
@@ -1458,9 +1523,27 @@ export default function LeadsPage() {
             )}
 
             <div className="flex justify-end gap-2 pt-4">
-              <Button variant="outline" onClick={() => { setShowImportModal(false); setBulkImportFile(null); setAssignToEmployee(null); setBulkImportResult(null); }}>Cancel</Button>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setShowImportModal(false);
+                  setBulkImportFile(null);
+                  setAssignToEmployee(null);
+                  setBulkImportResult(null);
+                }}
+                disabled={bulkImporting}
+              >
+                Cancel
+              </Button>
               <Button onClick={handleBulkImport} disabled={!bulkImportFile || bulkImporting}>
-                {bulkImporting ? <><div className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />Importing...</> : "Import Leads"}
+                {bulkImporting ? (
+                  <>
+                    <div className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                    Importing... (processing in background)
+                  </>
+                ) : (
+                  "Import Leads"
+                )}
               </Button>
             </div>
           </div>
