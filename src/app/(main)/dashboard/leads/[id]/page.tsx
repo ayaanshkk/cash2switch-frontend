@@ -424,91 +424,104 @@ export default function LeadDetailsPage() {
     setEditedLead(prev => ({ ...prev, [field]: value }));
 
   // ── callback / action ────────────────────────────────────────────────────
-  const handleSubmitCallback = async () => {
-    setCallbackError("");
-    if (!callbackStatus) { setCallbackError("Please select a status"); return; }
-    const cfg = statusConfig[callbackStatus];
-    if (callbackDateStatuses.has(callbackStatus) && !callbackDate) {
-      setCallbackError("Please select callback date.");
-      return;
-    }
-    if (cfg?.requiresSold && !isSold) { setCallbackError("Please select if the contract was sold"); return; }
-    if (cfg?.requiresNotes && !callbackNotes.trim()) { setCallbackError("Please enter the reason for this status"); return; }
-    if (callbackStatus === "Already Renewed" && !renewedBy) { setCallbackError("Please select if renewed by customer or agent"); return; }
-    if (callbackStatus === "End Date Changed" && !newEndDate) { setCallbackError("Please enter the new contract end date"); return; }
+    const handleSubmitCallback = async () => {
+      setCallbackError("");
 
-    setIsSubmittingCallback(true);
-    try {
-      const stageId = getStageIdFromStatus(callbackStatus);
-      const payload: any = { status: callbackStatus, notes: callbackNotes };
-      if (stageId) payload.stage_id = stageId;
-      if (calledDate) payload.called_date = calledDate;
-      if (callbackDate) payload.callback_date = callbackDate;
-      if (cfg?.requiresSold) payload.is_sold = isSold === "yes";
-      if (cfg?.requiresNewEndDate && newEndDate) payload.new_end_date = newEndDate;
-      if (callbackStatus === "Already Renewed" && renewedBy) payload.renewed_by = renewedBy;
-      if (cfg?.requiresSupplierChange && newSupplier.trim()) payload.new_supplier = newSupplier.trim();
-      if (cfg?.requiresAddressChange && newAddress.trim()) payload.new_address = newAddress.trim();
-
-      const data = await fetchWithAuth(`/api/crm/leads/${id}/callback`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-
-      if (!data || data.error) throw new Error(data?.error || "Failed to save");
-
-      // ✅ CRITICAL FIX: Update local state with returned lead data
-      if (data.lead) {
-        setLead(prev => prev ? { ...prev, ...data.lead } : data.lead);
-        setEditedLead(prev => ({ ...prev, ...data.lead }));
-        
-        // ✅ Update the status in the action panel
-        if (data.lead.stage_name) {
-          setCallbackStatus(data.lead.stage_name);
-        }
+      if (!callbackStatus) { setCallbackError("Please select a status"); return; }
+      const cfg = statusConfig[callbackStatus];
+      if (callbackDateStatuses.has(callbackStatus) && !callbackDate) {
+        setCallbackError("Please select callback date.");
+        return;
       }
+      if (cfg?.requiresSold && !isSold) { setCallbackError("Please select if the contract was sold"); return; }
+      if (cfg?.requiresNotes && !callbackNotes.trim()) { setCallbackError("Please enter the reason for this status"); return; }
+      if (callbackStatus === "Already Renewed" && !renewedBy) { setCallbackError("Please select if renewed by customer or agent"); return; }
+      if (callbackStatus === "End Date Changed" && !newEndDate) { setCallbackError("Please enter the new contract end date"); return; }
 
-      if (data.moved_to_cleansing) {
-        alert("🧹 Moved to Cleansing");
-        router.push("/dashboard/cleansing");
-      } else if (data.moved_to_recycle_bin || data.deleted) {
-        alert("✅ Record removed from leads list");
-        router.push("/dashboard/leads");
-      } else if (data.moved_to_priced) {
-        alert("✅ Moved to Priced page");
-        router.push("/dashboard/priced");
-      } else {
+      setIsSubmittingCallback(true);
+      try {
+        // ✅ Always send all fields
+        const payload: any = {
+          status: callbackStatus,
+          notes: callbackNotes,
+          called_date: calledDate,
+          callback_date: callbackDate || null,
+        };
+
+        const stageId = getStageIdFromStatus(callbackStatus);
+        if (stageId) payload.stage_id = stageId;
+        if (cfg?.requiresSold) payload.is_sold = isSold === "yes";
+        if (cfg?.requiresNewEndDate && newEndDate) payload.new_end_date = newEndDate;
+        if (callbackStatus === "Already Renewed" && renewedBy) payload.renewed_by = renewedBy;
+        if (cfg?.requiresSupplierChange && newSupplier.trim()) payload.new_supplier = newSupplier.trim();
+        if (cfg?.requiresAddressChange && newAddress.trim()) payload.new_address = newAddress.trim();
+
+        console.log("📤 Leads callback payload:", payload);
+
+        // ✅ CORRECT endpoint for leads
+        const data = await fetchWithAuth(`/api/crm/leads/${id}/callback`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+
+        console.log("📥 Leads callback response:", data);
+
+        if (!data || data.error) throw new Error(data?.error || "Failed to save");
+
+        // ✅ Handle routing cases first
+        if (data.moved_to_cleansing) {
+          alert("🧹 Moved to Cleansing");
+          router.push("/dashboard/cleansing");
+          return;
+        }
+        if (data.moved_to_recycle_bin || data.deleted) {
+          alert("✅ Record removed from leads list");
+          router.push("/dashboard/leads");
+          return;
+        }
+        if (data.moved_to_priced) {
+          alert("✅ Moved to Priced page");
+          router.push("/dashboard/priced");
+          return;
+        }
+
+        // ✅ Reload history FIRST before state reset
+        await loadHistory();
+
+        if (data.lead) {
+          setLead(prev => prev ? { ...prev, ...data.lead } : data.lead);
+          setEditedLead(prev => ({ ...prev, ...data.lead }));
+          if (data.lead.stage_name) setCallbackStatus(data.lead.stage_name);
+        }
+
         if (callbackStatus === "Already Renewed") alert("✅ Lead information updated");
         else if (callbackStatus === "End Date Changed") alert(`✅ Contract end date updated to ${formatDate(newEndDate)}`);
         else if (callbackStatus === "Converted") alert("✅ Lead marked as Converted");
         else alert("✅ Action saved successfully");
 
-        // Reset action panel fields (keep status so it reflects current state)
-        setCallbackDate(
-          callbackDate ||
-          (data?.lead?.reminder_date ? String(data.lead.reminder_date).slice(0, 10) : "")
-        );
-        setCallbackNotes(""); setIsSold("");
-        setNewEndDate(""); setNewSupplier(""); setNewAddress("");
+        // ✅ Reset form fields only — keep callbackStatus
+        setCallbackNotes("");
+        setIsSold("");
+        setNewEndDate("");
+        setNewSupplier("");
+        setNewAddress("");
         setCalledDate(new Date().toISOString().split("T")[0]);
         setRenewedBy("");
-        loadHistory();
-      }
+        setCallbackError("");
 
-      // Notify calendar page to refetch in same tab and other tabs.
-      try {
-        localStorage.setItem('calendar-refetch-trigger', Date.now().toString());
-        window.dispatchEvent(new CustomEvent('calendar-refetch', { detail: { action: 'refetch-calendar' } }));
-      } catch {
-        // Non-blocking; callback save is already successful.
+        try {
+          localStorage.setItem("calendar-refetch-trigger", Date.now().toString());
+          window.dispatchEvent(new CustomEvent("calendar-refetch", { detail: { action: "refetch-calendar" } }));
+        } catch { /* non-blocking */ }
+
+      } catch (err: any) {
+        console.error("❌ Leads callback error:", err);
+        setCallbackError(err.message || "Failed to save action");
+      } finally {
+        setIsSubmittingCallback(false);
       }
-    } catch (err: any) {
-      setCallbackError(err.message || "Failed to save action");
-    } finally {
-      setIsSubmittingCallback(false);
-    }
-  };
+    };
 
   useEffect(() => {
     if (!callbackStatus || callbackDate) return;

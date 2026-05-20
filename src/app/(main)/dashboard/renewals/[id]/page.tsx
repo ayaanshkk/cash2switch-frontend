@@ -424,34 +424,23 @@ export default function EnergyCustomerDetailsPage() {
       return;
     }
 
-    // ✅ Only require new end date for "End Date Changed" (not for "Already Renewed")
     if (callbackStatus === "End Date Changed" && !newEndDate) {
       setCallbackError("Please enter the new contract end date");
       return;
     }
 
-    // if (isDateRequired() && !callbackDate) {
-    //   setCallbackError("Please select a callback date");
-    //   return;
-    // }
-
     setIsSubmittingCallback(true);
 
     try {
       const token = localStorage.getItem("auth_token");
-      
+
+      // ✅ Always include all fields — backend ignores what it doesn't need
       const payload: any = {
         status: callbackStatus,
         notes: callbackNotes,
+        called_date: calledDate,
+        callback_date: callbackDate || null,  // ✅ always send, even if empty
       };
-
-      if (calledDate) {
-        payload.called_date = calledDate;
-      }
-
-      if (isDateRequired() && callbackDate) {
-        payload.callback_date = callbackDate;
-      }
 
       if (config?.requiresSold) {
         payload.is_sold = isSold === "yes";
@@ -465,7 +454,6 @@ export default function EnergyCustomerDetailsPage() {
         payload.renewed_by = renewedBy;
       }
 
-      // ✅ NEW: Add supplier and address changes for "Already Renewed"
       if (config?.requiresSupplierChange && newSupplier.trim()) {
         payload.new_supplier = newSupplier.trim();
       }
@@ -474,7 +462,9 @@ export default function EnergyCustomerDetailsPage() {
         payload.new_address = newAddress.trim();
       }
 
-      const response = await fetch(`${API_BASE_URL}/energy-clients/${id}/callback`, {
+      console.log("📤 Callback payload:", payload);  // ← add this to verify in browser
+
+      const response = await fetch(`${API_BASE_URL}/energy-clients/${customer?.client_id || id}/callback`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -483,54 +473,62 @@ export default function EnergyCustomerDetailsPage() {
         body: JSON.stringify(payload),
       });
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || "Failed to save callback");
-      }
-
       const data = await response.json();
 
-      // ✅ ALWAYS reload customer data to get fresh values (including updated end date, supplier, address)
-      await loadCustomerData();
+      if (!response.ok) {
+        throw new Error(data.error || "Failed to save callback");
+      }
+
+      console.log("📥 Callback response:", data);  // ← and this
 
       if (data.moved_to_cleansing) {
         alert("🧹 Moved to Cleansing");
         router.push("/dashboard/cleansing");
-      } else if (data.moved_to_recycle_bin) {
-        alert("✅ Moved to recycle bin");
-        router.push("/dashboard/recycle-bin");
-      } else if (data.deleted) {
-        alert("✅ Record removed from renewals list");
-        router.push("/dashboard/renewals");
-      } else if (data.moved_to_priced) {
+        return;
+      }
+      if (data.moved_to_recycle_bin || data.deleted) {
+        alert("✅ Record removed from leads list");
+        router.push("/dashboard/leads");
+        return;
+      }
+      if (data.moved_to_priced) {
         alert("✅ Moved to Priced page");
         router.push("/dashboard/priced");
-      } else {
-        // ✅ Show different message for Already Renewed
-        if (callbackStatus === "Already Renewed") {
-          alert(`✅ Customer information updated`);
-        } else if (callbackStatus === "End Date Changed") {
-          alert(`✅ Contract end date updated to ${formatDate(newEndDate)}`);
-        } else {
-          alert("✅ Callback saved successfully");
-        }
-        
-        setShowCallbackModal(false);
-        
-        // Reset the form
-        setCallbackStatus("");
-        setCallbackDate("");
-        setCallbackNotes("");
-        setIsSold("");
-        setNewEndDate("");
-        setNewSupplier("");   // ✅ RESET
-        setNewAddress("");
-        setCalledDate(new Date().toISOString().split('T')[0]);
-      
-        loadHistory();
+        return;
       }
 
+      // ✅ Reload history FIRST before resetting state
+      await loadHistory();
+
+      if (data.lead) {
+        setLead(prev => prev ? { ...prev, ...data.lead } : data.lead);
+        setEditedLead(prev => ({ ...prev, ...data.lead }));
+        if (data.lead.stage_name) setCallbackStatus(data.lead.stage_name);
+      }
+
+      if (callbackStatus === "Already Renewed") alert("✅ Lead information updated");
+      else if (callbackStatus === "End Date Changed") alert(`✅ Contract end date updated to ${formatDate(newEndDate)}`);
+      else if (callbackStatus === "Converted") alert("✅ Lead marked as Converted");
+      else alert("✅ Action saved successfully");
+
+      // Reset form fields only (not status)
+      setCallbackDate("");
+      setCallbackNotes("");
+      setIsSold("");
+      setNewEndDate("");
+      setNewSupplier("");
+      setNewAddress("");
+      setCalledDate(new Date().toISOString().split("T")[0]);
+      setRenewedBy("");
+      setCallbackError("");
+
+      try {
+        localStorage.setItem("calendar-refetch-trigger", Date.now().toString());
+        window.dispatchEvent(new CustomEvent("calendar-refetch", { detail: { action: "refetch-calendar" } }));
+      } catch { /* non-blocking */ }
+
     } catch (err: any) {
+      console.error("❌ Callback error:", err);
       setCallbackError(err.message || "Failed to save callback");
     } finally {
       setIsSubmittingCallback(false);
