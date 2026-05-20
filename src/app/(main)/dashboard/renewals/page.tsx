@@ -943,33 +943,98 @@ export default function EnergyCustomersPage() {
     if (!bulkImportFile) { alert("Please select a file"); return; }
     setBulkImporting(true);
     setBulkImportResult(null);
+
     try {
       const token = localStorage.getItem("auth_token");
       const formData = new FormData();
       formData.append('file', bulkImportFile);
       if (assignToEmployee) formData.append('assigned_employee_id', assignToEmployee.toString());
 
+      // ── Step 1: Start the import job ──────────────────────────────────────
       const res = await fetch(
         `${API_BASE_URL}/import/energy-customers?service=${encodeURIComponent(service)}`,
         { method: "POST", headers: { Authorization: `Bearer ${token}` }, body: formData }
       );
       const data = await res.json();
 
-      if (res.ok && data.success) {
-        setBulkImportResult({ success: true, successful: data.successful, errors: data.errors || [], assigned_to: data.assigned_to });
-        toast.success(`✅ Imported ${data.successful} customers successfully!`);
-        await fetchCustomers();
-        if (isAdmin) await fetchEmployeeStats();
-        setBulkImportFile(null);
-        setAssignToEmployee(null);
-      } else {
-        setBulkImportResult({ success: false, successful: data.successful || 0, errors: data.errors || [data.error || 'Import failed'] });
-        toast.error(data.error || 'Import failed');
+      if (!res.ok || !data.job_id) {
+        setBulkImportResult({ success: false, successful: 0, errors: [data.error || 'Failed to start import'] });
+        toast.error(data.error || 'Failed to start import');
+        setBulkImporting(false);
+        return;
       }
+
+      const jobId = data.job_id;
+      toast.success(`⏳ Import started — ${data.total_rows} rows queued`);
+
+      // ── Step 2: Poll for progress ─────────────────────────────────────────
+      const poll = async (): Promise<void> => {
+        return new Promise((resolve) => {
+          const interval = setInterval(async () => {
+            try {
+              const statusRes = await fetch(
+                `${API_BASE_URL}/import/status/${jobId}`,
+                { headers: { Authorization: `Bearer ${token}` } }
+              );
+              const statusData = await statusRes.json();
+
+              if (statusData.status === 'done') {
+                clearInterval(interval);
+                setBulkImportResult({
+                  success: statusData.successful > 0,
+                  successful: statusData.successful || 0,
+                  errors: statusData.errors || [],
+                });
+                if (statusData.successful > 0) {
+                  toast.success(`✅ Imported ${statusData.successful} customers successfully!`);
+                  await fetchCustomers();
+                  if (isAdmin) await fetchEmployeeStats();
+                } else {
+                  toast.error('Import completed but no records were inserted');
+                }
+                setBulkImportFile(null);
+                setAssignToEmployee(null);
+                setBulkImporting(false);
+                resolve();
+
+              } else if (statusData.status === 'failed') {
+                clearInterval(interval);
+                setBulkImportResult({
+                  success: false,
+                  successful: statusData.successful || 0,
+                  errors: statusData.errors?.length ? statusData.errors : ['Import failed'],
+                });
+                toast.error('Import failed');
+                setBulkImporting(false);
+                resolve();
+
+              } else {
+                // Still running — update progress toast
+                const pct = statusData.progress_pct || 0;
+                const successful = statusData.successful || 0;
+                const total = statusData.total || data.total_rows;
+                setBulkImportResult({
+                  success: false,
+                  successful,
+                  errors: [`Importing... ${pct}% (${successful}/${total} records)`],
+                });
+              }
+            } catch (pollErr) {
+              clearInterval(interval);
+              setBulkImportResult({ success: false, successful: 0, errors: ['Lost connection during import'] });
+              toast.error('Connection error during import');
+              setBulkImporting(false);
+              resolve();
+            }
+          }, 2000); // Poll every 2 seconds
+        });
+      };
+
+      await poll();
+
     } catch (error) {
       toast.error("Network error during import");
       setBulkImportResult({ success: false, successful: 0, errors: ['Network error occurred'] });
-    } finally {
       setBulkImporting(false);
     }
   };
@@ -1770,16 +1835,41 @@ export default function EnergyCustomersPage() {
               </Button>
             </div>
             {bulkImportResult && (
-              <div className={`rounded-md p-4 ${bulkImportResult.success ? "bg-green-50 border border-green-200" : "bg-red-50 border border-red-200"}`}>
-                <h4 className="font-medium text-sm mb-2">{bulkImportResult.success ? "✅ Import Successful" : "❌ Import Failed"}</h4>
-                <p className="text-sm">Imported: <strong>{bulkImportResult.successful}</strong> customers</p>
-                {bulkImportResult.assigned_to && <p className="text-sm text-green-700 mt-1">✅ Assigned to: <strong>{bulkImportResult.assigned_to}</strong></p>}
+              <div className={`rounded-md p-4 ${
+                bulkImportResult.success 
+                  ? "bg-green-50 border border-green-200" 
+                  : bulkImporting 
+                    ? "bg-blue-50 border border-blue-200"
+                    : "bg-red-50 border border-red-200"
+              }`}>
+                <h4 className="font-medium text-sm mb-2">
+                  {bulkImportResult.success 
+                    ? "✅ Import Successful" 
+                    : bulkImporting 
+                      ? "⏳ Import In Progress..." 
+                      : "❌ Import Failed"}
+                </h4>
+                <p className="text-sm">
+                  Imported: <strong>{bulkImportResult.successful}</strong> customers
+                </p>
+                {bulkImporting && (
+                  <div className="mt-2 flex items-center gap-2 text-sm text-blue-700">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Processing records, please wait...
+                  </div>
+                )}
                 {bulkImportResult.errors.length > 0 && (
                   <div className="mt-2">
-                    <p className="text-sm font-medium">Errors:</p>
+                    <p className="text-sm font-medium">
+                      {bulkImporting ? "Progress:" : "Errors:"}
+                    </p>
                     <ul className="list-disc list-inside text-xs mt-1">
-                      {bulkImportResult.errors.slice(0, 5).map((err, idx) => <li key={idx}>{err}</li>)}
-                      {bulkImportResult.errors.length > 5 && <li>... and {bulkImportResult.errors.length - 5} more errors</li>}
+                      {bulkImportResult.errors.slice(0, 5).map((err, idx) => (
+                        <li key={idx}>{err}</li>
+                      ))}
+                      {bulkImportResult.errors.length > 5 && (
+                        <li>... and {bulkImportResult.errors.length - 5} more</li>
+                      )}
                     </ul>
                   </div>
                 )}
@@ -1788,7 +1878,10 @@ export default function EnergyCustomersPage() {
             <div className="flex justify-end gap-2 pt-4">
               <Button variant="outline" onClick={() => { setShowImportModal(false); setBulkImportFile(null); setAssignToEmployee(null); setBulkImportResult(null); }}>Cancel</Button>
               <Button onClick={handleBulkImport} disabled={!bulkImportFile || bulkImporting}>
-                {bulkImporting ? (<><div className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent"></div>Importing...</>) : "Import Customers"}
+                {bulkImporting 
+                  ? (<><Loader2 className="mr-2 h-4 w-4 animate-spin" />Importing...</>) 
+                  : "Import Customers"
+                }
               </Button>
             </div>
           </div>
