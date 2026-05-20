@@ -500,10 +500,9 @@ export default function EnergyCustomerDetailsPage() {
       // ✅ Reload history FIRST before resetting state
       await loadHistory();
 
-      if (data.lead) {
-        setLead(prev => prev ? { ...prev, ...data.lead } : data.lead);
-        setEditedLead(prev => ({ ...prev, ...data.lead }));
-        if (data.lead.stage_name) setCallbackStatus(data.lead.stage_name);
+      if (data.customer) {
+        setCustomer(prev => prev ? { ...prev, ...data.customer } : data.customer);
+        setEditedCustomer(prev => ({ ...prev, ...data.customer }));
       }
 
       if (callbackStatus === "Already Renewed") alert("✅ Lead information updated");
