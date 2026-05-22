@@ -53,6 +53,7 @@ const STATUS_OPTIONS = [
   { value: "End Date Changed",   label: "End Date Changed" },
   { value: "Complaint",          label: "Complaint" },
   { value: "Email Only",         label: "Email Only" },
+  { value: "Duplicate", label: "Duplicate" },
 ];
 
 const statusConfig: Record<string, {
@@ -78,6 +79,7 @@ const statusConfig: Record<string, {
   "Converted":         { requiresDate: false, requiresSold: false, deletesRecord: false, requiresNotes: false, requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
   "Not Called": { requiresDate: false, requiresSold: false, deletesRecord: false, requiresNotes: false, requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
   "Dead":       { requiresDate: false, requiresSold: false, deletesRecord: false, requiresNotes: false, requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
+  "Duplicate": { requiresDate: false, requiresSold: false, deletesRecord: true, requiresNotes: false, requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
 };
 
 // ─── Types ────────────────────────────────────────────────────────────────────

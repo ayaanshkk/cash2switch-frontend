@@ -17,14 +17,11 @@ import { Input } from "@/components/ui/input";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { fetchWithAuth } from "@/lib/api";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL ?? "http://localhost:5000";
 const DRAFTS_PER_PAGE = 25;
 const POLL_INTERVAL_MS = 2000;
-
-type DraftKind = "leads" | "renewals";
 
 interface Employee { employee_id: number; employee_name: string; }
 interface Supplier  { supplier_id: number; supplier_name: string; }
@@ -55,29 +52,6 @@ interface DraftLead {
   assigned_to_name?: string | null;
   opportunity_owner_employee_id?: number | null;
   created_at?: string | null;
-}
-
-interface DraftRenewal {
-  id?: number;
-  client_id: number;
-  display_id?: number | null;
-  display_order?: number | null;
-  business_name?: string | null;
-  contact_person?: string | null;
-  phone?: string | null;
-  mobile_no?: string | null;
-  email?: string | null;
-  mpan_top?: string | null;
-  mpan_mpr?: string | null;
-  supplier_name?: string | null;
-  start_date?: string | null;
-  end_date?: string | null;
-  annual_usage?: number | string | null;
-  status?: string | null;
-  assigned_to_id?: number | null;
-  assigned_to_name?: string | null;
-  created_at?: string | null;
-  supplier_id?: number | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -141,34 +115,29 @@ function ImportProgressBar({ progress }: { progress: ImportProgress }) {
 // ---------------------------------------------------------------------------
 
 export default function DraftsPage() {
-  const [activeTab, setActiveTab] = useState<DraftKind>("leads");
   const [leads, setLeads]         = useState<DraftLead[]>([]);
-  const [renewals, setRenewals]   = useState<DraftRenewal[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [loading, setLoading]     = useState(true);
-
   const [importOpen, setImportOpen] = useState(false);
   const [importFile, setImportFile] = useState<File | null>(null);
   const [importing, setImporting]   = useState(false);
   const [importProgress, setImportProgress] = useState<ImportProgress | null>(null);
-
   const [assigning, setAssigning]   = useState(false);
   const [deleting, setDeleting]     = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
-
   const [selectedLeadIds, setSelectedLeadIds]       = useState<number[]>([]);
-  const [selectedRenewalIds, setSelectedRenewalIds] = useState<number[]>([]);
-
   const [currentLeadsPage, setCurrentLeadsPage]     = useState(1);
-  const [currentRenewalsPage, setCurrentRenewalsPage] = useState(1);
-
-  const [bulkAssignOpen, setBulkAssignOpen]         = useState(false);
-  const [bulkAssignEmployeeId, setBulkAssignEmployeeId] = useState("");
-  const [bulkAssigning, setBulkAssigning]           = useState(false);
-
   const [searchTerm, setSearchTerm]         = useState("");
   const [selectedSupplier, setSelectedSupplier] = useState<string>("all");
+  const [showBulkAssignModal, setShowBulkAssignModal]       = useState(false);
+  const [bulkAssignEmployeeId, setBulkAssignEmployeeId]     = useState("");
+  const [bulkAssignEmployeeName, setBulkAssignEmployeeName] = useState("");
+  const [isBulkAssigning, setIsBulkAssigning]               = useState(false);
+  const [endDateFilter, setEndDateFilter] = useState<"all" | "30" | "60" | "90" | "90+">("all");
+  const [usageSort, setUsageSort] = useState<"none" | "low-high" | "high-low">("none");
+  const [bulkAssignQuantity, setBulkAssignQuantity] = useState<string>("");
+
 
   // keep a ref so the polling loop can be cancelled when the dialog closes
   const pollAbortRef = useRef<AbortController | null>(null);
@@ -178,16 +147,15 @@ export default function DraftsPage() {
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
-      const [leadRows, renewalRows, employeeRows, supplierRows] = await Promise.all([
+      const [leadRows, employeeRows, supplierRows] = await Promise.all([
         fetchWithAuth("/api/crm/leads/drafts"),
-        fetchWithAuth("/energy-clients/drafts?service=utilities"),
         fetchWithAuth("/employees"),
         fetchWithAuth("/suppliers"),
       ]);
       setLeads(Array.isArray(leadRows) ? leadRows : leadRows?.data ?? []);
-      setRenewals(Array.isArray(renewalRows) ? renewalRows : []);
       setEmployees(Array.isArray(employeeRows) ? employeeRows : employeeRows?.data ?? []);
       setSuppliers(Array.isArray(supplierRows) ? supplierRows : supplierRows?.data ?? []);
+      
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to load drafts");
     } finally {
@@ -196,62 +164,70 @@ export default function DraftsPage() {
   }, []);
 
   useEffect(() => { loadData(); }, [loadData]);
+  useEffect(() => { setCurrentLeadsPage(1); }, [searchTerm, selectedSupplier, endDateFilter, usageSort]);
 
   // ── Filtering + pagination ────────────────────────────────────────────────
 
   const applyFilters = useCallback(
-    (items: DraftLead[] | DraftRenewal[]) => {
-      let filtered = [...items];
-      if (searchTerm.trim()) {
-        const s = searchTerm.toLowerCase();
-        filtered = filtered.filter((item) => {
-          const business = ("business_name" in item ? item.business_name : "") ?? "";
-          const contact  = ("contact_person" in item ? item.contact_person : "") ?? "";
-          const mpan     =
-            ("mpan_mpr" in item ? item.mpan_mpr : null) ??
-            ("mpan_top" in item ? item.mpan_top : null) ?? "";
-          return (
-            business.toLowerCase().includes(s) ||
-            contact.toLowerCase().includes(s) ||
-            mpan.toLowerCase().includes(s)
-          );
-        });
-      }
-      if (selectedSupplier !== "all") {
-        filtered = filtered.filter((item) => {
-          const sid = "supplier_id" in item ? item.supplier_id : null;
-          return sid?.toString() === selectedSupplier;
-        });
-      }
-      return filtered;
-    },
-    [searchTerm, selectedSupplier],
-  );
+      (items: DraftLead[]) => {
+        let filtered = [...items];
+        if (searchTerm.trim()) {
+          const s = searchTerm.toLowerCase();
+          filtered = filtered.filter((item) => {
+            const business = (item.business_name as string | null) ?? "";
+            const contact  = (item.contact_person as string | null) ?? "";
+            const mpan     = (item.mpan_mpr as string | null) ?? "";
+            return (
+              business.toLowerCase().includes(s) ||
+              contact.toLowerCase().includes(s) ||
+              mpan.toLowerCase().includes(s)
+            );
+          });
+        }
+        if (selectedSupplier !== "all") {
+          filtered = filtered.filter((item) => {
+            const sid = "supplier_id" in item ? item.supplier_id : null;
+            return sid?.toString() === selectedSupplier;
+          });
+        }
+        if (endDateFilter !== "all") {
+          const today = new Date();
+          filtered = filtered.filter((item) => {
+            if (!item.end_date) return false;
+            const end  = new Date(item.end_date);
+            const days = Math.ceil((end.getTime() - today.getTime()) / 86400000);
+            if (endDateFilter === "30")  return days >= 0 && days <= 30;
+            if (endDateFilter === "60")  return days > 30 && days <= 60;
+            if (endDateFilter === "90")  return days > 60 && days <= 90;
+            if (endDateFilter === "90+") return days > 90;
+            return true;
+          });
+        }
+        if (usageSort !== "none") {
+          filtered = [...filtered].sort((a, b) => {
+            const au = parseAnnualUsage(a.annual_usage) ?? 0;
+            const bu = parseAnnualUsage(b.annual_usage) ?? 0;
+            return usageSort === "low-high" ? au - bu : bu - au;
+          });
+        }
+        return filtered;
+      },
+      [searchTerm, selectedSupplier, endDateFilter, usageSort],
+    );
 
   const draftLeads = useMemo(() => {
     const unassigned = leads.filter((l) => isUnassigned(l.opportunity_owner_employee_id));
     return applyFilters(unassigned) as DraftLead[];
   }, [leads, applyFilters]);
 
-  const draftRenewals = useMemo(() => {
-    const unassigned = renewals.filter((r) => isUnassigned(r.assigned_to_id));
-    return applyFilters(unassigned) as DraftRenewal[];
-  }, [renewals, applyFilters]);
-
-  const totalLeadsPages   = Math.max(1, Math.ceil(draftLeads.length   / DRAFTS_PER_PAGE));
-  const totalRenewalsPages = Math.max(1, Math.ceil(draftRenewals.length / DRAFTS_PER_PAGE));
+  const totalLeadsPages = Math.max(1, Math.ceil(draftLeads.length / DRAFTS_PER_PAGE));
 
   const paginatedLeads = useMemo(() => {
     const start = (currentLeadsPage - 1) * DRAFTS_PER_PAGE;
     return draftLeads.slice(start, start + DRAFTS_PER_PAGE);
   }, [draftLeads, currentLeadsPage]);
 
-  const paginatedRenewals = useMemo(() => {
-    const start = (currentRenewalsPage - 1) * DRAFTS_PER_PAGE;
-    return draftRenewals.slice(start, start + DRAFTS_PER_PAGE);
-  }, [draftRenewals, currentRenewalsPage]);
-
-  const selectedIds = activeTab === "leads" ? selectedLeadIds : selectedRenewalIds;
+  const selectedIds = selectedLeadIds;
 
   // ── Import + polling ──────────────────────────────────────────────────────
 
@@ -323,10 +299,7 @@ export default function DraftsPage() {
       const tenantId = localStorage.getItem("tenant_id")  ?? "2";
 
       // Both endpoints now return { job_id, total_rows } with HTTP 202
-      const endpoint =
-        activeTab === "leads"
-          ? `${API_BASE_URL}/import/leads?service=utilities`
-          : `${API_BASE_URL}/import/energy-customers?service=utilities`;
+      const endpoint = `${API_BASE_URL}/import/leads?service=utilities`;
 
       const res = await fetch(endpoint, {
         method:  "POST",
@@ -363,7 +336,7 @@ export default function DraftsPage() {
         await loadData();
       }, 1500);
     }
-  }, [importFile, activeTab, pollJob, loadData]);
+  }, [importFile, pollJob, loadData]);
 
   // Cancel poll when the dialog is force-closed
   const handleImportDialogClose = useCallback((open: boolean) => {
@@ -389,87 +362,30 @@ export default function DraftsPage() {
       const employeeId = Number(employeeIdStr);
       const emp = employees.find((e) => e.employee_id === employeeId);
 
-      if (activeTab === "leads") {
-        await fetchWithAuth("/api/crm/leads/assign", {
-          method: "PATCH",
-          body:   JSON.stringify({ lead_ids: [id], employee_id: employeeId }),
-        });
-        setLeads((prev) => prev.filter((l) => l.opportunity_id !== id));
-        setSelectedLeadIds((prev) => prev.filter((x) => x !== id));
-      } else {
-        await fetchWithAuth(`/energy-clients/${id}`, {
-          method: "PUT",
-          body:   JSON.stringify({ assigned_to_id: employeeId }),
-        });
-        setRenewals((prev) => prev.filter((r) => r.client_id !== id));
-        setSelectedRenewalIds((prev) => prev.filter((x) => x !== id));
-      }
+      await fetchWithAuth("/api/crm/leads/assign", {
+        method: "PATCH",
+        body:   JSON.stringify({ lead_ids: [id], employee_id: employeeId }),
+      });
+      setLeads((prev) => prev.filter((l) => l.opportunity_id !== id));
+      setSelectedLeadIds((prev) => prev.filter((x) => x !== id));
+
       toast.success(`Assigned to ${emp?.employee_name ?? "salesperson"}`);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Assignment failed");
     } finally {
       setAssigning(false);
     }
-  }, [activeTab, employees]);
-
-  const handleBulkAssign = useCallback(async () => {
-    if (!bulkAssignEmployeeId || selectedIds.length === 0) {
-      toast.error("Select a salesperson and at least one draft");
-      return;
-    }
-    setBulkAssigning(true);
-    try {
-      const employeeId = Number(bulkAssignEmployeeId);
-      const emp = employees.find((e) => e.employee_id === employeeId);
-
-      if (activeTab === "leads") {
-        await fetchWithAuth("/api/crm/leads/assign", {
-          method: "PATCH",
-          body:   JSON.stringify({ lead_ids: selectedLeadIds, employee_id: employeeId }),
-        });
-        setLeads((prev) => prev.filter((l) => !selectedLeadIds.includes(l.opportunity_id)));
-        setSelectedLeadIds([]);
-        toast.success(`Assigned ${selectedLeadIds.length} leads to ${emp?.employee_name}`);
-      } else {
-        await Promise.all(
-          selectedRenewalIds.map((cid) =>
-            fetchWithAuth(`/energy-clients/${cid}`, {
-              method: "PUT",
-              body:   JSON.stringify({ assigned_to_id: employeeId }),
-            }),
-          ),
-        );
-        setRenewals((prev) => prev.filter((r) => !selectedRenewalIds.includes(r.client_id)));
-        setSelectedRenewalIds([]);
-        toast.success(`Assigned ${selectedRenewalIds.length} renewals to ${emp?.employee_name}`);
-      }
-      setBulkAssignOpen(false);
-      setBulkAssignEmployeeId("");
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Bulk assignment failed");
-    } finally {
-      setBulkAssigning(false);
-    }
-  }, [activeTab, bulkAssignEmployeeId, employees, selectedIds.length, selectedLeadIds, selectedRenewalIds]);
+  }, [employees]);
 
   // ── Selection helpers ─────────────────────────────────────────────────────
 
   const toggleLead    = (id: number) =>
     setSelectedLeadIds((p) => (p.includes(id) ? p.filter((x) => x !== id) : [...p, id]));
-  const toggleRenewal = (id: number) =>
-    setSelectedRenewalIds((p) => (p.includes(id) ? p.filter((x) => x !== id) : [...p, id]));
 
   const toggleAllLeads = () => {
     const pageIds = paginatedLeads.map((l) => l.opportunity_id);
     const allSel  = pageIds.every((id) => selectedLeadIds.includes(id));
     setSelectedLeadIds((p) =>
-      allSel ? p.filter((id) => !pageIds.includes(id)) : [...new Set([...p, ...pageIds])],
-    );
-  };
-  const toggleAllRenewals = () => {
-    const pageIds = paginatedRenewals.map((r) => r.client_id);
-    const allSel  = pageIds.every((id) => selectedRenewalIds.includes(id));
-    setSelectedRenewalIds((p) =>
       allSel ? p.filter((id) => !pageIds.includes(id)) : [...new Set([...p, ...pageIds])],
     );
   };
@@ -480,60 +396,97 @@ export default function DraftsPage() {
     if (selectedIds.length === 0) return;
     setDeleting(true);
     try {
-      if (activeTab === "leads") {
-        const result = await fetchWithAuth("/api/crm/leads/drafts", {
-          method: "DELETE",
-          body:   JSON.stringify({ lead_ids: selectedLeadIds }),
-        });
-        const deleted = Array.isArray(result?.deleted_ids) ? result.deleted_ids : selectedLeadIds;
-        setLeads((p) => p.filter((l) => !deleted.includes(l.opportunity_id)));
-        setSelectedLeadIds([]);
-        toast.success(`Deleted ${deleted.length} draft lead${deleted.length === 1 ? "" : "s"}`);
-      } else {
-        const result = await fetchWithAuth("/energy-clients/drafts", {
-          method: "DELETE",
-          body:   JSON.stringify({ client_ids: selectedRenewalIds }),
-        });
-        const deleted = Array.isArray(result?.deleted_ids) ? result.deleted_ids : selectedRenewalIds;
-        setRenewals((p) => p.filter((r) => !deleted.includes(r.client_id)));
-        setSelectedRenewalIds([]);
-        toast.success(`Deleted ${deleted.length} draft renewal${deleted.length === 1 ? "" : "s"}`);
-      }
+      const result = await fetchWithAuth("/api/crm/leads/drafts", {
+        method: "DELETE",
+        body:   JSON.stringify({ lead_ids: selectedLeadIds }),
+      });
+      const deleted = Array.isArray(result?.deleted_ids) ? result.deleted_ids : selectedLeadIds;
+      setLeads((p) => p.filter((l) => !deleted.includes(l.opportunity_id)));
+      setSelectedLeadIds([]);
+      toast.success(`Deleted ${deleted.length} draft lead${deleted.length === 1 ? "" : "s"}`);
       setDeleteOpen(false);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Delete failed");
     } finally {
       setDeleting(false);
     }
-  }, [activeTab, selectedIds.length, selectedLeadIds, selectedRenewalIds]);
+  }, [selectedIds.length, selectedLeadIds]);
+
+  const handleBulkAssign = useCallback(async () => {
+      if (!bulkAssignEmployeeId) {
+        toast.error("Select a salesperson");
+        return;
+      }
+
+      const employeeId = Number(bulkAssignEmployeeId);
+      const emp = employees.find((e) => e.employee_id === employeeId);
+
+      // Determine which lead IDs to assign:
+      // If quantity is entered, take that many from the full unassigned list (ignoring selection).
+      // Otherwise use the selected IDs.
+      let idsToAssign: number[];
+      const qty = parseInt(bulkAssignQuantity, 10);
+      if (!isNaN(qty) && qty > 0) {
+        idsToAssign = draftLeads.slice(0, qty).map((l) => l.opportunity_id);
+        if (idsToAssign.length === 0) {
+          toast.error("No leads available to assign");
+          return;
+        }
+      } else {
+        if (selectedIds.length === 0) {
+          toast.error("Select leads or enter a quantity");
+          return;
+        }
+        idsToAssign = selectedLeadIds;
+      }
+
+      setIsBulkAssigning(true);
+      try {
+        await fetchWithAuth("/api/crm/leads/assign", {
+          method: "PATCH",
+          body:   JSON.stringify({ lead_ids: idsToAssign, employee_id: employeeId }),
+        });
+        setLeads((prev) => prev.filter((l) => !idsToAssign.includes(l.opportunity_id)));
+        setSelectedLeadIds([]);
+        toast.success(`Assigned ${idsToAssign.length} leads to ${emp?.employee_name}`);
+        setShowBulkAssignModal(false);
+        setBulkAssignEmployeeId("");
+        setBulkAssignEmployeeName("");
+        setBulkAssignQuantity("");
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : "Bulk assignment failed");
+      } finally {
+        setIsBulkAssigning(false);
+      }
+    }, [bulkAssignEmployeeId, bulkAssignQuantity, draftLeads, employees, selectedIds.length, selectedLeadIds]);
 
   // ── Pagination sub-component ──────────────────────────────────────────────
 
   const PaginationControls = ({
-    currentPage, totalPages, onPageChange, totalItems,
-  }: { currentPage: number; totalPages: number; onPageChange: (p: number) => void; totalItems: number }) => {
-    if (totalPages <= 1) return null;
-    const start = (currentPage - 1) * DRAFTS_PER_PAGE + 1;
-    const end   = Math.min(currentPage * DRAFTS_PER_PAGE, totalItems);
-    return (
-      <div className="flex items-center justify-between py-3 px-4 bg-gray-50 border-t">
-        <div className="text-sm text-gray-700">
-          Showing <span className="font-medium">{start}</span> to{" "}
-          <span className="font-medium">{end}</span> of{" "}
-          <span className="font-medium">{totalItems}</span> {activeTab}
-        </div>
-        <div className="flex space-x-1">
-          <Button variant="outline" size="icon" onClick={() => onPageChange(1)}                disabled={currentPage === 1}><ChevronFirst className="h-4 w-4" /></Button>
-          <Button variant="outline" size="icon" onClick={() => onPageChange(currentPage - 1)} disabled={currentPage === 1}><ChevronLeft  className="h-4 w-4" /></Button>
-          <div className="flex items-center px-3 text-sm text-gray-700">
-            Page {currentPage} of {totalPages}
+      currentPage, totalPages, onPageChange, totalItems,
+    }: { currentPage: number; totalPages: number; onPageChange: (p: number) => void; totalItems: number }) => {
+      if (totalPages <= 1) return null;
+      const start = (currentPage - 1) * DRAFTS_PER_PAGE + 1;
+      const end   = Math.min(currentPage * DRAFTS_PER_PAGE, totalItems);
+      return (
+        <div className="flex items-center justify-between py-3 px-4 bg-gray-50 border-t">
+          <div className="text-sm text-gray-700">
+            Showing <span className="font-medium">{start}</span> to{" "}
+            <span className="font-medium">{end}</span> of{" "}
+            <span className="font-medium">{totalItems}</span> leads
           </div>
-          <Button variant="outline" size="icon" onClick={() => onPageChange(currentPage + 1)} disabled={currentPage === totalPages}><ChevronRight className="h-4 w-4" /></Button>
-          <Button variant="outline" size="icon" onClick={() => onPageChange(totalPages)}      disabled={currentPage === totalPages}><ChevronLast  className="h-4 w-4" /></Button>
+          <div className="flex space-x-1">
+            <Button variant="outline" size="icon" onClick={() => onPageChange(1)}                disabled={currentPage === 1}><ChevronFirst className="h-4 w-4" /></Button>
+            <Button variant="outline" size="icon" onClick={() => onPageChange(currentPage - 1)} disabled={currentPage === 1}><ChevronLeft  className="h-4 w-4" /></Button>
+            <div className="flex items-center px-3 text-sm text-gray-700">
+              Page {currentPage} of {totalPages}
+            </div>
+            <Button variant="outline" size="icon" onClick={() => onPageChange(currentPage + 1)} disabled={currentPage === totalPages}><ChevronRight className="h-4 w-4" /></Button>
+            <Button variant="outline" size="icon" onClick={() => onPageChange(totalPages)}      disabled={currentPage === totalPages}><ChevronLast  className="h-4 w-4" /></Button>
+          </div>
         </div>
-      </div>
-    );
-  };
+      );
+    };
 
   // ── Render ────────────────────────────────────────────────────────────────
 
@@ -578,20 +531,37 @@ export default function DraftsPage() {
             ))}
           </SelectContent>
         </Select>
+        <Select value={endDateFilter} onValueChange={(v) => setEndDateFilter(v as typeof endDateFilter)}>
+          <SelectTrigger className="w-[200px]">
+            <SelectValue placeholder="Contract End" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Contracts</SelectItem>
+            <SelectItem value="30">Ending in 30 days</SelectItem>
+            <SelectItem value="60">Ending in 31–60 days</SelectItem>
+            <SelectItem value="90">Ending in 61–90 days</SelectItem>
+            <SelectItem value="90+">Ending in 90+ days</SelectItem>
+          </SelectContent>
+        </Select>
+        <Select value={usageSort} onValueChange={(v) => setUsageSort(v as typeof usageSort)}>
+          <SelectTrigger className="w-[180px]">
+            <SelectValue placeholder="Usage Sort" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="none">Usage: Default</SelectItem>
+            <SelectItem value="low-high">Usage: Low to High</SelectItem>
+            <SelectItem value="high-low">Usage: High to Low</SelectItem>
+          </SelectContent>
+        </Select>
       </div>
 
-      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as DraftKind)}>
+      <div>
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-          <TabsList>
-            <TabsTrigger value="leads">
-              Leads {draftLeads.length > 0 && `(${draftLeads.length.toLocaleString()})`}
-            </TabsTrigger>
-            <TabsTrigger value="renewals">
-              Renewals {draftRenewals.length > 0 && `(${draftRenewals.length.toLocaleString()})`}
-            </TabsTrigger>
-          </TabsList>
+          <h2 className="text-sm font-medium text-gray-700">
+            Leads {draftLeads.length > 0 && `(${draftLeads.length.toLocaleString()})`}
+          </h2>
           <div className="flex flex-wrap items-center gap-2">
-            <Button variant="default" onClick={() => setBulkAssignOpen(true)} disabled={selectedIds.length === 0}>
+            <Button variant="default" onClick={() => setShowBulkAssignModal(true)} disabled={selectedIds.length === 0}>
               <Users className="mr-2 h-4 w-4" />
               Assign Selected ({selectedIds.length})
             </Button>
@@ -601,82 +571,99 @@ export default function DraftsPage() {
             </Button>
             <Button onClick={() => setImportOpen(true)}>
               <Upload className="mr-2 h-4 w-4" />
-              Import {activeTab === "leads" ? "Leads" : "Renewals"}
+              Import Leads
             </Button>
           </div>
         </div>
 
-        <TabsContent value="leads">
-          <DraftLeadsTable
-            loading={loading}
-            rows={paginatedLeads}
-            emptyLabel="No draft leads"
-            selectedIds={selectedLeadIds}
-            onToggle={toggleLead}
-            onToggleAll={toggleAllLeads}
-            onAssign={assignDraft}
-            employees={employees}
-            allSelected={paginatedLeads.length > 0 && paginatedLeads.every((l) => selectedLeadIds.includes(l.opportunity_id))}
+        <DraftLeadsTable
+          loading={loading}
+          rows={paginatedLeads}
+          emptyLabel="No draft leads"
+          selectedIds={selectedLeadIds}
+          onToggle={toggleLead}
+          onToggleAll={toggleAllLeads}
+          onAssign={assignDraft}
+          employees={employees}
+          allSelected={paginatedLeads.length > 0 && paginatedLeads.every((l) => selectedLeadIds.includes(l.opportunity_id))}
+          currentPage={currentLeadsPage}
+        />
+        {!loading && (
+          <PaginationControls
+            currentPage={currentLeadsPage}
+            totalPages={totalLeadsPages}
+            onPageChange={setCurrentLeadsPage}
+            totalItems={draftLeads.length}
           />
-          {!loading && (
-            <PaginationControls
-              currentPage={currentLeadsPage}
-              totalPages={totalLeadsPages}
-              onPageChange={setCurrentLeadsPage}
-              totalItems={draftLeads.length}
-            />
-          )}
-        </TabsContent>
-
-        <TabsContent value="renewals">
-          <DraftRenewalsTable
-            loading={loading}
-            rows={paginatedRenewals}
-            emptyLabel="No draft renewals"
-            selectedIds={selectedRenewalIds}
-            onToggle={toggleRenewal}
-            onToggleAll={toggleAllRenewals}
-            onAssign={assignDraft}
-            employees={employees}
-            allSelected={paginatedRenewals.length > 0 && paginatedRenewals.every((r) => selectedRenewalIds.includes(r.client_id))}
-          />
-          {!loading && (
-            <PaginationControls
-              currentPage={currentRenewalsPage}
-              totalPages={totalRenewalsPages}
-              onPageChange={setCurrentRenewalsPage}
-              totalItems={draftRenewals.length}
-            />
-          )}
-        </TabsContent>
-      </Tabs>
+        )}
+      </div>
 
       {/* ── Bulk assign dialog ── */}
-      <Dialog open={bulkAssignOpen} onOpenChange={setBulkAssignOpen}>
+      <Dialog open={showBulkAssignModal} onOpenChange={(open) => {
+        setShowBulkAssignModal(open);
+        if (!open) { setBulkAssignQuantity(""); setBulkAssignEmployeeId(""); setBulkAssignEmployeeName(""); }
+      }}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Assign Selected Drafts</DialogTitle>
+            <DialogTitle>Bulk Assign Leads</DialogTitle>
             <DialogDescription>
-              Assign {selectedIds.length} selected {activeTab} to a salesperson.
+              {bulkAssignQuantity && !isNaN(parseInt(bulkAssignQuantity, 10))
+                ? `Will assign the first ${parseInt(bulkAssignQuantity, 10)} leads from the current list.`
+                : selectedIds.length > 0
+                ? `Will assign ${selectedIds.length} selected lead(s).`
+                : "Select leads or enter a quantity below."}
             </DialogDescription>
           </DialogHeader>
-          <Select value={bulkAssignEmployeeId} onValueChange={setBulkAssignEmployeeId}>
-            <SelectTrigger>
-              <SelectValue placeholder="Select salesperson" />
-            </SelectTrigger>
-            <SelectContent>
-              {employees.map((emp) => (
-                <SelectItem key={emp.employee_id} value={emp.employee_id.toString()}>
-                  {emp.employee_name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <div className="flex justify-end gap-2">
-            <Button variant="outline" onClick={() => setBulkAssignOpen(false)}>Cancel</Button>
-            <Button onClick={handleBulkAssign} disabled={!bulkAssignEmployeeId || bulkAssigning}>
-              {bulkAssigning && <span className="mr-2">⏳</span>}
-              Assign {selectedIds.length}
+
+          <div className="space-y-4">
+            <div>
+              <label className="text-sm font-medium text-gray-700 mb-1 block">Salesperson</label>
+              <Select value={bulkAssignEmployeeId} onValueChange={(v) => {
+                setBulkAssignEmployeeId(v);
+                setBulkAssignEmployeeName(employees.find(e => e.employee_id === Number(v))?.employee_name || "");
+              }}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select salesperson" />
+                </SelectTrigger>
+                <SelectContent>
+                  {employees.map((emp) => (
+                    <SelectItem key={emp.employee_id} value={emp.employee_id.toString()}>
+                      {emp.employee_name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div>
+              <label className="text-sm font-medium text-gray-700 mb-1 block">
+                Quantity <span className="text-gray-400 font-normal">(optional — overrides selection)</span>
+              </label>
+              <Input
+                type="number"
+                min={1}
+                max={draftLeads.length}
+                placeholder={`e.g. 100 (max ${draftLeads.length.toLocaleString()})`}
+                value={bulkAssignQuantity}
+                onChange={(e) => setBulkAssignQuantity(e.target.value)}
+              />
+              {bulkAssignQuantity && !isNaN(parseInt(bulkAssignQuantity, 10)) && (
+                <p className="text-xs text-blue-600 mt-1">
+                  Will assign the first {Math.min(parseInt(bulkAssignQuantity, 10), draftLeads.length).toLocaleString()} leads from the current filtered list.
+                </p>
+              )}
+            </div>
+          </div>
+
+          <div className="flex justify-end gap-2 pt-2">
+            <Button variant="outline" onClick={() => setShowBulkAssignModal(false)} disabled={isBulkAssigning}>
+              Cancel
+            </Button>
+            <Button onClick={handleBulkAssign} disabled={!bulkAssignEmployeeId || isBulkAssigning}>
+              {isBulkAssigning && <span className="mr-2">⏳</span>}
+              {bulkAssignQuantity && !isNaN(parseInt(bulkAssignQuantity, 10))
+                ? `Assign ${Math.min(parseInt(bulkAssignQuantity, 10), draftLeads.length).toLocaleString()} Leads`
+                : `Assign ${selectedIds.length} Lead${selectedIds.length !== 1 ? "s" : ""}`}
             </Button>
           </div>
         </DialogContent>
@@ -687,7 +674,7 @@ export default function DraftsPage() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>
-              Import {activeTab === "leads" ? "Lead" : "Renewal"} Drafts
+              Import Lead Drafts
             </DialogTitle>
             <DialogDescription>
               Large files are processed in the background — you can track progress below.
@@ -729,7 +716,7 @@ export default function DraftsPage() {
             <DialogTitle>Delete selected drafts?</DialogTitle>
             <DialogDescription>
               This will permanently delete {selectedIds.length} draft{" "}
-              {activeTab === "leads" ? "leads" : "renewals"} from the database.
+              leads from the database.
             </DialogDescription>
           </DialogHeader>
           <div className="flex justify-end gap-2">
@@ -756,11 +743,11 @@ export default function DraftsPage() {
 // ---------------------------------------------------------------------------
 
 function DraftLeadsTable({
-  loading, rows, emptyLabel, selectedIds, onToggle, onToggleAll, onAssign, employees, allSelected,
+  loading, rows, emptyLabel, selectedIds, onToggle, onToggleAll, onAssign, employees, allSelected, currentPage,
 }: {
   loading: boolean; rows: DraftLead[]; emptyLabel: string;
   selectedIds: number[]; onToggle: (id: number) => void; onToggleAll: () => void;
-  onAssign: (id: number, empId: string) => void; employees: Employee[]; allSelected: boolean;
+  onAssign: (id: number, empId: string) => void; employees: Employee[]; allSelected: boolean; currentPage: number;
 }) {
   return (
     <div className="overflow-hidden rounded-lg border border-gray-200 bg-white">
@@ -799,7 +786,7 @@ function DraftLeadsTable({
                       checked={isSel} onChange={() => onToggle(row.opportunity_id)} />
                   </td>
                   <td className="px-3 py-3 text-sm font-medium text-gray-900 border-r-2 border-gray-300 align-top">
-                    <div className="whitespace-nowrap">{idx + 1}</div>
+                    <div className="whitespace-nowrap">{(currentPage - 1) * DRAFTS_PER_PAGE + idx + 1}</div>
                   </td>
                   <td className="px-3 py-3 text-sm text-gray-700 align-top overflow-hidden">
                     <div className="leading-tight whitespace-normal break-words">{row.contact_person ?? "—"}</div>
@@ -823,95 +810,6 @@ function DraftLeadsTable({
                   <td className="px-3 py-3 align-top" onClick={(e) => e.stopPropagation()}>
                     <Select value={row.opportunity_owner_employee_id?.toString() || "0"}
                       onValueChange={(v) => onAssign(row.opportunity_id, v)}>
-                      <SelectTrigger className="h-7 text-xs w-full max-w-[150px]">
-                        <SelectValue placeholder="Assign">{row.assigned_to_name || "Unassigned"}</SelectValue>
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="0">Unassigned</SelectItem>
-                        {employees.map((e) => (
-                          <SelectItem key={e.employee_id} value={e.employee_id.toString()}>{e.employee_name}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  );
-}
-
-function DraftRenewalsTable({
-  loading, rows, emptyLabel, selectedIds, onToggle, onToggleAll, onAssign, employees, allSelected,
-}: {
-  loading: boolean; rows: DraftRenewal[]; emptyLabel: string;
-  selectedIds: number[]; onToggle: (id: number) => void; onToggleAll: () => void;
-  onAssign: (id: number, empId: string) => void; employees: Employee[]; allSelected: boolean;
-}) {
-  return (
-    <div className="overflow-hidden rounded-lg border border-gray-200 bg-white">
-      <div className="overflow-x-auto">
-        <table className="w-full divide-y divide-gray-200 table-fixed">
-          <thead className="bg-gray-50">
-            <tr>
-              <th className="px-3 py-3 text-left w-8">
-                <input type="checkbox" className="rounded border-gray-300"
-                  checked={allSelected} onChange={onToggleAll}
-                  disabled={loading || rows.length === 0} />
-              </th>
-              {["ID","Client Name","Trading Name","Tel No","Mobile No","MPAN Top","Supplier","Annual Usage","Start Date","Contract End","Assigned To"].map((h, i) => (
-                <th key={h} className={`px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase ${i === 0 ? "w-20 border-r-2 border-gray-300" : "w-[9%]"} ${["Annual Usage","Start Date","Contract End"].includes(h) ? "whitespace-nowrap" : ""} ${h === "Annual Usage" ? "text-right" : ""}`}>{h}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-200 bg-white">
-            {loading ? (
-              <tr><td colSpan={12} className="px-6 py-12 text-center">
-                <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-current border-r-transparent text-gray-600" />
-                <p className="mt-4 text-gray-500">Loading drafts…</p>
-              </td></tr>
-            ) : rows.length === 0 ? (
-              <tr><td colSpan={12} className="px-6 py-12 text-center text-gray-500">
-                <Zap className="h-12 w-12 text-gray-400 mx-auto mb-3" />
-                <p className="text-lg">{emptyLabel}</p>
-                <p className="mt-2 text-sm">Import drafts to get started!</p>
-              </td></tr>
-            ) : rows.map((row, idx) => {
-              const isSel = selectedIds.includes(row.client_id);
-              return (
-                <tr key={row.client_id} className={`hover:bg-gray-50 transition-colors ${isSel ? "bg-blue-50" : ""}`}>
-                  <td className="px-3 py-3 align-top" onClick={(e) => e.stopPropagation()}>
-                    <input type="checkbox" className="rounded border-gray-300 mt-1"
-                      checked={isSel} onChange={() => onToggle(row.client_id)} />
-                  </td>
-                  <td className="px-3 py-3 text-sm font-medium text-gray-900 border-r-2 border-gray-300 align-top">
-                    <div className="whitespace-nowrap">{idx + 1}</div>
-                  </td>
-                  <td className="px-3 py-3 text-sm text-gray-700 align-top overflow-hidden">
-                    <div className="leading-tight whitespace-normal break-words">{row.contact_person ?? "—"}</div>
-                  </td>
-                  <td className="px-3 py-3 text-sm text-gray-900 align-top overflow-hidden">
-                    <div className="leading-tight whitespace-normal break-words">{row.business_name ?? "—"}</div>
-                  </td>
-                  <td className="px-3 py-3 text-sm text-gray-900 align-top"><div className="whitespace-nowrap">{formatTel(row.phone)}</div></td>
-                  <td className="px-3 py-3 text-sm text-gray-900 align-top"><div className="whitespace-nowrap">{formatTel(row.mobile_no)}</div></td>
-                  <td className="px-3 py-3 text-sm text-gray-900 align-top overflow-hidden">
-                    <div className="truncate" title={row.mpan_top ?? row.mpan_mpr ?? ""}>{row.mpan_top || row.mpan_mpr || "—"}</div>
-                  </td>
-                  <td className="px-3 py-3 text-sm text-gray-900 align-top overflow-hidden">
-                    <div className="truncate" title={row.supplier_name ?? ""}>{row.supplier_name || "—"}</div>
-                  </td>
-                  <td className="px-3 py-3 text-sm text-gray-900 text-right align-top">
-                    <div className="whitespace-nowrap">{parseAnnualUsage(row.annual_usage)?.toLocaleString() || "—"}</div>
-                  </td>
-                  <td className="px-3 py-3 text-sm text-gray-900 align-top"><div className="whitespace-nowrap">{formatListDate(row.start_date)}</div></td>
-                  <td className="px-3 py-3 text-sm text-gray-900 align-top"><div className="whitespace-nowrap">{formatListDate(row.end_date)}</div></td>
-                  <td className="px-3 py-3 align-top" onClick={(e) => e.stopPropagation()}>
-                    <Select value={row.assigned_to_id?.toString() || "0"}
-                      onValueChange={(v) => onAssign(row.client_id, v)}>
                       <SelectTrigger className="h-7 text-xs w-full max-w-[150px]">
                         <SelectValue placeholder="Assign">{row.assigned_to_name || "Unassigned"}</SelectValue>
                       </SelectTrigger>
