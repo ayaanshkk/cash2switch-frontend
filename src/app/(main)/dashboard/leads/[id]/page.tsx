@@ -398,6 +398,7 @@ export default function LeadDetailsPage() {
         'status', 'stage_name', 'supplier_name', 'assigned_to_name',
         'opportunity_title', 'tenant_lead_id', 'display_id', 'display_order',
         'created_at', 'service_id', 'tenant_id',
+        'opportunity_id',  // PK — never send
       ]);
 
       const safePayload = Object.fromEntries(
@@ -410,8 +411,11 @@ export default function LeadDetailsPage() {
         body: JSON.stringify(safePayload),
       });
       if (data?.error) throw new Error(data.error);
-      setLead(data?.lead || data);
+      const updated = data?.lead || data;
+      setLead(prev => ({ ...prev, ...updated }));
+      setEditedLead(prev => ({ ...prev, ...updated }));
       setIsEditing(false);
+      
       alert("✅ Lead updated successfully!");
     } catch (e: any) {
       alert(`Failed to update lead: ${e.message}`);

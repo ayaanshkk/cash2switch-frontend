@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { 
   Search, Plus, Edit, Trash2, ChevronDown, Filter, AlertCircle, 
-  ChevronRight, ChevronLeft, ChevronLast, ChevronFirst, Zap, Building2, Upload, Users, UserCheck, Info, Loader2, TrendingUp, TrendingDown, AlertTriangle, CheckCircle2, Calendar,
+  ChevronRight, ChevronLeft, ChevronLast, ChevronFirst, Zap, Building2, Upload, Users, UserCheck, Info, Loader2, TrendingUp, TrendingDown, AlertTriangle, CheckCircle2, Calendar, X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -324,6 +324,11 @@ export default function EnergyCustomersPage() {
   const [performanceFilteredCustomers, setPerformanceFilteredCustomers] = useState<EnergyCustomer[]>([]);
   const [calledDate, setCalledDate] = useState(() => new Date().toISOString().split('T')[0]);
   const [renewedBy, setRenewedBy] = useState<"customer" | "agent" | "">("");
+  const [showFilterSidebar, setShowFilterSidebar] = useState(false);
+  const [salespersonFilter, setSalespersonFilter] = useState<number | "All">(() => {
+    const saved = sessionStorage.getItem('leads_salesperson');
+    return saved && saved !== "All" ? parseInt(saved) : "All";
+  });
 
   const router = useRouter();
   const { user } = useAuth();
@@ -398,6 +403,10 @@ export default function EnergyCustomersPage() {
   useEffect(() => {
     sessionStorage.setItem('renewals_end_date', endDateFilter);
   }, [endDateFilter]);
+
+  useEffect(() => {
+    sessionStorage.setItem('leads_salesperson', salespersonFilter.toString());
+  }, [salespersonFilter]);
 
   // ---------------- Fetch Functions ----------------
   const fetchCustomers = async () => {
@@ -521,7 +530,10 @@ export default function EnergyCustomersPage() {
         }
       }
 
-      return matchesSearch && matchesSupplier && matchesStatus && matchesEndDate;
+      const matchesSalesperson = !isAdmin || salespersonFilter === "All" ||
+        Number(customer.assigned_to_id) === Number(salespersonFilter);
+
+      return matchesSearch && matchesSupplier && matchesStatus && matchesEndDate && matchesSalesperson;
     });
 
     if (usageSort !== "none") {
@@ -533,7 +545,7 @@ export default function EnergyCustomersPage() {
     }
 
     return filtered;
-  }, [sortedCustomers, searchTerm, supplierFilter, statusFilter, endDateFilter, usageSort]);
+  }, [sortedCustomers, searchTerm, supplierFilter, statusFilter, endDateFilter, usageSort, salespersonFilter]);
 
   const isFromSearch = (customer: EnergyCustomer) => {
     if (isAdmin) return false;
@@ -1292,7 +1304,7 @@ export default function EnergyCustomersPage() {
             <h2 className="text-xl font-semibold text-gray-900">Renewal Performance</h2>
             <p className="text-sm text-gray-600">{isAdmin ? "Overall renewal success metrics" : "Your renewal success metrics"}</p>
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 lg:grid-cols-4 gap-4">
             <div className="text-center p-6 border rounded-lg bg-green-50 cursor-pointer hover:shadow-md transition-shadow" onClick={() => handlePerformanceClick('renewed')}>
               <div className="text-4xl font-bold text-green-700">{performanceStats.renewed}</div>
               <div className="text-sm text-green-600 mt-2 font-medium">Renewed</div>
@@ -1414,8 +1426,8 @@ export default function EnergyCustomersPage() {
       </Dialog>
 
       {/* Search and Filter Bar */}
-      <div className="mb-6 flex flex-wrap gap-3 justify-between">
-        <div className="flex flex-wrap gap-3">
+      <div className="mb-6 flex gap-3 items-center justify-between">
+        <div className="flex gap-3 items-center">
           <div className="relative w-64">
             <Search className="text-muted-foreground absolute top-2.5 left-2 h-4 w-4" />
             <Input placeholder="Search clients..." className="pl-8" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
@@ -1463,7 +1475,7 @@ export default function EnergyCustomersPage() {
           </DropdownMenu>
 
           <Select value={endDateFilter} onValueChange={(value: any) => setEndDateFilter(value)}>
-            <SelectTrigger className="w-52"><SelectValue /></SelectTrigger>
+            <SelectTrigger className="w-44"><SelectValue /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Contracts</SelectItem>
               <SelectItem value="30">Ending in 30 days</SelectItem>
@@ -1475,23 +1487,31 @@ export default function EnergyCustomersPage() {
           </Select>
 
           <Select value={usageSort} onValueChange={(value: any) => setUsageSort(value)}>
-            <SelectTrigger className="w-48"><SelectValue /></SelectTrigger>
+            <SelectTrigger className="w-40"><SelectValue /></SelectTrigger>
             <SelectContent>
               <SelectItem value="none">Usage: Default</SelectItem>
               <SelectItem value="low-high">Usage: Low to High</SelectItem>
               <SelectItem value="high-low">Usage: High to Low</SelectItem>
             </SelectContent>
           </Select>
+
+          <Button variant="outline" onClick={() => setShowFilterSidebar(true)} className="relative flex-shrink-0">
+            <Filter className="mr-2 h-4 w-4" />
+            All Filters
+            {(isAdmin && salespersonFilter !== "All") && (
+              <span className="absolute -top-1 -right-1 h-2.5 w-2.5 rounded-full bg-black" />
+            )}
+          </Button>
         </div>
 
-        <div className="flex gap-2 items-center">
+        <div className="flex gap-2 items-center flex-shrink-0">
           <Button onClick={() => setShowImportModal(true)} variant="outline">
             <Upload className="mr-2 h-4 w-4" />
             Bulk Import
           </Button>
           <Button onClick={() => setShowCreateModal(true)}>
             <Plus className="mr-2 h-4 w-4" />
-            Add Energy Client
+            Add Renewal
           </Button>
           {selectedCustomers.length > 0 && user && (
             <Button onClick={bulkDeleteCustomers} variant="destructive">
@@ -1499,6 +1519,134 @@ export default function EnergyCustomersPage() {
               Delete Selected ({selectedCustomers.length})
             </Button>
           )}
+        </div>
+      </div>
+
+      {/* Filter Sidebar */}
+      <div
+        className={`fixed inset-0 z-50 flex transition-opacity duration-300 ${showFilterSidebar ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"}`}
+      >
+        <div className="flex-1 bg-black/30" onClick={() => setShowFilterSidebar(false)} />
+        <div
+          className={`w-80 bg-white h-full shadow-2xl flex flex-col transition-transform duration-300 ease-in-out ${showFilterSidebar ? "translate-x-0" : "translate-x-full"}`}
+          style={{ willChange: "transform" }}
+        >
+          <div className="flex items-center justify-between px-6 py-4 border-b flex-shrink-0">
+            <h2 className="text-lg font-semibold text-gray-900">All Filters</h2>
+            <button onClick={() => setShowFilterSidebar(false)} className="p-1 rounded hover:bg-gray-100">
+              <X className="h-5 w-5 text-gray-500" />
+            </button>
+          </div>
+
+          <div className="flex-1 overflow-y-auto px-6 py-6 space-y-6 min-h-0">
+
+            {/* Salesperson — admin only */}
+            {isAdmin && (
+              <div>
+                <label className="block text-sm font-semibold text-gray-800 mb-2">Salesperson</label>
+                <Select
+                  value={salespersonFilter.toString()}
+                  onValueChange={v => setSalespersonFilter(v === "All" ? "All" : parseInt(v))}
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="All Salespersons" />
+                  </SelectTrigger>
+                  <SelectContent position="popper" side="bottom" sideOffset={4} className="w-72 z-[60]">
+                    <SelectItem value="All">All Salespersons</SelectItem>
+                    {employees.map(e => (
+                      <SelectItem key={e.employee_id} value={e.employee_id.toString()}>{e.employee_name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
+            <div className="border-t pt-6">
+              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-4">Quick Filters</p>
+            </div>
+
+            {/* Supplier */}
+            <div>
+              <label className="block text-sm font-semibold text-gray-800 mb-2">Supplier</label>
+              <Select
+                value={supplierFilter.toString()}
+                onValueChange={v => setSupplierFilter(v === "All" ? "All" : parseInt(v))}
+              >
+                <SelectTrigger className="w-full"><SelectValue placeholder="All Suppliers" /></SelectTrigger>
+                <SelectContent position="popper" side="bottom" sideOffset={4} className="w-72 z-[60]">
+                  <SelectItem value="All">All Suppliers</SelectItem>
+                  {suppliers.map(s => (
+                    <SelectItem key={s.supplier_id} value={s.supplier_id.toString()}>{s.supplier_name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Status */}
+            <div>
+              <label className="block text-sm font-semibold text-gray-800 mb-2">Status</label>
+              <Select value={statusFilter.toString()} onValueChange={v => setStatusFilter(v)}>
+                <SelectTrigger className="w-full"><SelectValue placeholder="All Status" /></SelectTrigger>
+                <SelectContent position="popper" side="bottom" sideOffset={4} className="w-72 z-[60]">
+                  <SelectItem value="All">All Status</SelectItem>
+                  {STATUS_OPTIONS.map(o => (
+                    <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Contract End Date */}
+            <div>
+              <label className="block text-sm font-semibold text-gray-800 mb-2">Contract End Date</label>
+              <Select value={endDateFilter} onValueChange={(v: any) => setEndDateFilter(v)}>
+                <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
+                <SelectContent position="popper" side="bottom" sideOffset={4} className="w-72 z-[60]">
+                  <SelectItem value="all">All Contracts</SelectItem>
+                  <SelectItem value="30">Ending in 30 days</SelectItem>
+                  <SelectItem value="60">Ending in 31–60 days</SelectItem>
+                  <SelectItem value="90">Ending in 61–90 days</SelectItem>
+                  <SelectItem value="90+">Ending in 90+ days</SelectItem>
+                  <SelectItem value="expired">Expired Contracts</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Usage Sort */}
+            <div>
+              <label className="block text-sm font-semibold text-gray-800 mb-2">Annual Usage Sort</label>
+              <Select value={usageSort} onValueChange={(v: any) => setUsageSort(v)}>
+                <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
+                <SelectContent position="popper" side="bottom" sideOffset={4} className="w-72 z-[60]">
+                  <SelectItem value="none">Default</SelectItem>
+                  <SelectItem value="low-high">Low to High</SelectItem>
+                  <SelectItem value="high-low">High to Low</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <div className="px-6 py-4 border-t flex-shrink-0 flex gap-2">
+            <Button
+              variant="outline"
+              className="flex-1"
+              onClick={() => {
+                setSupplierFilter("All");
+                setStatusFilter("All");
+                setEndDateFilter("all");
+                setUsageSort("none");
+                setSalespersonFilter("All");
+              }}
+            >
+              Clear All
+            </Button>
+            <Button
+              className="flex-1 bg-black hover:bg-gray-800"
+              onClick={() => setShowFilterSidebar(false)}
+            >
+              Done
+            </Button>
+          </div>
         </div>
       </div>
 
