@@ -1417,12 +1417,16 @@ export default function LeadDetailsPage() {
             <div className="space-y-3">
               {history.map((interaction) => {
               const rawNotes = interaction.notes || '';
-              // ✅ Strip the leading [Status] tag AND the "Status: X → Y |" transition prefix
-              const cleanNotes = rawNotes
-                .replace(/^\[.*?\]\s*/, '')           // remove [Callback] prefix
-                .replace(/^Status:.*?\|\s*/, '')      // remove "Status: X → Y | " transition
-                .replace(/\[Callback\]\s*/g, '')      // remove any inline [Callback] tags
-                .trim();
+
+              // ✅ Extract just the user-entered note after the last "|"
+              // Format is: "[Status] Status: Old → New | user note here"
+              const pipeIndex = rawNotes.indexOf(' | ');
+              const cleanNotes = pipeIndex !== -1
+                ? rawNotes.slice(pipeIndex + 3).trim()  // ✅ everything after " | "
+                : rawNotes
+                    .replace(/^\[.*?\]\s*/, '')          // remove [Status] prefix
+                    .replace(/^Status:.*?(\||$)/s, '')   // remove "Status: X → Y" part
+                    .trim();
                 const displayStatus = interaction.interaction_type || 'Unknown';
                 
                 // ✅ Check if this is a callback with a reminder date
