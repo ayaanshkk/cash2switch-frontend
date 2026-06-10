@@ -355,13 +355,13 @@ export default function LeadDetailsPage() {
       setHistory(interactions);
 
       if (syncCallbackDate) {
-        // ✅ Pick the interaction with the LATEST reminder_date, not latest created_at
+        // ✅ Pick the most recently CREATED interaction that has a reminder_date
+        // NOT the one with the latest reminder_date value
         const withReminder = interactions.filter((i: InteractionHistory) => Boolean(i.reminder_date));
         if (withReminder.length > 0) {
-          const latest = withReminder.reduce((best: InteractionHistory, curr: InteractionHistory) => {
-            return curr.reminder_date! > best.reminder_date! ? curr : best;
-          });
-          setCallbackDate(String(latest.reminder_date).slice(0, 10));
+          // interactions are already ordered by created_at DESC from the backend
+          // so just take the first one with a reminder_date
+          setCallbackDate(String(withReminder[0].reminder_date).slice(0, 10));
         }
       }
     } catch { /* silent */ }
