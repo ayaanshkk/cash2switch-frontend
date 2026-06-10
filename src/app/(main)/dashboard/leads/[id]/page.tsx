@@ -266,19 +266,27 @@ export default function LeadDetailsPage() {
   }, [id]);
 
   const loadLead = async () => {
-      // Use cached data if saved within last 10 seconds (survives StrictMode double-invoke)
       const cached = sessionStorage.getItem(`lead_${id}_cache`);
       if (cached) {
-          const { data, savedAt } = JSON.parse(cached);
-          if (Date.now() - savedAt < 10000) {
-              setLead(data);
-              setEditedLead(data);
-              setLoading(false);
-              // Still fetch in background but don't overwrite state
-              return;
-          } else {
-              sessionStorage.removeItem(`lead_${id}_cache`);
-          }
+          try {
+              const parsed = JSON.parse(cached);
+              const { data, savedAt } = parsed;
+              const ttl = parsed.ttl ?? 300_000;
+              if (Date.now() - savedAt < ttl) {
+                  setLead(data);
+                  setEditedLead(data);
+                  if (data.stage_name) setCallbackStatus(data.stage_name);
+                  if (data.document_details) {
+                      try {
+                          const docs = JSON.parse(data.document_details);
+                          setUploadedDocuments(Array.isArray(docs) ? docs : []);
+                      } catch { setUploadedDocuments([]); }
+                  }
+                  setLoading(false);
+                  return;  // ← skip the fetch entirely
+              }
+          } catch { /* fall through to fetch */ }
+          sessionStorage.removeItem(`lead_${id}_cache`);
       }
       
       setLoading(true);
@@ -465,8 +473,10 @@ export default function LeadDetailsPage() {
 
       sessionStorage.setItem(`lead_${id}_cache`, JSON.stringify({
           data: updatedLead,
-          savedAt: Date.now()
+          savedAt: Date.now(),
+          ttl: 300_000,   // 5 minutes
       }));
+
       alert("✅ Lead updated successfully!");
       await loadHistory();
 
@@ -547,6 +557,21 @@ export default function LeadDetailsPage() {
 
         // ✅ Reload history FIRST before state reset
         await loadHistory();
+
+        const stale = sessionStorage.getItem(`lead_${id}_cache`);
+        if (stale) {
+            try {
+                const parsed = JSON.parse(stale);
+                parsed.data = {
+                    ...parsed.data,
+                    stage_id:   data.stage_id   ?? parsed.data.stage_id,
+                    stage_name: data.stage_name ?? callbackStatus,
+                };
+                parsed.savedAt = Date.now();
+                parsed.ttl = 300_000;
+                sessionStorage.setItem(`lead_${id}_cache`, JSON.stringify(parsed));
+            } catch { /* non-blocking */ }
+        }
 
         if (data.lead) {
           setLead(prev => prev ? { ...prev, ...data.lead } : data.lead);
