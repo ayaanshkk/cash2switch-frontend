@@ -34,7 +34,7 @@ interface AddEnergyClientModalProps {
     isOpen: boolean;
     onClose: () => void;
     onClientCreated: () => void;
-    service: string; // Current service context (from parent)
+    service: string;
     suppliers: Supplier[];
     employees: Employee[];
 }
@@ -48,21 +48,14 @@ export function AddEnergyClientModal({
     employees,
 }: AddEnergyClientModalProps) {
     const [formData, setFormData] = useState({
-        // ✅ NEW: Service selection
-        service: parentService, // Default to parent's service
-        
-        // Contact Information
+        service: parentService,
         contact_person: "",
         business_name: "",
         phone: "",
         email: "",
-        
-        // Address Information
         address: "",
         post_code: "",
         site_address: "",
-        
-        // Energy Contract Details
         mpan_top: "",
         mpan_bottom: "",
         supplier_id: "",
@@ -70,18 +63,13 @@ export function AddEnergyClientModal({
         start_date: "",
         end_date: "",
         unit_rate: "",
-        
-        // Assignment
         assigned_to_id: "",
-        
-        // Additional Notes
         notes: "",
     });
 
     const [errors, setErrors] = useState<Record<string, string>>({});
     const [submitting, setSubmitting] = useState(false);
 
-    // ✅ Update service when parent changes
     useEffect(() => {
         setFormData(prev => ({ ...prev, service: parentService }));
     }, [parentService]);
@@ -100,7 +88,6 @@ export function AddEnergyClientModal({
     const validate = () => {
         const newErrors: Record<string, string> = {};
 
-        // Required fields
         if (!formData.contact_person.trim()) {
             newErrors.contact_person = "Client name is required";
         }
@@ -116,21 +103,12 @@ export function AddEnergyClientModal({
         if (!formData.service) {
             newErrors.service = "Service type is required";
         }
-        
-        // Validate MPAN if provided
-        // if (formData.mpan_top && formData.mpan_top.length !== 13) {
-        //     newErrors.mpan_top = "MPAN Top must be 13 digits";
-        // }
-        // if (formData.mpan_bottom && formData.mpan_bottom.length !== 13) {
-        //     newErrors.mpan_bottom = "MPAN Bottom must be 13 digits";
-        // }
-        
-        // Validate annual usage if provided
+        if (!formData.supplier_id) {
+            newErrors.supplier_id = "Supplier is required";
+        }
         if (formData.annual_usage && isNaN(Number(formData.annual_usage))) {
             newErrors.annual_usage = "Annual usage must be a number";
         }
-        
-        // Validate unit rate if provided
         if (formData.unit_rate && isNaN(Number(formData.unit_rate))) {
             newErrors.unit_rate = "Unit rate must be a number";
         }
@@ -162,7 +140,7 @@ export function AddEnergyClientModal({
                 unit_rate: formData.unit_rate ? Number(formData.unit_rate) : 0,
                 assigned_to_id: formData.assigned_to_id ? Number(formData.assigned_to_id) : undefined,
                 notes: formData.notes.trim() || undefined,
-                service: formData.service, // ✅ Send selected service
+                service: formData.service,
             };
 
             const response = await fetchWithAuth('/energy-clients', {
@@ -213,17 +191,17 @@ export function AddEnergyClientModal({
         <Dialog open={isOpen} onOpenChange={handleClose}>
             <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
                 <DialogHeader>
-                    <DialogTitle>Add Energy Client</DialogTitle>
+                    <DialogTitle>Add Lead</DialogTitle>
                     <DialogDescription>
-                        Add a new energy customer to the renewals list.
+                        Add a new lead to the leads list.
                     </DialogDescription>
                 </DialogHeader>
 
                 <div className="space-y-6 py-4">
-                    {/* ✅ NEW: Service Selection */}
+
+                    {/* Service Type */}
                     <div className="space-y-4">
                         <h3 className="text-sm font-semibold text-gray-900 border-b pb-2">Service Type</h3>
-                        
                         <div className="flex flex-col space-y-1.5">
                             <Label htmlFor="service">
                                 Service <span className="text-red-500">*</span>
@@ -250,7 +228,7 @@ export function AddEnergyClientModal({
                     {/* Contact Information */}
                     <div className="space-y-4">
                         <h3 className="text-sm font-semibold text-gray-900 border-b pb-2">Contact Information</h3>
-                        
+
                         <div className="grid grid-cols-2 gap-4">
                             <div className="flex flex-col space-y-1.5">
                                 <Label htmlFor="contact_person">
@@ -312,7 +290,7 @@ export function AddEnergyClientModal({
                     {/* Address Information */}
                     <div className="space-y-4">
                         <h3 className="text-sm font-semibold text-gray-900 border-b pb-2">Address Information</h3>
-                        
+
                         <div className="flex flex-col space-y-1.5">
                             <Label htmlFor="address">Address</Label>
                             <Textarea
@@ -347,10 +325,10 @@ export function AddEnergyClientModal({
                         </div>
                     </div>
 
-                    {/* Energy Contract Details */}
+                    {/* Contract Details */}
                     <div className="space-y-4">
                         <h3 className="text-sm font-semibold text-gray-900 border-b pb-2">Contract Details</h3>
-                        
+
                         <div className="grid grid-cols-2 gap-4">
                             <div className="flex flex-col space-y-1.5">
                                 <Label htmlFor="mpan_top">MPAN Top</Label>
@@ -381,12 +359,14 @@ export function AddEnergyClientModal({
 
                         <div className="grid grid-cols-2 gap-4">
                             <div className="flex flex-col space-y-1.5">
-                                <Label htmlFor="supplier_id">Supplier</Label>
+                                <Label htmlFor="supplier_id">
+                                    Supplier <span className="text-red-500">*</span>
+                                </Label>
                                 <Select
                                     value={formData.supplier_id}
                                     onValueChange={(value) => handleChange("supplier_id", value)}
                                 >
-                                    <SelectTrigger>
+                                    <SelectTrigger className={errors.supplier_id ? "border-red-500" : ""}>
                                         <SelectValue placeholder="Select supplier" />
                                     </SelectTrigger>
                                     <SelectContent>
@@ -397,6 +377,7 @@ export function AddEnergyClientModal({
                                         ))}
                                     </SelectContent>
                                 </Select>
+                                {errors.supplier_id && <span className="text-red-500 text-xs">{errors.supplier_id}</span>}
                             </div>
 
                             <div className="flex flex-col space-y-1.5">
@@ -457,7 +438,7 @@ export function AddEnergyClientModal({
                     {/* Assignment */}
                     <div className="space-y-4">
                         <h3 className="text-sm font-semibold text-gray-900 border-b pb-2">Assignment</h3>
-                        
+
                         <div className="flex flex-col space-y-1.5">
                             <Label htmlFor="assigned_to_id">Assign To</Label>
                             <Select
@@ -482,7 +463,7 @@ export function AddEnergyClientModal({
                     {/* Additional Notes */}
                     <div className="space-y-4">
                         <h3 className="text-sm font-semibold text-gray-900 border-b pb-2">Additional Notes</h3>
-                        
+
                         <div className="flex flex-col space-y-1.5">
                             <Label htmlFor="notes">Notes</Label>
                             <Textarea
@@ -501,7 +482,7 @@ export function AddEnergyClientModal({
                         Cancel
                     </Button>
                     <Button onClick={handleSubmit} disabled={submitting}>
-                        {submitting ? "Creating..." : "Add Client"}
+                        {submitting ? "Creating..." : "Add Lead"}
                     </Button>
                 </div>
             </DialogContent>

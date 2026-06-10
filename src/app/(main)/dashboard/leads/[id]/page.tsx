@@ -266,8 +266,24 @@ export default function LeadDetailsPage() {
   }, [id]);
 
   const loadLead = async () => {
-    setLoading(true); setError(null);
-    try {
+      // Use cached data if saved within last 10 seconds (survives StrictMode double-invoke)
+      const cached = sessionStorage.getItem(`lead_${id}_cache`);
+      if (cached) {
+          const { data, savedAt } = JSON.parse(cached);
+          if (Date.now() - savedAt < 10000) {
+              setLead(data);
+              setEditedLead(data);
+              setLoading(false);
+              // Still fetch in background but don't overwrite state
+              return;
+          } else {
+              sessionStorage.removeItem(`lead_${id}_cache`);
+          }
+      }
+      
+      setLoading(true);
+      setError(null);
+      try {
       const raw = await fetchWithAuth(`/api/crm/leads/${id}`);
       console.log("📥 Lead API raw response:", raw);
 
@@ -393,30 +409,67 @@ export default function LeadDetailsPage() {
     if (!lead) return;
     setIsSaving(true);
     try {
-      // Strip computed/non-DB fields — these don't exist as columns in Opportunity_Details
+      const token = localStorage.getItem("auth_token") || localStorage.getItem("token");
+      
+      const DATE_FIELDS = new Set(['start_date', 'end_date', 'date_of_birth']);
       const COMPUTED_FIELDS = new Set([
         'status', 'stage_name', 'supplier_name', 'assigned_to_name',
         'opportunity_title', 'tenant_lead_id', 'display_id', 'display_order',
-        'created_at', 'service_id', 'tenant_id',
-        'opportunity_id',  // PK — never send
+        'created_at', 'service_id', 'tenant_id', 'opportunity_id',
       ]);
 
       const safePayload = Object.fromEntries(
-        Object.entries(editedLead).filter(([k]) => !COMPUTED_FIELDS.has(k))
+        Object.entries(editedLead)
+          .filter(([k, v]) => !COMPUTED_FIELDS.has(k) && v !== undefined)
+          .map(([k, v]) => {
+            if (DATE_FIELDS.has(k) && typeof v === 'string' && v.includes('T')) {
+              return [k, v.split('T')[0]];
+            }
+            return [k, v];
+          })
       );
 
-      const data = await fetchWithAuth(`/api/crm/leads/${id}`, {
+      console.log("🚀 PATCH payload:", JSON.stringify(safePayload, null, 2));
+
+      const res = await fetch(`${API_BASE_URL}/api/crm/leads/${id}`, {
         method: "PATCH",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`,
+        },
         body: JSON.stringify(safePayload),
       });
-      if (data?.error) throw new Error(data.error);
-      const updated = data?.lead || data;
-      setLead(prev => ({ ...prev, ...updated }));
-      setEditedLead(prev => ({ ...prev, ...updated }));
+
+      const data = await res.json();
+      console.log("📥 PATCH response:", data);
+
+      if (!res.ok || data?.error) throw new Error(data?.error || "Save failed");
+
+      // ✅ Use the response data directly — do NOT call loadLead() which re-fetches
+      // and may return stale data due to connection pooling / read-after-write lag
+      const updatedLead: Lead = {
+        ...lead,
+        ...editedLead,
+        // If backend returned the updated record, merge it on top
+        ...(data?.opportunity_id ? data : {}),
+        // Preserve computed fields from original lead
+        stage_name: data?.stage_name ?? lead.stage_name,
+        assigned_to_name: data?.assigned_to_name ?? lead.assigned_to_name,
+        supplier_name: data?.supplier_name ?? lead.supplier_name,
+        tenant_lead_id: lead.tenant_lead_id,
+      };
+
+      setLead(updatedLead);
+      setEditedLead(updatedLead);
       setIsEditing(false);
-      
+
+      sessionStorage.setItem(`lead_${id}_cache`, JSON.stringify({
+          data: updatedLead,
+          savedAt: Date.now()
+      }));
       alert("✅ Lead updated successfully!");
+      await loadHistory();
+
     } catch (e: any) {
       alert(`Failed to update lead: ${e.message}`);
     } finally {

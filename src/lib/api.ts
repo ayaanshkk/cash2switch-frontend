@@ -14,7 +14,8 @@ const pendingRequests = new Map<string, Promise<any>>();
 
 function getRequestKey(url: string, options: RequestInit = {}): string {
   const method = options.method || 'GET';
-  const body = options.body ? JSON.stringify(options.body) : '';
+  // body is already a string (JSON.stringify'd by caller), don't double-stringify
+  const body = options.body ? String(options.body) : '';
   return `${method}:${url}:${body}`;
 }
 
@@ -70,9 +71,16 @@ export async function fetchWithAuth(url: string, options: RequestInit = {}) {
   const isOtherNextApiPath = url.startsWith("/api/") && !isBackendApiPath;
   const isBackendRootPath = url.startsWith("/") && !isProxyPath && !isAuthProxyPath && !isOtherNextApiPath;
 
+  // ✅ Declare method early so it can be used for URL routing
+  const method = (options.method || "GET").toUpperCase();
+  const isMutatingRequest = ["PATCH", "POST", "PUT", "DELETE"].includes(method);
+
   let fullUrl = url;
   if (isAbsoluteUrl || isProxyPath || isAuthProxyPath || isOtherNextApiPath) {
     fullUrl = url;
+  } else if (isMutatingRequest && (isBackendApiPath || isBackendRootPath)) {
+    // Bypass proxy — go direct to backend for writes
+    fullUrl = `${API_BASE_URL}${url}`;
   } else if (isBackendApiPath || isBackendRootPath) {
     fullUrl = `/backend-api${url}`;
   } else {
@@ -88,7 +96,6 @@ export async function fetchWithAuth(url: string, options: RequestInit = {}) {
     return pendingRequests.get(requestKey);
   }
 
-  const method = (options.method || "GET").toUpperCase();
   const timeoutMsFromOptions = Number((options as any)?.timeoutMs);
   const timeoutMs = Number.isFinite(timeoutMsFromOptions) && timeoutMsFromOptions > 0
     ? timeoutMsFromOptions

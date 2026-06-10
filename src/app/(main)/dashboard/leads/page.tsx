@@ -23,6 +23,7 @@ import { Badge } from "@/components/ui/badge";
 import { toast, Toaster } from "react-hot-toast";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Textarea } from "@/components/ui/textarea";
+import { AddLeadModal } from "@/components/ui/AddLeadModal";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 const CUSTOMERS_PER_PAGE = 25;
@@ -238,6 +239,7 @@ export default function LeadsPage() {
   const [performanceFilter, setPerformanceFilter]               = useState<string | null>(null);
   const [performanceFilteredLeads, setPerformanceFilteredLeads] = useState<LeadCustomer[]>([]);
   const [showFilterSidebar, setShowFilterSidebar] = useState(false);
+  const [showAddLeadModal, setShowAddLeadModal] = useState(false);
   const [salespersonFilter, setSalespersonFilter] = useState<number | "All">(() => {
     const saved = sessionStorage.getItem('leads_salesperson');
     return saved && saved !== "All" ? parseInt(saved) : "All";
@@ -1212,10 +1214,16 @@ export default function LeadsPage() {
         </div>
 
         <div className="flex gap-2 items-center">
-          <Button onClick={() => setShowImportModal(true)} variant="outline"><Upload className="mr-2 h-4 w-4" />Bulk Import</Button>
-          <Button onClick={() => setShowImportModal(true)}><Plus className="mr-2 h-4 w-4" />Add Lead</Button>
+          <Button onClick={() => setShowImportModal(true)} variant="outline">
+            <Upload className="mr-2 h-4 w-4" />Bulk Import
+          </Button>
+          <Button onClick={() => setShowAddLeadModal(true)}>
+            <Plus className="mr-2 h-4 w-4" />Add Lead
+          </Button>
           {selectedLeads.length > 0 && (
-            <Button onClick={bulkDeleteLeads} variant="destructive"><Trash2 className="mr-2 h-4 w-4" />Delete Selected ({selectedLeads.length})</Button>
+            <Button onClick={bulkDeleteLeads} variant="destructive">
+              <Trash2 className="mr-2 h-4 w-4" />Delete Selected ({selectedLeads.length})
+            </Button>
           )}
         </div>
       </div>
@@ -1844,6 +1852,19 @@ export default function LeadsPage() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Add Lead Modal */}
+      <AddLeadModal
+        isOpen={showAddLeadModal}
+        onClose={() => setShowAddLeadModal(false)}
+        onLeadCreated={() => {
+          setShowAddLeadModal(false);
+          fetchLeads();
+        }}
+        service={service}
+        suppliers={suppliers}
+        employees={employees}
+      />
 
       {/* Bulk Assign Modal */}
       <Dialog open={showBulkAssignModal} onOpenChange={setShowBulkAssignModal}>
