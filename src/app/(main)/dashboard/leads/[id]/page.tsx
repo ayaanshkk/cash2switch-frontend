@@ -1425,7 +1425,7 @@ export default function LeadDetailsPage() {
                 ? rawNotes.slice(pipeIndex + 3).trim()  // ✅ everything after " | "
                 : rawNotes
                     .replace(/^\[.*?\]\s*/, '')          // remove [Status] prefix
-                    .replace(/^Status:.*?(\||$)/s, '')   // remove "Status: X → Y" part
+                    .replace(/^Status:[^|]*(\|)?/, '')   // remove "Status: X → Y" part
                     .trim();
                 const displayStatus = interaction.interaction_type || 'Unknown';
                 
