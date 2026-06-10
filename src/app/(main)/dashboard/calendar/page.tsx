@@ -77,7 +77,15 @@ export default function CalendarPage() {
   const [renewals, setRenewals] = useState<Renewal[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [currentDate, setCurrentDate] = useState(new Date());
+  const [currentDate, setCurrentDate] = useState<Date>(() => {
+    if (typeof window === "undefined") return new Date();
+    const saved = sessionStorage.getItem("calendar_current_date");
+    if (saved) {
+      const parsed = new Date(saved);
+      if (!isNaN(parsed.getTime())) return parsed;
+    }
+    return new Date();
+  });  
   const [selectedRenewal, setSelectedRenewal] = useState<Renewal | null>(null);
   const [showDetailDialog, setShowDetailDialog] = useState(false);
   const [selectedDayRenewals, setSelectedDayRenewals] = useState<Renewal[]>([]);
@@ -110,6 +118,12 @@ export default function CalendarPage() {
       window.history.replaceState(null, "", url.toString());
     }
   };
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      sessionStorage.setItem("calendar_current_date", currentDate.toISOString());
+    }
+  }, [currentDate]);
 
   useEffect(() => {
     const view = searchParams.get("view");
@@ -365,99 +379,88 @@ export default function CalendarPage() {
   }, [selectedRenewal]);
 
   const handlePopupReschedule = async () => {
-    if (!selectedRenewal) {
-      setRescheduleError("Please select a customer.");
-      return;
-    }
+      if (!selectedRenewal) {
+        setRescheduleError("Please select a customer.");
+        return;
+      }
 
-    const existingCallbackDate = selectedRenewal.reminder_date ? String(selectedRenewal.reminder_date).slice(0, 10) : "";
-    const existingEndDate = selectedRenewal.contract_end_date ? String(selectedRenewal.contract_end_date).slice(0, 10) : "";
-    const callbackChanged = Boolean(rescheduleDate) && rescheduleDate !== existingCallbackDate;
-    const endDateChanged = !isLeadsView && Boolean(contractEndDateInput) && contractEndDateInput !== existingEndDate;
+      const existingCallbackDate = selectedRenewal.reminder_date ? String(selectedRenewal.reminder_date).slice(0, 10) : "";
+      const existingEndDate = selectedRenewal.contract_end_date ? String(selectedRenewal.contract_end_date).slice(0, 10) : "";
+      const callbackChanged = Boolean(rescheduleDate) && rescheduleDate !== existingCallbackDate;
+      const endDateChanged = !isLeadsView && Boolean(contractEndDateInput) && contractEndDateInput !== existingEndDate;
 
-    if (!callbackChanged && !endDateChanged) {
-      setRescheduleError("No changes detected. Update callback date or contract end date.");
-      return;
-    }
+      if (!callbackChanged && !endDateChanged) {
+        setRescheduleError("No changes detected. Update callback date or contract end date.");
+        return;
+      }
 
-    setIsRescheduling(true);
-    setRescheduleError(null);
-    try {
-      const callbackDateForEndDateUpdate =
-        rescheduleDate || existingCallbackDate || new Date().toISOString().slice(0, 10);
+      setIsRescheduling(true);
+      setRescheduleError(null);
 
-      if (isLeadsView) {
+      const renewalSnapshot = selectedRenewal;
+
+      // ✅ Route by event id prefix — not which calendar tab is active
+      // A lead event appears on renewals calendar too if the lead has a client_id,
+      // so isLeadsView alone is not a reliable signal.
+      const isLeadEvent = renewalSnapshot.id.startsWith('lead-callback-');
+
+      try {
+        const callbackDateForEndDateUpdate =
+          rescheduleDate || existingCallbackDate || new Date().toISOString().slice(0, 10);
+
         if (callbackChanged) {
-          await fetchWithAuth(`/api/crm/leads/${selectedRenewal.customer_id}/callback`, {
+          const endpoint = isLeadEvent
+            ? `/api/crm/leads/${renewalSnapshot.customer_id}/callback`
+            : `/energy-clients/${renewalSnapshot.customer_id}/callback`;
+
+          await fetchWithAuth(endpoint, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
               status: "Callback",
               callback_date: rescheduleDate,
-              notes: selectedRenewal.notes || "Rescheduled from calendar",
-            }),
-          });
-        }
-      } else {
-        if (callbackChanged) {
-          await fetchWithAuth(`/energy-clients/${selectedRenewal.customer_id}/callback`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              status: "Callback",
-              callback_date: rescheduleDate,
-              notes: selectedRenewal.notes || "Rescheduled from calendar",
+              notes: renewalSnapshot.notes || "Rescheduled from calendar",
             }),
           });
         }
 
-        if (endDateChanged) {
-          await fetchWithAuth(`/energy-clients/${selectedRenewal.customer_id}/callback`, {
+        if (endDateChanged && !isLeadEvent) {
+          await fetchWithAuth(`/energy-clients/${renewalSnapshot.customer_id}/callback`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
               status: "End Date Changed",
               callback_date: callbackDateForEndDateUpdate,
               new_end_date: contractEndDateInput,
-              notes: selectedRenewal.notes || "Contract end date updated from calendar",
+              notes: renewalSnapshot.notes || "Contract end date updated from calendar",
             }),
           });
         }
+
+        // ✅ Optimistic update
+        const applyUpdate = (item: Renewal): Renewal => {
+          if (item.id !== renewalSnapshot.id) return item;
+          return {
+            ...item,
+            reminder_date: callbackChanged ? rescheduleDate : item.reminder_date,
+            contract_end_date: endDateChanged ? contractEndDateInput : item.contract_end_date,
+            display_date:
+              item.type === "contract_end"
+                ? (endDateChanged ? contractEndDateInput : item.display_date)
+                : (callbackChanged ? rescheduleDate : item.display_date),
+          };
+        };
+
+        setRenewals(prev => prev.map(applyUpdate));
+        setShowDetailDialog(false);
+        setSelectedRenewal(null);
+
+      } catch (err: any) {
+        setRescheduleError(err?.message || "Failed to reschedule callback.");
+      } finally {
+        setIsRescheduling(false);
       }
-
-      setSelectedRenewal(prev => prev ? {
-        ...prev,
-        reminder_date: callbackChanged ? rescheduleDate : prev.reminder_date,
-        contract_end_date: endDateChanged ? contractEndDateInput : prev.contract_end_date,
-        display_date:
-          prev.type === "contract_end"
-            ? (endDateChanged ? contractEndDateInput : prev.display_date)
-            : (callbackChanged ? rescheduleDate : prev.display_date),
-      } : prev);
-
-      setRenewals(prev => prev.map(item =>
-        item.id === selectedRenewal.id
-          ? {
-              ...item,
-              reminder_date: callbackChanged ? rescheduleDate : item.reminder_date,
-              contract_end_date: endDateChanged ? contractEndDateInput : item.contract_end_date,
-              display_date:
-                item.type === "contract_end"
-                  ? (endDateChanged ? contractEndDateInput : item.display_date)
-                  : (callbackChanged ? rescheduleDate : item.display_date),
-            }
-          : item
-      ));
-
-      localStorage.setItem('calendar-refetch-trigger', Date.now().toString());
-      window.dispatchEvent(new CustomEvent('calendar-refetch', { detail: { action: 'refetch-calendar' } }));
-      await loadCalendarEvents();
-    } catch (err: any) {
-      setRescheduleError(err?.message || "Failed to reschedule callback.");
-    } finally {
-      setIsRescheduling(false);
-    }
-  };
+    };
 
   if (!user) {
     return (

@@ -262,61 +262,37 @@ export default function LeadDetailsPage() {
     loadEmployees();
     loadStages();
     loadSuppliers();
-    loadHistory();
   }, [id]);
 
   const loadLead = async () => {
-      const cached = sessionStorage.getItem(`lead_${id}_cache`);
-      if (cached) {
-          try {
-              const parsed = JSON.parse(cached);
-              const { data, savedAt } = parsed;
-              const ttl = parsed.ttl ?? 300_000;
-              if (Date.now() - savedAt < ttl) {
-                  setLead(data);
-                  setEditedLead(data);
-                  if (data.stage_name) setCallbackStatus(data.stage_name);
-                  if (data.document_details) {
-                      try {
-                          const docs = JSON.parse(data.document_details);
-                          setUploadedDocuments(Array.isArray(docs) ? docs : []);
-                      } catch { setUploadedDocuments([]); }
-                  }
-                  setLoading(false);
-                  return;  // ← skip the fetch entirely
-              }
-          } catch { /* fall through to fetch */ }
-          sessionStorage.removeItem(`lead_${id}_cache`);
+    sessionStorage.removeItem(`lead_${id}_cache`);
+    setLoading(true);
+    setError(null);
+    try {
+      // ✅ Try strict opportunity_id match first
+      let raw = await fetchWithAuth(`/api/crm/leads/${id}`);
+
+      // ✅ If not found or error, fall back to tenant_lead_id lookup
+      if (!raw || raw.error || raw.detail === 'Not found') {
+        console.log(`⚠️ opportunity_id lookup failed for ${id}, trying tenant_lead_id...`);
+        raw = await fetchWithAuth(`/api/crm/leads/${id}?use_display_id=true`);
       }
-      
-      setLoading(true);
-      setError(null);
-      try {
-      const raw = await fetchWithAuth(`/api/crm/leads/${id}`);
-      console.log("📥 Lead API raw response:", raw);
 
       if (!raw) throw new Error("No response from server");
       if (raw.error) throw new Error(raw.error);
 
-      // Unwrap all possible response shapes:
-      //   { lead: {...} }  |  { data: {...} }  |  { opportunity: {...} }  |  plain object
       const data: Lead =
         raw.lead        ? raw.lead        :
         raw.opportunity ? raw.opportunity :
         raw.data        ? raw.data        :
         raw;
 
-      // Normalise: some endpoints return opportunity_owner_employee_id under different keys
       if (!data.assigned_to_name && raw.assigned_to_name) data.assigned_to_name = raw.assigned_to_name;
 
-      // Map any alternative column names the backend might return
       const normalised: Lead = {
         ...data,
-        // opportunity_id might come back as "id" from some projections
         opportunity_id: data.opportunity_id ?? (raw as any).id,
-        // stage comes as stage_name or status
         stage_name: data.stage_name ?? (raw as any).status ?? (raw as any).stage,
-        // contact fields that may differ between endpoints
         tel_number:     data.tel_number     ?? (raw as any).phone ?? (raw as any).telephone,
         business_name:  data.business_name  ?? (raw as any).opportunity_title ?? (raw as any).client_company_name,
         contact_person: data.contact_person ?? (raw as any).client_contact_name,
@@ -325,7 +301,7 @@ export default function LeadDetailsPage() {
         stand_charge:   data.stand_charge   ?? (raw as any).standing_charge,
       };
 
-      console.log("📋 Normalised lead:", normalised);
+      console.log("📋 Normalised lead - opportunity_id:", normalised.opportunity_id, "tenant_lead_id:", normalised.tenant_lead_id);
 
       setLead(normalised);
       setEditedLead(normalised);
@@ -338,6 +314,10 @@ export default function LeadDetailsPage() {
           setUploadedDocuments(Array.isArray(docs) ? docs : []);
         } catch { setUploadedDocuments([]); }
       }
+
+      // ✅ Always use real opportunity_id for history
+      await loadHistoryById(normalised.opportunity_id);
+
     } catch (e: any) {
       console.error("❌ loadLead error:", e);
       setError(e.message || "Failed to load lead");
@@ -367,21 +347,32 @@ export default function LeadDetailsPage() {
     } catch { /* silent */ }
   };
 
-  const loadHistory = async () => {
+  const loadHistoryById = async (opportunityId: number, syncCallbackDate = true) => {
     setLoadingHistory(true);
     try {
-      const data = await fetchWithAuth(`/api/crm/leads/${id}/history`);
+      const data = await fetchWithAuth(`/api/crm/leads/${opportunityId}/history`);
       const interactions = data?.interactions || [];
       setHistory(interactions);
 
-      // Prefill callback date from the latest reminder so rescheduling is easy.
-      const latestWithReminder = interactions.find((i: InteractionHistory) => Boolean(i.reminder_date));
-      if (latestWithReminder?.reminder_date) {
-        const nextDate = String(latestWithReminder.reminder_date).slice(0, 10);
-        setCallbackDate(nextDate);
+      if (syncCallbackDate) {
+        // ✅ Pick the interaction with the LATEST reminder_date, not latest created_at
+        const withReminder = interactions.filter((i: InteractionHistory) => Boolean(i.reminder_date));
+        if (withReminder.length > 0) {
+          const latest = withReminder.reduce((best: InteractionHistory, curr: InteractionHistory) => {
+            return curr.reminder_date! > best.reminder_date! ? curr : best;
+          });
+          setCallbackDate(String(latest.reminder_date).slice(0, 10));
+        }
       }
     } catch { /* silent */ }
     finally { setLoadingHistory(false); }
+  };
+
+  const loadHistory = async () => {
+    if (lead?.opportunity_id) {
+      // ✅ Pass false so user's manually chosen date is never overwritten
+      await loadHistoryById(lead.opportunity_id, false);
+    }
   };
 
   // ── helpers ──────────────────────────────────────────────────────────────
@@ -439,7 +430,7 @@ export default function LeadDetailsPage() {
 
       console.log("🚀 PATCH payload:", JSON.stringify(safePayload, null, 2));
 
-      const res = await fetch(`${API_BASE_URL}/api/crm/leads/${id}`, {
+      const res = await fetch(`${API_BASE_URL}/api/crm/leads/${lead?.opportunity_id}`, {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",
@@ -471,11 +462,7 @@ export default function LeadDetailsPage() {
       setEditedLead(updatedLead);
       setIsEditing(false);
 
-      sessionStorage.setItem(`lead_${id}_cache`, JSON.stringify({
-          data: updatedLead,
-          savedAt: Date.now(),
-          ttl: 300_000,   // 5 minutes
-      }));
+      sessionStorage.removeItem(`lead_${id}_cache`);
 
       alert("✅ Lead updated successfully!");
       await loadHistory();
@@ -493,122 +480,110 @@ export default function LeadDetailsPage() {
     setEditedLead(prev => ({ ...prev, [field]: value }));
 
   // ── callback / action ────────────────────────────────────────────────────
-    const handleSubmitCallback = async () => {
-      setCallbackError("");
+  const handleSubmitCallback = async () => {
+    setCallbackError("");
 
-      if (!callbackStatus) { setCallbackError("Please select a status"); return; }
-      const cfg = statusConfig[callbackStatus];
-      if (callbackDateStatuses.has(callbackStatus) && !callbackDate) {
-        setCallbackError("Please select callback date.");
+    if (!callbackStatus) { setCallbackError("Please select a status"); return; }
+    const cfg = statusConfig[callbackStatus];
+    if (callbackDateStatuses.has(callbackStatus) && !callbackDate) {
+      setCallbackError("Please select callback date.");
+      return;
+    }
+    if (cfg?.requiresSold && !isSold) { setCallbackError("Please select if the contract was sold"); return; }
+    if (cfg?.requiresNotes && !callbackNotes.trim()) { setCallbackError("Please enter the reason for this status"); return; }
+    if (callbackStatus === "Already Renewed" && !renewedBy) { setCallbackError("Please select if renewed by customer or agent"); return; }
+    if (callbackStatus === "End Date Changed" && !newEndDate) { setCallbackError("Please enter the new contract end date"); return; }
+
+    setIsSubmittingCallback(true);
+    try {
+      const payload: any = {
+        status: callbackStatus,
+        notes: callbackNotes,
+        called_date: calledDate,
+        callback_date: callbackDate || null,
+      };
+
+      const stageId = getStageIdFromStatus(callbackStatus);
+      if (stageId) payload.stage_id = stageId;
+      if (cfg?.requiresSold) payload.is_sold = isSold === "yes";
+      if (cfg?.requiresNewEndDate && newEndDate) payload.new_end_date = newEndDate;
+      if (callbackStatus === "Already Renewed" && renewedBy) payload.renewed_by = renewedBy;
+      if (cfg?.requiresSupplierChange && newSupplier.trim()) payload.new_supplier = newSupplier.trim();
+      if (cfg?.requiresAddressChange && newAddress.trim()) payload.new_address = newAddress.trim();
+
+      console.log("📤 Leads callback payload:", payload);
+
+      // ✅ Always use opportunity_id not URL param (tenant_lead_id)
+      const data = await fetchWithAuth(`/api/crm/leads/${lead?.opportunity_id}/callback`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      console.log("📥 Leads callback response:", data);
+
+      if (!data || data.error) throw new Error(data?.error || "Failed to save");
+
+      // ✅ Handle routing cases first
+      if (data.moved_to_cleansing) {
+        alert("🧹 Moved to Cleansing");
+        router.push("/dashboard/cleansing");
         return;
       }
-      if (cfg?.requiresSold && !isSold) { setCallbackError("Please select if the contract was sold"); return; }
-      if (cfg?.requiresNotes && !callbackNotes.trim()) { setCallbackError("Please enter the reason for this status"); return; }
-      if (callbackStatus === "Already Renewed" && !renewedBy) { setCallbackError("Please select if renewed by customer or agent"); return; }
-      if (callbackStatus === "End Date Changed" && !newEndDate) { setCallbackError("Please enter the new contract end date"); return; }
-
-      setIsSubmittingCallback(true);
-      try {
-        // ✅ Always send all fields
-        const payload: any = {
-          status: callbackStatus,
-          notes: callbackNotes,
-          called_date: calledDate,
-          callback_date: callbackDate || null,
-        };
-
-        const stageId = getStageIdFromStatus(callbackStatus);
-        if (stageId) payload.stage_id = stageId;
-        if (cfg?.requiresSold) payload.is_sold = isSold === "yes";
-        if (cfg?.requiresNewEndDate && newEndDate) payload.new_end_date = newEndDate;
-        if (callbackStatus === "Already Renewed" && renewedBy) payload.renewed_by = renewedBy;
-        if (cfg?.requiresSupplierChange && newSupplier.trim()) payload.new_supplier = newSupplier.trim();
-        if (cfg?.requiresAddressChange && newAddress.trim()) payload.new_address = newAddress.trim();
-
-        console.log("📤 Leads callback payload:", payload);
-
-        // ✅ CORRECT endpoint for leads
-        const data = await fetchWithAuth(`/api/crm/leads/${id}/callback`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload),
-        });
-
-        console.log("📥 Leads callback response:", data);
-
-        if (!data || data.error) throw new Error(data?.error || "Failed to save");
-
-        // ✅ Handle routing cases first
-        if (data.moved_to_cleansing) {
-          alert("🧹 Moved to Cleansing");
-          router.push("/dashboard/cleansing");
-          return;
-        }
-        if (data.moved_to_recycle_bin || data.deleted) {
-          alert("✅ Record removed from leads list");
-          router.push("/dashboard/leads");
-          return;
-        }
-        if (data.moved_to_priced) {
-          alert("✅ Moved to Priced page");
-          router.push("/dashboard/priced");
-          return;
-        }
-
-        // ✅ Reload history FIRST before state reset
-        await loadHistory();
-
-        const stale = sessionStorage.getItem(`lead_${id}_cache`);
-        if (stale) {
-            try {
-                const parsed = JSON.parse(stale);
-                parsed.data = {
-                    ...parsed.data,
-                    stage_id:   data.stage_id   ?? parsed.data.stage_id,
-                    stage_name: data.stage_name ?? callbackStatus,
-                };
-                parsed.savedAt = Date.now();
-                parsed.ttl = 300_000;
-                sessionStorage.setItem(`lead_${id}_cache`, JSON.stringify(parsed));
-            } catch { /* non-blocking */ }
-        }
-
-        if (data.lead) {
-          setLead(prev => prev ? { ...prev, ...data.lead } : data.lead);
-          setEditedLead(prev => ({ ...prev, ...data.lead }));
-          if (data.lead.stage_name) setCallbackStatus(data.lead.stage_name);
-        }
-
-        if (callbackStatus === "Already Renewed") alert("✅ Lead information updated");
-        else if (callbackStatus === "End Date Changed") alert(`✅ Contract end date updated to ${formatDate(newEndDate)}`);
-        else if (callbackStatus === "Converted") alert("✅ Lead marked as Converted");
-        else alert("✅ Action saved successfully");
-
-        // ✅ Reset form fields only — keep callbackStatus
-        setCallbackNotes("");
-        setIsSold("");
-        setNewEndDate("");
-        setNewSupplier("");
-        setNewAddress("");
-        setCalledDate(new Date().toISOString().split("T")[0]);
-        setRenewedBy("");
-        setCallbackError("");
-
-        try {
-          localStorage.setItem("calendar-refetch-trigger", Date.now().toString());
-          window.dispatchEvent(new CustomEvent("calendar-refetch", { detail: { action: "refetch-calendar" } }));
-        } catch { /* non-blocking */ }
-
-      } catch (err: any) {
-        console.error("❌ Leads callback error:", err);
-        setCallbackError(err.message || "Failed to save action");
-      } finally {
-        setIsSubmittingCallback(false);
+      if (data.moved_to_recycle_bin || data.deleted) {
+        alert("✅ Record removed from leads list");
+        router.push("/dashboard/leads");
+        return;
       }
-    };
+      if (data.moved_to_priced) {
+        alert("✅ Moved to Priced page");
+        router.push("/dashboard/priced");
+        return;
+      }
+
+      // ✅ Invalidate cache so next load re-fetches fresh from DB
+      sessionStorage.removeItem(`lead_${id}_cache`);
+
+      // ✅ Reload history using real opportunity_id — updates callbackDate to latest
+      await loadHistory();
+
+      if (data.lead) {
+        setLead(prev => prev ? { ...prev, ...data.lead } : data.lead);
+        setEditedLead(prev => ({ ...prev, ...data.lead }));
+        if (data.lead.stage_name) setCallbackStatus(data.lead.stage_name);
+      }
+
+      if (callbackStatus === "Already Renewed") alert("✅ Lead information updated");
+      else if (callbackStatus === "End Date Changed") alert(`✅ Contract end date updated to ${formatDate(newEndDate)}`);
+      else if (callbackStatus === "Converted") alert("✅ Lead marked as Converted");
+      else alert("✅ Action saved successfully");
+
+      // ✅ Reset form fields only — keep callbackStatus
+      setCallbackNotes("");
+      setIsSold("");
+      setNewEndDate("");
+      setNewSupplier("");
+      setNewAddress("");
+      setCalledDate(new Date().toISOString().split("T")[0]);
+      setRenewedBy("");
+      setCallbackError("");
+
+      // ✅ Signal calendar to refetch
+      try {
+        localStorage.setItem("calendar-refetch-trigger", Date.now().toString());
+        window.dispatchEvent(new CustomEvent("calendar-refetch", { detail: { action: "refetch-calendar" } }));
+      } catch { /* non-blocking */ }
+
+    } catch (err: any) {
+      console.error("❌ Leads callback error:", err);
+      setCallbackError(err.message || "Failed to save action");
+    } finally {
+      setIsSubmittingCallback(false);
+    }
+  };
 
   useEffect(() => {
-    if (!callbackStatus || callbackDate) return;
+    if (!callbackStatus || callbackDate) return;  // ← only runs if callbackDate is empty
     if (!callbackDateStatuses.has(callbackStatus)) return;
     const latestWithReminder = history.find((i) => Boolean(i.reminder_date));
     if (latestWithReminder?.reminder_date) {
@@ -666,7 +641,7 @@ export default function LeadDetailsPage() {
   const handleDeleteInteraction = async (interactionId: number) => {
     if (!window.confirm("Delete this history entry?")) return;
     try {
-      await fetchWithAuth(`/api/crm/leads/${id}/history/${interactionId}`, { method: "DELETE" });
+      await fetchWithAuth(`/api/crm/leads/${lead?.opportunity_id}/history/${interactionId}`, { method: "DELETE" });
       alert("✅ History entry deleted");
       loadHistory();
     } catch { alert("❌ Failed to delete history entry"); }
@@ -1441,8 +1416,13 @@ export default function LeadDetailsPage() {
           ) : (
             <div className="space-y-3">
               {history.map((interaction) => {
-                const rawNotes = interaction.notes || '';
-                const cleanNotes = rawNotes.replace(/^\[.*?\]\s*/, '');
+              const rawNotes = interaction.notes || '';
+              // ✅ Strip the leading [Status] tag AND the "Status: X → Y |" transition prefix
+              const cleanNotes = rawNotes
+                .replace(/^\[.*?\]\s*/, '')           // remove [Callback] prefix
+                .replace(/^Status:.*?\|\s*/, '')      // remove "Status: X → Y | " transition
+                .replace(/\[Callback\]\s*/g, '')      // remove any inline [Callback] tags
+                .trim();
                 const displayStatus = interaction.interaction_type || 'Unknown';
                 
                 // ✅ Check if this is a callback with a reminder date
