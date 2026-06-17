@@ -1673,21 +1673,27 @@ export default function EnergyCustomersPage() {
                   ))}
                 </SelectContent>
               </Select>
-              <div className="grid grid-cols-2 gap-2">
-                <Input
-                  type="date"
-                  value={dateRangeFrom}
-                  onChange={(e) => setDateRangeFrom(e.target.value)}
-                  className="w-full"
-                  aria-label="Date range from"
-                />
-                <Input
-                  type="date"
-                  value={dateRangeTo}
-                  onChange={(e) => setDateRangeTo(e.target.value)}
-                  className="w-full"
-                  aria-label="Date range to"
-                />
+              <div className="space-y-2">
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-gray-500">From</label>
+                  <Input
+                    type="date"
+                    value={dateRangeFrom}
+                    onChange={(e) => setDateRangeFrom(e.target.value)}
+                    className="w-full"
+                    aria-label="Date range from"
+                  />
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-gray-500">To</label>
+                  <Input
+                    type="date"
+                    value={dateRangeTo}
+                    onChange={(e) => setDateRangeTo(e.target.value)}
+                    className="w-full"
+                    aria-label="Date range to"
+                  />
+                </div>
               </div>
               {(dateRangeFrom || dateRangeTo) && (
                 <Button
