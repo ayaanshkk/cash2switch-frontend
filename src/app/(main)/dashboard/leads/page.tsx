@@ -1243,50 +1243,6 @@ export default function LeadsPage() {
             </SelectContent>
           </Select>
 
-          <div className="flex flex-wrap items-center gap-2 rounded-md border border-slate-200 bg-white px-2 py-1">
-            <Calendar className="h-4 w-4 text-slate-500" />
-            <Select value={dateRangeField} onValueChange={(value) => setDateRangeField(value as DateRangeField)}>
-              <SelectTrigger className="h-8 w-44 border-0 px-1 shadow-none focus:ring-0">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {(Object.keys(DATE_RANGE_FIELD_LABELS) as DateRangeField[]).map((field) => (
-                  <SelectItem key={field} value={field}>{DATE_RANGE_FIELD_LABELS[field]}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Input
-              type="date"
-              value={dateRangeFrom}
-              onChange={(e) => setDateRangeFrom(e.target.value)}
-              className="h-8 w-36"
-              aria-label="Date range from"
-            />
-            <span className="text-xs text-slate-500">to</span>
-            <Input
-              type="date"
-              value={dateRangeTo}
-              onChange={(e) => setDateRangeTo(e.target.value)}
-              className="h-8 w-36"
-              aria-label="Date range to"
-            />
-            {(dateRangeFrom || dateRangeTo) && (
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                className="h-8 w-8"
-                onClick={() => {
-                  setDateRangeFrom("");
-                  setDateRangeTo("");
-                }}
-                title="Clear date range"
-              >
-                <X className="h-4 w-4" />
-              </Button>
-            )}
-          </div>
-
           <Select value={usageSort} onValueChange={(v: any) => setUsageSort(v)}>
             <SelectTrigger className="w-48"><SelectValue /></SelectTrigger>
             <SelectContent>
@@ -1299,7 +1255,7 @@ export default function LeadsPage() {
           <Button variant="outline" onClick={() => setShowFilterSidebar(true)} className="relative">
             <Filter className="mr-2 h-4 w-4" />
             All Filters
-            {(isAdmin && salespersonFilter !== "All") && (
+            {((isAdmin && salespersonFilter !== "All") || dateRangeFrom || dateRangeTo) && (
               <span className="absolute -top-1 -right-1 h-2.5 w-2.5 rounded-full bg-black" />
             )}
           </Button>
@@ -1410,6 +1366,51 @@ export default function LeadsPage() {
               </Select>
             </div>
 
+            {/* Custom Date Range */}
+            <div className="space-y-3">
+              <label className="block text-sm font-semibold text-gray-800">Custom Date Range</label>
+              <Select value={dateRangeField} onValueChange={(value) => setDateRangeField(value as DateRangeField)}>
+                <SelectTrigger className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent position="popper" side="bottom" sideOffset={4} className="w-72 z-[60]">
+                  {(Object.keys(DATE_RANGE_FIELD_LABELS) as DateRangeField[]).map((field) => (
+                    <SelectItem key={field} value={field}>{DATE_RANGE_FIELD_LABELS[field]}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <div className="grid grid-cols-2 gap-2">
+                <Input
+                  type="date"
+                  value={dateRangeFrom}
+                  onChange={(e) => setDateRangeFrom(e.target.value)}
+                  className="w-full"
+                  aria-label="Date range from"
+                />
+                <Input
+                  type="date"
+                  value={dateRangeTo}
+                  onChange={(e) => setDateRangeTo(e.target.value)}
+                  className="w-full"
+                  aria-label="Date range to"
+                />
+              </div>
+              {(dateRangeFrom || dateRangeTo) && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  className="h-8 px-2 text-sm text-gray-600"
+                  onClick={() => {
+                    setDateRangeFrom("");
+                    setDateRangeTo("");
+                  }}
+                >
+                  <X className="mr-1 h-4 w-4" />
+                  Clear date range
+                </Button>
+              )}
+            </div>
+
             {/* Usage Sort */}
             <div>
               <label className="block text-sm font-semibold text-gray-800 mb-2">Annual Usage Sort</label>
@@ -1434,6 +1435,9 @@ export default function LeadsPage() {
                 setEndDateFilter("all");
                 setUsageSort("none");
                 setSalespersonFilter("All");
+                setDateRangeField("end_date");
+                setDateRangeFrom("");
+                setDateRangeTo("");
               }}
             >
               Clear All
