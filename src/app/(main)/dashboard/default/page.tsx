@@ -10,6 +10,7 @@ import {
   type DashboardMainView,
 } from "./_components/dashboard-view-switcher";
 import { DashboardLeadsSection } from "./_components/dashboard-leads-section";
+import { RenewalEmailLogsSummary } from "./_components/renewal-email-logs-summary";
 
 export default function DashboardPage() {
   const { user } = useAuth();
@@ -49,6 +50,7 @@ export default function DashboardPage() {
 
           {view === "renewals" && (
             <>
+              <RenewalEmailLogsSummary />
               <StaffPerformanceGrid />
               <EnergyRenewalsOverview userRole={user?.role} employeeId={undefined} />
               <RenewalsTable employeeId={undefined} />

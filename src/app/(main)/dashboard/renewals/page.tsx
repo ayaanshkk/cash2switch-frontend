@@ -160,6 +160,14 @@ interface Stage {
   stage_type?: string;
 }
 
+type DateRangeField = "end_date" | "start_date" | "created_at";
+
+const DATE_RANGE_FIELD_LABELS: Record<DateRangeField, string> = {
+  end_date: "Contract end date",
+  start_date: "Start date",
+  created_at: "Created date",
+};
+
 // ---------------- Utility functions ----------------
 const formatDate = (dateString: string | undefined): string => {
   if (!dateString) return "—";
@@ -177,6 +185,30 @@ const formatDate = (dateString: string | undefined): string => {
 const formatUsage = (usage: number | undefined): string => {
   if (!usage) return "—";
   return `${usage.toLocaleString()} kWh`;
+};
+
+const dateOnlyTime = (value?: string | null): number | null => {
+  if (!value) return null;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+  date.setHours(0, 0, 0, 0);
+  return date.getTime();
+};
+
+const matchesDateRange = (
+  customer: Pick<EnergyCustomer, "end_date" | "start_date" | "created_at">,
+  field: DateRangeField,
+  from: string,
+  to: string
+): boolean => {
+  if (!from && !to) return true;
+  const target = dateOnlyTime(customer[field]);
+  if (target === null) return false;
+  const fromTime = dateOnlyTime(from);
+  const toTime = dateOnlyTime(to);
+  if (fromTime !== null && target < fromTime) return false;
+  if (toTime !== null && target > toTime) return false;
+  return true;
 };
 
 const getStatusColor = (status: string | undefined): string => {
@@ -308,6 +340,9 @@ export default function EnergyCustomersPage() {
   const [newAddress, setNewAddress] = useState("");
   const [usageSort, setUsageSort] = useState<"none" | "low-high" | "high-low">(() => (sessionStorage.getItem('renewals_usage_sort') as any) || "none");
   const [endDateFilter, setEndDateFilter] = useState<"all" | "expired" | "30" | "60" | "90" | "90+">(() => (sessionStorage.getItem('renewals_end_date') as any) || "all");
+  const [dateRangeField, setDateRangeField] = useState<DateRangeField>(() => (sessionStorage.getItem('renewals_date_range_field') as DateRangeField) || "end_date");
+  const [dateRangeFrom, setDateRangeFrom] = useState(() => sessionStorage.getItem('renewals_date_range_from') || "");
+  const [dateRangeTo, setDateRangeTo] = useState(() => sessionStorage.getItem('renewals_date_range_to') || "");
   const [performanceStats, setPerformanceStats] = useState({
     renewed: 0,
     in_progress: 0,
@@ -326,7 +361,7 @@ export default function EnergyCustomersPage() {
   const [renewedBy, setRenewedBy] = useState<"customer" | "agent" | "">("");
   const [showFilterSidebar, setShowFilterSidebar] = useState(false);
   const [salespersonFilter, setSalespersonFilter] = useState<number | "All">(() => {
-    const saved = sessionStorage.getItem('leads_salesperson');
+    const saved = sessionStorage.getItem('renewals_salesperson');
     return saved && saved !== "All" ? parseInt(saved) : "All";
   });
 
@@ -378,7 +413,7 @@ export default function EnergyCustomersPage() {
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchTerm, supplierFilter, statusFilter, usageSort, endDateFilter]);
+  }, [searchTerm, supplierFilter, statusFilter, usageSort, endDateFilter, salespersonFilter, dateRangeField, dateRangeFrom, dateRangeTo]);
 
   useEffect(() => {
     sessionStorage.setItem('renewals_search', searchTerm);
@@ -405,8 +440,20 @@ export default function EnergyCustomersPage() {
   }, [endDateFilter]);
 
   useEffect(() => {
-    sessionStorage.setItem('leads_salesperson', salespersonFilter.toString());
+    sessionStorage.setItem('renewals_salesperson', salespersonFilter.toString());
   }, [salespersonFilter]);
+
+  useEffect(() => {
+    sessionStorage.setItem('renewals_date_range_field', dateRangeField);
+  }, [dateRangeField]);
+
+  useEffect(() => {
+    sessionStorage.setItem('renewals_date_range_from', dateRangeFrom);
+  }, [dateRangeFrom]);
+
+  useEffect(() => {
+    sessionStorage.setItem('renewals_date_range_to', dateRangeTo);
+  }, [dateRangeTo]);
 
   // ---------------- Fetch Functions ----------------
   const fetchCustomers = async () => {
@@ -515,6 +562,7 @@ export default function EnergyCustomersPage() {
 
       const matchesSupplier = supplierFilter === "All" || customer.supplier_id === supplierFilter;
       const matchesStatus = statusFilter === "All" || customer.status === statusFilter;
+      const matchesCustomDateRange = matchesDateRange(customer, dateRangeField, dateRangeFrom, dateRangeTo);
 
       let matchesEndDate = true;
       if (endDateFilter !== "all" && customer.end_date) {
@@ -533,7 +581,7 @@ export default function EnergyCustomersPage() {
       const matchesSalesperson = !isAdmin || salespersonFilter === "All" ||
         Number(customer.assigned_to_id) === Number(salespersonFilter);
 
-      return matchesSearch && matchesSupplier && matchesStatus && matchesEndDate && matchesSalesperson;
+      return matchesSearch && matchesSupplier && matchesStatus && matchesEndDate && matchesSalesperson && matchesCustomDateRange;
     });
 
     if (usageSort !== "none") {
@@ -545,7 +593,7 @@ export default function EnergyCustomersPage() {
     }
 
     return filtered;
-  }, [sortedCustomers, searchTerm, supplierFilter, statusFilter, endDateFilter, usageSort, salespersonFilter]);
+  }, [sortedCustomers, searchTerm, supplierFilter, statusFilter, endDateFilter, usageSort, salespersonFilter, dateRangeField, dateRangeFrom, dateRangeTo]);
 
   const isFromSearch = (customer: EnergyCustomer) => {
     if (isAdmin) return false;
@@ -1485,6 +1533,50 @@ export default function EnergyCustomersPage() {
               <SelectItem value="expired">Expired Contracts</SelectItem>
             </SelectContent>
           </Select>
+
+          <div className="flex flex-wrap items-center gap-2 rounded-md border border-slate-200 bg-white px-2 py-1">
+            <Calendar className="h-4 w-4 text-slate-500" />
+            <Select value={dateRangeField} onValueChange={(value) => setDateRangeField(value as DateRangeField)}>
+              <SelectTrigger className="h-8 w-44 border-0 px-1 shadow-none focus:ring-0">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {(Object.keys(DATE_RANGE_FIELD_LABELS) as DateRangeField[]).map((field) => (
+                  <SelectItem key={field} value={field}>{DATE_RANGE_FIELD_LABELS[field]}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Input
+              type="date"
+              value={dateRangeFrom}
+              onChange={(e) => setDateRangeFrom(e.target.value)}
+              className="h-8 w-36"
+              aria-label="Date range from"
+            />
+            <span className="text-xs text-slate-500">to</span>
+            <Input
+              type="date"
+              value={dateRangeTo}
+              onChange={(e) => setDateRangeTo(e.target.value)}
+              className="h-8 w-36"
+              aria-label="Date range to"
+            />
+            {(dateRangeFrom || dateRangeTo) && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8"
+                onClick={() => {
+                  setDateRangeFrom("");
+                  setDateRangeTo("");
+                }}
+                title="Clear date range"
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            )}
+          </div>
 
           <Select value={usageSort} onValueChange={(value: any) => setUsageSort(value)}>
             <SelectTrigger className="w-40"><SelectValue /></SelectTrigger>
