@@ -2,7 +2,6 @@ import {
   ShoppingBag,
   Forklift,
   Mail,
-  MailCheck,
   MessageSquare,
   Calendar,
   Kanban,
@@ -174,12 +173,6 @@ const allSidebarItems: NavGroup[] = [
         title: "Archives",
         url: "/dashboard/archives",
         icon: Archive,
-        roles: ["platform admin"],
-      },
-      {
-        title: "Email Logs",
-        url: "/dashboard/email-logs",
-        icon: MailCheck,
         roles: ["platform admin"],
       },
       {
