@@ -56,7 +56,7 @@ export function RenewalEmailLogsSummary() {
     setLoading(true);
     setError(null);
     try {
-      const data = await fetchWithAuth("/api/crm/renewal-email-logs/summary");
+      const data = await fetchWithAuth("/api/admin/renewal-email-logs/summary");
       setSummary({
         sent_today: Number(data.sent_today || 0),
         sent_last_7_days: Number(data.sent_last_7_days || 0),

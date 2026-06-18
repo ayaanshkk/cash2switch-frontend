@@ -97,7 +97,7 @@ export default function RenewalEmailLogsPage() {
     setLoading(true);
     setError(null);
     try {
-      const data = (await fetchWithAuth(`/api/crm/renewal-email-logs?${query}`)) as EmailLogResponse;
+      const data = (await fetchWithAuth(`/api/admin/renewal-email-logs?${query}`)) as EmailLogResponse;
       setLogs(Array.isArray(data.items) ? data.items : []);
       setTotal(Number(data.total || 0));
     } catch (err) {
