@@ -122,6 +122,7 @@ interface Employee { employee_id: number; employee_name: string; email?: string;
 interface Stage { stage_id: number; stage_name: string; stage_description?: string; }
 
 type DateRangeField = "end_date" | "start_date" | "created_at";
+type SortMode = "none" | "low-high" | "high-low" | "recent";
 
 const DATE_RANGE_FIELD_LABELS: Record<DateRangeField, string> = {
   end_date: "Contract end date",
@@ -216,7 +217,7 @@ export default function LeadsPage() {
   });
   const [statusFilter, setStatusFilter] = useState<string | "All">(() => sessionStorage.getItem('leads_status') || "All");
   const [endDateFilter, setEndDateFilter] = useState<"all" | "expired" | "30" | "60" | "90" | "90+">(() => (sessionStorage.getItem('leads_end_date') as any) || "all");
-  const [usageSort, setUsageSort] = useState<"none" | "low-high" | "high-low">(() => (sessionStorage.getItem('leads_usage_sort') as any) || "none");
+  const [usageSort, setUsageSort] = useState<SortMode>(() => (sessionStorage.getItem('leads_usage_sort') as SortMode) || "none");
   const [dateRangeField, setDateRangeField] = useState<DateRangeField>(() => (sessionStorage.getItem('leads_date_range_field') as DateRangeField) || "end_date");
   const [dateRangeFrom, setDateRangeFrom] = useState(() => sessionStorage.getItem('leads_date_range_from') || "");
   const [dateRangeTo, setDateRangeTo] = useState(() => sessionStorage.getItem('leads_date_range_to') || "");
@@ -526,6 +527,9 @@ export default function LeadsPage() {
     });
     if (usageSort !== "none") {
       list = [...list].sort((a, b) => {
+        if (usageSort === "recent") {
+          return new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime();
+        }
         const au = a.annual_usage || 0, bu = b.annual_usage || 0;
         return usageSort === "low-high" ? au - bu : bu - au;
       });
@@ -1246,7 +1250,8 @@ export default function LeadsPage() {
           <Select value={usageSort} onValueChange={(v: any) => setUsageSort(v)}>
             <SelectTrigger className="w-48"><SelectValue /></SelectTrigger>
             <SelectContent>
-              <SelectItem value="none">Usage: Default</SelectItem>
+              <SelectItem value="none">Sort: Default</SelectItem>
+              <SelectItem value="recent">Uploaded Recently</SelectItem>
               <SelectItem value="low-high">Usage: Low to High</SelectItem>
               <SelectItem value="high-low">Usage: High to Low</SelectItem>
             </SelectContent>
@@ -1419,11 +1424,12 @@ export default function LeadsPage() {
 
             {/* Usage Sort */}
             <div>
-              <label className="block text-sm font-semibold text-gray-800 mb-2">Annual Usage Sort</label>
+              <label className="block text-sm font-semibold text-gray-800 mb-2">Sort By</label>
               <Select value={usageSort} onValueChange={(v: any) => setUsageSort(v)}>
                 <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
                 <SelectContent position="popper" side="bottom" sideOffset={4} className="w-72 z-[60]">
                   <SelectItem value="none">Default</SelectItem>
+                  <SelectItem value="recent">Uploaded Recently</SelectItem>
                   <SelectItem value="low-high">Low to High</SelectItem>
                   <SelectItem value="high-low">High to Low</SelectItem>
                 </SelectContent>

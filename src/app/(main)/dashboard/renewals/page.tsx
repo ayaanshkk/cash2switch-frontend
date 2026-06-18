@@ -161,6 +161,7 @@ interface Stage {
 }
 
 type DateRangeField = "end_date" | "start_date" | "created_at";
+type SortMode = "none" | "low-high" | "high-low" | "recent";
 
 const DATE_RANGE_FIELD_LABELS: Record<DateRangeField, string> = {
   end_date: "Contract end date",
@@ -338,7 +339,7 @@ export default function EnergyCustomersPage() {
   const [callbackError, setCallbackError] = useState("");
   const [newSupplier, setNewSupplier] = useState("");
   const [newAddress, setNewAddress] = useState("");
-  const [usageSort, setUsageSort] = useState<"none" | "low-high" | "high-low">(() => (sessionStorage.getItem('renewals_usage_sort') as any) || "none");
+  const [usageSort, setUsageSort] = useState<SortMode>(() => (sessionStorage.getItem('renewals_usage_sort') as SortMode) || "none");
   const [endDateFilter, setEndDateFilter] = useState<"all" | "expired" | "30" | "60" | "90" | "90+">(() => (sessionStorage.getItem('renewals_end_date') as any) || "all");
   const [dateRangeField, setDateRangeField] = useState<DateRangeField>(() => (sessionStorage.getItem('renewals_date_range_field') as DateRangeField) || "end_date");
   const [dateRangeFrom, setDateRangeFrom] = useState(() => sessionStorage.getItem('renewals_date_range_from') || "");
@@ -586,6 +587,9 @@ export default function EnergyCustomersPage() {
 
     if (usageSort !== "none") {
       filtered = [...filtered].sort((a, b) => {
+        if (usageSort === "recent") {
+          return new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime();
+        }
         const aUsage = a.annual_usage || 0;
         const bUsage = b.annual_usage || 0;
         return usageSort === "low-high" ? aUsage - bUsage : bUsage - aUsage;
@@ -1537,7 +1541,8 @@ export default function EnergyCustomersPage() {
           <Select value={usageSort} onValueChange={(value: any) => setUsageSort(value)}>
             <SelectTrigger className="w-40"><SelectValue /></SelectTrigger>
             <SelectContent>
-              <SelectItem value="none">Usage: Default</SelectItem>
+              <SelectItem value="none">Sort: Default</SelectItem>
+              <SelectItem value="recent">Uploaded Recently</SelectItem>
               <SelectItem value="low-high">Usage: Low to High</SelectItem>
               <SelectItem value="high-low">Usage: High to Low</SelectItem>
             </SelectContent>
@@ -1713,11 +1718,12 @@ export default function EnergyCustomersPage() {
 
             {/* Usage Sort */}
             <div>
-              <label className="block text-sm font-semibold text-gray-800 mb-2">Annual Usage Sort</label>
+              <label className="block text-sm font-semibold text-gray-800 mb-2">Sort By</label>
               <Select value={usageSort} onValueChange={(v: any) => setUsageSort(v)}>
                 <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
                 <SelectContent position="popper" side="bottom" sideOffset={4} className="w-72 z-[60]">
                   <SelectItem value="none">Default</SelectItem>
+                  <SelectItem value="recent">Uploaded Recently</SelectItem>
                   <SelectItem value="low-high">Low to High</SelectItem>
                   <SelectItem value="high-low">High to Low</SelectItem>
                 </SelectContent>
