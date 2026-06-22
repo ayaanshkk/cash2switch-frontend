@@ -121,15 +121,6 @@ interface Supplier { supplier_id: number; supplier_name: string; }
 interface Employee { employee_id: number; employee_name: string; email?: string; }
 interface Stage { stage_id: number; stage_name: string; stage_description?: string; }
 
-type DateRangeField = "end_date" | "start_date" | "created_at";
-type SortMode = "none" | "low-high" | "high-low" | "recent";
-
-const DATE_RANGE_FIELD_LABELS: Record<DateRangeField, string> = {
-  end_date: "Contract end date",
-  start_date: "Start date",
-  created_at: "Created date",
-};
-
 // ─── Utilities ────────────────────────────────────────────────────────────────
 const formatDate = (d: string | null | undefined) => {
   if (!d) return "—";
@@ -138,30 +129,6 @@ const formatDate = (d: string | null | undefined) => {
 };
 
 const formatUsage = (u: number | null | undefined) => u ? `${u.toLocaleString()} kWh` : "—";
-
-const dateOnlyTime = (value?: string | null): number | null => {
-  if (!value) return null;
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return null;
-  date.setHours(0, 0, 0, 0);
-  return date.getTime();
-};
-
-const matchesDateRange = (
-  lead: Pick<LeadCustomer, "end_date" | "start_date" | "created_at">,
-  field: DateRangeField,
-  from: string,
-  to: string
-): boolean => {
-  if (!from && !to) return true;
-  const target = dateOnlyTime(lead[field]);
-  if (target === null) return false;
-  const fromTime = dateOnlyTime(from);
-  const toTime = dateOnlyTime(to);
-  if (fromTime !== null && target < fromTime) return false;
-  if (toTime !== null && target > toTime) return false;
-  return true;
-};
 
 const getStatusColor = (s: string | undefined) => {
   if (!s) return "bg-gray-100 text-gray-800";
@@ -217,10 +184,7 @@ export default function LeadsPage() {
   });
   const [statusFilter, setStatusFilter] = useState<string | "All">(() => sessionStorage.getItem('leads_status') || "All");
   const [endDateFilter, setEndDateFilter] = useState<"all" | "expired" | "30" | "60" | "90" | "90+">(() => (sessionStorage.getItem('leads_end_date') as any) || "all");
-  const [usageSort, setUsageSort] = useState<SortMode>(() => (sessionStorage.getItem('leads_usage_sort') as SortMode) || "none");
-  const [dateRangeField, setDateRangeField] = useState<DateRangeField>(() => (sessionStorage.getItem('leads_date_range_field') as DateRangeField) || "end_date");
-  const [dateRangeFrom, setDateRangeFrom] = useState(() => sessionStorage.getItem('leads_date_range_from') || "");
-  const [dateRangeTo, setDateRangeTo] = useState(() => sessionStorage.getItem('leads_date_range_to') || "");
+  const [usageSort, setUsageSort] = useState<"none" | "low-high" | "high-low">(() => (sessionStorage.getItem('leads_usage_sort') as any) || "none");
 
   // ── Selection ──────────────────────────────────────────────────────────────
   const [selectedLeads, setSelectedLeads]           = useState<number[]>([]);
@@ -282,7 +246,7 @@ export default function LeadsPage() {
   });
 
   // Reset page when filters change
-  useEffect(() => { setCurrentPage(1); }, [searchTerm, supplierFilter, statusFilter, usageSort, endDateFilter, salespersonFilter, dateRangeField, dateRangeFrom, dateRangeTo]);
+  useEffect(() => { setCurrentPage(1); }, [searchTerm, supplierFilter, statusFilter, usageSort, endDateFilter, salespersonFilter]);
 
   const leadsCacheKey = `${LEADS_CACHE_PREFIX}_${service}`;
   const performanceCacheKey = `${LEADS_PERFORMANCE_CACHE_PREFIX}_${service}`;
@@ -443,18 +407,6 @@ export default function LeadsPage() {
     sessionStorage.setItem('leads_salesperson', salespersonFilter.toString());
   }, [salespersonFilter]);
 
-  useEffect(() => {
-    sessionStorage.setItem('leads_date_range_field', dateRangeField);
-  }, [dateRangeField]);
-
-  useEffect(() => {
-    sessionStorage.setItem('leads_date_range_from', dateRangeFrom);
-  }, [dateRangeFrom]);
-
-  useEffect(() => {
-    sessionStorage.setItem('leads_date_range_to', dateRangeTo);
-  }, [dateRangeTo]);
-
   // ── Cross-team text search (debounced) ─────────────────────────────────────
   useEffect(() => {
     if (!searchTerm || searchTerm.length < 2) { setSearchResults([]); return; }
@@ -508,7 +460,6 @@ export default function LeadsPage() {
         (l.mpan_mpr       || "").toLowerCase().includes(term);
       const matchSupplier = supplierFilter === "All" || l.supplier_id === supplierFilter;
       const matchStatus   = statusFilter   === "All" || l.stage_name === statusFilter;
-      const matchCustomDateRange = matchesDateRange(l, dateRangeField, dateRangeFrom, dateRangeTo);
       let matchEndDate = true;
       if (endDateFilter !== "all" && l.end_date) {
         const today = new Date();
@@ -523,19 +474,16 @@ export default function LeadsPage() {
       const matchSalesperson = !isAdmin || salespersonFilter === "All" ||
         Number(l.opportunity_owner_employee_id) === Number(salespersonFilter);
 
-      return matchSearch && matchSupplier && matchStatus && matchEndDate && matchSalesperson && matchCustomDateRange;
+      return matchSearch && matchSupplier && matchStatus && matchEndDate && matchSalesperson;
     });
     if (usageSort !== "none") {
       list = [...list].sort((a, b) => {
-        if (usageSort === "recent") {
-          return new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime();
-        }
         const au = a.annual_usage || 0, bu = b.annual_usage || 0;
         return usageSort === "low-high" ? au - bu : bu - au;
       });
     }
     return list;
-  }, [sortedLeads, searchTerm, supplierFilter, statusFilter, endDateFilter, usageSort, salespersonFilter, dateRangeField, dateRangeFrom, dateRangeTo]);
+  }, [sortedLeads, searchTerm, supplierFilter, statusFilter, endDateFilter, usageSort, salespersonFilter]);
 
   const totalPages    = Math.ceil(filteredLeads.length / CUSTOMERS_PER_PAGE);
   const paginatedLeads = useMemo(() => {
@@ -1250,8 +1198,7 @@ export default function LeadsPage() {
           <Select value={usageSort} onValueChange={(v: any) => setUsageSort(v)}>
             <SelectTrigger className="w-48"><SelectValue /></SelectTrigger>
             <SelectContent>
-              <SelectItem value="none">Sort: Default</SelectItem>
-              <SelectItem value="recent">Uploaded Recently</SelectItem>
+              <SelectItem value="none">Usage: Default</SelectItem>
               <SelectItem value="low-high">Usage: Low to High</SelectItem>
               <SelectItem value="high-low">Usage: High to Low</SelectItem>
             </SelectContent>
@@ -1260,7 +1207,7 @@ export default function LeadsPage() {
           <Button variant="outline" onClick={() => setShowFilterSidebar(true)} className="relative">
             <Filter className="mr-2 h-4 w-4" />
             All Filters
-            {((isAdmin && salespersonFilter !== "All") || dateRangeFrom || dateRangeTo) && (
+            {(isAdmin && salespersonFilter !== "All") && (
               <span className="absolute -top-1 -right-1 h-2.5 w-2.5 rounded-full bg-black" />
             )}
           </Button>
@@ -1371,65 +1318,13 @@ export default function LeadsPage() {
               </Select>
             </div>
 
-            {/* Custom Date Range */}
-            <div className="space-y-3">
-              <label className="block text-sm font-semibold text-gray-800">Custom Date Range</label>
-              <Select value={dateRangeField} onValueChange={(value) => setDateRangeField(value as DateRangeField)}>
-                <SelectTrigger className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent position="popper" side="bottom" sideOffset={4} className="w-72 z-[60]">
-                  {(Object.keys(DATE_RANGE_FIELD_LABELS) as DateRangeField[]).map((field) => (
-                    <SelectItem key={field} value={field}>{DATE_RANGE_FIELD_LABELS[field]}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <div className="space-y-2">
-                <div>
-                  <label className="mb-1 block text-xs font-medium text-gray-500">From</label>
-                  <Input
-                    type="date"
-                    value={dateRangeFrom}
-                    onChange={(e) => setDateRangeFrom(e.target.value)}
-                    className="w-full"
-                    aria-label="Date range from"
-                  />
-                </div>
-                <div>
-                  <label className="mb-1 block text-xs font-medium text-gray-500">To</label>
-                  <Input
-                    type="date"
-                    value={dateRangeTo}
-                    onChange={(e) => setDateRangeTo(e.target.value)}
-                    className="w-full"
-                    aria-label="Date range to"
-                  />
-                </div>
-              </div>
-              {(dateRangeFrom || dateRangeTo) && (
-                <Button
-                  type="button"
-                  variant="ghost"
-                  className="h-8 px-2 text-sm text-gray-600"
-                  onClick={() => {
-                    setDateRangeFrom("");
-                    setDateRangeTo("");
-                  }}
-                >
-                  <X className="mr-1 h-4 w-4" />
-                  Clear date range
-                </Button>
-              )}
-            </div>
-
             {/* Usage Sort */}
             <div>
-              <label className="block text-sm font-semibold text-gray-800 mb-2">Sort By</label>
+              <label className="block text-sm font-semibold text-gray-800 mb-2">Annual Usage Sort</label>
               <Select value={usageSort} onValueChange={(v: any) => setUsageSort(v)}>
                 <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
                 <SelectContent position="popper" side="bottom" sideOffset={4} className="w-72 z-[60]">
                   <SelectItem value="none">Default</SelectItem>
-                  <SelectItem value="recent">Uploaded Recently</SelectItem>
                   <SelectItem value="low-high">Low to High</SelectItem>
                   <SelectItem value="high-low">High to Low</SelectItem>
                 </SelectContent>
@@ -1447,9 +1342,6 @@ export default function LeadsPage() {
                 setEndDateFilter("all");
                 setUsageSort("none");
                 setSalespersonFilter("All");
-                setDateRangeField("end_date");
-                setDateRangeFrom("");
-                setDateRangeTo("");
               }}
             >
               Clear All

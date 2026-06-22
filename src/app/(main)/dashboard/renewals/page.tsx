@@ -160,15 +160,6 @@ interface Stage {
   stage_type?: string;
 }
 
-type DateRangeField = "end_date" | "start_date" | "created_at";
-type SortMode = "none" | "low-high" | "high-low" | "recent";
-
-const DATE_RANGE_FIELD_LABELS: Record<DateRangeField, string> = {
-  end_date: "Contract end date",
-  start_date: "Start date",
-  created_at: "Created date",
-};
-
 // ---------------- Utility functions ----------------
 const formatDate = (dateString: string | undefined): string => {
   if (!dateString) return "—";
@@ -186,30 +177,6 @@ const formatDate = (dateString: string | undefined): string => {
 const formatUsage = (usage: number | undefined): string => {
   if (!usage) return "—";
   return `${usage.toLocaleString()} kWh`;
-};
-
-const dateOnlyTime = (value?: string | null): number | null => {
-  if (!value) return null;
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return null;
-  date.setHours(0, 0, 0, 0);
-  return date.getTime();
-};
-
-const matchesDateRange = (
-  customer: Pick<EnergyCustomer, "end_date" | "start_date" | "created_at">,
-  field: DateRangeField,
-  from: string,
-  to: string
-): boolean => {
-  if (!from && !to) return true;
-  const target = dateOnlyTime(customer[field]);
-  if (target === null) return false;
-  const fromTime = dateOnlyTime(from);
-  const toTime = dateOnlyTime(to);
-  if (fromTime !== null && target < fromTime) return false;
-  if (toTime !== null && target > toTime) return false;
-  return true;
 };
 
 const getStatusColor = (status: string | undefined): string => {
@@ -339,11 +306,8 @@ export default function EnergyCustomersPage() {
   const [callbackError, setCallbackError] = useState("");
   const [newSupplier, setNewSupplier] = useState("");
   const [newAddress, setNewAddress] = useState("");
-  const [usageSort, setUsageSort] = useState<SortMode>(() => (sessionStorage.getItem('renewals_usage_sort') as SortMode) || "none");
+  const [usageSort, setUsageSort] = useState<"none" | "low-high" | "high-low">(() => (sessionStorage.getItem('renewals_usage_sort') as any) || "none");
   const [endDateFilter, setEndDateFilter] = useState<"all" | "expired" | "30" | "60" | "90" | "90+">(() => (sessionStorage.getItem('renewals_end_date') as any) || "all");
-  const [dateRangeField, setDateRangeField] = useState<DateRangeField>(() => (sessionStorage.getItem('renewals_date_range_field') as DateRangeField) || "end_date");
-  const [dateRangeFrom, setDateRangeFrom] = useState(() => sessionStorage.getItem('renewals_date_range_from') || "");
-  const [dateRangeTo, setDateRangeTo] = useState(() => sessionStorage.getItem('renewals_date_range_to') || "");
   const [performanceStats, setPerformanceStats] = useState({
     renewed: 0,
     in_progress: 0,
@@ -414,7 +378,7 @@ export default function EnergyCustomersPage() {
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchTerm, supplierFilter, statusFilter, usageSort, endDateFilter, salespersonFilter, dateRangeField, dateRangeFrom, dateRangeTo]);
+  }, [searchTerm, supplierFilter, statusFilter, usageSort, endDateFilter, salespersonFilter]);
 
   useEffect(() => {
     sessionStorage.setItem('renewals_search', searchTerm);
@@ -443,18 +407,6 @@ export default function EnergyCustomersPage() {
   useEffect(() => {
     sessionStorage.setItem('renewals_salesperson', salespersonFilter.toString());
   }, [salespersonFilter]);
-
-  useEffect(() => {
-    sessionStorage.setItem('renewals_date_range_field', dateRangeField);
-  }, [dateRangeField]);
-
-  useEffect(() => {
-    sessionStorage.setItem('renewals_date_range_from', dateRangeFrom);
-  }, [dateRangeFrom]);
-
-  useEffect(() => {
-    sessionStorage.setItem('renewals_date_range_to', dateRangeTo);
-  }, [dateRangeTo]);
 
   // ---------------- Fetch Functions ----------------
   const fetchCustomers = async () => {
@@ -563,7 +515,6 @@ export default function EnergyCustomersPage() {
 
       const matchesSupplier = supplierFilter === "All" || customer.supplier_id === supplierFilter;
       const matchesStatus = statusFilter === "All" || customer.status === statusFilter;
-      const matchesCustomDateRange = matchesDateRange(customer, dateRangeField, dateRangeFrom, dateRangeTo);
 
       let matchesEndDate = true;
       if (endDateFilter !== "all" && customer.end_date) {
@@ -582,14 +533,11 @@ export default function EnergyCustomersPage() {
       const matchesSalesperson = !isAdmin || salespersonFilter === "All" ||
         Number(customer.assigned_to_id) === Number(salespersonFilter);
 
-      return matchesSearch && matchesSupplier && matchesStatus && matchesEndDate && matchesSalesperson && matchesCustomDateRange;
+      return matchesSearch && matchesSupplier && matchesStatus && matchesEndDate && matchesSalesperson;
     });
 
     if (usageSort !== "none") {
       filtered = [...filtered].sort((a, b) => {
-        if (usageSort === "recent") {
-          return new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime();
-        }
         const aUsage = a.annual_usage || 0;
         const bUsage = b.annual_usage || 0;
         return usageSort === "low-high" ? aUsage - bUsage : bUsage - aUsage;
@@ -597,7 +545,7 @@ export default function EnergyCustomersPage() {
     }
 
     return filtered;
-  }, [sortedCustomers, searchTerm, supplierFilter, statusFilter, endDateFilter, usageSort, salespersonFilter, dateRangeField, dateRangeFrom, dateRangeTo]);
+  }, [sortedCustomers, searchTerm, supplierFilter, statusFilter, endDateFilter, usageSort, salespersonFilter]);
 
   const isFromSearch = (customer: EnergyCustomer) => {
     if (isAdmin) return false;
@@ -1541,8 +1489,7 @@ export default function EnergyCustomersPage() {
           <Select value={usageSort} onValueChange={(value: any) => setUsageSort(value)}>
             <SelectTrigger className="w-40"><SelectValue /></SelectTrigger>
             <SelectContent>
-              <SelectItem value="none">Sort: Default</SelectItem>
-              <SelectItem value="recent">Uploaded Recently</SelectItem>
+              <SelectItem value="none">Usage: Default</SelectItem>
               <SelectItem value="low-high">Usage: Low to High</SelectItem>
               <SelectItem value="high-low">Usage: High to Low</SelectItem>
             </SelectContent>
@@ -1551,7 +1498,7 @@ export default function EnergyCustomersPage() {
           <Button variant="outline" onClick={() => setShowFilterSidebar(true)} className="relative flex-shrink-0">
             <Filter className="mr-2 h-4 w-4" />
             All Filters
-            {((isAdmin && salespersonFilter !== "All") || dateRangeFrom || dateRangeTo) && (
+            {(isAdmin && salespersonFilter !== "All") && (
               <span className="absolute -top-1 -right-1 h-2.5 w-2.5 rounded-full bg-black" />
             )}
           </Button>
@@ -1665,65 +1612,13 @@ export default function EnergyCustomersPage() {
               </Select>
             </div>
 
-            {/* Custom Date Range */}
-            <div className="space-y-3">
-              <label className="block text-sm font-semibold text-gray-800">Custom Date Range</label>
-              <Select value={dateRangeField} onValueChange={(value) => setDateRangeField(value as DateRangeField)}>
-                <SelectTrigger className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent position="popper" side="bottom" sideOffset={4} className="w-72 z-[60]">
-                  {(Object.keys(DATE_RANGE_FIELD_LABELS) as DateRangeField[]).map((field) => (
-                    <SelectItem key={field} value={field}>{DATE_RANGE_FIELD_LABELS[field]}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <div className="space-y-2">
-                <div>
-                  <label className="mb-1 block text-xs font-medium text-gray-500">From</label>
-                  <Input
-                    type="date"
-                    value={dateRangeFrom}
-                    onChange={(e) => setDateRangeFrom(e.target.value)}
-                    className="w-full"
-                    aria-label="Date range from"
-                  />
-                </div>
-                <div>
-                  <label className="mb-1 block text-xs font-medium text-gray-500">To</label>
-                  <Input
-                    type="date"
-                    value={dateRangeTo}
-                    onChange={(e) => setDateRangeTo(e.target.value)}
-                    className="w-full"
-                    aria-label="Date range to"
-                  />
-                </div>
-              </div>
-              {(dateRangeFrom || dateRangeTo) && (
-                <Button
-                  type="button"
-                  variant="ghost"
-                  className="h-8 px-2 text-sm text-gray-600"
-                  onClick={() => {
-                    setDateRangeFrom("");
-                    setDateRangeTo("");
-                  }}
-                >
-                  <X className="mr-1 h-4 w-4" />
-                  Clear date range
-                </Button>
-              )}
-            </div>
-
             {/* Usage Sort */}
             <div>
-              <label className="block text-sm font-semibold text-gray-800 mb-2">Sort By</label>
+              <label className="block text-sm font-semibold text-gray-800 mb-2">Annual Usage Sort</label>
               <Select value={usageSort} onValueChange={(v: any) => setUsageSort(v)}>
                 <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
                 <SelectContent position="popper" side="bottom" sideOffset={4} className="w-72 z-[60]">
                   <SelectItem value="none">Default</SelectItem>
-                  <SelectItem value="recent">Uploaded Recently</SelectItem>
                   <SelectItem value="low-high">Low to High</SelectItem>
                   <SelectItem value="high-low">High to Low</SelectItem>
                 </SelectContent>
@@ -1741,9 +1636,6 @@ export default function EnergyCustomersPage() {
                 setEndDateFilter("all");
                 setUsageSort("none");
                 setSalespersonFilter("All");
-                setDateRangeField("end_date");
-                setDateRangeFrom("");
-                setDateRangeTo("");
               }}
             >
               Clear All
