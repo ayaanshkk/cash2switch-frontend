@@ -305,19 +305,22 @@ export default function RenewalEmailLogsPage() {
             <p className="text-xs text-slate-500">Use sent date, advisor, status, or text search.</p>
           </div>
         </div>
-        <div className="grid gap-3 xl:grid-cols-[minmax(220px,1fr)_160px_200px_190px_160px_160px]">
-          <div className="relative">
-            <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" />
-            <Input
-              value={search}
-              onChange={(event) => {
-                setPage(1);
-                setSearch(event.target.value);
-              }}
-              className="pl-9"
-              placeholder="Search recipient, customer, advisor, or message id"
-            />
-          </div>
+        <div className="grid items-end gap-3 xl:grid-cols-[minmax(220px,1fr)_160px_200px_190px_160px_160px]">
+          <label className="grid gap-1 text-xs font-medium text-slate-600">
+            Search
+            <div className="relative">
+              <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" />
+              <Input
+                value={search}
+                onChange={(event) => {
+                  setPage(1);
+                  setSearch(event.target.value);
+                }}
+                className="pl-9"
+                placeholder="Search recipient, customer, advisor, or message id"
+              />
+            </div>
+          </label>
           <label className="grid gap-1 text-xs font-medium text-slate-600">
             Status
             <select
