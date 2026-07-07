@@ -492,7 +492,7 @@ export default function LeadDetailsPage() {
     if (cfg?.requiresSold && !isSold) { setCallbackError("Please select if the contract was sold"); return; }
     if (cfg?.requiresNotes && !callbackNotes.trim()) { setCallbackError("Please enter the reason for this status"); return; }
     if (callbackStatus === "Already Renewed" && !renewedBy) { setCallbackError("Please select if renewed by customer or agent"); return; }
-    if (callbackStatus === "End Date Changed" && !newEndDate) { setCallbackError("Please enter the new contract end date"); return; }
+    if (cfg?.requiresNewEndDate && !newEndDate) { setCallbackError("Please enter the new contract end date"); return; }
 
     setIsSubmittingCallback(true);
     try {
@@ -1306,13 +1306,11 @@ export default function LeadDetailsPage() {
             <div>
               <label className="text-sm font-medium text-gray-700">
                 New Contract End Date:{" "}
-                {callbackStatus === "End Date Changed"
-                  ? <span className="text-red-500">*</span>
-                  : <span className="text-gray-400">(Optional)</span>}
+                <span className="text-red-500">*</span>
               </label>
               <Input type="date" className="mt-1" value={newEndDate} onChange={e => setNewEndDate(e.target.value)} />
               <p className="text-xs text-gray-500 mt-1">
-                {callbackStatus === "Already Renewed" ? "Leave blank if end date hasn't changed" : "Contract end date will be updated"}
+                Contract end date will be updated
               </p>
             </div>
           )}

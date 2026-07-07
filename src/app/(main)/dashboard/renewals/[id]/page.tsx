@@ -426,7 +426,7 @@ export default function EnergyCustomerDetailsPage() {
       return;
     }
 
-    if (callbackStatus === "End Date Changed" && !newEndDate) {
+    if (config?.requiresNewEndDate && !newEndDate) {
       setCallbackError("Please enter the new contract end date");
       return;
     }
@@ -1776,7 +1776,7 @@ export default function EnergyCustomerDetailsPage() {
             {statusConfig[callbackStatus]?.requiresNewEndDate && (
               <div className="space-y-2">
                 <label className="text-sm font-medium">
-                  New Contract End Date {callbackStatus === "End Date Changed" ? "*" : ""}
+                  New Contract End Date *
                 </label>
                 <Input
                   type="date"
@@ -1784,10 +1784,7 @@ export default function EnergyCustomerDetailsPage() {
                   onChange={(e) => setNewEndDate(e.target.value)}
                 />
                 <p className="text-xs text-gray-500">
-                  {callbackStatus === "Already Renewed" 
-                    ? "Optional: Update if the contract end date has changed"
-                    : "The contract end date will be updated to this new date"
-                  }
+                  The contract end date will be updated to this new date
                 </p>
               </div>
             )}
@@ -2160,7 +2157,7 @@ export default function EnergyCustomerDetailsPage() {
           {currentConfig?.requiresNewEndDate && (
             <div>
               <label className="text-sm font-medium text-gray-700">
-                New Contract End Date: {callbackStatus === "End Date Changed" ? <span className="text-red-500">*</span> : <span className="text-gray-400">(Optional)</span>}
+                New Contract End Date: <span className="text-red-500">*</span>
               </label>
               <Input
                 type="date"
@@ -2169,10 +2166,7 @@ export default function EnergyCustomerDetailsPage() {
                 onChange={(e) => setNewEndDate(e.target.value)}
               />
               <p className="text-xs text-gray-500 mt-1">
-                {callbackStatus === "Already Renewed" 
-                  ? "Leave blank if end date hasn't changed"
-                  : "Contract end date will be updated"
-                }
+                Contract end date will be updated
               </p>
             </div>
           )}
