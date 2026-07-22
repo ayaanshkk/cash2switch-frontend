@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
-import { useRouter } from "next/navigation";
 import { ColumnDef } from "@tanstack/react-table";
 import { format } from "date-fns";
 import { Eye } from "lucide-react";
@@ -34,7 +33,6 @@ interface LeadsDashboardTableProps {
 }
 
 export function LeadsDashboardTable({ employeeId }: LeadsDashboardTableProps) {
-  const router = useRouter();
   const [leads, setLeads] = useState<LeadRow[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -152,7 +150,7 @@ export function LeadsDashboardTable({ employeeId }: LeadsDashboardTableProps) {
             variant="outline"
             size="sm"
             className="border-slate-200 bg-white text-slate-800 hover:bg-slate-50 hover:text-slate-900"
-            onClick={() => router.push(`/dashboard/leads/${row.original.opportunity_id}`)}
+            onClick={() => window.open(`/dashboard/leads/${row.original.opportunity_id}`, "_blank", "noopener,noreferrer")}
           >
             <Eye className="h-4 w-4" />
             <span className="ml-1">Open</span>
@@ -161,7 +159,7 @@ export function LeadsDashboardTable({ employeeId }: LeadsDashboardTableProps) {
         enableSorting: false,
       },
     ],
-    [router]
+    []
   );
 
   const table = useDataTableInstance({

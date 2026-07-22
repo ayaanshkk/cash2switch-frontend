@@ -341,7 +341,10 @@ export default function UnifiedRecycleBinPage() {
           "X-Tenant-ID": localStorage.getItem("tenant_id") || "2"
         },
       });
-      if (!response.ok) throw new Error("Failed to restore customer");
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || errorData.message || "Failed to restore customer");
+      }
       alert(`✅ "${businessName}" restored successfully`);
       loadDeletedCustomers();
     } catch (err: any) {

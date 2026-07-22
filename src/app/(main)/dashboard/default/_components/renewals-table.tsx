@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
 import { ColumnDef } from "@tanstack/react-table";
 import { format } from "date-fns";
 import { Eye, Phone, Mail, AlertTriangle } from "lucide-react";
@@ -63,7 +62,6 @@ const getStatusColor = (status: string) => {
 
 // ✅ Accept employeeId prop
 export function RenewalsTable({ employeeId }: RenewalsTableProps = {}) {
-  const router = useRouter();
   const [renewals, setRenewals] = useState<RenewalCustomer[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -229,7 +227,7 @@ export function RenewalsTable({ employeeId }: RenewalsTableProps = {}) {
           variant="outline"
           size="sm"
           className="border-slate-200 bg-white text-slate-800 hover:bg-slate-50 hover:text-slate-900"
-          onClick={() => router.push(`/dashboard/renewals/${row.original.client_id}`)}
+          onClick={() => window.open(`/dashboard/renewals/${row.original.client_id}`, "_blank", "noopener,noreferrer")}
         >
           <Eye className="h-4 w-4" />
           <span className="ml-1">View</span>
