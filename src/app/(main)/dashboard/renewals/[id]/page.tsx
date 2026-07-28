@@ -47,6 +47,7 @@ const API_BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:50
 const TABS = [
   { id: "contact", label: "Contact Information", icon: User },
   { id: "contract", label: "Contract & Billing Details", icon: FileText },
+  { id: "payments", label: "Payments Log", icon: CreditCard },
   { id: "address", label: "Address", icon: MapPin },
   { id: "charges", label: "Charges", icon: DollarSign },
   { id: "banking", label: "Bank & Trading Account Details", icon: CreditCard },
@@ -196,6 +197,25 @@ interface InteractionHistory {
   created_at?: string;
 }
 
+interface CustomerPaymentLog {
+  summary?: {
+    total_expected?: number;
+    total_received?: number;
+    total_outstanding?: number;
+  };
+  payments?: Array<{
+    id: string;
+    payment_period_label?: string;
+    instalment_year?: number;
+    supplier_name?: string;
+    expected_net_amount?: number;
+    amount_received?: number;
+    outstanding_amount?: number;
+    due_date?: string;
+    status?: string;
+  }>;
+}
+
 const formatDate = (dateString?: string) => {
   if (!dateString) return "—";
   try {
@@ -214,6 +234,9 @@ export default function EnergyCustomerDetailsPage() {
   const params = useParams();
   const router = useRouter();
   const { user } = useAuth();
+  const isAdmin = ["admin", "platform admin", "tenant super admin", "super admin", "superadmin"].includes(
+    user?.role?.trim().toLowerCase() || "",
+  );
   const id = params?.id as string;
   const searchParams = useSearchParams();
   const fromPage = searchParams?.get('from') || 'renewals';
@@ -248,6 +271,9 @@ export default function EnergyCustomerDetailsPage() {
   const [suppliers, setSuppliers] = useState<{ supplier_id: number; supplier_name: string }[]>([]);
   const [calledDate, setCalledDate] = useState(() => new Date().toISOString().split('T')[0]);
   const [renewedBy, setRenewedBy] = useState<"customer" | "agent" | "">("");
+  const [paymentLog, setPaymentLog] = useState<CustomerPaymentLog | null>(null);
+  const [loadingPaymentLog, setLoadingPaymentLog] = useState(false);
+  const [paymentLogError, setPaymentLogError] = useState<string | null>(null);
 
 
   useEffect(() => {
@@ -256,6 +282,30 @@ export default function EnergyCustomerDetailsPage() {
     loadHistory();
     loadSuppliers();
   }, [id]);
+
+  useEffect(() => {
+    if (!isAdmin || activeTab !== "payments" || !customer?.client_id || paymentLog) return;
+
+    const loadPaymentLog = async () => {
+      setLoadingPaymentLog(true);
+      setPaymentLogError(null);
+      try {
+        const token = localStorage.getItem("auth_token") || localStorage.getItem("token");
+        const response = await fetch(`/backend-api/api/commission/customer-log/${customer.client_id}`, {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(data.error || "Failed to load payment history");
+        setPaymentLog(data);
+      } catch (paymentError) {
+        setPaymentLogError(paymentError instanceof Error ? paymentError.message : "Failed to load payment history");
+      } finally {
+        setLoadingPaymentLog(false);
+      }
+    };
+
+    loadPaymentLog();
+  }, [activeTab, customer?.client_id, isAdmin, paymentLog]);
 
   const loadCustomerData = async () => {
     setLoading(true);
@@ -894,7 +944,7 @@ export default function EnergyCustomerDetailsPage() {
 
         {/* Tabs */}
         <div className="mt-4 flex space-x-1 border-b border-gray-200">
-          {TABS.map((tab) => {
+          {TABS.filter((tab) => tab.id !== "payments" || isAdmin).map((tab) => {
             const Icon = tab.icon;
             return (
               <button
@@ -1366,6 +1416,99 @@ export default function EnergyCustomerDetailsPage() {
                   )}
                 </div>
               </div>
+            </div>
+          )}
+
+          {/* Payments Log Tab */}
+          {activeTab === "payments" && isAdmin && (
+            <div className="space-y-6">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <h2 className="text-lg font-semibold text-gray-900">Payments Log</h2>
+                  <p className="mt-1 text-sm text-gray-500">
+                    Supplier commission installments and receipt progress for this customer.
+                  </p>
+                </div>
+                <Button
+                  variant="outline"
+                  onClick={() => router.push(`/dashboard/payments/history/${displayCustomer.client_id}`)}
+                >
+                  Open full history
+                </Button>
+              </div>
+
+              {loadingPaymentLog ? (
+                <div className="flex min-h-40 items-center justify-center text-sm text-gray-500">
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Loading payment history...
+                </div>
+              ) : paymentLogError ? (
+                <Alert variant="destructive">
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertDescription>{paymentLogError}</AlertDescription>
+                </Alert>
+              ) : (
+                <>
+                  <div className="grid gap-4 sm:grid-cols-3">
+                    {[
+                      ["Expected", paymentLog?.summary?.total_expected],
+                      ["Received", paymentLog?.summary?.total_received],
+                      ["Outstanding", paymentLog?.summary?.total_outstanding],
+                    ].map(([label, value]) => (
+                      <div key={String(label)} className="rounded-md border border-gray-200 p-4">
+                        <p className="text-sm text-gray-500">{label}</p>
+                        <p className="mt-2 text-xl font-semibold text-gray-900">
+                          {new Intl.NumberFormat("en-GB", { style: "currency", currency: "GBP" }).format(
+                            Number(value || 0),
+                          )}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="overflow-x-auto rounded-md border border-gray-200">
+                    <table className="min-w-full divide-y divide-gray-200 text-sm">
+                      <thead className="bg-gray-50 text-left text-xs font-semibold uppercase text-gray-600">
+                        <tr>
+                          <th className="px-4 py-3">Installment</th>
+                          <th className="px-4 py-3">Supplier</th>
+                          <th className="px-4 py-3">Expected</th>
+                          <th className="px-4 py-3">Received</th>
+                          <th className="px-4 py-3">Outstanding</th>
+                          <th className="px-4 py-3">Due</th>
+                          <th className="px-4 py-3">Status</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-100 bg-white">
+                        {(paymentLog?.payments || []).map((payment) => (
+                          <tr key={payment.id}>
+                            <td className="px-4 py-3 font-medium text-gray-900">
+                              {payment.payment_period_label || `Year ${payment.instalment_year || "-"}`}
+                            </td>
+                            <td className="px-4 py-3 text-gray-600">{payment.supplier_name || "-"}</td>
+                            <td className="px-4 py-3">£{Number(payment.expected_net_amount || 0).toFixed(2)}</td>
+                            <td className="px-4 py-3">£{Number(payment.amount_received || 0).toFixed(2)}</td>
+                            <td className="px-4 py-3">£{Number(payment.outstanding_amount || 0).toFixed(2)}</td>
+                            <td className="px-4 py-3 text-gray-600">{formatDate(payment.due_date)}</td>
+                            <td className="px-4 py-3">
+                              <span className="rounded bg-gray-100 px-2 py-1 text-xs font-medium text-gray-700">
+                                {payment.status || "-"}
+                              </span>
+                            </td>
+                          </tr>
+                        ))}
+                        {!paymentLog?.payments?.length && (
+                          <tr>
+                            <td colSpan={7} className="px-4 py-10 text-center text-gray-500">
+                              No commission payment history is available for this customer.
+                            </td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </>
+              )}
             </div>
           )}
 

@@ -66,6 +66,7 @@ export async function fetchWithAuth(url: string, options: RequestInit = {}) {
   const isAuthProxyPath = url.startsWith("/auth/");
   const isBackendApiPath =
     url.startsWith("/api/crm/") ||
+    url.startsWith("/api/commission/") ||
     url.startsWith("/api/admin/") ||
     url.startsWith("/api/entrypoint/") ||
     url.startsWith("/api/calendar/") ||
