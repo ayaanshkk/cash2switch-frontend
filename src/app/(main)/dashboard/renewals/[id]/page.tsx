@@ -373,7 +373,7 @@ export default function EnergyCustomerDetailsPage() {
     "Renewed Directly": { requiresDate: true, requiresSold: false, deletesRecord: false, requiresNotes: false, requiresNewEndDate: true, requiresSupplierChange: false, requiresAddressChange: false },
     "Incorrect Supplier": { requiresDate: false, requiresSold: false, deletesRecord: false, requiresNotes: true, requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
     "Not Called": { requiresDate: false, requiresSold: false, deletesRecord: false, requiresNotes: false, requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
-    "Dead": { requiresDate: false, requiresSold: false, deletesRecord: false, requiresNotes: false, requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
+    "Dead": { requiresDate: false, requiresSold: false, deletesRecord: true, requiresNotes: true, requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
     "Duplicate": { requiresDate: false, requiresSold: false, deletesRecord: true, requiresNotes: false, requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
   };
 
@@ -2271,7 +2271,7 @@ export default function EnergyCustomerDetailsPage() {
               onChange={(e) => setCallbackNotes(e.target.value)}
             />
             {currentConfig?.requiresNotes && (
-              <p className="text-xs text-gray-500 mt-1">Required for Lost/Lost COT</p>
+              <p className="text-xs text-gray-500 mt-1">Required for Lost/Lost COT/Dead</p>
             )}
           </div>
 
