@@ -46,6 +46,30 @@ interface Employee {
 type CalendarView = "renewals" | "leads";
 const CALENDAR_VIEW_STORAGE_KEY = "cash2switch_calendar_view";
 
+/** Statuses that accept a callback/reminder date via POST /callback */
+const CALLBACK_SCHEDULE_STATUSES = new Set([
+  "Callback",
+  "Not Answered",
+  "Called",
+  "Lost",
+  "Already Renewed",
+  "Broker in Place",
+  "End Date Changed",
+  "Email Only",
+  "Renewed Directly",
+]);
+
+function resolveCalendarCallbackStatus(renewal: Renewal): string {
+  const status = (renewal.status || "").trim();
+  if (status && CALLBACK_SCHEDULE_STATUSES.has(status)) {
+    return status;
+  }
+  if (status && status !== "Active") {
+    return status;
+  }
+  return "Callback";
+}
+
 const getInitialCalendarView = (): CalendarView => {
   if (typeof window === "undefined") return "renewals";
   const urlView = new URLSearchParams(window.location.search).get("view");
@@ -59,11 +83,11 @@ export default function CalendarPage() {
   const { user } = useAuth();
   const searchParams = useSearchParams();
   const isLeadsRole = useMemo(() => {
-    const role = user?.role || '';
-    const adminRoles = ['Platform Admin', 'Tenant Super Admin'];
+    const role = user?.role || "";
+    const adminRoles = ["Platform Admin", "Tenant Super Admin"];
     // Don't treat admins as leads role - they see renewals with full access
     if (adminRoles.includes(role)) return false;
-    return role.toLowerCase().includes('lead');
+    return role.toLowerCase().includes("lead");
   }, [user?.role]);
 
   const [calendarView, setCalendarView] = useState<CalendarView>(getInitialCalendarView);
@@ -85,7 +109,7 @@ export default function CalendarPage() {
       if (!isNaN(parsed.getTime())) return parsed;
     }
     return new Date();
-  });  
+  });
   const [selectedRenewal, setSelectedRenewal] = useState<Renewal | null>(null);
   const [showDetailDialog, setShowDetailDialog] = useState(false);
   const [selectedDayRenewals, setSelectedDayRenewals] = useState<Renewal[]>([]);
@@ -136,9 +160,7 @@ export default function CalendarPage() {
       return;
     }
 
-    const storedView = typeof window !== "undefined"
-      ? localStorage.getItem(CALENDAR_VIEW_STORAGE_KEY)
-      : null;
+    const storedView = typeof window !== "undefined" ? localStorage.getItem(CALENDAR_VIEW_STORAGE_KEY) : null;
     if (storedView === "leads" || storedView === "renewals") {
       console.log("ðŸ”„ Setting view from saved preference:", storedView);
       setCalendarView(storedView);
@@ -153,8 +175,8 @@ export default function CalendarPage() {
 
   useEffect(() => {
     if (user) {
-      const adminRoles = ['Platform Admin', 'Tenant Super Admin'];
-      const isUserAdmin = adminRoles.includes(user.role || '');
+      const adminRoles = ["Platform Admin", "Tenant Super Admin"];
+      const isUserAdmin = adminRoles.includes(user.role || "");
       setIsAdmin(isUserAdmin);
       console.log("✅ User role:", user.role, "isAdmin:", isUserAdmin);
     }
@@ -168,11 +190,11 @@ export default function CalendarPage() {
         try {
           console.log("📊 Loading employees for dropdown...");
           const response = await api.getCalendarEmployees();
-          
+
           console.log("✅ Employees raw response:", response);
-          
+
           let employeesList: Employee[] = [];
-          
+
           if (Array.isArray(response)) {
             employeesList = response;
           } else if (response?.data && Array.isArray(response.data)) {
@@ -180,10 +202,10 @@ export default function CalendarPage() {
           } else if (response?.success && response?.data && Array.isArray(response.data)) {
             employeesList = response.data;
           }
-          
+
           console.log("✅ Parsed employees list:", employeesList);
           console.log("✅ Number of employees:", employeesList.length);
-          
+
           setEmployees(employeesList);
         } catch (error) {
           console.error("❌ Error loading employees:", error);
@@ -199,37 +221,37 @@ export default function CalendarPage() {
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
       const target = e.target as HTMLElement;
-      if (showMonthPicker && !target.closest('.absolute')) {
+      if (showMonthPicker && !target.closest(".absolute")) {
         setShowMonthPicker(false);
       }
     };
 
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [showMonthPicker]);
 
   // ✅ NEW: Listen for storage events from lead details page
   useEffect(() => {
     const handleStorageChange = (e: StorageEvent) => {
-      if (e.key === 'calendar-refetch-trigger') {
-        console.log('🔔 Received calendar refetch signal from another tab');
-        setRefetchTrigger(prev => prev + 1);
+      if (e.key === "calendar-refetch-trigger") {
+        console.log("🔔 Received calendar refetch signal from another tab");
+        setRefetchTrigger((prev) => prev + 1);
       }
     };
 
     const handleCustomEvent = (e: CustomEvent) => {
-      if (e.detail?.action === 'refetch-calendar') {
-        console.log('🔔 Received calendar refetch signal from same page');
-        setRefetchTrigger(prev => prev + 1);
+      if (e.detail?.action === "refetch-calendar") {
+        console.log("🔔 Received calendar refetch signal from same page");
+        setRefetchTrigger((prev) => prev + 1);
       }
     };
 
-    window.addEventListener('storage', handleStorageChange as EventListener);
-    window.addEventListener('calendar-refetch' as any, handleCustomEvent as EventListener);
+    window.addEventListener("storage", handleStorageChange as EventListener);
+    window.addEventListener("calendar-refetch" as any, handleCustomEvent as EventListener);
 
     return () => {
-      window.removeEventListener('storage', handleStorageChange as EventListener);
-      window.removeEventListener('calendar-refetch' as any, handleCustomEvent as EventListener);
+      window.removeEventListener("storage", handleStorageChange as EventListener);
+      window.removeEventListener("calendar-refetch" as any, handleCustomEvent as EventListener);
     };
   }, []);
 
@@ -268,7 +290,7 @@ export default function CalendarPage() {
 
   const renewalsByDate = useMemo(() => {
     const dateMap: Record<string, Renewal[]> = {};
-    
+
     for (const renewal of renewals) {
       if (renewal.display_date) {
         const dateKey = formatDateKey(renewal.display_date);
@@ -276,30 +298,30 @@ export default function CalendarPage() {
         dateMap[dateKey].push(renewal);
       }
     }
-    
+
     return dateMap;
   }, [renewals]);
 
-  const loadCalendarEvents = async () => {
+  const loadCalendarEvents = async (options?: { silent?: boolean }) => {
     try {
-      setLoading(true);
+      if (!options?.silent) {
+        setLoading(true);
+      }
       setError(null);
 
-      console.log(`📅 Loading ${calendarView} calendar for employee:`, selectedEmployeeId || 'all');
+      console.log(`📅 Loading ${calendarView} calendar for employee:`, selectedEmployeeId || "all");
 
       const response = isLeadsView
         ? await api.getCalendarLeads(selectedEmployeeId)
         : await api.getCalendarRenewals(selectedEmployeeId);
 
-      const renewalsList = Array.isArray(response)
-        ? response
-        : (response?.data || []);
+      const renewalsList = Array.isArray(response) ? response : response?.data || [];
 
       console.log(`✅ Loaded ${renewalsList.length} ${calendarView} events`);
       setRenewals(renewalsList);
     } catch (err) {
       console.error("❌ Error loading calendar:", err);
-      const errorMessage = err instanceof Error ? err.message : 'Failed to load calendar data';
+      const errorMessage = err instanceof Error ? err.message : "Failed to load calendar data";
       setError(errorMessage);
     } finally {
       setLoading(false);
@@ -308,7 +330,7 @@ export default function CalendarPage() {
 
   useEffect(() => {
     if (user && calendarView) {
-      console.log(`🔄 Triggering calendar load - view: ${calendarView}, employee: ${selectedEmployeeId || 'all'}`);
+      console.log(`🔄 Triggering calendar load - view: ${calendarView}, employee: ${selectedEmployeeId || "all"}`);
       loadCalendarEvents();
     }
   }, [user, selectedEmployeeId, calendarView, refetchTrigger]); // ✅ Added refetchTrigger
@@ -330,40 +352,39 @@ export default function CalendarPage() {
     }
 
     const displayType = renewal.display_type.toLowerCase();
-    
+
     // Contract end dates (orange)
-    if (renewal.type === 'contract_end') {
+    if (renewal.type === "contract_end") {
       return "bg-orange-100 text-orange-800 border-orange-300";
     }
-    
+
     // Callback-type events (different colors based on status)
-    if (displayType === 'callback' || displayType === 'called' || displayType === 'not answered') {
+    if (displayType === "callback" || displayType === "called" || displayType === "not answered") {
       return "bg-blue-100 text-blue-800 border-blue-300";
     }
-    
-    if (displayType === 'already renewed') {
+
+    if (displayType === "already renewed") {
       return "bg-green-100 text-green-800 border-green-300";
     }
-    
-    if (displayType === 'end date changed') {
+
+    if (displayType === "end date changed") {
       return "bg-purple-100 text-purple-800 border-purple-300";
     }
-    
-    if (displayType === 'priced') {
+
+    if (displayType === "priced") {
       return "bg-yellow-100 text-yellow-800 border-yellow-300";
     }
-    
-    if (displayType === 'broker in place') {
+
+    if (displayType === "broker in place") {
       return "bg-indigo-100 text-indigo-800 border-indigo-300";
     }
-    
+
     // Default for any other callback-related event
     return "bg-blue-100 text-blue-800 border-blue-300";
   };
 
-
   const openCustomerDetails = (customerId: number) => {
-    window.open(`${detailsBasePath}/${customerId}`, '_blank', 'noopener,noreferrer');
+    window.open(`${detailsBasePath}/${customerId}`, "_blank", "noopener,noreferrer");
   };
 
   useEffect(() => {
@@ -374,93 +395,96 @@ export default function CalendarPage() {
       return;
     }
     setRescheduleDate(selectedRenewal.reminder_date ? String(selectedRenewal.reminder_date).slice(0, 10) : "");
-    setContractEndDateInput(selectedRenewal.contract_end_date ? String(selectedRenewal.contract_end_date).slice(0, 10) : "");
+    setContractEndDateInput(
+      selectedRenewal.contract_end_date ? String(selectedRenewal.contract_end_date).slice(0, 10) : "",
+    );
     setRescheduleError(null);
   }, [selectedRenewal]);
 
   const handlePopupReschedule = async () => {
-      if (!selectedRenewal) {
-        setRescheduleError("Please select a customer.");
-        return;
+    if (!selectedRenewal) {
+      setRescheduleError("Please select a customer.");
+      return;
+    }
+
+    const renewalSnapshot = selectedRenewal;
+    const existingCallbackDate = renewalSnapshot.reminder_date
+      ? String(renewalSnapshot.reminder_date).slice(0, 10)
+      : "";
+    const existingEndDate = renewalSnapshot.contract_end_date
+      ? String(renewalSnapshot.contract_end_date).slice(0, 10)
+      : "";
+    const callbackChanged = Boolean(rescheduleDate) && rescheduleDate !== existingCallbackDate;
+    const isLeadEvent = renewalSnapshot.id.startsWith("lead-callback-");
+    const endDateChanged = !isLeadEvent && Boolean(contractEndDateInput) && contractEndDateInput !== existingEndDate;
+
+    if (!callbackChanged && !endDateChanged) {
+      setRescheduleError("No changes detected. Update callback date or contract end date.");
+      return;
+    }
+
+    setIsRescheduling(true);
+    setRescheduleError(null);
+
+    try {
+      if (callbackChanged) {
+        const endpoint = isLeadEvent
+          ? `/api/crm/leads/${renewalSnapshot.customer_id}/callback`
+          : `/energy-clients/${renewalSnapshot.customer_id}/callback`;
+
+        await fetchWithAuth(endpoint, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            status: resolveCalendarCallbackStatus(renewalSnapshot),
+            callback_date: rescheduleDate,
+            notes: renewalSnapshot.notes || "Rescheduled from calendar",
+          }),
+        });
       }
 
-      const existingCallbackDate = selectedRenewal.reminder_date ? String(selectedRenewal.reminder_date).slice(0, 10) : "";
-      const existingEndDate = selectedRenewal.contract_end_date ? String(selectedRenewal.contract_end_date).slice(0, 10) : "";
-      const callbackChanged = Boolean(rescheduleDate) && rescheduleDate !== existingCallbackDate;
-      const endDateChanged = !isLeadsView && Boolean(contractEndDateInput) && contractEndDateInput !== existingEndDate;
-
-      if (!callbackChanged && !endDateChanged) {
-        setRescheduleError("No changes detected. Update callback date or contract end date.");
-        return;
+      if (endDateChanged) {
+        await fetchWithAuth(`/energy-clients/${renewalSnapshot.customer_id}/callback`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            status: "End Date Changed",
+            callback_date: rescheduleDate || existingCallbackDate || new Date().toISOString().slice(0, 10),
+            new_end_date: contractEndDateInput,
+            notes: renewalSnapshot.notes || "Contract end date updated from calendar",
+          }),
+        });
       }
 
-      setIsRescheduling(true);
-      setRescheduleError(null);
-
-      const renewalSnapshot = selectedRenewal;
-
-      // ✅ Route by event id prefix — not which calendar tab is active
-      // A lead event appears on renewals calendar too if the lead has a client_id,
-      // so isLeadsView alone is not a reliable signal.
-      const isLeadEvent = renewalSnapshot.id.startsWith('lead-callback-');
-
-      try {
-        const callbackDateForEndDateUpdate =
-          rescheduleDate || existingCallbackDate || new Date().toISOString().slice(0, 10);
-
-        if (callbackChanged) {
-          const endpoint = isLeadEvent
-            ? `/api/crm/leads/${renewalSnapshot.customer_id}/callback`
-            : `/energy-clients/${renewalSnapshot.customer_id}/callback`;
-
-          await fetchWithAuth(endpoint, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              status: "Callback",
-              callback_date: rescheduleDate,
-              notes: renewalSnapshot.notes || "Rescheduled from calendar",
-            }),
-          });
-        }
-
-        if (endDateChanged && !isLeadEvent) {
-          await fetchWithAuth(`/energy-clients/${renewalSnapshot.customer_id}/callback`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              status: "End Date Changed",
-              callback_date: callbackDateForEndDateUpdate,
-              new_end_date: contractEndDateInput,
-              notes: renewalSnapshot.notes || "Contract end date updated from calendar",
-            }),
-          });
-        }
-
-        // ✅ Optimistic update
-        const applyUpdate = (item: Renewal): Renewal => {
-          if (item.id !== renewalSnapshot.id) return item;
-          return {
-            ...item,
-            reminder_date: callbackChanged ? rescheduleDate : item.reminder_date,
-            contract_end_date: endDateChanged ? contractEndDateInput : item.contract_end_date,
-            display_date:
-              item.type === "contract_end"
-                ? (endDateChanged ? contractEndDateInput : item.display_date)
-                : (callbackChanged ? rescheduleDate : item.display_date),
-          };
+      const applyUpdate = (item: Renewal): Renewal => {
+        if (item.id !== renewalSnapshot.id) return item;
+        return {
+          ...item,
+          reminder_date: callbackChanged ? rescheduleDate : item.reminder_date,
+          contract_end_date: endDateChanged ? contractEndDateInput : item.contract_end_date,
+          display_date:
+            item.type === "contract_end"
+              ? endDateChanged
+                ? contractEndDateInput
+                : item.display_date
+              : callbackChanged
+                ? rescheduleDate
+                : item.display_date,
         };
+      };
 
-        setRenewals(prev => prev.map(applyUpdate));
-        setShowDetailDialog(false);
-        setSelectedRenewal(null);
-
-      } catch (err: any) {
-        setRescheduleError(err?.message || "Failed to reschedule callback.");
-      } finally {
-        setIsRescheduling(false);
-      }
-    };
+      setRenewals((prev) => prev.map(applyUpdate));
+      setShowDetailDialog(false);
+      setSelectedRenewal(null);
+      localStorage.setItem("calendar-refetch-trigger", Date.now().toString());
+      window.dispatchEvent(new CustomEvent("calendar-refetch", { detail: { action: "refetch-calendar" } }));
+      void loadCalendarEvents({ silent: true });
+    } catch (err: any) {
+      setRescheduleError(err?.message || "Failed to reschedule callback.");
+    } finally {
+      setIsRescheduling(false);
+    }
+  };
 
   if (!user) {
     return (
@@ -476,9 +500,7 @@ export default function CalendarPage() {
       <div className="mb-6 flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold">{pageTitle}</h1>
-          <p className="text-muted-foreground mt-1">
-            {pageSubtitle}
-          </p>
+          <p className="text-muted-foreground mt-1">{pageSubtitle}</p>
         </div>
         <div className="flex items-center gap-3">
           <div className="flex rounded-md border border-gray-200 bg-white p-1">
@@ -523,9 +545,7 @@ export default function CalendarPage() {
                 </SelectContent>
               </Select>
               {/* ✅ Debug info - remove in production */}
-              {loadingEmployees && (
-                <span className="text-xs text-gray-500">Loading salespeople...</span>
-              )}
+              {loadingEmployees && <span className="text-xs text-gray-500">Loading salespeople...</span>}
               {!loadingEmployees && employees.length === 0 && (
                 <span className="text-xs text-red-500">No salespeople found</span>
               )}
@@ -535,8 +555,8 @@ export default function CalendarPage() {
             </div>
           )}
 
-          <Button onClick={loadCalendarEvents} disabled={loading} variant="outline" size="sm">
-            <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+          <Button onClick={() => void loadCalendarEvents()} disabled={loading} variant="outline" size="sm">
+            <RefreshCw className={`mr-2 h-4 w-4 ${loading ? "animate-spin" : ""}`} />
             Refresh
           </Button>
         </div>
@@ -544,17 +564,12 @@ export default function CalendarPage() {
 
       {/* ✅ Error Display */}
       {error && (
-        <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg flex items-start gap-3">
-          <AlertCircle className="h-5 w-5 text-red-600 flex-shrink-0 mt-0.5" />
+        <div className="mb-6 flex items-start gap-3 rounded-lg border border-red-200 bg-red-50 p-4">
+          <AlertCircle className="mt-0.5 h-5 w-5 flex-shrink-0 text-red-600" />
           <div className="flex-1">
             <h3 className="text-sm font-medium text-red-800">Error Loading Calendar</h3>
             <p className="mt-1 text-sm text-red-700">{error}</p>
-            <Button 
-              onClick={loadCalendarEvents} 
-              variant="outline" 
-              size="sm" 
-              className="mt-3"
-            >
+            <Button onClick={() => void loadCalendarEvents()} variant="outline" size="sm" className="mt-3">
               Try Again
             </Button>
           </div>
@@ -573,47 +588,49 @@ export default function CalendarPage() {
           <Button variant="outline" size="sm" onClick={() => navigateMonth("next")}>
             <ChevronRight className="h-4 w-4" />
           </Button>
-          
+
           {/* ✅ NEW: Month/Year Picker */}
-          <Button 
-            variant="outline" 
-            size="sm" 
+          <Button
+            variant="outline"
+            size="sm"
             onClick={() => setShowMonthPicker(!showMonthPicker)}
             className="ml-4 min-w-[200px]"
           >
             {currentDate.toLocaleDateString("en-GB", { month: "long", year: "numeric" })}
           </Button>
-          
+
           {/* ✅ Month/Year Picker Dropdown */}
           {showMonthPicker && (
-            <div className="absolute mt-2 z-50 bg-white border rounded-lg shadow-lg p-4 top-[180px]">
+            <div className="absolute top-[180px] z-50 mt-2 rounded-lg border bg-white p-4 shadow-lg">
               <div className="flex gap-4">
                 {/* Month Selector */}
                 <div>
-                  <p className="text-sm font-medium mb-2">Month</p>
+                  <p className="mb-2 text-sm font-medium">Month</p>
                   <div className="grid grid-cols-3 gap-2">
-                    {["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"].map((month, idx) => (
-                      <Button
-                        key={month}
-                        variant={currentDate.getMonth() === idx ? "default" : "outline"}
-                        size="sm"
-                        onClick={() => {
-                          const newDate = new Date(currentDate);
-                          newDate.setMonth(idx);
-                          setCurrentDate(newDate);
-                        }}
-                        className="w-16"
-                      >
-                        {month}
-                      </Button>
-                    ))}
+                    {["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"].map(
+                      (month, idx) => (
+                        <Button
+                          key={month}
+                          variant={currentDate.getMonth() === idx ? "default" : "outline"}
+                          size="sm"
+                          onClick={() => {
+                            const newDate = new Date(currentDate);
+                            newDate.setMonth(idx);
+                            setCurrentDate(newDate);
+                          }}
+                          className="w-16"
+                        >
+                          {month}
+                        </Button>
+                      ),
+                    )}
                   </div>
                 </div>
-                
+
                 {/* Year Selector */}
                 <div>
-                  <p className="text-sm font-medium mb-2">Year</p>
-                  <div className="grid grid-cols-2 gap-2 max-h-[300px] overflow-y-auto">
+                  <p className="mb-2 text-sm font-medium">Year</p>
+                  <div className="grid max-h-[300px] grid-cols-2 gap-2 overflow-y-auto">
                     {Array.from({ length: 10 }, (_, i) => new Date().getFullYear() - 2 + i).map((year) => (
                       <Button
                         key={year}
@@ -632,20 +649,16 @@ export default function CalendarPage() {
                   </div>
                 </div>
               </div>
-              
-              <div className="flex justify-end gap-2 mt-4 pt-4 border-t">
-                <Button 
-                  variant="outline" 
-                  size="sm"
-                  onClick={() => setShowMonthPicker(false)}
-                >
+
+              <div className="mt-4 flex justify-end gap-2 border-t pt-4">
+                <Button variant="outline" size="sm" onClick={() => setShowMonthPicker(false)}>
                   Close
                 </Button>
               </div>
             </div>
           )}
         </div>
-        
+
         {/* ✅ Show loading/count info */}
         <div className="text-sm text-gray-600">
           {loading ? (
@@ -654,7 +667,9 @@ export default function CalendarPage() {
               Loading...
             </span>
           ) : (
-            <span>{renewals.length} event{renewals.length !== 1 ? 's' : ''}</span>
+            <span>
+              {renewals.length} event{renewals.length !== 1 ? "s" : ""}
+            </span>
           )}
         </div>
       </div>
@@ -677,14 +692,12 @@ export default function CalendarPage() {
             return (
               <div
                 key={idx}
-                className={`min-h-[120px] border-b border-r p-2 last:border-r-0 ${
+                className={`min-h-[120px] border-r border-b p-2 last:border-r-0 ${
                   isCurrentMonth ? "bg-white" : "bg-gray-50"
-                } ${isToday ? "ring-2 ring-inset ring-blue-500" : ""}`}
+                } ${isToday ? "ring-2 ring-blue-500 ring-inset" : ""}`}
               >
                 <div className="mb-1">
-                  <span className={`text-sm ${isToday ? "font-bold text-blue-600" : ""}`}>
-                    {day.getDate()}
-                  </span>
+                  <span className={`text-sm ${isToday ? "font-bold text-blue-600" : ""}`}>{day.getDate()}</span>
                 </div>
                 <div className="space-y-1">
                   {dayRenewals.slice(0, 3).map((renewal) => (
@@ -694,12 +707,10 @@ export default function CalendarPage() {
                         setSelectedRenewal(renewal);
                         setShowDetailDialog(true);
                       }}
-                      className={`cursor-pointer rounded border px-2 py-1 text-xs hover:shadow-md transition-shadow ${getRenewalColor(renewal)}`}
+                      className={`cursor-pointer rounded border px-2 py-1 text-xs transition-shadow hover:shadow-md ${getRenewalColor(renewal)}`}
                     >
-                      <div className="font-medium truncate">{renewal.name}</div>
-                      <div className="text-xs opacity-75 truncate">
-                        {renewal.display_type}
-                      </div>
+                      <div className="truncate font-medium">{renewal.name}</div>
+                      <div className="truncate text-xs opacity-75">{renewal.display_type}</div>
                     </div>
                   ))}
                   {dayRenewals.length > 3 && (
@@ -709,7 +720,7 @@ export default function CalendarPage() {
                         setSelectedDayRenewals(dayRenewals);
                         setShowDayEventsDialog(true);
                       }}
-                      className="text-xs text-blue-600 hover:text-blue-800 hover:underline font-medium w-full text-left"
+                      className="w-full text-left text-xs font-medium text-blue-600 hover:text-blue-800 hover:underline"
                     >
                       +{dayRenewals.length - 3} more
                     </button>
@@ -740,19 +751,19 @@ export default function CalendarPage() {
                 </div>
                 <div>
                   <p className="text-sm font-medium text-gray-500">MPAN Number</p>
-                  <p className="text-base font-semibold">{selectedRenewal.mpan || 'N/A'}</p>
+                  <p className="text-base font-semibold">{selectedRenewal.mpan || "N/A"}</p>
                 </div>
                 <div>
                   <p className="text-sm font-medium text-gray-500">Supplier</p>
-                  <p>{selectedRenewal.supplier || 'N/A'}</p>
+                  <p>{selectedRenewal.supplier || "N/A"}</p>
                 </div>
                 <div>
                   <p className="text-sm font-medium text-gray-500">Service</p>
-                  <p>{selectedRenewal.service_title || 'N/A'}</p>
+                  <p>{selectedRenewal.service_title || "N/A"}</p>
                 </div>
                 <div>
                   <p className="text-sm font-medium text-gray-500">Status</p>
-                  <p>{selectedRenewal.status || 'N/A'}</p>
+                  <p>{selectedRenewal.status || "N/A"}</p>
                 </div>
                 {selectedRenewal.contract_end_date && (
                   <div>
@@ -763,29 +774,29 @@ export default function CalendarPage() {
                 {selectedRenewal.reminder_date && (
                   <div>
                     <p className="text-sm font-medium text-gray-500">
-                      {selectedRenewal.type === 'callback' ? 'Callback Date' : 'Renewal Reminder'}
+                      {selectedRenewal.type === "callback" ? "Callback Date" : "Renewal Reminder"}
                     </p>
                     <p>{format(new Date(selectedRenewal.reminder_date), "dd MMM yyyy")}</p>
-                    {selectedRenewal.type !== 'callback' && (
+                    {selectedRenewal.type !== "callback" && (
                       <p className="text-xs text-gray-500">(365 days early notice)</p>
                     )}
                   </div>
                 )}
                 <div>
                   <p className="text-sm font-medium text-gray-500">Contact</p>
-                  <p>{selectedRenewal.contact || 'N/A'}</p>
+                  <p>{selectedRenewal.contact || "N/A"}</p>
                 </div>
                 <div>
                   <p className="text-sm font-medium text-gray-500">Phone</p>
-                  <p>{selectedRenewal.phone || 'N/A'}</p>
+                  <p>{selectedRenewal.phone || "N/A"}</p>
                 </div>
                 <div className="col-span-2">
                   <p className="text-sm font-medium text-gray-500">Email</p>
-                  <p>{selectedRenewal.email || 'N/A'}</p>
+                  <p>{selectedRenewal.email || "N/A"}</p>
                 </div>
                 <div className="col-span-2">
                   <p className="text-sm font-medium text-gray-500">Address</p>
-                  <p>{selectedRenewal.address || 'N/A'}</p>
+                  <p>{selectedRenewal.address || "N/A"}</p>
                   {selectedRenewal.postcode && <p className="text-sm text-gray-600">{selectedRenewal.postcode}</p>}
                 </div>
                 {selectedRenewal.rates && (
@@ -804,17 +815,17 @@ export default function CalendarPage() {
               {selectedRenewal.notes && (
                 <div>
                   <p className="text-sm font-medium text-gray-500">Notes</p>
-                  <p className="text-sm mt-1 whitespace-pre-wrap">{selectedRenewal.notes}</p>
+                  <p className="mt-1 text-sm whitespace-pre-wrap">{selectedRenewal.notes}</p>
                 </div>
               )}
-              <div className="space-y-4 pt-4 border-t">
+              <div className="space-y-4 border-t pt-4">
                 <div className="rounded-md border border-gray-200 bg-gray-50 p-3">
-                  <p className="text-sm font-medium text-gray-900 mb-3">
+                  <p className="mb-3 text-sm font-medium text-gray-900">
                     {isLeadsView ? "Schedule / Reschedule Callback" : "Schedule Updates"}
                   </p>
-                  <div className="flex flex-wrap gap-3 items-end">
+                  <div className="flex flex-wrap items-end gap-3">
                     <div>
-                      <p className="text-xs text-gray-500 mb-1">Callback Date</p>
+                      <p className="mb-1 text-xs text-gray-500">Callback Date</p>
                       <Input
                         type="date"
                         value={rescheduleDate}
@@ -824,7 +835,7 @@ export default function CalendarPage() {
                     </div>
                     {!isLeadsView && (
                       <div>
-                        <p className="text-xs text-gray-500 mb-1">Contract End Date</p>
+                        <p className="mb-1 text-xs text-gray-500">Contract End Date</p>
                         <Input
                           type="date"
                           value={contractEndDateInput}
@@ -834,19 +845,23 @@ export default function CalendarPage() {
                       </div>
                     )}
                     <Button onClick={handlePopupReschedule} disabled={isRescheduling}>
-                      {isRescheduling ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Saving...</> : "Save Updates"}
+                      {isRescheduling ? (
+                        <>
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          Saving...
+                        </>
+                      ) : (
+                        "Save Updates"
+                      )}
                     </Button>
                   </div>
-                  {rescheduleError && <p className="text-xs text-red-600 mt-2">{rescheduleError}</p>}
+                  {rescheduleError && <p className="mt-2 text-xs text-red-600">{rescheduleError}</p>}
                 </div>
-                <div className="flex justify-between items-center">
+                <div className="flex items-center justify-between">
                   <Button variant="outline" onClick={() => setShowDetailDialog(false)}>
                     Close
                   </Button>
-                  <Button 
-                    onClick={() => openCustomerDetails(selectedRenewal.customer_id)}
-                    className="gap-2"
-                  >
+                  <Button onClick={() => openCustomerDetails(selectedRenewal.customer_id)} className="gap-2">
                     View Full Details
                     <ExternalLink className="h-4 w-4" />
                   </Button>
@@ -858,10 +873,11 @@ export default function CalendarPage() {
       </Dialog>
 
       <Dialog open={showDayEventsDialog} onOpenChange={setShowDayEventsDialog}>
-        <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
+        <DialogContent className="max-h-[80vh] max-w-3xl overflow-y-auto">
           <DialogHeader>
             <DialogTitle>
-              All Events - {selectedDayRenewals.length > 0 && format(new Date(selectedDayRenewals[0].display_date), "dd MMM yyyy")}
+              All Events -{" "}
+              {selectedDayRenewals.length > 0 && format(new Date(selectedDayRenewals[0].display_date), "dd MMM yyyy")}
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-2">
@@ -873,18 +889,16 @@ export default function CalendarPage() {
                   setShowDayEventsDialog(false);
                   setShowDetailDialog(true);
                 }}
-                className={`cursor-pointer rounded border p-3 hover:shadow-md transition-shadow ${getRenewalColor(renewal)}`}
+                className={`cursor-pointer rounded border p-3 transition-shadow hover:shadow-md ${getRenewalColor(renewal)}`}
               >
-                <div className="flex justify-between items-start">
+                <div className="flex items-start justify-between">
                   <div className="flex-1">
-                    <div className="font-semibold text-base">{renewal.name}</div>
-                    <div className="text-sm mt-1">
+                    <div className="text-base font-semibold">{renewal.name}</div>
+                    <div className="mt-1 text-sm">
                       <span className="font-medium">{renewal.display_type}</span>
                       {renewal.mpan && <span className="ml-2 text-xs opacity-75">• {renewal.mpan}</span>}
                     </div>
-                    {renewal.supplier && (
-                      <div className="text-xs mt-1 opacity-75">Supplier: {renewal.supplier}</div>
-                    )}
+                    {renewal.supplier && <div className="mt-1 text-xs opacity-75">Supplier: {renewal.supplier}</div>}
                   </div>
                   <ExternalLink className="h-4 w-4 opacity-50" />
                 </div>

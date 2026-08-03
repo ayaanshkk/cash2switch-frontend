@@ -69,6 +69,7 @@ export async function fetchWithAuth(url: string, options: RequestInit = {}) {
     url.startsWith("/api/admin/") ||
     url.startsWith("/api/entrypoint/") ||
     url.startsWith("/api/calendar/") ||
+    url.startsWith("/api/commission/") ||
     url.startsWith("/api/task-status/");
   const isOtherNextApiPath = url.startsWith("/api/") && !isBackendApiPath;
   const isBackendRootPath = url.startsWith("/") && !isProxyPath && !isAuthProxyPath && !isOtherNextApiPath;

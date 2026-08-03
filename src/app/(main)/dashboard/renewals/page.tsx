@@ -645,6 +645,16 @@ export default function EnergyCustomersPage() {
 
       if (!response || response.error) throw new Error(response?.error || "Failed to save callback");
 
+      if (response.display_only || callbackStatus === "Dead") {
+        await fetchCustomers();
+        await fetchPerformanceStats();
+        toast.success(`Status set to ${callbackStatus}`);
+        setShowCallbackModal(false);
+        setCallbackStatus("");
+        setCallbackNotes("");
+        return;
+      }
+
       if (response.moved_to_cleansing) {
         // Invalid Number or Incorrect Supplier → goes to Cleansing page
         setAllCustomers((prev) => prev.filter((c) => c.client_id !== selectedCustomerForCallback));

@@ -25,56 +25,43 @@ import {
   Trash2,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { fetchWithAuth } from "@/lib/api";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
 
 const TABS = [
-  { id: "contact",  label: "Contact Information",           icon: User },
-  { id: "contract", label: "Contract & Billing Details",    icon: FileText },
-  { id: "address",  label: "Address",                       icon: MapPin },
-  { id: "charges",  label: "Charges",                       icon: DollarSign },
-  { id: "banking",  label: "Bank & Trading Account Details",icon: CreditCard },
-  { id: "others",   label: "Others",                        icon: MoreVertical },
+  { id: "contact", label: "Contact Information", icon: User },
+  { id: "contract", label: "Contract & Billing Details", icon: FileText },
+  { id: "address", label: "Address", icon: MapPin },
+  { id: "charges", label: "Charges", icon: DollarSign },
+  { id: "banking", label: "Bank & Trading Account Details", icon: CreditCard },
+  { id: "others", label: "Others", icon: MoreVertical },
 ];
 
 const STATUS_OPTIONS = [
-  { value: "Not Called",         label: "Not Called" },
-  { value: "Callback",           label: "Callback" },
-  { value: "Not Answered",       label: "Not Answered" },
-  { value: "Dead",               label: "Dead" },
-  { value: "Priced",             label: "Priced" },
-  { value: "Won",                label: "Won" },
-  { value: "Converted",          label: "Converted" },
-  { value: "Lost",               label: "Lost" },
-  { value: "Lost COT",           label: "Lost COT" },
-  { value: "Already Renewed",    label: "Already Renewed" },
-  { value: "Renewed Directly",   label: "Renewed Directly" },
-  { value: "Invalid Number",     label: "Invalid Number" },
+  { value: "Not Called", label: "Not Called" },
+  { value: "Callback", label: "Callback" },
+  { value: "Not Answered", label: "Not Answered" },
+  { value: "Dead", label: "Dead" },
+  { value: "Priced", label: "Priced" },
+  { value: "Won", label: "Won" },
+  { value: "Converted", label: "Converted" },
+  { value: "Lost", label: "Lost" },
+  { value: "Lost COT", label: "Lost COT" },
+  { value: "Already Renewed", label: "Already Renewed" },
+  { value: "Renewed Directly", label: "Renewed Directly" },
+  { value: "Invalid Number", label: "Invalid Number" },
   { value: "Meter De-energised", label: "Meter De-energised" },
-  { value: "Broker in Place",    label: "Broker in Place" },
-  { value: "End Date Changed",   label: "End Date Changed" },
-  { value: "Complaint",          label: "Complaint" },
-  { value: "Email Only",         label: "Email Only" },
+  { value: "Broker in Place", label: "Broker in Place" },
+  { value: "End Date Changed", label: "End Date Changed" },
+  { value: "Complaint", label: "Complaint" },
+  { value: "Email Only", label: "Email Only" },
   { value: "Incorrect Supplier", label: "Incorrect Supplier" },
   { value: "Duplicate", label: "Duplicate" },
 ];
-
 
 const getStatusColor = (status: string | undefined): string => {
   if (!status) return "bg-gray-100 text-gray-800";
@@ -90,8 +77,8 @@ const getStatusColor = (status: string | undefined): string => {
 const getStatusLabel = (status: string | undefined): string => {
   if (!status) return "—";
   return (
-    STATUS_OPTIONS.find(o => o.value === status)?.label ||
-    STATUS_OPTIONS.find(o => o.value.toLowerCase() === status.toLowerCase())?.label ||
+    STATUS_OPTIONS.find((o) => o.value === status)?.label ||
+    STATUS_OPTIONS.find((o) => o.value.toLowerCase() === status.toLowerCase())?.label ||
     status
   );
 };
@@ -163,9 +150,19 @@ interface Lead {
   service_id?: number | null;
 }
 
-interface Employee  { employee_id: number; employee_name: string; email?: string; }
-interface Stage     { stage_id: number; stage_name: string; }
-interface Supplier  { supplier_id: number; supplier_name: string; }
+interface Employee {
+  employee_id: number;
+  employee_name: string;
+  email?: string;
+}
+interface Stage {
+  stage_id: number;
+  stage_name: string;
+}
+interface Supplier {
+  supplier_id: number;
+  supplier_name: string;
+}
 
 interface InteractionHistory {
   interaction_id: number;
@@ -178,82 +175,244 @@ interface InteractionHistory {
 
 const formatDate = (d?: string | null) => {
   if (!d) return "—";
-  try { return new Date(d).toLocaleDateString("en-GB", { day: "2-digit", month: "2-digit", year: "numeric" }); }
-  catch { return "—"; }
+  try {
+    return new Date(d).toLocaleDateString("en-GB", { day: "2-digit", month: "2-digit", year: "numeric" });
+  } catch {
+    return "—";
+  }
 };
 
-const statusConfig: Record<string, {
-  requiresDate: boolean; requiresSold: boolean; deletesRecord: boolean;
-  requiresNotes: boolean; requiresNewEndDate: boolean;
-  requiresSupplierChange: boolean; requiresAddressChange: boolean;
-}> = {
-  "Callback":          { requiresDate: true,  requiresSold: false, deletesRecord: false, requiresNotes: false, requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
-  "Not Answered":      { requiresDate: true,  requiresSold: false, deletesRecord: false, requiresNotes: false, requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
-  "Priced":            { requiresDate: false, requiresSold: true,  deletesRecord: false, requiresNotes: false, requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
-  "Converted":         { requiresDate: false, requiresSold: false, deletesRecord: false, requiresNotes: false, requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
-  "Lost":              { requiresDate: true,  requiresSold: false, deletesRecord: true,  requiresNotes: true,  requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
-  "Lost COT":          { requiresDate: false, requiresSold: false, deletesRecord: true,  requiresNotes: true,  requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
-  "Already Renewed":   { requiresDate: true,  requiresSold: false, deletesRecord: false, requiresNotes: false, requiresNewEndDate: true,  requiresSupplierChange: true,  requiresAddressChange: true  },
-  "Invalid Number":    { requiresDate: false, requiresSold: false, deletesRecord: true,  requiresNotes: false, requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
-  "Meter De-energised":{ requiresDate: false, requiresSold: false, deletesRecord: true,  requiresNotes: false, requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
-  "Broker in Place":   { requiresDate: true,  requiresSold: false, deletesRecord: false, requiresNotes: false, requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
-  "End Date Changed":  { requiresDate: true,  requiresSold: false, deletesRecord: false, requiresNotes: false, requiresNewEndDate: true,  requiresSupplierChange: false, requiresAddressChange: false },
-  "Complaint":         { requiresDate: true,  requiresSold: false, deletesRecord: false, requiresNotes: true,  requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
-  "Email Only":        { requiresDate: true,  requiresSold: false, deletesRecord: false, requiresNotes: false, requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
-  "Renewed Directly":  { requiresDate: true,  requiresSold: false, deletesRecord: false, requiresNotes: false, requiresNewEndDate: true,  requiresSupplierChange: false, requiresAddressChange: false },
-  "Won":               { requiresDate: false, requiresSold: false, deletesRecord: false, requiresNotes: false, requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
-  "Incorrect Supplier":{ requiresDate: false, requiresSold: false, deletesRecord: false, requiresNotes: true,  requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
-  "Not Called": { requiresDate: false, requiresSold: false, deletesRecord: false, requiresNotes: false, requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
-  "Dead":       { requiresDate: false, requiresSold: false, deletesRecord: false, requiresNotes: false, requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
-  "Duplicate": { requiresDate: false, requiresSold: false, deletesRecord: true, requiresNotes: false, requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
+const statusConfig: Record<
+  string,
+  {
+    requiresDate: boolean;
+    requiresSold: boolean;
+    deletesRecord: boolean;
+    requiresNotes: boolean;
+    requiresNewEndDate: boolean;
+    requiresSupplierChange: boolean;
+    requiresAddressChange: boolean;
+  }
+> = {
+  Callback: {
+    requiresDate: true,
+    requiresSold: false,
+    deletesRecord: false,
+    requiresNotes: false,
+    requiresNewEndDate: false,
+    requiresSupplierChange: false,
+    requiresAddressChange: false,
+  },
+  "Not Answered": {
+    requiresDate: true,
+    requiresSold: false,
+    deletesRecord: false,
+    requiresNotes: false,
+    requiresNewEndDate: false,
+    requiresSupplierChange: false,
+    requiresAddressChange: false,
+  },
+  Priced: {
+    requiresDate: false,
+    requiresSold: true,
+    deletesRecord: false,
+    requiresNotes: false,
+    requiresNewEndDate: false,
+    requiresSupplierChange: false,
+    requiresAddressChange: false,
+  },
+  Converted: {
+    requiresDate: false,
+    requiresSold: false,
+    deletesRecord: false,
+    requiresNotes: false,
+    requiresNewEndDate: false,
+    requiresSupplierChange: false,
+    requiresAddressChange: false,
+  },
+  Lost: {
+    requiresDate: true,
+    requiresSold: false,
+    deletesRecord: true,
+    requiresNotes: true,
+    requiresNewEndDate: false,
+    requiresSupplierChange: false,
+    requiresAddressChange: false,
+  },
+  "Lost COT": {
+    requiresDate: false,
+    requiresSold: false,
+    deletesRecord: true,
+    requiresNotes: true,
+    requiresNewEndDate: false,
+    requiresSupplierChange: false,
+    requiresAddressChange: false,
+  },
+  "Already Renewed": {
+    requiresDate: true,
+    requiresSold: false,
+    deletesRecord: false,
+    requiresNotes: false,
+    requiresNewEndDate: true,
+    requiresSupplierChange: true,
+    requiresAddressChange: true,
+  },
+  "Invalid Number": {
+    requiresDate: false,
+    requiresSold: false,
+    deletesRecord: true,
+    requiresNotes: false,
+    requiresNewEndDate: false,
+    requiresSupplierChange: false,
+    requiresAddressChange: false,
+  },
+  "Meter De-energised": {
+    requiresDate: false,
+    requiresSold: false,
+    deletesRecord: true,
+    requiresNotes: false,
+    requiresNewEndDate: false,
+    requiresSupplierChange: false,
+    requiresAddressChange: false,
+  },
+  "Broker in Place": {
+    requiresDate: true,
+    requiresSold: false,
+    deletesRecord: false,
+    requiresNotes: false,
+    requiresNewEndDate: false,
+    requiresSupplierChange: false,
+    requiresAddressChange: false,
+  },
+  "End Date Changed": {
+    requiresDate: true,
+    requiresSold: false,
+    deletesRecord: false,
+    requiresNotes: false,
+    requiresNewEndDate: true,
+    requiresSupplierChange: false,
+    requiresAddressChange: false,
+  },
+  Complaint: {
+    requiresDate: true,
+    requiresSold: false,
+    deletesRecord: false,
+    requiresNotes: true,
+    requiresNewEndDate: false,
+    requiresSupplierChange: false,
+    requiresAddressChange: false,
+  },
+  "Email Only": {
+    requiresDate: true,
+    requiresSold: false,
+    deletesRecord: false,
+    requiresNotes: false,
+    requiresNewEndDate: false,
+    requiresSupplierChange: false,
+    requiresAddressChange: false,
+  },
+  "Renewed Directly": {
+    requiresDate: true,
+    requiresSold: false,
+    deletesRecord: false,
+    requiresNotes: false,
+    requiresNewEndDate: true,
+    requiresSupplierChange: false,
+    requiresAddressChange: false,
+  },
+  Won: {
+    requiresDate: false,
+    requiresSold: false,
+    deletesRecord: false,
+    requiresNotes: false,
+    requiresNewEndDate: false,
+    requiresSupplierChange: false,
+    requiresAddressChange: false,
+  },
+  "Incorrect Supplier": {
+    requiresDate: false,
+    requiresSold: false,
+    deletesRecord: false,
+    requiresNotes: true,
+    requiresNewEndDate: false,
+    requiresSupplierChange: false,
+    requiresAddressChange: false,
+  },
+  "Not Called": {
+    requiresDate: false,
+    requiresSold: false,
+    deletesRecord: false,
+    requiresNotes: false,
+    requiresNewEndDate: false,
+    requiresSupplierChange: false,
+    requiresAddressChange: false,
+  },
+  Dead: {
+    requiresDate: false,
+    requiresSold: false,
+    deletesRecord: false,
+    requiresNotes: false,
+    requiresNewEndDate: false,
+    requiresSupplierChange: false,
+    requiresAddressChange: false,
+  },
+  Duplicate: {
+    requiresDate: false,
+    requiresSold: false,
+    deletesRecord: true,
+    requiresNotes: false,
+    requiresNewEndDate: false,
+    requiresSupplierChange: false,
+    requiresAddressChange: false,
+  },
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
 export default function LeadDetailsPage() {
-  const params       = useParams();
-  const router       = useRouter();
-  const { user }     = useAuth();
+  const params = useParams();
+  const router = useRouter();
+  const { user } = useAuth();
   const normalizedRole = typeof user?.role === "string" ? user.role.trim().toLowerCase() : "";
-  const isAdmin      = normalizedRole.includes("admin");
-  const id           = params?.id as string;
+  const isAdmin = normalizedRole.includes("admin");
+  const id = params?.id as string;
   const searchParams = useSearchParams();
-  const fromPage     = searchParams?.get("from") || "leads";
+  const fromPage = searchParams?.get("from") || "leads";
 
-  const [lead, setLead]               = useState<Lead | null>(null);
-  const [employees, setEmployees]     = useState<Employee[]>([]);
-  const [stages, setStages]           = useState<Stage[]>([]);
-  const [suppliers, setSuppliers]     = useState<Supplier[]>([]);
-  const [loading, setLoading]         = useState(true);
-  const [error, setError]             = useState<string | null>(null);
-  const [activeTab, setActiveTab]     = useState("contact");
-  const [isEditing, setIsEditing]     = useState(false);
-  const [isSaving, setIsSaving]       = useState(false);
-  const [editedLead, setEditedLead]   = useState<Partial<Lead>>({});
+  const [lead, setLead] = useState<Lead | null>(null);
+  const [employees, setEmployees] = useState<Employee[]>([]);
+  const [stages, setStages] = useState<Stage[]>([]);
+  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState("contact");
+  const [isEditing, setIsEditing] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [editedLead, setEditedLead] = useState<Partial<Lead>>({});
 
-  const [uploadedDocuments, setUploadedDocuments]     = useState<string[]>([]);
+  const [uploadedDocuments, setUploadedDocuments] = useState<string[]>([]);
   const [isUploadingDocument, setIsUploadingDocument] = useState(false);
 
   // action panel
-  const [callbackStatus, setCallbackStatus]             = useState("");
-  const [callbackDate, setCallbackDate]                 = useState("");
-  const [callbackNotes, setCallbackNotes]               = useState("");
-  const [isSold, setIsSold]                             = useState<string>("");
-  const [newEndDate, setNewEndDate]                     = useState("");
-  const [newSupplier, setNewSupplier]                   = useState("");
-  const [newAddress, setNewAddress]                     = useState("");
-  const [calledDate, setCalledDate]                     = useState(() => new Date().toISOString().split("T")[0]);
-  const [renewedBy, setRenewedBy]                       = useState<"customer" | "agent" | "">("");
+  const [callbackStatus, setCallbackStatus] = useState("");
+  const [callbackDate, setCallbackDate] = useState("");
+  const [callbackNotes, setCallbackNotes] = useState("");
+  const [isSold, setIsSold] = useState<string>("");
+  const [newEndDate, setNewEndDate] = useState("");
+  const [newSupplier, setNewSupplier] = useState("");
+  const [newAddress, setNewAddress] = useState("");
+  const [calledDate, setCalledDate] = useState(() => new Date().toISOString().split("T")[0]);
+  const [renewedBy, setRenewedBy] = useState<"customer" | "agent" | "">("");
   const [isSubmittingCallback, setIsSubmittingCallback] = useState(false);
-  const [callbackError, setCallbackError]               = useState("");
+  const [callbackError, setCallbackError] = useState("");
 
   // history
-  const [history, setHistory]               = useState<InteractionHistory[]>([]);
+  const [history, setHistory] = useState<InteractionHistory[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
 
   // assign modal
   const [showAssignmentModal, setShowAssignmentModal] = useState(false);
   const [assigningEmployeeId, setAssigningEmployeeId] = useState<string>("");
-  const [assignmentNotes, setAssignmentNotes]         = useState("");
+  const [assignmentNotes, setAssignmentNotes] = useState("");
   const [isAssigningEmployee, setIsAssigningEmployee] = useState(false);
 
   // ── data loading ────────────────────────────────────────────────────────
@@ -273,7 +432,7 @@ export default function LeadDetailsPage() {
       let raw = await fetchWithAuth(`/api/crm/leads/${id}`);
 
       // ✅ If not found or error, fall back to tenant_lead_id lookup
-      if (!raw || raw.error || raw.detail === 'Not found') {
+      if (!raw || raw.error || raw.detail === "Not found") {
         console.log(`⚠️ opportunity_id lookup failed for ${id}, trying tenant_lead_id...`);
         raw = await fetchWithAuth(`/api/crm/leads/${id}?use_display_id=true`);
       }
@@ -281,11 +440,7 @@ export default function LeadDetailsPage() {
       if (!raw) throw new Error("No response from server");
       if (raw.error) throw new Error(raw.error);
 
-      const data: Lead =
-        raw.lead        ? raw.lead        :
-        raw.opportunity ? raw.opportunity :
-        raw.data        ? raw.data        :
-        raw;
+      const data: Lead = raw.lead ? raw.lead : raw.opportunity ? raw.opportunity : raw.data ? raw.data : raw;
 
       if (!data.assigned_to_name && raw.assigned_to_name) data.assigned_to_name = raw.assigned_to_name;
 
@@ -293,15 +448,20 @@ export default function LeadDetailsPage() {
         ...data,
         opportunity_id: data.opportunity_id ?? (raw as any).id,
         stage_name: data.stage_name ?? (raw as any).status ?? (raw as any).stage,
-        tel_number:     data.tel_number     ?? (raw as any).phone ?? (raw as any).telephone,
-        business_name:  data.business_name  ?? (raw as any).opportunity_title ?? (raw as any).client_company_name,
+        tel_number: data.tel_number ?? (raw as any).phone ?? (raw as any).telephone,
+        business_name: data.business_name ?? (raw as any).opportunity_title ?? (raw as any).client_company_name,
         contact_person: data.contact_person ?? (raw as any).client_contact_name,
-        email:          data.email          ?? (raw as any).client_email,
-        postcode:       data.postcode       ?? (raw as any).post_code ?? (raw as any).postcode,
-        stand_charge:   data.stand_charge   ?? (raw as any).standing_charge,
+        email: data.email ?? (raw as any).client_email,
+        postcode: data.postcode ?? (raw as any).post_code ?? (raw as any).postcode,
+        stand_charge: data.stand_charge ?? (raw as any).standing_charge,
       };
 
-      console.log("📋 Normalised lead - opportunity_id:", normalised.opportunity_id, "tenant_lead_id:", normalised.tenant_lead_id);
+      console.log(
+        "📋 Normalised lead - opportunity_id:",
+        normalised.opportunity_id,
+        "tenant_lead_id:",
+        normalised.tenant_lead_id,
+      );
 
       setLead(normalised);
       setEditedLead(normalised);
@@ -312,12 +472,13 @@ export default function LeadDetailsPage() {
         try {
           const docs = JSON.parse(normalised.document_details);
           setUploadedDocuments(Array.isArray(docs) ? docs : []);
-        } catch { setUploadedDocuments([]); }
+        } catch {
+          setUploadedDocuments([]);
+        }
       }
 
       // ✅ Always use real opportunity_id for history
       await loadHistoryById(normalised.opportunity_id);
-
     } catch (e: any) {
       console.error("❌ loadLead error:", e);
       setError(e.message || "Failed to load lead");
@@ -329,22 +490,28 @@ export default function LeadDetailsPage() {
   const loadEmployees = async () => {
     try {
       const data = await fetchWithAuth("/employees");
-      setEmployees(Array.isArray(data) ? data : (data?.data || []));
-    } catch { /* silent */ }
+      setEmployees(Array.isArray(data) ? data : data?.data || []);
+    } catch {
+      /* silent */
+    }
   };
 
   const loadStages = async () => {
     try {
       const data = await fetchWithAuth("/stages");
-      setStages(Array.isArray(data) ? data : (data?.data || []));
-    } catch { /* silent */ }
+      setStages(Array.isArray(data) ? data : data?.data || []);
+    } catch {
+      /* silent */
+    }
   };
 
   const loadSuppliers = async () => {
     try {
       const data = await fetchWithAuth("/suppliers");
-      setSuppliers(Array.isArray(data) ? data : (data?.data || []));
-    } catch { /* silent */ }
+      setSuppliers(Array.isArray(data) ? data : data?.data || []);
+    } catch {
+      /* silent */
+    }
   };
 
   const loadHistoryById = async (opportunityId: number, syncCallbackDate = true) => {
@@ -364,8 +531,11 @@ export default function LeadDetailsPage() {
           setCallbackDate(String(withReminder[0].reminder_date).slice(0, 10));
         }
       }
-    } catch { /* silent */ }
-    finally { setLoadingHistory(false); }
+    } catch {
+      /* silent */
+    } finally {
+      setLoadingHistory(false);
+    }
   };
 
   const loadHistory = async () => {
@@ -378,7 +548,7 @@ export default function LeadDetailsPage() {
   // ── helpers ──────────────────────────────────────────────────────────────
   const getStageIdFromStatus = (status: string): number | null => {
     if (stages.length) {
-      const m = stages.find(s => s.stage_name.toLowerCase() === status.toLowerCase());
+      const m = stages.find((s) => s.stage_name.toLowerCase() === status.toLowerCase());
       if (m) return m.stage_id;
     }
     return null;
@@ -409,23 +579,32 @@ export default function LeadDetailsPage() {
     setIsSaving(true);
     try {
       const token = localStorage.getItem("auth_token") || localStorage.getItem("token");
-      
-      const DATE_FIELDS = new Set(['start_date', 'end_date', 'date_of_birth']);
+
+      const DATE_FIELDS = new Set(["start_date", "end_date", "date_of_birth"]);
       const COMPUTED_FIELDS = new Set([
-        'status', 'stage_name', 'supplier_name', 'assigned_to_name',
-        'opportunity_title', 'tenant_lead_id', 'display_id', 'display_order',
-        'created_at', 'service_id', 'tenant_id', 'opportunity_id',
+        "status",
+        "stage_name",
+        "supplier_name",
+        "assigned_to_name",
+        "opportunity_title",
+        "tenant_lead_id",
+        "display_id",
+        "display_order",
+        "created_at",
+        "service_id",
+        "tenant_id",
+        "opportunity_id",
       ]);
 
       const safePayload = Object.fromEntries(
         Object.entries(editedLead)
           .filter(([k, v]) => !COMPUTED_FIELDS.has(k) && v !== undefined)
           .map(([k, v]) => {
-            if (DATE_FIELDS.has(k) && typeof v === 'string' && v.includes('T')) {
-              return [k, v.split('T')[0]];
+            if (DATE_FIELDS.has(k) && typeof v === "string" && v.includes("T")) {
+              return [k, v.split("T")[0]];
             }
             return [k, v];
-          })
+          }),
       );
 
       console.log("🚀 PATCH payload:", JSON.stringify(safePayload, null, 2));
@@ -434,7 +613,7 @@ export default function LeadDetailsPage() {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",
-          "Authorization": `Bearer ${token}`,
+          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify(safePayload),
       });
@@ -466,7 +645,6 @@ export default function LeadDetailsPage() {
 
       alert("✅ Lead updated successfully!");
       await loadHistory();
-
     } catch (e: any) {
       alert(`Failed to update lead: ${e.message}`);
     } finally {
@@ -474,25 +652,42 @@ export default function LeadDetailsPage() {
     }
   };
 
-  const handleCancel = () => { setEditedLead(lead || {}); setIsEditing(false); };
+  const handleCancel = () => {
+    setEditedLead(lead || {});
+    setIsEditing(false);
+  };
 
-  const handleUpdateField = (field: keyof Lead, value: any) =>
-    setEditedLead(prev => ({ ...prev, [field]: value }));
+  const handleUpdateField = (field: keyof Lead, value: any) => setEditedLead((prev) => ({ ...prev, [field]: value }));
 
   // ── callback / action ────────────────────────────────────────────────────
   const handleSubmitCallback = async () => {
     setCallbackError("");
 
-    if (!callbackStatus) { setCallbackError("Please select a status"); return; }
+    if (!callbackStatus) {
+      setCallbackError("Please select a status");
+      return;
+    }
     const cfg = statusConfig[callbackStatus];
     if (callbackDateStatuses.has(callbackStatus) && !callbackDate) {
       setCallbackError("Please select callback date.");
       return;
     }
-    if (cfg?.requiresSold && !isSold) { setCallbackError("Please select if the contract was sold"); return; }
-    if (cfg?.requiresNotes && !callbackNotes.trim()) { setCallbackError("Please enter the reason for this status"); return; }
-    if (callbackStatus === "Already Renewed" && !renewedBy) { setCallbackError("Please select if renewed by customer or agent"); return; }
-    if (cfg?.requiresNewEndDate && !newEndDate) { setCallbackError("Please enter the new contract end date"); return; }
+    if (cfg?.requiresSold && !isSold) {
+      setCallbackError("Please select if the contract was sold");
+      return;
+    }
+    if (cfg?.requiresNotes && !callbackNotes.trim()) {
+      setCallbackError("Please enter the reason for this status");
+      return;
+    }
+    if (callbackStatus === "Already Renewed" && !renewedBy) {
+      setCallbackError("Please select if renewed by customer or agent");
+      return;
+    }
+    if (cfg?.requiresNewEndDate && !newEndDate) {
+      setCallbackError("Please enter the new contract end date");
+      return;
+    }
 
     setIsSubmittingCallback(true);
     try {
@@ -524,6 +719,26 @@ export default function LeadDetailsPage() {
 
       if (!data || data.error) throw new Error(data?.error || "Failed to save");
 
+      if (data.display_only) {
+        setLead((prev) => (prev ? { ...prev, stage_name: callbackStatus } : prev));
+        setCallbackStatus(callbackStatus);
+        alert(`✅ Status set to ${callbackStatus}`);
+        setCallbackNotes("");
+        await loadHistory();
+        return;
+      }
+
+      // ✅ CRITICAL FIX: Update local state with returned lead data
+      if (data.lead) {
+        setLead((prev) => (prev ? { ...prev, ...data.lead } : data.lead));
+        setEditedLead((prev) => ({ ...prev, ...data.lead }));
+
+        // ✅ Update the status in the action panel
+        if (data.lead.stage_name) {
+          setCallbackStatus(data.lead.stage_name);
+        }
+      }
+
       // ✅ Handle routing cases first
       if (data.moved_to_cleansing) {
         alert("🧹 Moved to Cleansing");
@@ -548,13 +763,14 @@ export default function LeadDetailsPage() {
       await loadHistory();
 
       if (data.lead) {
-        setLead(prev => prev ? { ...prev, ...data.lead } : data.lead);
-        setEditedLead(prev => ({ ...prev, ...data.lead }));
+        setLead((prev) => (prev ? { ...prev, ...data.lead } : data.lead));
+        setEditedLead((prev) => ({ ...prev, ...data.lead }));
         if (data.lead.stage_name) setCallbackStatus(data.lead.stage_name);
       }
 
       if (callbackStatus === "Already Renewed") alert("✅ Lead information updated");
-      else if (callbackStatus === "End Date Changed") alert(`✅ Contract end date updated to ${formatDate(newEndDate)}`);
+      else if (callbackStatus === "End Date Changed")
+        alert(`✅ Contract end date updated to ${formatDate(newEndDate)}`);
       else if (callbackStatus === "Converted") alert("✅ Lead marked as Converted");
       else alert("✅ Action saved successfully");
 
@@ -572,8 +788,9 @@ export default function LeadDetailsPage() {
       try {
         localStorage.setItem("calendar-refetch-trigger", Date.now().toString());
         window.dispatchEvent(new CustomEvent("calendar-refetch", { detail: { action: "refetch-calendar" } }));
-      } catch { /* non-blocking */ }
-
+      } catch {
+        /* non-blocking */
+      }
     } catch (err: any) {
       console.error("❌ Leads callback error:", err);
       setCallbackError(err.message || "Failed to save action");
@@ -583,7 +800,7 @@ export default function LeadDetailsPage() {
   };
 
   useEffect(() => {
-    if (!callbackStatus || callbackDate) return;  // ← only runs if callbackDate is empty
+    if (!callbackStatus || callbackDate) return; // ← only runs if callbackDate is empty
     if (!callbackDateStatuses.has(callbackStatus)) return;
     const latestWithReminder = history.find((i) => Boolean(i.reminder_date));
     if (latestWithReminder?.reminder_date) {
@@ -600,11 +817,13 @@ export default function LeadDetailsPage() {
         body: JSON.stringify({ stage_id: 1 }), // 1 = "Lead" — never send null
       });
       // Update local lead state so UI shows "Lead" immediately
-      setLead(prev => prev ? { ...prev, stage_id: 1, stage_name: "Lead" } : null);
-      setEditedLead(prev => ({ ...prev, stage_id: 1, stage_name: "Lead" }));
+      setLead((prev) => (prev ? { ...prev, stage_id: 1, stage_name: "Lead" } : null));
+      setEditedLead((prev) => ({ ...prev, stage_id: 1, stage_name: "Lead" }));
       setCallbackStatus(""); // clear the action panel selection
       alert("✅ Status cleared successfully");
-    } catch { alert("❌ Failed to clear status"); }
+    } catch {
+      alert("❌ Failed to clear status");
+    }
   };
 
   // ── assign ───────────────────────────────────────────────────────────────
@@ -622,19 +841,27 @@ export default function LeadDetailsPage() {
         body: JSON.stringify(payload),
       });
 
-      const emp = employees.find(e => e.employee_id === empId);
-      setLead(prev => prev ? {
-        ...prev,
-        opportunity_owner_employee_id: empId,
-        assigned_to_name: empId ? emp?.employee_name : undefined,
-      } : null);
+      const emp = employees.find((e) => e.employee_id === empId);
+      setLead((prev) =>
+        prev
+          ? {
+              ...prev,
+              opportunity_owner_employee_id: empId,
+              assigned_to_name: empId ? emp?.employee_name : undefined,
+            }
+          : null,
+      );
 
       alert("✅ Salesperson assigned successfully");
       setShowAssignmentModal(false);
-      setAssigningEmployeeId(""); setAssignmentNotes("");
+      setAssigningEmployeeId("");
+      setAssignmentNotes("");
       loadHistory();
-    } catch { alert("Failed to assign salesperson"); }
-    finally { setIsAssigningEmployee(false); }
+    } catch {
+      alert("Failed to assign salesperson");
+    } finally {
+      setIsAssigningEmployee(false);
+    }
   };
 
   // ── history delete ───────────────────────────────────────────────────────
@@ -644,7 +871,9 @@ export default function LeadDetailsPage() {
       await fetchWithAuth(`/api/crm/leads/${lead?.opportunity_id}/history/${interactionId}`, { method: "DELETE" });
       alert("✅ History entry deleted");
       loadHistory();
-    } catch { alert("❌ Failed to delete history entry"); }
+    } catch {
+      alert("❌ Failed to delete history entry");
+    }
   };
 
   // ── documents ────────────────────────────────────────────────────────────
@@ -655,7 +884,7 @@ export default function LeadDetailsPage() {
     try {
       const token = localStorage.getItem("auth_token");
       const formData = new FormData();
-      Array.from(files).forEach(f => formData.append("documents", f));
+      Array.from(files).forEach((f) => formData.append("documents", f));
       formData.append("client_id", id);
 
       const res = await fetch(`${API_BASE_URL}/api/crm/documents/upload-customer-documents`, {
@@ -663,9 +892,15 @@ export default function LeadDetailsPage() {
         headers: { Authorization: `Bearer ${token}` },
         body: formData,
       });
-      if (!res.ok) { alert(`Failed to upload: ${await res.text()}`); return; }
+      if (!res.ok) {
+        alert(`Failed to upload: ${await res.text()}`);
+        return;
+      }
       const result = await res.json();
-      if (!result.file_paths?.length) { alert("Upload succeeded but no file paths returned"); return; }
+      if (!result.file_paths?.length) {
+        alert("Upload succeeded but no file paths returned");
+        return;
+      }
 
       const updated = [...uploadedDocuments, ...result.file_paths];
       setUploadedDocuments(updated);
@@ -686,7 +921,9 @@ export default function LeadDetailsPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ document_details: JSON.stringify(documents) }),
       });
-    } catch { /* silent */ }
+    } catch {
+      /* silent */
+    }
   };
 
   const handleDeleteDocument = async (docIndex: number) => {
@@ -717,7 +954,9 @@ export default function LeadDetailsPage() {
         <div className="text-center">
           <AlertCircle className="mx-auto h-12 w-12 text-red-500" />
           <h3 className="mt-4 text-lg font-medium text-red-900">{error || "Lead not found"}</h3>
-          <Button onClick={() => router.push("/dashboard/leads")} className="mt-4">Back to Leads</Button>
+          <Button onClick={() => router.push("/dashboard/leads")} className="mt-4">
+            Back to Leads
+          </Button>
         </div>
       </div>
     );
@@ -728,24 +967,21 @@ export default function LeadDetailsPage() {
   // ─────────────────────────────────────────────────────────────────────────
   return (
     <div className="min-h-screen bg-gray-50">
-
       {/* ── Header ─────────────────────────────────────────────────────────── */}
       <div className="border-b border-gray-200 bg-white px-6 py-4 pr-[340px]">
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-3">
             <button
-              onClick={() => router.push(
-                fromPage === "allocated" ? "/dashboard/allocated-renewals" : "/dashboard/leads"
-              )}
+              onClick={() =>
+                router.push(fromPage === "allocated" ? "/dashboard/allocated-renewals" : "/dashboard/leads")
+              }
               className="rounded-lg p-2 hover:bg-gray-100"
             >
               <ArrowLeft className="h-5 w-5 text-gray-600" />
             </button>
             <div>
               <h1 className="text-2xl font-bold text-gray-900">Lead Details</h1>
-              <p className="text-sm text-gray-500">
-                ID: {lead.tenant_lead_id || lead.opportunity_id}
-              </p>
+              <p className="text-sm text-gray-500">ID: {lead.tenant_lead_id || lead.opportunity_id}</p>
             </div>
           </div>
 
@@ -753,17 +989,27 @@ export default function LeadDetailsPage() {
             {isEditing ? (
               <>
                 <Button onClick={handleCancel} variant="outline" disabled={isSaving}>
-                  <X className="mr-2 h-4 w-4" />Cancel
+                  <X className="mr-2 h-4 w-4" />
+                  Cancel
                 </Button>
                 <Button onClick={handleSave} disabled={isSaving} className="bg-black hover:bg-gray-800">
-                  {isSaving
-                    ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Saving...</>
-                    : <><Save className="mr-2 h-4 w-4" />Save Changes</>}
+                  {isSaving ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Saving...
+                    </>
+                  ) : (
+                    <>
+                      <Save className="mr-2 h-4 w-4" />
+                      Save Changes
+                    </>
+                  )}
                 </Button>
               </>
             ) : (
               <Button onClick={() => setIsEditing(true)} variant="outline">
-                <Edit className="mr-2 h-4 w-4" />Edit
+                <Edit className="mr-2 h-4 w-4" />
+                Edit
               </Button>
             )}
           </div>
@@ -771,14 +1017,18 @@ export default function LeadDetailsPage() {
 
         {/* Tabs */}
         <div className="mt-4 flex space-x-1 border-b border-gray-200">
-          {TABS.map(tab => {
+          {TABS.map((tab) => {
             const Icon = tab.icon;
             return (
-              <button key={tab.id} onClick={() => setActiveTab(tab.id)}
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
                 className={`flex items-center space-x-2 px-4 py-3 text-sm font-medium transition-colors ${
                   activeTab === tab.id ? "border-b-2 border-black text-black" : "text-gray-600 hover:text-gray-900"
-                }`}>
-                <Icon className="h-4 w-4" /><span>{tab.label}</span>
+                }`}
+              >
+                <Icon className="h-4 w-4" />
+                <span>{tab.label}</span>
               </button>
             );
           })}
@@ -788,74 +1038,101 @@ export default function LeadDetailsPage() {
       {/* ── Tab Content ────────────────────────────────────────────────────── */}
       <div className="p-6 pr-[340px]">
         <div className="rounded-lg bg-white p-6 shadow-sm">
-
           {/* ── Contact ── */}
           {activeTab === "contact" && (
             <div className="space-y-6">
               <h2 className="text-lg font-semibold text-gray-900">Contact Information</h2>
               <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
-
                 <div>
                   <label className="text-sm font-medium text-gray-700">ID</label>
-                  <Input value={lead.tenant_lead_id || lead.opportunity_id || ""} disabled className="mt-1 bg-gray-50" />
+                  <Input
+                    value={lead.tenant_lead_id || lead.opportunity_id || ""}
+                    disabled
+                    className="mt-1 bg-gray-50"
+                  />
                 </div>
 
                 <div>
                   <label className="text-sm font-medium text-gray-700">Client Name</label>
-                  <Input value={displayLead.contact_person || ""}
-                    onChange={e => handleUpdateField("contact_person", e.target.value)}
-                    disabled={!isEditing} className="mt-1" />
+                  <Input
+                    value={displayLead.contact_person || ""}
+                    onChange={(e) => handleUpdateField("contact_person", e.target.value)}
+                    disabled={!isEditing}
+                    className="mt-1"
+                  />
                 </div>
 
                 <div>
                   <label className="text-sm font-medium text-gray-700">Trading Name</label>
-                  <Input value={displayLead.business_name || ""}
-                    onChange={e => handleUpdateField("business_name", e.target.value)}
-                    disabled={!isEditing} className="mt-1" />
+                  <Input
+                    value={displayLead.business_name || ""}
+                    onChange={(e) => handleUpdateField("business_name", e.target.value)}
+                    disabled={!isEditing}
+                    className="mt-1"
+                  />
                 </div>
 
                 <div>
                   <label className="text-sm font-medium text-gray-700">Position</label>
-                  <Input value={displayLead.position || ""}
-                    onChange={e => handleUpdateField("position", e.target.value)}
-                    disabled={!isEditing} className="mt-1" />
+                  <Input
+                    value={displayLead.position || ""}
+                    onChange={(e) => handleUpdateField("position", e.target.value)}
+                    disabled={!isEditing}
+                    className="mt-1"
+                  />
                 </div>
 
                 <div>
                   <label className="text-sm font-medium text-gray-700">
                     Tel Number <span className="text-red-500">*</span>
                   </label>
-                  <Input value={displayLead.tel_number || ""}
-                    onChange={e => handleUpdateField("tel_number", e.target.value)}
-                    disabled={!isEditing} className="mt-1" />
+                  <Input
+                    value={displayLead.tel_number || ""}
+                    onChange={(e) => handleUpdateField("tel_number", e.target.value)}
+                    disabled={!isEditing}
+                    className="mt-1"
+                  />
                 </div>
 
                 <div>
                   <label className="text-sm font-medium text-gray-700">Mobile Number</label>
-                  <Input value={displayLead.mobile_no || ""}
-                    onChange={e => handleUpdateField("mobile_no", e.target.value)}
-                    disabled={!isEditing} className="mt-1" />
+                  <Input
+                    value={displayLead.mobile_no || ""}
+                    onChange={(e) => handleUpdateField("mobile_no", e.target.value)}
+                    disabled={!isEditing}
+                    className="mt-1"
+                  />
                 </div>
 
                 <div>
                   <label className="text-sm font-medium text-gray-700">Email</label>
-                  <Input value={displayLead.email || ""}
-                    onChange={e => handleUpdateField("email", e.target.value)}
-                    disabled={!isEditing} className="mt-1" />
+                  <Input
+                    value={displayLead.email || ""}
+                    onChange={(e) => handleUpdateField("email", e.target.value)}
+                    disabled={!isEditing}
+                    className="mt-1"
+                  />
                 </div>
 
                 <div>
                   <label className="text-sm font-medium text-gray-700">Company Number</label>
-                  <Input value={displayLead.company_number || ""}
-                    onChange={e => handleUpdateField("company_number", e.target.value)}
-                    disabled={!isEditing} className="mt-1" />
+                  <Input
+                    value={displayLead.company_number || ""}
+                    onChange={(e) => handleUpdateField("company_number", e.target.value)}
+                    disabled={!isEditing}
+                    className="mt-1"
+                  />
                 </div>
 
                 <div>
                   <label className="text-sm font-medium text-gray-700">Date of Birth</label>
-                  <Input type="date" value={displayLead.date_of_birth?.split("T")[0] || ""}
-                    onChange={e => handleUpdateField("date_of_birth", e.target.value)}
-                    disabled={!isEditing} className="mt-1" />
+                  <Input
+                    type="date"
+                    value={displayLead.date_of_birth?.split("T")[0] || ""}
+                    onChange={(e) => handleUpdateField("date_of_birth", e.target.value)}
+                    disabled={!isEditing}
+                    className="mt-1"
+                  />
                 </div>
 
                 <div>
@@ -863,11 +1140,16 @@ export default function LeadDetailsPage() {
                   {isEditing ? (
                     <Select
                       value={displayLead.opportunity_owner_employee_id?.toString() || ""}
-                      onValueChange={v => handleUpdateField("opportunity_owner_employee_id", parseInt(v))}>
-                      <SelectTrigger className="mt-1"><SelectValue placeholder="Select agent" /></SelectTrigger>
+                      onValueChange={(v) => handleUpdateField("opportunity_owner_employee_id", parseInt(v))}
+                    >
+                      <SelectTrigger className="mt-1">
+                        <SelectValue placeholder="Select agent" />
+                      </SelectTrigger>
                       <SelectContent>
-                        {employees.map(e => (
-                          <SelectItem key={e.employee_id} value={e.employee_id.toString()}>{e.employee_name}</SelectItem>
+                        {employees.map((e) => (
+                          <SelectItem key={e.employee_id} value={e.employee_id.toString()}>
+                            {e.employee_name}
+                          </SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
@@ -889,17 +1171,22 @@ export default function LeadDetailsPage() {
             <div className="space-y-6">
               <h2 className="text-lg font-semibold text-gray-900">Contract & Billing Details</h2>
               <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
-
                 <div>
                   <label className="text-sm font-medium text-gray-700">New Supplier</label>
                   {isEditing ? (
-                    <Select value={displayLead.supplier_id?.toString() || ""}
-                      onValueChange={v => handleUpdateField("supplier_id", parseInt(v))}>
-                      <SelectTrigger className="mt-1"><SelectValue placeholder="Select new supplier" /></SelectTrigger>
+                    <Select
+                      value={displayLead.supplier_id?.toString() || ""}
+                      onValueChange={(v) => handleUpdateField("supplier_id", parseInt(v))}
+                    >
+                      <SelectTrigger className="mt-1">
+                        <SelectValue placeholder="Select new supplier" />
+                      </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="0">— None —</SelectItem>
-                        {suppliers.map(s => (
-                          <SelectItem key={s.supplier_id} value={s.supplier_id.toString()}>{s.supplier_name}</SelectItem>
+                        {suppliers.map((s) => (
+                          <SelectItem key={s.supplier_id} value={s.supplier_id.toString()}>
+                            {s.supplier_name}
+                          </SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
@@ -910,36 +1197,51 @@ export default function LeadDetailsPage() {
 
                 <div>
                   <label className="text-sm font-medium text-gray-700">Site Name</label>
-                  <Input value={displayLead.site_name || ""}
-                    onChange={e => handleUpdateField("site_name", e.target.value)}
-                    disabled={!isEditing} className="mt-1" />
+                  <Input
+                    value={displayLead.site_name || ""}
+                    onChange={(e) => handleUpdateField("site_name", e.target.value)}
+                    disabled={!isEditing}
+                    className="mt-1"
+                  />
                 </div>
 
                 <div>
                   <label className="text-sm font-medium text-gray-700">Month Sold</label>
-                  <Input value={
-                    displayLead.month_sold
-                      ? (displayLead.month_sold.includes("T") || displayLead.month_sold.includes(" ")
-                        ? new Date(displayLead.month_sold).toLocaleDateString("en-GB", { month: "short", year: "numeric" })
-                        : displayLead.month_sold)
-                      : ""
-                  }
-                    onChange={e => handleUpdateField("month_sold", e.target.value)}
-                    disabled={!isEditing} className="mt-1" />
+                  <Input
+                    value={
+                      displayLead.month_sold
+                        ? displayLead.month_sold.includes("T") || displayLead.month_sold.includes(" ")
+                          ? new Date(displayLead.month_sold).toLocaleDateString("en-GB", {
+                              month: "short",
+                              year: "numeric",
+                            })
+                          : displayLead.month_sold
+                        : ""
+                    }
+                    onChange={(e) => handleUpdateField("month_sold", e.target.value)}
+                    disabled={!isEditing}
+                    className="mt-1"
+                  />
                 </div>
 
                 <div>
                   <label className="text-sm font-medium text-gray-700">MPAN Top</label>
-                  <Input value={displayLead.mpan_mpr || ""}
-                    onChange={e => handleUpdateField("mpan_mpr", e.target.value)}
-                    disabled={!isEditing} className="mt-1" />
+                  <Input
+                    value={displayLead.mpan_mpr || ""}
+                    onChange={(e) => handleUpdateField("mpan_mpr", e.target.value)}
+                    disabled={!isEditing}
+                    className="mt-1"
+                  />
                 </div>
 
                 <div>
                   <label className="text-sm font-medium text-gray-700">MPAN Bottom</label>
-                  <Input value={displayLead.mpan_bottom || ""}
-                    onChange={e => handleUpdateField("mpan_bottom", e.target.value)}
-                    disabled={!isEditing} className="mt-1" />
+                  <Input
+                    value={displayLead.mpan_bottom || ""}
+                    onChange={(e) => handleUpdateField("mpan_bottom", e.target.value)}
+                    disabled={!isEditing}
+                    className="mt-1"
+                  />
                 </div>
 
                 <div>
@@ -949,91 +1251,154 @@ export default function LeadDetailsPage() {
 
                 <div>
                   <label className="text-sm font-medium text-gray-700">Annual Usage (kWh)</label>
-                  <Input type="number" value={displayLead.annual_usage || ""}
-                    onChange={e => handleUpdateField("annual_usage", parseFloat(e.target.value))}
-                    disabled={!isEditing} className="mt-1" />
+                  <Input
+                    type="number"
+                    value={displayLead.annual_usage || ""}
+                    onChange={(e) => handleUpdateField("annual_usage", parseFloat(e.target.value))}
+                    disabled={!isEditing}
+                    className="mt-1"
+                  />
                 </div>
 
                 <div>
                   <label className="text-sm font-medium text-gray-700">Payment Type</label>
-                  <Input value={displayLead.payment_type || ""}
-                    onChange={e => handleUpdateField("payment_type", e.target.value)}
-                    disabled={!isEditing} className="mt-1" />
+                  <Input
+                    value={displayLead.payment_type || ""}
+                    onChange={(e) => handleUpdateField("payment_type", e.target.value)}
+                    disabled={!isEditing}
+                    className="mt-1"
+                  />
                 </div>
 
                 <div>
                   <label className="text-sm font-medium text-gray-700">Start Date</label>
-                  <Input type="date" value={displayLead.start_date?.split("T")[0] || ""}
-                    onChange={e => handleUpdateField("start_date", e.target.value)}
-                    disabled={!isEditing} className="mt-1" />
+                  <Input
+                    type="date"
+                    value={displayLead.start_date?.split("T")[0] || ""}
+                    onChange={(e) => handleUpdateField("start_date", e.target.value)}
+                    disabled={!isEditing}
+                    className="mt-1"
+                  />
                 </div>
 
                 <div>
                   <label className="text-sm font-medium text-gray-700">Contract End</label>
-                  <Input type="date" value={displayLead.end_date?.split("T")[0] || ""}
-                    onChange={e => handleUpdateField("end_date", e.target.value)}
-                    disabled={!isEditing} className="mt-1" />
+                  <Input
+                    type="date"
+                    value={displayLead.end_date?.split("T")[0] || ""}
+                    onChange={(e) => handleUpdateField("end_date", e.target.value)}
+                    disabled={!isEditing}
+                    className="mt-1"
+                  />
                 </div>
 
                 <div>
                   <label className="text-sm font-medium text-gray-700">Term Sold (Years)</label>
-                  <Input type="number" value={displayLead.term_sold || ""}
-                    onChange={e => handleUpdateField("term_sold", parseFloat(e.target.value))}
-                    disabled={!isEditing} className="mt-1" />
+                  <Input
+                    type="number"
+                    value={displayLead.term_sold || ""}
+                    onChange={(e) => handleUpdateField("term_sold", parseFloat(e.target.value))}
+                    disabled={!isEditing}
+                    className="mt-1"
+                  />
                 </div>
 
                 <div>
                   <label className="text-sm font-medium text-gray-700">Net Notch</label>
-                  <Input type="number" step="0.01" value={displayLead.net_notch || ""}
-                    onChange={e => handleUpdateField("net_notch", parseFloat(e.target.value))}
-                    disabled={!isEditing} className="mt-1" />
+                  <Input
+                    type="number"
+                    step="0.01"
+                    value={displayLead.net_notch || ""}
+                    onChange={(e) => handleUpdateField("net_notch", parseFloat(e.target.value))}
+                    disabled={!isEditing}
+                    className="mt-1"
+                  />
                 </div>
 
                 <div>
                   <label className="text-sm font-medium text-gray-700">Comms Paid (£)</label>
-                  <Input type="number" step="0.01" value={displayLead.comms_paid || ""}
-                    onChange={e => handleUpdateField("comms_paid", parseFloat(e.target.value))}
-                    disabled={!isEditing} className="mt-1" />
+                  <Input
+                    type="number"
+                    step="0.01"
+                    value={displayLead.comms_paid || ""}
+                    onChange={(e) => handleUpdateField("comms_paid", parseFloat(e.target.value))}
+                    disabled={!isEditing}
+                    className="mt-1"
+                  />
                 </div>
 
                 <div>
                   <label className="text-sm font-medium text-gray-700">Aggregator</label>
-                  <Input value={displayLead.aggregator || ""}
-                    onChange={e => handleUpdateField("aggregator", e.target.value)}
-                    disabled={!isEditing} className="mt-1" />
+                  <Input
+                    value={displayLead.aggregator || ""}
+                    onChange={(e) => handleUpdateField("aggregator", e.target.value)}
+                    disabled={!isEditing}
+                    className="mt-1"
+                  />
                 </div>
 
                 {/* Documents */}
-                <div className="md:col-span-2 border-t pt-6 mt-6">
-                  <div className="flex items-center justify-between mb-4">
+                <div className="mt-6 border-t pt-6 md:col-span-2">
+                  <div className="mb-4 flex items-center justify-between">
                     <label className="text-sm font-medium text-gray-700">Documents</label>
                     <div>
-                      <input type="file" id="document-upload" multiple
+                      <input
+                        type="file"
+                        id="document-upload"
+                        multiple
                         accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png"
-                        onChange={handleDocumentUpload} className="hidden" disabled={isUploadingDocument} />
-                      <Button type="button" variant="outline" size="sm"
+                        onChange={handleDocumentUpload}
+                        className="hidden"
+                        disabled={isUploadingDocument}
+                      />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
                         onClick={() => document.getElementById("document-upload")?.click()}
-                        disabled={isUploadingDocument}>
-                        {isUploadingDocument
-                          ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Uploading...</>
-                          : <><Upload className="mr-2 h-4 w-4" />Upload Documents</>}
+                        disabled={isUploadingDocument}
+                      >
+                        {isUploadingDocument ? (
+                          <>
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            Uploading...
+                          </>
+                        ) : (
+                          <>
+                            <Upload className="mr-2 h-4 w-4" />
+                            Upload Documents
+                          </>
+                        )}
                       </Button>
                     </div>
                   </div>
                   {uploadedDocuments.length > 0 ? (
                     <div className="space-y-2">
                       {uploadedDocuments.map((doc, i) => (
-                        <div key={i} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-200">
-                          <div className="flex items-center space-x-3 flex-1 min-w-0">
-                            <File className="h-5 w-5 text-gray-400 flex-shrink-0" />
-                            <span className="text-sm text-gray-700 truncate">{getFileName(doc)}</span>
+                        <div
+                          key={i}
+                          className="flex items-center justify-between rounded-lg border border-gray-200 bg-gray-50 p-3"
+                        >
+                          <div className="flex min-w-0 flex-1 items-center space-x-3">
+                            <File className="h-5 w-5 flex-shrink-0 text-gray-400" />
+                            <span className="truncate text-sm text-gray-700">{getFileName(doc)}</span>
                           </div>
-                          <div className="flex items-center space-x-2 ml-4">
-                            <Button variant="ghost" size="sm" onClick={() => window.open(doc, "_blank")} title="Download">
+                          <div className="ml-4 flex items-center space-x-2">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => window.open(doc, "_blank")}
+                              title="Download"
+                            >
                               <Download className="h-4 w-4" />
                             </Button>
-                            <Button variant="ghost" size="sm" onClick={() => handleDeleteDocument(i)}
-                              className="text-red-600 hover:text-red-700 hover:bg-red-50" title="Delete">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleDeleteDocument(i)}
+                              className="text-red-600 hover:bg-red-50 hover:text-red-700"
+                              title="Delete"
+                            >
                               <Trash2 className="h-4 w-4" />
                             </Button>
                           </div>
@@ -1041,10 +1406,10 @@ export default function LeadDetailsPage() {
                       ))}
                     </div>
                   ) : (
-                    <div className="p-6 text-center border-2 border-dashed border-gray-200 rounded-lg bg-gray-50">
-                      <File className="mx-auto h-8 w-8 text-gray-400 mb-2" />
+                    <div className="rounded-lg border-2 border-dashed border-gray-200 bg-gray-50 p-6 text-center">
+                      <File className="mx-auto mb-2 h-8 w-8 text-gray-400" />
                       <p className="text-sm text-gray-500">No documents uploaded yet</p>
-                      <p className="text-xs text-gray-400 mt-1">Click "Upload Documents" to add files</p>
+                      <p className="mt-1 text-xs text-gray-400">Click "Upload Documents" to add files</p>
                     </div>
                   )}
                 </div>
@@ -1057,21 +1422,26 @@ export default function LeadDetailsPage() {
             <div className="space-y-6">
               <h2 className="text-lg font-semibold text-gray-900">Address</h2>
               <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
-                {([
-                  { label: "House Name",   field: "house_name"   },
-                  { label: "House Number", field: "house_number" },
-                  { label: "Door Number",  field: "door_number"  },
-                  { label: "Street",       field: "address"      },
-                  { label: "Town",         field: "town"         },
-                  { label: "County",       field: "county"       },
-                  // Opportunity_Details uses "postcode" not "post_code"
-                  { label: "Post Code",    field: "postcode"     },
-                ] as { label: string; field: keyof Lead }[]).map(({ label, field }) => (
+                {(
+                  [
+                    { label: "House Name", field: "house_name" },
+                    { label: "House Number", field: "house_number" },
+                    { label: "Door Number", field: "door_number" },
+                    { label: "Street", field: "address" },
+                    { label: "Town", field: "town" },
+                    { label: "County", field: "county" },
+                    // Opportunity_Details uses "postcode" not "post_code"
+                    { label: "Post Code", field: "postcode" },
+                  ] as { label: string; field: keyof Lead }[]
+                ).map(({ label, field }) => (
                   <div key={field}>
                     <label className="text-sm font-medium text-gray-700">{label}</label>
-                    <Input value={(displayLead as any)[field] || ""}
-                      onChange={e => handleUpdateField(field, e.target.value)}
-                      disabled={!isEditing} className="mt-1" />
+                    <Input
+                      value={(displayLead as any)[field] || ""}
+                      onChange={(e) => handleUpdateField(field, e.target.value)}
+                      disabled={!isEditing}
+                      className="mt-1"
+                    />
                   </div>
                 ))}
               </div>
@@ -1083,22 +1453,29 @@ export default function LeadDetailsPage() {
             <div className="space-y-6">
               <h2 className="text-lg font-semibold text-gray-900">Charges</h2>
               <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
-                {([
-                  { label: "Standing Charge (£)", field: "stand_charge",       step: "0.01"   },
-                  { label: "Rate 1 (p/kWh)",      field: "rate_1",             step: "0.0001" },
-                  { label: "Rate 2 (p/kWh)",      field: "rate_2",             step: "0.0001" },
-                  { label: "Rate 3 (p/kWh)",      field: "rate_3",             step: "0.0001" },
-                  { label: "Night Charge",         field: "night_charge",       step: "0.01"   },
-                  { label: "Eve/Weekend Charge",   field: "eve_weekend_charge", step: "0.01"   },
-                  { label: "Other Charges 1",      field: "other_charges_1",    step: "0.01"   },
-                  { label: "Other Charges 2",      field: "other_charges_2",    step: "0.01"   },
-                  { label: "Other Charges 3",      field: "other_charges_3",    step: "0.01"   },
-                ] as { label: string; field: keyof Lead; step: string }[]).map(({ label, field, step }) => (
+                {(
+                  [
+                    { label: "Standing Charge (£)", field: "stand_charge", step: "0.01" },
+                    { label: "Rate 1 (p/kWh)", field: "rate_1", step: "0.0001" },
+                    { label: "Rate 2 (p/kWh)", field: "rate_2", step: "0.0001" },
+                    { label: "Rate 3 (p/kWh)", field: "rate_3", step: "0.0001" },
+                    { label: "Night Charge", field: "night_charge", step: "0.01" },
+                    { label: "Eve/Weekend Charge", field: "eve_weekend_charge", step: "0.01" },
+                    { label: "Other Charges 1", field: "other_charges_1", step: "0.01" },
+                    { label: "Other Charges 2", field: "other_charges_2", step: "0.01" },
+                    { label: "Other Charges 3", field: "other_charges_3", step: "0.01" },
+                  ] as { label: string; field: keyof Lead; step: string }[]
+                ).map(({ label, field, step }) => (
                   <div key={field}>
                     <label className="text-sm font-medium text-gray-700">{label}</label>
-                    <Input type="number" step={step} value={(displayLead as any)[field] || ""}
-                      onChange={e => handleUpdateField(field, parseFloat(e.target.value))}
-                      disabled={!isEditing} className="mt-1" />
+                    <Input
+                      type="number"
+                      step={step}
+                      value={(displayLead as any)[field] || ""}
+                      onChange={(e) => handleUpdateField(field, parseFloat(e.target.value))}
+                      disabled={!isEditing}
+                      className="mt-1"
+                    />
                   </div>
                 ))}
               </div>
@@ -1112,33 +1489,51 @@ export default function LeadDetailsPage() {
               <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
                 <div>
                   <label className="text-sm font-medium text-gray-700">Bank Name</label>
-                  <Input value={displayLead.bank_name || ""}
-                    onChange={e => handleUpdateField("bank_name", e.target.value)}
-                    disabled={!isEditing} className="mt-1" />
+                  <Input
+                    value={displayLead.bank_name || ""}
+                    onChange={(e) => handleUpdateField("bank_name", e.target.value)}
+                    disabled={!isEditing}
+                    className="mt-1"
+                  />
                 </div>
                 <div>
                   <label className="text-sm font-medium text-gray-700">Account Number</label>
-                  <Input value={displayLead.bank_account_number || ""}
-                    onChange={e => handleUpdateField("bank_account_number", e.target.value)}
-                    disabled={!isEditing} className="mt-1" />
+                  <Input
+                    value={displayLead.bank_account_number || ""}
+                    onChange={(e) => handleUpdateField("bank_account_number", e.target.value)}
+                    disabled={!isEditing}
+                    className="mt-1"
+                  />
                 </div>
                 <div>
                   <label className="text-sm font-medium text-gray-700">Sort Code</label>
-                  <Input value={displayLead.bank_sort_code || ""}
-                    onChange={e => handleUpdateField("bank_sort_code", e.target.value)}
-                    disabled={!isEditing} className="mt-1" placeholder="XX-XX-XX" />
+                  <Input
+                    value={displayLead.bank_sort_code || ""}
+                    onChange={(e) => handleUpdateField("bank_sort_code", e.target.value)}
+                    disabled={!isEditing}
+                    className="mt-1"
+                    placeholder="XX-XX-XX"
+                  />
                 </div>
                 <div>
                   <label className="text-sm font-medium text-gray-700">Charity/Ltd Company Number</label>
-                  <Input value={displayLead.charity_ltd_company_number || ""}
-                    onChange={e => handleUpdateField("charity_ltd_company_number", e.target.value)}
-                    disabled={!isEditing} className="mt-1" />
+                  <Input
+                    value={displayLead.charity_ltd_company_number || ""}
+                    onChange={(e) => handleUpdateField("charity_ltd_company_number", e.target.value)}
+                    disabled={!isEditing}
+                    className="mt-1"
+                  />
                 </div>
                 <div className="md:col-span-2">
                   <label className="text-sm font-medium text-gray-700">Partner Details</label>
-                  <Textarea value={displayLead.partner_details || ""}
-                    onChange={e => handleUpdateField("partner_details", e.target.value)}
-                    disabled={!isEditing} className="mt-1" rows={3} placeholder="Enter partner details..." />
+                  <Textarea
+                    value={displayLead.partner_details || ""}
+                    onChange={(e) => handleUpdateField("partner_details", e.target.value)}
+                    disabled={!isEditing}
+                    className="mt-1"
+                    rows={3}
+                    placeholder="Enter partner details..."
+                  />
                 </div>
               </div>
             </div>
@@ -1151,21 +1546,33 @@ export default function LeadDetailsPage() {
               <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
                 <div>
                   <label className="text-sm font-medium text-gray-700">Meter Ref</label>
-                  <Input value={displayLead.meter_ref || ""}
-                    onChange={e => handleUpdateField("meter_ref", e.target.value)}
-                    disabled={!isEditing} className="mt-1" />
+                  <Input
+                    value={displayLead.meter_ref || ""}
+                    onChange={(e) => handleUpdateField("meter_ref", e.target.value)}
+                    disabled={!isEditing}
+                    className="mt-1"
+                  />
                 </div>
                 <div>
                   <label className="text-sm font-medium text-gray-700">Uplift</label>
-                  <Input type="number" step="0.01" value={displayLead.uplift || ""}
-                    onChange={e => handleUpdateField("uplift", parseFloat(e.target.value))}
-                    disabled={!isEditing} className="mt-1" />
+                  <Input
+                    type="number"
+                    step="0.01"
+                    value={displayLead.uplift || ""}
+                    onChange={(e) => handleUpdateField("uplift", parseFloat(e.target.value))}
+                    disabled={!isEditing}
+                    className="mt-1"
+                  />
                 </div>
                 <div className="md:col-span-2">
                   <label className="text-sm font-medium text-gray-700">Comments</label>
-                  <Textarea value={displayLead.comments || ""}
-                    onChange={e => handleUpdateField("comments", e.target.value)}
-                    disabled={!isEditing} className="mt-1" rows={4} />
+                  <Textarea
+                    value={displayLead.comments || ""}
+                    onChange={(e) => handleUpdateField("comments", e.target.value)}
+                    disabled={!isEditing}
+                    className="mt-1"
+                    rows={4}
+                  />
                 </div>
               </div>
             </div>
@@ -1184,54 +1591,81 @@ export default function LeadDetailsPage() {
             <div>
               <label className="text-sm font-medium text-gray-700">Assigned To</label>
               <Select value={assigningEmployeeId} onValueChange={setAssigningEmployeeId}>
-                <SelectTrigger className="mt-1"><SelectValue placeholder="Select salesperson" /></SelectTrigger>
+                <SelectTrigger className="mt-1">
+                  <SelectValue placeholder="Select salesperson" />
+                </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="0">Unassigned</SelectItem>
-                  {employees.map(e => (
-                    <SelectItem key={e.employee_id} value={e.employee_id.toString()}>{e.employee_name}</SelectItem>
+                  {employees.map((e) => (
+                    <SelectItem key={e.employee_id} value={e.employee_id.toString()}>
+                      {e.employee_name}
+                    </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
             <div>
               <label className="text-sm font-medium text-gray-700">Assignment Notes (Optional)</label>
-              <Textarea className="mt-1" placeholder="Why is this being assigned? Any specific instructions..."
-                value={assignmentNotes} onChange={e => setAssignmentNotes(e.target.value)} rows={3} />
+              <Textarea
+                className="mt-1"
+                placeholder="Why is this being assigned? Any specific instructions..."
+                value={assignmentNotes}
+                onChange={(e) => setAssignmentNotes(e.target.value)}
+                rows={3}
+              />
             </div>
           </div>
-          <div className="flex justify-end gap-2 mt-4">
-            <Button variant="outline" onClick={() => { setShowAssignmentModal(false); setAssigningEmployeeId(""); setAssignmentNotes(""); }}
-              disabled={isAssigningEmployee}>Cancel</Button>
+          <div className="mt-4 flex justify-end gap-2">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowAssignmentModal(false);
+                setAssigningEmployeeId("");
+                setAssignmentNotes("");
+              }}
+              disabled={isAssigningEmployee}
+            >
+              Cancel
+            </Button>
             <Button onClick={handleAssignEmployee} disabled={isAssigningEmployee}>
-              {isAssigningEmployee ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Assigning...</> : "Assign"}
+              {isAssigningEmployee ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Assigning...
+                </>
+              ) : (
+                "Assign"
+              )}
             </Button>
           </div>
         </DialogContent>
       </Dialog>
 
       {/* ── Action Panel (fixed right sidebar) ───────────────────────────────── */}
-      <div className="fixed right-0 top-0 h-full w-80 border-l border-gray-200 bg-gray-50 p-6 pt-16 overflow-y-auto">
+      <div className="fixed top-0 right-0 h-full w-80 overflow-y-auto border-l border-gray-200 bg-gray-50 p-6 pt-16">
         <h3 className="mb-4 text-lg font-semibold text-gray-900">Action</h3>
 
         <div className="space-y-4">
-
           {/* Assign To */}
           <div>
             <label className="text-sm font-medium text-gray-700">Assign to:</label>
             <Select
               value={lead.opportunity_owner_employee_id?.toString() || "0"}
-              onValueChange={v => { 
-                setAssigningEmployeeId(v); 
-                setAssignmentNotes(""); 
-                setShowAssignmentModal(true); 
-              }}>
+              onValueChange={(v) => {
+                setAssigningEmployeeId(v);
+                setAssignmentNotes("");
+                setShowAssignmentModal(true);
+              }}
+            >
               <SelectTrigger className="mt-1">
                 <SelectValue placeholder="Unassigned">{lead.assigned_to_name || "Unassigned"}</SelectValue>
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="0">Unassigned</SelectItem>
-                {employees.map(e => (
-                  <SelectItem key={e.employee_id} value={e.employee_id.toString()}>{e.employee_name}</SelectItem>
+                {employees.map((e) => (
+                  <SelectItem key={e.employee_id} value={e.employee_id.toString()}>
+                    {e.employee_name}
+                  </SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -1244,27 +1678,36 @@ export default function LeadDetailsPage() {
             </label>
             <Select
               value={callbackStatus}
-              onValueChange={v => {
-                if (v === "CLEAR_STATUS") { 
-                  handleClearStatus(); 
-                  return; 
+              onValueChange={(v) => {
+                if (v === "CLEAR_STATUS") {
+                  handleClearStatus();
+                  return;
                 }
                 setCallbackStatus(v);
-                setCallbackNotes(""); 
+                setCallbackNotes("");
                 setIsSold("");
-                setNewEndDate(""); 
-                setNewSupplier(""); 
+                setNewEndDate("");
+                setNewSupplier("");
                 setNewAddress("");
                 setCalledDate(new Date().toISOString().split("T")[0]);
                 setRenewedBy("");
-              }}>
-              <SelectTrigger className="w-full mt-1"><SelectValue placeholder="Set status" /></SelectTrigger>
+              }}
+            >
+              <SelectTrigger className="mt-1 w-full">
+                <SelectValue placeholder="Set status" />
+              </SelectTrigger>
               <SelectContent>
-                {STATUS_OPTIONS.map(o => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
+                {STATUS_OPTIONS.map((o) => (
+                  <SelectItem key={o.value} value={o.value}>
+                    {o.label}
+                  </SelectItem>
+                ))}
                 {lead.stage_name && (
                   <>
-                    <div className="border-t my-1" />
-                    <SelectItem value="CLEAR_STATUS" className="text-red-600">✕ Clear Status</SelectItem>
+                    <div className="my-1 border-t" />
+                    <SelectItem value="CLEAR_STATUS" className="text-red-600">
+                      ✕ Clear Status
+                    </SelectItem>
                   </>
                 )}
               </SelectContent>
@@ -1275,16 +1718,20 @@ export default function LeadDetailsPage() {
           {callbackStatus && (
             <div>
               <label className="text-sm font-medium text-gray-700">Called Date</label>
-              <Input type="date" className="mt-1" value={calledDate} onChange={e => setCalledDate(e.target.value)} />
+              <Input type="date" className="mt-1" value={calledDate} onChange={(e) => setCalledDate(e.target.value)} />
             </div>
           )}
 
           {/* Was it sold? */}
           {currentConfig?.requiresSold && (
             <div>
-              <label className="text-sm font-medium text-gray-700">Was it sold? <span className="text-red-500">*</span></label>
+              <label className="text-sm font-medium text-gray-700">
+                Was it sold? <span className="text-red-500">*</span>
+              </label>
               <Select value={isSold} onValueChange={setIsSold}>
-                <SelectTrigger className="mt-1"><SelectValue placeholder="Select" /></SelectTrigger>
+                <SelectTrigger className="mt-1">
+                  <SelectValue placeholder="Select" />
+                </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="yes">Yes - Sold</SelectItem>
                   <SelectItem value="no">No - Move to Priced</SelectItem>
@@ -1297,7 +1744,12 @@ export default function LeadDetailsPage() {
           {callbackStatus && (
             <div>
               <label className="text-sm font-medium text-gray-700">Callback Date:</label>
-              <Input type="date" className="mt-1" value={callbackDate} onChange={e => setCallbackDate(e.target.value)} />
+              <Input
+                type="date"
+                className="mt-1"
+                value={callbackDate}
+                onChange={(e) => setCallbackDate(e.target.value)}
+              />
             </div>
           )}
 
@@ -1305,25 +1757,30 @@ export default function LeadDetailsPage() {
           {currentConfig?.requiresNewEndDate && (
             <div>
               <label className="text-sm font-medium text-gray-700">
-                New Contract End Date:{" "}
-                <span className="text-red-500">*</span>
+                New Contract End Date: <span className="text-red-500">*</span>
               </label>
-              <Input type="date" className="mt-1" value={newEndDate} onChange={e => setNewEndDate(e.target.value)} />
-              <p className="text-xs text-gray-500 mt-1">
-                Contract end date will be updated
-              </p>
+              <Input type="date" className="mt-1" value={newEndDate} onChange={(e) => setNewEndDate(e.target.value)} />
+              <p className="mt-1 text-xs text-gray-500">Contract end date will be updated</p>
             </div>
           )}
 
           {/* Renewed By */}
           {callbackStatus === "Already Renewed" && (
             <div>
-              <label className="text-sm font-medium text-gray-700">Renewed By <span className="text-red-500">*</span></label>
-              <div className="mt-1 flex flex-col gap-2 p-3 border rounded-lg bg-white">
-                {(["customer", "agent"] as const).map(v => (
-                  <label key={v} className="flex items-center gap-3 cursor-pointer">
-                    <input type="radio" name="renewedBy_action_panel" value={v}
-                      checked={renewedBy === v} onChange={() => setRenewedBy(v)} className="w-4 h-4 accent-black" />
+              <label className="text-sm font-medium text-gray-700">
+                Renewed By <span className="text-red-500">*</span>
+              </label>
+              <div className="mt-1 flex flex-col gap-2 rounded-lg border bg-white p-3">
+                {(["customer", "agent"] as const).map((v) => (
+                  <label key={v} className="flex cursor-pointer items-center gap-3">
+                    <input
+                      type="radio"
+                      name="renewedBy_action_panel"
+                      value={v}
+                      checked={renewedBy === v}
+                      onChange={() => setRenewedBy(v)}
+                      className="h-4 w-4 accent-black"
+                    />
                     <div>
                       <span className="text-sm font-medium text-gray-900">
                         Renewed by {v.charAt(0).toUpperCase() + v.slice(1)}
@@ -1342,7 +1799,9 @@ export default function LeadDetailsPage() {
           {currentConfig?.deletesRecord && (
             <Alert className="mt-2">
               <AlertCircle className="h-4 w-4" />
-              <AlertDescription><strong>Warning:</strong> This will permanently delete the record.</AlertDescription>
+              <AlertDescription>
+                <strong>Warning:</strong> This will permanently delete the record.
+              </AlertDescription>
             </Alert>
           )}
 
@@ -1350,11 +1809,16 @@ export default function LeadDetailsPage() {
           {callbackStatus === "Already Renewed" && (
             <div>
               <label className="text-sm font-medium text-gray-700">
-                New Supplier <span className="text-gray-400 font-normal">(Optional)</span>
+                New Supplier <span className="font-normal text-gray-400">(Optional)</span>
               </label>
-              <Input type="text" className="mt-1" placeholder="Enter new supplier name"
-                value={newSupplier} onChange={e => setNewSupplier(e.target.value)} />
-              <p className="text-xs text-gray-500 mt-1">Leave blank if supplier hasn't changed</p>
+              <Input
+                type="text"
+                className="mt-1"
+                placeholder="Enter new supplier name"
+                value={newSupplier}
+                onChange={(e) => setNewSupplier(e.target.value)}
+              />
+              <p className="mt-1 text-xs text-gray-500">Leave blank if supplier hasn't changed</p>
             </div>
           )}
 
@@ -1362,11 +1826,16 @@ export default function LeadDetailsPage() {
           {callbackStatus === "Already Renewed" && (
             <div>
               <label className="text-sm font-medium text-gray-700">
-                New Address <span className="text-gray-400 font-normal">(Optional)</span>
+                New Address <span className="font-normal text-gray-400">(Optional)</span>
               </label>
-              <Textarea className="mt-1" rows={2} placeholder="Enter new address if changed"
-                value={newAddress} onChange={e => setNewAddress(e.target.value)} />
-              <p className="text-xs text-gray-500 mt-1">Leave blank if address hasn't changed</p>
+              <Textarea
+                className="mt-1"
+                rows={2}
+                placeholder="Enter new address if changed"
+                value={newAddress}
+                onChange={(e) => setNewAddress(e.target.value)}
+              />
+              <p className="mt-1 text-xs text-gray-500">Leave blank if address hasn't changed</p>
             </div>
           )}
 
@@ -1375,12 +1844,14 @@ export default function LeadDetailsPage() {
             <label className="text-sm font-medium text-gray-700">
               Notes: {currentConfig?.requiresNotes && <span className="text-red-500">*</span>}
             </label>
-            <Textarea className="mt-1" rows={3}
+            <Textarea
+              className="mt-1"
+              rows={3}
               placeholder={currentConfig?.requiresNotes ? "Enter reason why it was lost..." : "Add notes..."}
-              value={callbackNotes} onChange={e => setCallbackNotes(e.target.value)} />
-            {currentConfig?.requiresNotes && (
-              <p className="text-xs text-gray-500 mt-1">Required for Lost/Lost COT</p>
-            )}
+              value={callbackNotes}
+              onChange={(e) => setCallbackNotes(e.target.value)}
+            />
+            {currentConfig?.requiresNotes && <p className="mt-1 text-xs text-gray-500">Required for Lost/Lost COT</p>}
           </div>
 
           {/* Error */}
@@ -1392,19 +1863,28 @@ export default function LeadDetailsPage() {
           )}
 
           {/* Save */}
-          <Button className="w-full bg-black hover:bg-gray-800"
-            onClick={handleSubmitCallback} disabled={isSubmittingCallback}>
-            {isSubmittingCallback
-              ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Saving...</>
-              : callbackStatus ? `Save ${callbackStatus}` : "Save Action"}
+          <Button
+            className="w-full bg-black hover:bg-gray-800"
+            onClick={handleSubmitCallback}
+            disabled={isSubmittingCallback}
+          >
+            {isSubmittingCallback ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Saving...
+              </>
+            ) : callbackStatus ? (
+              `Save ${callbackStatus}`
+            ) : (
+              "Save Action"
+            )}
           </Button>
-
         </div>
 
         {/* ── History ─────────────────────────────────────────────────────── */}
         <div className="mt-8">
           <h3 className="mb-3 text-lg font-semibold text-gray-900">History</h3>
-          
+
           {loadingHistory ? (
             <div className="flex items-center justify-center py-4">
               <Loader2 className="h-5 w-5 animate-spin text-gray-400" />
@@ -1414,33 +1894,41 @@ export default function LeadDetailsPage() {
           ) : (
             <div className="space-y-3">
               {history.map((interaction) => {
-              const rawNotes = interaction.notes || '';
+                const rawNotes = interaction.notes || "";
 
-              // ✅ Extract just the user-entered note after the last "|"
-              // Format is: "[Status] Status: Old → New | user note here"
-              const pipeIndex = rawNotes.indexOf(' | ');
-              const cleanNotes = pipeIndex !== -1
-                ? rawNotes.slice(pipeIndex + 3).trim()  // ✅ everything after " | "
-                : rawNotes
-                    .replace(/^\[.*?\]\s*/, '')          // remove [Status] prefix
-                    .replace(/^Status:[^|]*(\|)?/, '')   // remove "Status: X → Y" part
-                    .trim();
-                const displayStatus = interaction.interaction_type || 'Unknown';
-                
+                // ✅ Extract just the user-entered note after the last "|"
+                // Format is: "[Status] Status: Old → New | user note here"
+                const pipeIndex = rawNotes.indexOf(" | ");
+                const cleanNotes =
+                  pipeIndex !== -1
+                    ? rawNotes.slice(pipeIndex + 3).trim() // ✅ everything after " | "
+                    : rawNotes
+                        .replace(/^\[.*?\]\s*/, "") // remove [Status] prefix
+                        .replace(/^Status:[^|]*(\|)?/, "") // remove "Status: X → Y" part
+                        .trim();
+                const displayStatus = interaction.interaction_type || "Unknown";
+
                 // ✅ Check if this is a callback with a reminder date
-                const hasCallback = interaction.reminder_date && 
-                  ['Callback', 'Called', 'Not Answered', 'Broker in Place', 
-                  'End Date Changed', 'Already Renewed'].includes(displayStatus);
-                
+                const hasCallback =
+                  interaction.reminder_date &&
+                  [
+                    "Callback",
+                    "Called",
+                    "Not Answered",
+                    "Broker in Place",
+                    "End Date Changed",
+                    "Already Renewed",
+                  ].includes(displayStatus);
+
                 return (
-                  <div 
-                    key={interaction.interaction_id} 
-                    className="p-3 bg-white border border-gray-200 rounded-lg text-sm relative group"
+                  <div
+                    key={interaction.interaction_id}
+                    className="group relative rounded-lg border border-gray-200 bg-white p-3 text-sm"
                   >
                     {/* ✅ DELETE BUTTON - Shows on hover */}
                     <button
                       onClick={() => handleDeleteInteraction(interaction.interaction_id)}
-                      className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:bg-red-50 rounded"
+                      className="absolute top-2 right-2 rounded p-1 opacity-0 transition-opacity group-hover:opacity-100 hover:bg-red-50"
                       title="Delete this entry"
                     >
                       <Trash2 className="h-4 w-4 text-red-600" />
@@ -1448,33 +1936,29 @@ export default function LeadDetailsPage() {
 
                     {/* ✅ Show the actual status */}
                     <div className="mb-2">
-                      <span className="font-semibold text-gray-900">
-                        {displayStatus}
-                      </span>
+                      <span className="font-semibold text-gray-900">{displayStatus}</span>
                     </div>
-                    
+
                     {/* ✅ ALWAYS show notes if they exist */}
-                    {cleanNotes && (
-                      <p className="text-gray-600 text-xs mb-2 pr-8">{cleanNotes}</p>
-                    )}
-                    
+                    {cleanNotes && <p className="mb-2 pr-8 text-xs text-gray-600">{cleanNotes}</p>}
+
                     {/* ✅ Show callback/reminder date with calendar icon - ONLY for callback-type statuses */}
                     {hasCallback && (
-                      <div className="flex items-center gap-1 text-xs text-purple-700 mb-1">
+                      <div className="mb-1 flex items-center gap-1 text-xs text-purple-700">
                         <Calendar className="h-3 w-3" />
                         <span>Callback: {formatDate(interaction.reminder_date)}</span>
                       </div>
                     )}
-                    
+
                     {/* ✅ Show timestamp for when this was created */}
                     {interaction.created_at && (
-                      <div className="text-xs text-gray-400 mt-1">
-                        {new Date(interaction.created_at).toLocaleString('en-GB', {
-                          day: '2-digit',
-                          month: '2-digit',
-                          year: 'numeric',
-                          hour: '2-digit',
-                          minute: '2-digit'
+                      <div className="mt-1 text-xs text-gray-400">
+                        {new Date(interaction.created_at).toLocaleString("en-GB", {
+                          day: "2-digit",
+                          month: "2-digit",
+                          year: "numeric",
+                          hour: "2-digit",
+                          minute: "2-digit",
                         })}
                       </div>
                     )}
@@ -1484,9 +1968,7 @@ export default function LeadDetailsPage() {
             </div>
           )}
         </div>
-
-      </div> 
-    </div>   
+      </div>
+    </div>
   );
 }
-

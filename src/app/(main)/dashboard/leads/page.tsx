@@ -613,9 +613,16 @@ export default function LeadsPage() {
       if (!response || response.error) {
         throw new Error(response?.error || "Failed to save");
       }
-      
-      if (!response || response.error) {
-        throw new Error(response?.error || "Failed to save");
+
+      if (response.display_only || callbackStatus === "Dead") {
+        await fetchLeads();
+        await fetchPerformanceStats();
+        toast.success(`Status set to ${callbackStatus}`);
+        setShowCallbackModal(false);
+        setSelectedLeadForCallback(null);
+        setCallbackStatus("");
+        setCallbackNotes("");
+        return;
       }
 
       // ✅ CRITICAL: Update state with the ACTUAL response from backend
