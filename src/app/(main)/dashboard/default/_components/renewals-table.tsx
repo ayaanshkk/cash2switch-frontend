@@ -25,6 +25,8 @@ interface RenewalCustomer {
   phone: string;
   email: string;
   supplier_name: string;
+  mpan_mpr?: string;
+  mpan_number?: string;
   end_date: string;
   annual_usage: number;
   days_until_expiry: number;
@@ -173,6 +175,18 @@ export function RenewalsTable({ employeeId }: RenewalsTableProps = {}) {
           {row.original.supplier_name}
         </Badge>
       ),
+    },
+    {
+      accessorKey: "mpan_mpr",
+      header: ({ column }) => <DataTableColumnHeader column={column} title="MPAN/MPR" />,
+      cell: ({ row }) => {
+        const mpan = row.original.mpan_mpr || row.original.mpan_number;
+        return (
+          <div className="max-w-[160px] truncate font-mono text-sm text-slate-800" title={mpan || ""}>
+            {mpan || "—"}
+          </div>
+        );
+      },
     },
     {
       accessorKey: "end_date",

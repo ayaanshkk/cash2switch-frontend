@@ -22,6 +22,7 @@ export interface LeadRow {
   contact_person: string | null;
   tel_number: string | null;
   email: string | null;
+  mpan_mpr: string | null;
   stage_name: string | null;
   end_date: string | null;
   annual_usage?: number | null;
@@ -112,6 +113,15 @@ export function LeadsDashboardTable({ employeeId }: LeadsDashboardTableProps) {
           <Badge variant="outline" className="border-violet-200 bg-violet-50 font-normal text-violet-900">
             {row.original.stage_name || "—"}
           </Badge>
+        ),
+      },
+      {
+        accessorKey: "mpan_mpr",
+        header: ({ column }) => <DataTableColumnHeader column={column} title="MPAN/MPR" />,
+        cell: ({ row }) => (
+          <div className="max-w-[160px] truncate font-mono text-sm text-slate-800" title={row.original.mpan_mpr || ""}>
+            {row.original.mpan_mpr || "—"}
+          </div>
         ),
       },
       {
