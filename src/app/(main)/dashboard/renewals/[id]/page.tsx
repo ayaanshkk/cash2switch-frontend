@@ -414,6 +414,7 @@ export default function EnergyCustomerDetailsPage() {
       if (data.status) {
         setCallbackStatus(data.status);
       }
+      setCallbackDate(data.callback_date ? String(data.callback_date).slice(0, 10) : "");
 
       if (data.document_details) {
         try {
@@ -814,6 +815,7 @@ export default function EnergyCustomerDetailsPage() {
       if (data.customer) {
         setCustomer((prev) => (prev ? { ...prev, ...data.customer } : data.customer));
         setEditedCustomer((prev) => ({ ...prev, ...data.customer }));
+        setCallbackDate(data.customer.callback_date ? String(data.customer.callback_date).slice(0, 10) : callbackDate);
       }
 
       if (callbackStatus === "Already Renewed") alert("✅ Lead information updated");
@@ -822,8 +824,7 @@ export default function EnergyCustomerDetailsPage() {
       else if (callbackStatus === "Converted") alert("✅ Lead marked as Converted");
       else alert("✅ Action saved successfully");
 
-      // Reset form fields only (not status)
-      setCallbackDate("");
+      // Reset form fields only (not status/date)
       setCallbackNotes("");
       setIsSold("");
       setNewEndDate("");
