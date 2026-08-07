@@ -110,6 +110,7 @@ function buildCustomerUpdatePayload(data: Partial<EnergyCustomer>, extra?: Recor
     "start_date",
     "end_date",
     "unit_rate",
+    "standing_charge",
     "rate_1",
     "rate_2",
     "rate_3",
