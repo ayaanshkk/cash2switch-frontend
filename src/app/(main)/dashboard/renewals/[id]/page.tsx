@@ -692,6 +692,13 @@ export default function EnergyCustomerDetailsPage() {
     if (!callbackStatus) return false;
 
     const config = statusConfig[callbackStatus];
+    const isRenewalScheduleOnlyUpdate =
+      (callbackStatus === "Already Renewed" || callbackStatus === "Sold") &&
+      !renewedBy &&
+      Boolean(callbackDate) &&
+      !newEndDate &&
+      !newSupplier.trim() &&
+      !newAddress.trim();
     if (!config) return false;
 
     if (config.requiresSold) {
@@ -732,14 +739,14 @@ export default function EnergyCustomerDetailsPage() {
       return;
     }
 
-    if ((callbackStatus === "Already Renewed" || callbackStatus === "Sold") && !renewedBy) {
+    if ((callbackStatus === "Already Renewed" || callbackStatus === "Sold") && !renewedBy && !isRenewalScheduleOnlyUpdate) {
       setCallbackError(
         callbackStatus === "Sold" ? "Please select if sold by supplier or agent" : "Please select if renewed by customer or agent",
       );
       return;
     }
 
-    if (config?.requiresNewEndDate && !newEndDate) {
+    if (config?.requiresNewEndDate && !newEndDate && !isRenewalScheduleOnlyUpdate) {
       setCallbackError("Please enter the new contract end date");
       return;
     }

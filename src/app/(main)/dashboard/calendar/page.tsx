@@ -7,7 +7,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ChevronLeft, ChevronRight, Loader2, RefreshCw, ExternalLink, AlertCircle } from "lucide-react";
+import { Textarea } from "@/components/ui/textarea";
+import { ChevronLeft, ChevronRight, Loader2, RefreshCw, ExternalLink, AlertCircle, Search } from "lucide-react";
 import { api, fetchWithAuth } from "@/lib/api";
 import { format } from "date-fns";
 
@@ -116,9 +117,11 @@ export default function CalendarPage() {
   const [showDayEventsDialog, setShowDayEventsDialog] = useState(false);
   const [rescheduleDate, setRescheduleDate] = useState("");
   const [contractEndDateInput, setContractEndDateInput] = useState("");
+  const [rescheduleNotes, setRescheduleNotes] = useState("");
   const [isRescheduling, setIsRescheduling] = useState(false);
   const [rescheduleError, setRescheduleError] = useState<string | null>(null);
   const [showMonthPicker, setShowMonthPicker] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
 
   // ✅ Employee filter states
   const [employees, setEmployees] = useState<Employee[]>([]);
@@ -288,10 +291,35 @@ export default function CalendarPage() {
     return days;
   }, [currentDate]);
 
+  const filteredRenewals = useMemo(() => {
+    const query = searchTerm.trim().toLowerCase();
+    if (!query) return renewals;
+
+    return renewals.filter((renewal) =>
+      [
+        renewal.name,
+        renewal.title,
+        renewal.mpan,
+        renewal.supplier,
+        renewal.service_title,
+        renewal.status,
+        renewal.display_type,
+        renewal.contact,
+        renewal.email,
+        renewal.phone,
+        renewal.address,
+        renewal.postcode,
+        renewal.assigned_to,
+      ]
+        .filter(Boolean)
+        .some((value) => String(value).toLowerCase().includes(query)),
+    );
+  }, [renewals, searchTerm]);
+
   const renewalsByDate = useMemo(() => {
     const dateMap: Record<string, Renewal[]> = {};
 
-    for (const renewal of renewals) {
+    for (const renewal of filteredRenewals) {
       if (renewal.display_date) {
         const dateKey = formatDateKey(renewal.display_date);
         if (!dateMap[dateKey]) dateMap[dateKey] = [];
@@ -300,7 +328,7 @@ export default function CalendarPage() {
     }
 
     return dateMap;
-  }, [renewals]);
+  }, [filteredRenewals]);
 
   const loadCalendarEvents = async (options?: { silent?: boolean }) => {
     try {
@@ -398,6 +426,7 @@ export default function CalendarPage() {
     setContractEndDateInput(
       selectedRenewal.contract_end_date ? String(selectedRenewal.contract_end_date).slice(0, 10) : "",
     );
+    setRescheduleNotes(selectedRenewal.notes || "");
     setRescheduleError(null);
   }, [selectedRenewal]);
 
@@ -417,9 +446,10 @@ export default function CalendarPage() {
     const callbackChanged = Boolean(rescheduleDate) && rescheduleDate !== existingCallbackDate;
     const isLeadEvent = renewalSnapshot.id.startsWith("lead-callback-");
     const endDateChanged = !isLeadEvent && Boolean(contractEndDateInput) && contractEndDateInput !== existingEndDate;
+    const notesChanged = rescheduleNotes.trim() !== (renewalSnapshot.notes || "").trim();
 
-    if (!callbackChanged && !endDateChanged) {
-      setRescheduleError("No changes detected. Update callback date or contract end date.");
+    if (!callbackChanged && !endDateChanged && !notesChanged) {
+      setRescheduleError("No changes detected. Update callback date, contract end date, or notes.");
       return;
     }
 
@@ -427,31 +457,26 @@ export default function CalendarPage() {
     setRescheduleError(null);
 
     try {
-      if (callbackChanged) {
-        const endpoint = isLeadEvent
-          ? `/api/crm/leads/${renewalSnapshot.customer_id}/callback`
-          : `/energy-clients/${renewalSnapshot.customer_id}/callback`;
-
-        await fetchWithAuth(endpoint, {
+      if (isLeadEvent && callbackChanged) {
+        await fetchWithAuth(`/api/crm/leads/${renewalSnapshot.customer_id}/callback`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             status: resolveCalendarCallbackStatus(renewalSnapshot),
             callback_date: rescheduleDate,
-            notes: renewalSnapshot.notes || "Rescheduled from calendar",
+            notes: rescheduleNotes.trim() || "Rescheduled from calendar",
           }),
         });
       }
 
-      if (endDateChanged) {
-        await fetchWithAuth(`/energy-clients/${renewalSnapshot.customer_id}/callback`, {
-          method: "POST",
+      if (!isLeadEvent && (callbackChanged || endDateChanged || notesChanged)) {
+        await fetchWithAuth(`/backend-api/api/calendar/renewals/${renewalSnapshot.customer_id}/schedule`, {
+          method: "PUT",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            status: "End Date Changed",
-            callback_date: rescheduleDate || existingCallbackDate || new Date().toISOString().slice(0, 10),
-            new_end_date: contractEndDateInput,
-            notes: renewalSnapshot.notes || "Contract end date updated from calendar",
+            callback_date: callbackChanged ? rescheduleDate : undefined,
+            contract_end_date: endDateChanged ? contractEndDateInput : undefined,
+            notes: notesChanged ? rescheduleNotes.trim() : undefined,
           }),
         });
       }
@@ -462,6 +487,7 @@ export default function CalendarPage() {
           ...item,
           reminder_date: callbackChanged ? rescheduleDate : item.reminder_date,
           contract_end_date: endDateChanged ? contractEndDateInput : item.contract_end_date,
+          notes: notesChanged ? rescheduleNotes.trim() : item.notes,
           display_date:
             item.type === "contract_end"
               ? endDateChanged
@@ -480,7 +506,12 @@ export default function CalendarPage() {
       window.dispatchEvent(new CustomEvent("calendar-refetch", { detail: { action: "refetch-calendar" } }));
       void loadCalendarEvents({ silent: true });
     } catch (err: any) {
-      setRescheduleError(err?.message || "Failed to reschedule callback.");
+      const message = err?.message || "Failed to reschedule callback.";
+      setRescheduleError(
+        message === "Failed to fetch"
+          ? "Could not reach the calendar update endpoint. Restart the backend and try again."
+          : message,
+      );
     } finally {
       setIsRescheduling(false);
     }
@@ -497,12 +528,21 @@ export default function CalendarPage() {
   return (
     <div className="min-h-screen bg-white p-6">
       {/* Header */}
-      <div className="mb-6 flex items-center justify-between">
+      <div className="mb-6 flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
         <div>
           <h1 className="text-3xl font-bold">{pageTitle}</h1>
           <p className="text-muted-foreground mt-1">{pageSubtitle}</p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
+          <div className="relative">
+            <Search className="pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-gray-400" />
+            <Input
+              value={searchTerm}
+              onChange={(event) => setSearchTerm(event.target.value)}
+              placeholder="Search renewals or leads..."
+              className="w-full pl-9 lg:w-72"
+            />
+          </div>
           <div className="flex rounded-md border border-gray-200 bg-white p-1">
             <Button
               type="button"
@@ -668,7 +708,7 @@ export default function CalendarPage() {
             </span>
           ) : (
             <span>
-              {renewals.length} event{renewals.length !== 1 ? "s" : ""}
+              {filteredRenewals.length} of {renewals.length} event{renewals.length !== 1 ? "s" : ""}
             </span>
           )}
         </div>
@@ -734,13 +774,39 @@ export default function CalendarPage() {
 
       {/* Detail Dialog */}
       <Dialog open={showDetailDialog} onOpenChange={setShowDetailDialog}>
-        <DialogContent className="max-w-2xl">
-          <DialogHeader>
-            <DialogTitle>Customer Details</DialogTitle>
-          </DialogHeader>
+        <DialogContent className="flex max-h-[92vh] max-w-4xl flex-col overflow-hidden p-0">
           {selectedRenewal && (
-            <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
+            <div className="flex min-h-0 flex-1 flex-col">
+              <DialogHeader className="border-b bg-gray-50 px-6 py-5">
+                <div className="flex flex-col gap-3 pr-8 sm:flex-row sm:items-start sm:justify-between">
+                  <div>
+                    <DialogTitle className="text-xl font-semibold text-gray-950">{selectedRenewal.name}</DialogTitle>
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      <span className={`rounded-full border px-2.5 py-1 text-xs font-medium ${getRenewalColor(selectedRenewal)}`}>
+                        {selectedRenewal.display_type}
+                      </span>
+                      <span className="rounded-full border border-gray-200 bg-white px-2.5 py-1 text-xs font-medium text-gray-700">
+                        {selectedRenewal.status || "No status"}
+                      </span>
+                      {selectedRenewal.assigned_to && (
+                        <span className="rounded-full border border-gray-200 bg-white px-2.5 py-1 text-xs font-medium text-gray-700">
+                          {selectedRenewal.assigned_to}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <div className="rounded-md border bg-white px-3 py-2 text-sm">
+                    <p className="text-xs font-medium text-gray-500">
+                      {selectedRenewal.type === "callback" ? "Callback" : "Display Date"}
+                    </p>
+                    <p className="font-semibold text-gray-950">
+                      {selectedRenewal.display_date ? format(new Date(selectedRenewal.display_date), "dd MMM yyyy") : "N/A"}
+                    </p>
+                  </div>
+                </div>
+              </DialogHeader>
+              <div className="min-h-0 flex-1 overflow-y-auto px-6 py-5">
+              <div className="grid gap-4 md:grid-cols-2">
                 <div>
                   <p className="text-sm font-medium text-gray-500">Customer Name</p>
                   <p className="text-base font-semibold">{selectedRenewal.name}</p>
@@ -813,38 +879,40 @@ export default function CalendarPage() {
                 )}
               </div>
               {selectedRenewal.notes && (
-                <div>
+                <div className="mt-4 rounded-md border border-gray-200 bg-white p-4">
                   <p className="text-sm font-medium text-gray-500">Notes</p>
-                  <p className="mt-1 text-sm whitespace-pre-wrap">{selectedRenewal.notes}</p>
+                  <p className="mt-1 text-sm leading-6 whitespace-pre-wrap text-gray-700">{selectedRenewal.notes}</p>
                 </div>
               )}
-              <div className="space-y-4 border-t pt-4">
-                <div className="rounded-md border border-gray-200 bg-gray-50 p-3">
-                  <p className="mb-3 text-sm font-medium text-gray-900">
-                    {isLeadsView ? "Schedule / Reschedule Callback" : "Schedule Updates"}
-                  </p>
+                <div className="mt-4 rounded-md border border-gray-200 bg-gray-50 p-4">
+                  <div className="mb-3 flex items-center justify-between gap-3">
+                    <p className="text-sm font-medium text-gray-900">
+                      {isLeadsView ? "Schedule Callback" : "Schedule Updates"}
+                    </p>
+                    <span className="text-xs text-gray-500">Changes save to calendar dates only</span>
+                  </div>
                   <div className="flex flex-wrap items-end gap-3">
-                    <div>
-                      <p className="mb-1 text-xs text-gray-500">Callback Date</p>
+                    <div className="w-full sm:w-52">
+                      <p className="mb-1 text-xs font-medium text-gray-500">Callback Date</p>
                       <Input
                         type="date"
                         value={rescheduleDate}
                         onChange={(e) => setRescheduleDate(e.target.value)}
-                        className="w-[190px] bg-white"
+                        className="w-full min-w-0 bg-white [color-scheme:light]"
                       />
                     </div>
                     {!isLeadsView && (
-                      <div>
-                        <p className="mb-1 text-xs text-gray-500">Contract End Date</p>
+                      <div className="w-full sm:w-52">
+                        <p className="mb-1 text-xs font-medium text-gray-500">Contract End Date</p>
                         <Input
                           type="date"
                           value={contractEndDateInput}
                           onChange={(e) => setContractEndDateInput(e.target.value)}
-                          className="w-[190px] bg-white"
+                          className="w-full min-w-0 bg-white [color-scheme:light]"
                         />
                       </div>
                     )}
-                    <Button onClick={handlePopupReschedule} disabled={isRescheduling}>
+                    <Button className="w-full sm:w-auto" onClick={handlePopupReschedule} disabled={isRescheduling}>
                       {isRescheduling ? (
                         <>
                           <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -855,9 +923,20 @@ export default function CalendarPage() {
                       )}
                     </Button>
                   </div>
-                  {rescheduleError && <p className="mt-2 text-xs text-red-600">{rescheduleError}</p>}
+                  <div className="mt-3">
+                    <p className="mb-1 text-xs font-medium text-gray-500">Notes</p>
+                    <Textarea
+                      value={rescheduleNotes}
+                      onChange={(event) => setRescheduleNotes(event.target.value)}
+                      placeholder="Add notes..."
+                      rows={3}
+                      className="resize-none bg-white"
+                    />
+                  </div>
+                  {rescheduleError && <p className="mt-2 text-xs font-medium text-red-600">{rescheduleError}</p>}
                 </div>
-                <div className="flex items-center justify-between">
+              </div>
+                <div className="flex items-center justify-between gap-3 border-t bg-white px-6 py-4">
                   <Button variant="outline" onClick={() => setShowDetailDialog(false)}>
                     Close
                   </Button>
@@ -865,7 +944,6 @@ export default function CalendarPage() {
                     View Full Details
                     <ExternalLink className="h-4 w-4" />
                   </Button>
-                </div>
               </div>
             </div>
           )}
