@@ -44,6 +44,12 @@ type CommissionPayment = {
   customer_name: string | null;
   business_name: string | null;
   supplier_name: string | null;
+  mpan_number: string | null;
+  mpan_bottom: string | null;
+  contract_start_date: string | null;
+  contract_end_date: string | null;
+  service_id: number | null;
+  service_title: string | null;
   aggregator: string | null;
   agent_name: string | null;
   expected_net_amount: string;
@@ -83,6 +89,10 @@ type PaymentGroup = {
   clientId: number | null;
   title: string;
   subtitle: string;
+  mpan: string | null;
+  contractStartDate: string | null;
+  contractEndDate: string | null;
+  serviceTitle: string | null;
   payments: CommissionPayment[];
   expected: number;
   received: number;
@@ -172,6 +182,9 @@ export default function PaymentCheckerPage() {
         payment.business_name,
         payment.customer_name,
         payment.supplier_name,
+        payment.mpan_number,
+        payment.mpan_bottom,
+        payment.service_title,
         payment.aggregator,
         payment.agent_name,
         payment.contract_id ? String(payment.contract_id) : null,
@@ -200,6 +213,10 @@ export default function PaymentCheckerPage() {
         title,
         subtitle,
         clientId: payment.client_id,
+        mpan: payment.mpan_number || payment.mpan_bottom || null,
+        contractStartDate: payment.contract_start_date,
+        contractEndDate: payment.contract_end_date,
+        serviceTitle: payment.service_title,
         payments: [],
         expected: 0,
         received: 0,
@@ -603,6 +620,20 @@ export default function PaymentCheckerPage() {
                                   </Badge>
                                 </div>
                                 <div className="mt-1 text-sm break-words text-slate-500">{group.subtitle}</div>
+                                <div className="mt-2 flex flex-wrap gap-2 text-xs text-slate-600">
+                                  <span className="rounded bg-slate-100 px-2 py-1">
+                                    {group.serviceTitle || "Service missing"}
+                                  </span>
+                                  <span className="rounded bg-slate-100 px-2 py-1">
+                                    MPAN/MPR: {group.mpan || "-"}
+                                  </span>
+                                  <span className="rounded bg-slate-100 px-2 py-1">
+                                    Start: {formatDate(group.contractStartDate)}
+                                  </span>
+                                  <span className="rounded bg-slate-100 px-2 py-1">
+                                    End: {formatDate(group.contractEndDate)}
+                                  </span>
+                                </div>
                                 <Button
                                   className="mt-3"
                                   size="sm"
@@ -650,11 +681,14 @@ export default function PaymentCheckerPage() {
                         {expanded && (
                           <div className="border-t bg-white">
                             <div className="overflow-x-auto">
-                              <table className="w-full min-w-[980px] text-sm">
+                              <table className="w-full min-w-[1280px] text-sm">
                                 <thead className="bg-slate-50 text-left text-xs font-semibold tracking-wide text-slate-500 uppercase">
                                   <tr>
                                     <th className="px-4 py-3">Instalment</th>
                                     <th className="px-4 py-3">Supplier</th>
+                                    <th className="px-4 py-3">Service</th>
+                                    <th className="px-4 py-3">MPAN/MPR</th>
+                                    <th className="px-4 py-3">Contract Dates</th>
                                     <th className="px-4 py-3">Aggregator</th>
                                     <th className="px-4 py-3">Agent</th>
                                     <th className="px-4 py-3 text-right">Expected</th>
@@ -679,6 +713,13 @@ export default function PaymentCheckerPage() {
                                         <div className="text-xs text-slate-500">ID {payment.id.slice(0, 8)}</div>
                                       </td>
                                       <td className="px-4 py-3 text-slate-700">{payment.supplier_name || "-"}</td>
+                                      <td className="px-4 py-3 text-slate-700">{payment.service_title || "-"}</td>
+                                      <td className="px-4 py-3 font-mono text-xs text-slate-700">
+                                        {payment.mpan_number || payment.mpan_bottom || "-"}
+                                      </td>
+                                      <td className="px-4 py-3 text-slate-700">
+                                        {formatDate(payment.contract_start_date)} - {formatDate(payment.contract_end_date)}
+                                      </td>
                                       <td className="px-4 py-3 text-slate-700">{payment.aggregator || "-"}</td>
                                       <td className="px-4 py-3 text-slate-700">{payment.agent_name || "-"}</td>
                                       <td className="px-4 py-3 text-right font-medium">
@@ -763,6 +804,24 @@ export default function PaymentCheckerPage() {
                     <Badge className={`${statusTone[selectedPayment.status]} shrink-0`}>{selectedPayment.status}</Badge>
                   </div>
                   <div className="mt-4 grid grid-cols-2 gap-3 text-sm">
+                    <div>
+                      <p className="text-slate-500">Service</p>
+                      <p className="font-semibold">{selectedPayment.service_title || "-"}</p>
+                    </div>
+                    <div>
+                      <p className="text-slate-500">MPAN/MPR</p>
+                      <p className="font-mono text-xs font-semibold break-words">
+                        {selectedPayment.mpan_number || selectedPayment.mpan_bottom || "-"}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-slate-500">Contract start</p>
+                      <p className="font-semibold">{formatDate(selectedPayment.contract_start_date)}</p>
+                    </div>
+                    <div>
+                      <p className="text-slate-500">Contract end</p>
+                      <p className="font-semibold">{formatDate(selectedPayment.contract_end_date)}</p>
+                    </div>
                     <div>
                       <p className="text-slate-500">Expected</p>
                       <p className="font-semibold">{formatMoney(selectedPayment.expected_net_amount)}</p>

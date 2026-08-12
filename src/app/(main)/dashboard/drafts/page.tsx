@@ -134,7 +134,7 @@ export default function DraftsPage() {
   const [bulkAssignEmployeeId, setBulkAssignEmployeeId]     = useState("");
   const [bulkAssignEmployeeName, setBulkAssignEmployeeName] = useState("");
   const [isBulkAssigning, setIsBulkAssigning]               = useState(false);
-  const [endDateFilter, setEndDateFilter] = useState<"all" | "30" | "60" | "90" | "90+">("all");
+  const [endDateFilter, setEndDateFilter] = useState<"all" | "365" | "30" | "60" | "90" | "90+">("all");
   const [usageSort, setUsageSort] = useState<"none" | "low-high" | "high-low">("none");
   const [bulkAssignQuantity, setBulkAssignQuantity] = useState<string>("");
 
@@ -196,6 +196,7 @@ export default function DraftsPage() {
             if (!item.end_date) return false;
             const end  = new Date(item.end_date);
             const days = Math.ceil((end.getTime() - today.getTime()) / 86400000);
+            if (endDateFilter === "365") return days >= 0 && days <= 365;
             if (endDateFilter === "30")  return days >= 0 && days <= 30;
             if (endDateFilter === "60")  return days > 30 && days <= 60;
             if (endDateFilter === "90")  return days > 60 && days <= 90;
@@ -537,6 +538,7 @@ export default function DraftsPage() {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All Contracts</SelectItem>
+            <SelectItem value="365">Ending in 0-365 days</SelectItem>
             <SelectItem value="30">Ending in 30 days</SelectItem>
             <SelectItem value="60">Ending in 31–60 days</SelectItem>
             <SelectItem value="90">Ending in 61–90 days</SelectItem>

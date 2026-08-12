@@ -11,7 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { fetchWithAuth } from "@/lib/api";
 
-type PaymentPolicy = "annual" | "upfront_reconciliation" | "monthly_actual" | "quarterly_actual" | "";
+type PaymentPolicy = "annual" | "upfront" | "upfront_reconciliation" | "monthly_actual" | "quarterly_actual" | "";
 
 type SupplierTerm = {
   supplier_id: number;
@@ -50,7 +50,10 @@ const emptyDraft: DraftTerm = {
 const toInput = (value: number | string | null | undefined) => (value === null || value === undefined ? "" : String(value));
 
 const buildDraft = (supplier: SupplierTerm): DraftTerm => ({
-  policy: supplier.commission_payment_type || "",
+  policy:
+    supplier.commission_payment_type ||
+    (supplier.multi_year_commission_payment_mode === "upfront" ? "upfront" : "") ||
+    (supplier.multi_year_commission_payment_mode === "annual" ? "annual" : ""),
   delayDays: toInput(supplier.commission_payment_delay_days),
   upfrontPercentage: toInput(supplier.upfront_percentage),
   invoiceDelayDays: toInput(supplier.invoice_delay_days),
@@ -59,6 +62,7 @@ const buildDraft = (supplier: SupplierTerm): DraftTerm => ({
 });
 
 const policyLabel = (policy: PaymentPolicy) => {
+  if (policy === "upfront") return "Full contract upfront";
   if (policy === "upfront_reconciliation") return "Upfront + reconciliation";
   if (policy === "monthly_actual") return "Monthly actual usage";
   if (policy === "quarterly_actual") return "Quarterly actual usage";
@@ -143,10 +147,12 @@ export default function SupplierTermsPage() {
     setError(null);
     setSuccessMessage(null);
     try {
+      const isLegacyUpfront = draft.policy === "upfront";
       const data = await fetchWithAuth(`/api/commission/supplier-terms/${supplier.supplier_id}`, {
         method: "PUT",
         body: JSON.stringify({
-          commission_payment_type: draft.policy,
+          commission_payment_type: isLegacyUpfront ? null : draft.policy,
+          multi_year_commission_payment_mode: isLegacyUpfront ? "upfront" : draft.policy === "annual" ? "annual" : undefined,
           commission_payment_delay_days: draft.delayDays === "" ? null : Number(draft.delayDays),
           upfront_percentage: draft.upfrontPercentage === "" ? null : Number(draft.upfrontPercentage),
           reconciliation_required: draft.policy === "upfront_reconciliation",
@@ -258,6 +264,7 @@ export default function SupplierTermsPage() {
                             <SelectTrigger className="w-full"><SelectValue placeholder="Select policy" /></SelectTrigger>
                             <SelectContent>
                               <SelectItem value="annual">Annual estimated</SelectItem>
+                              <SelectItem value="upfront">Full contract upfront</SelectItem>
                               <SelectItem value="upfront_reconciliation">Upfront + reconciliation</SelectItem>
                               <SelectItem value="monthly_actual">Monthly actual usage</SelectItem>
                               <SelectItem value="quarterly_actual">Quarterly actual usage</SelectItem>
@@ -294,7 +301,7 @@ export default function SupplierTermsPage() {
                                 </div>
                               ))}
                             </div>
-                          ) : draft.policy === "annual" ? (
+                          ) : draft.policy === "annual" || draft.policy === "upfront" ? (
                             <div className="max-w-60">
                               <Label className="mb-1.5 block text-xs text-slate-500">Delay after live date</Label>
                               <div className="flex min-w-0">

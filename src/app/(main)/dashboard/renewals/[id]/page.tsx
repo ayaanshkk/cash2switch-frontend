@@ -377,7 +377,7 @@ export default function EnergyCustomerDetailsPage() {
   const [isAssigningEmployee, setIsAssigningEmployee] = useState(false);
   const [suppliers, setSuppliers] = useState<{ supplier_id: number; supplier_name: string }[]>([]);
   const [calledDate, setCalledDate] = useState(() => new Date().toISOString().split("T")[0]);
-  const [renewedBy, setRenewedBy] = useState<"customer" | "agent" | "">("");
+  const [renewedBy, setRenewedBy] = useState<"customer" | "supplier" | "agent" | "">("");
 
   useEffect(() => {
     loadCustomerData();
@@ -578,6 +578,15 @@ export default function EnergyCustomerDetailsPage() {
       requiresSupplierChange: true,
       requiresAddressChange: true,
     },
+    Sold: {
+      requiresDate: true,
+      requiresSold: false,
+      deletesRecord: false,
+      requiresNotes: false,
+      requiresNewEndDate: true,
+      requiresSupplierChange: true,
+      requiresAddressChange: true,
+    },
     "Invalid Number": {
       requiresDate: false,
       requiresSold: false,
@@ -723,8 +732,10 @@ export default function EnergyCustomerDetailsPage() {
       return;
     }
 
-    if (callbackStatus === "Already Renewed" && !renewedBy) {
-      setCallbackError("Please select if renewed by customer or agent");
+    if ((callbackStatus === "Already Renewed" || callbackStatus === "Sold") && !renewedBy) {
+      setCallbackError(
+        callbackStatus === "Sold" ? "Please select if sold by supplier or agent" : "Please select if renewed by customer or agent",
+      );
       return;
     }
 
@@ -754,7 +765,7 @@ export default function EnergyCustomerDetailsPage() {
         payload.new_end_date = newEndDate;
       }
 
-      if (callbackStatus === "Already Renewed" && renewedBy) {
+      if ((callbackStatus === "Already Renewed" || callbackStatus === "Sold") && renewedBy) {
         payload.renewed_by = renewedBy;
       }
 
@@ -819,7 +830,7 @@ export default function EnergyCustomerDetailsPage() {
         setCallbackDate(data.customer.callback_date ? String(data.customer.callback_date).slice(0, 10) : callbackDate);
       }
 
-      if (callbackStatus === "Already Renewed") alert("✅ Lead information updated");
+      if (callbackStatus === "Already Renewed" || callbackStatus === "Sold") alert("✅ Lead information updated");
       else if (callbackStatus === "End Date Changed")
         alert(`✅ Contract end date updated to ${formatDate(newEndDate)}`);
       else if (callbackStatus === "Converted") alert("✅ Lead marked as Converted");
@@ -1150,6 +1161,12 @@ export default function EnergyCustomerDetailsPage() {
 
   const displayCustomer = isEditing ? editedCustomer : customer;
   const currentConfig = callbackStatus ? statusConfig[callbackStatus] : null;
+  const isRenewalOrSoldAction = callbackStatus === "Already Renewed" || callbackStatus === "Sold";
+  const actionByLabel = callbackStatus === "Sold" ? "Sold By" : "Renewed By";
+  const supplierOptionLabel = callbackStatus === "Sold" ? "Sold by Supplier" : "Renewed by Customer";
+  const supplierOptionHelp = callbackStatus === "Sold" ? "Sold by the supplier" : "Counts as Renewed Directly";
+  const agentOptionLabel = callbackStatus === "Sold" ? "Sold by Agent" : "Renewed by Agent";
+  const agentOptionHelp = callbackStatus === "Sold" ? "Sold by an agent" : "Counts as Renewed";
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -1185,19 +1202,6 @@ export default function EnergyCustomerDetailsPage() {
                 <Button onClick={handleCancel} variant="outline" disabled={isSaving}>
                   <X className="mr-2 h-4 w-4" />
                   Cancel
-                </Button>
-                <Button onClick={handleSave} disabled={isSaving} className="bg-black hover:bg-gray-800">
-                  {isSaving ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Saving...
-                    </>
-                  ) : (
-                    <>
-                      <Save className="mr-2 h-4 w-4" />
-                      Save Changes
-                    </>
-                  )}
                 </Button>
               </>
             ) : (
@@ -2244,6 +2248,28 @@ export default function EnergyCustomerDetailsPage() {
               </div>
             </div>
           )}
+
+          {isEditing && (
+            <div className="mt-8 flex items-center justify-end gap-3 border-t border-gray-200 pt-5">
+              <Button onClick={handleCancel} variant="outline" disabled={isSaving}>
+                <X className="mr-2 h-4 w-4" />
+                Cancel
+              </Button>
+              <Button onClick={handleSave} disabled={isSaving} className="bg-black hover:bg-gray-800">
+                {isSaving ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Saving...
+                  </>
+                ) : (
+                  <>
+                    <Save className="mr-2 h-4 w-4" />
+                    Save Customer Details
+                  </>
+                )}
+              </Button>
+            </div>
+          )}
         </div>
       </div>
 
@@ -2297,7 +2323,7 @@ export default function EnergyCustomerDetailsPage() {
             {isDateRequired() && (
               <div>
                 <label className="text-sm font-medium text-gray-700">
-                  {callbackStatus === "End Date Changed" || callbackStatus === "Already Renewed"
+                  {callbackStatus === "End Date Changed" || isRenewalOrSoldAction
                     ? "Action Date:"
                     : "Callback Date:"}{" "}
                   <span className="text-red-500">*</span>
@@ -2321,7 +2347,7 @@ export default function EnergyCustomerDetailsPage() {
             )}
 
             {/* ✅ New Supplier for Already Renewed */}
-            {callbackStatus === "Already Renewed" && (
+            {isRenewalOrSoldAction && (
               <div>
                 <label className="text-sm font-medium text-gray-700">
                   New Supplier <span className="font-normal text-gray-400">(Optional)</span>
@@ -2355,24 +2381,24 @@ export default function EnergyCustomerDetailsPage() {
             )}
 
             {/* Renewed By - only for Already Renewed */}
-            {callbackStatus === "Already Renewed" && (
+            {isRenewalOrSoldAction && (
               <div>
                 <label className="text-sm font-medium text-gray-700">
-                  Renewed By <span className="text-red-500">*</span>
+                  {actionByLabel} <span className="text-red-500">*</span>
                 </label>
                 <div className="mt-1 flex flex-col gap-2 rounded-lg border bg-white p-3">
                   <label className="flex cursor-pointer items-center gap-3">
                     <input
                       type="radio"
                       name="renewedBy_panel"
-                      value="customer"
-                      checked={renewedBy === "customer"}
-                      onChange={() => setRenewedBy("customer")}
+                      value={callbackStatus === "Sold" ? "supplier" : "customer"}
+                      checked={renewedBy === (callbackStatus === "Sold" ? "supplier" : "customer")}
+                      onChange={() => setRenewedBy(callbackStatus === "Sold" ? "supplier" : "customer")}
                       className="h-4 w-4 accent-black"
                     />
                     <div>
-                      <span className="text-sm font-medium text-gray-900">Renewed by Customer</span>
-                      <p className="text-xs text-gray-500">Counts as Renewed Directly</p>
+                      <span className="text-sm font-medium text-gray-900">{supplierOptionLabel}</span>
+                      <p className="text-xs text-gray-500">{supplierOptionHelp}</p>
                     </div>
                   </label>
                   <label className="flex cursor-pointer items-center gap-3">
@@ -2385,8 +2411,8 @@ export default function EnergyCustomerDetailsPage() {
                       className="h-4 w-4 accent-black"
                     />
                     <div>
-                      <span className="text-sm font-medium text-gray-900">Renewed by Agent</span>
-                      <p className="text-xs text-gray-500">Counts as Renewed</p>
+                      <span className="text-sm font-medium text-gray-900">{agentOptionLabel}</span>
+                      <p className="text-xs text-gray-500">{agentOptionHelp}</p>
                     </div>
                   </label>
                 </div>
@@ -2408,7 +2434,7 @@ export default function EnergyCustomerDetailsPage() {
             )}
 
             {/* ✅ NEW: Address change field for "Already Renewed" */}
-            {callbackStatus === "Already Renewed" && (
+            {isRenewalOrSoldAction && (
               <div className="space-y-2">
                 <label className="text-sm font-medium">New Address (Optional)</label>
                 <Textarea
@@ -2668,24 +2694,24 @@ export default function EnergyCustomerDetailsPage() {
           )}
 
           {/* ✅ Renewed By - only for Already Renewed */}
-          {callbackStatus === "Already Renewed" && (
+          {isRenewalOrSoldAction && (
             <div>
               <label className="text-sm font-medium text-gray-700">
-                Renewed By <span className="text-red-500">*</span>
+                {actionByLabel} <span className="text-red-500">*</span>
               </label>
               <div className="mt-1 flex flex-col gap-2 rounded-lg border bg-white p-3">
                 <label className="flex cursor-pointer items-center gap-3">
                   <input
                     type="radio"
                     name="renewedBy_action_panel"
-                    value="customer"
-                    checked={renewedBy === "customer"}
-                    onChange={() => setRenewedBy("customer")}
+                    value={callbackStatus === "Sold" ? "supplier" : "customer"}
+                    checked={renewedBy === (callbackStatus === "Sold" ? "supplier" : "customer")}
+                    onChange={() => setRenewedBy(callbackStatus === "Sold" ? "supplier" : "customer")}
                     className="h-4 w-4 accent-black"
                   />
                   <div>
-                    <span className="text-sm font-medium text-gray-900">Renewed by Customer</span>
-                    <p className="text-xs text-gray-500">Counts as Renewed Directly</p>
+                    <span className="text-sm font-medium text-gray-900">{supplierOptionLabel}</span>
+                    <p className="text-xs text-gray-500">{supplierOptionHelp}</p>
                   </div>
                 </label>
                 <label className="flex cursor-pointer items-center gap-3">
@@ -2698,8 +2724,8 @@ export default function EnergyCustomerDetailsPage() {
                     className="h-4 w-4 accent-black"
                   />
                   <div>
-                    <span className="text-sm font-medium text-gray-900">Renewed by Agent</span>
-                    <p className="text-xs text-gray-500">Counts as Renewed</p>
+                    <span className="text-sm font-medium text-gray-900">{agentOptionLabel}</span>
+                    <p className="text-xs text-gray-500">{agentOptionHelp}</p>
                   </div>
                 </label>
               </div>
@@ -2717,7 +2743,7 @@ export default function EnergyCustomerDetailsPage() {
           )}
 
           {/* New Supplier - Already Renewed */}
-          {callbackStatus === "Already Renewed" && (
+          {isRenewalOrSoldAction && (
             <div>
               <label className="text-sm font-medium text-gray-700">
                 New Supplier <span className="font-normal text-gray-400">(Optional)</span>
@@ -2734,7 +2760,7 @@ export default function EnergyCustomerDetailsPage() {
           )}
 
           {/* New Address - Already Renewed */}
-          {callbackStatus === "Already Renewed" && (
+          {isRenewalOrSoldAction && (
             <div>
               <label className="text-sm font-medium text-gray-700">
                 New Address <span className="font-normal text-gray-400">(Optional)</span>
@@ -2785,9 +2811,9 @@ export default function EnergyCustomerDetailsPage() {
                 Saving...
               </>
             ) : callbackStatus ? (
-              `Save ${callbackStatus}`
+              `Save ${callbackStatus} Action`
             ) : (
-              "Save Action"
+              "Save Status Action"
             )}
           </Button>
         </div>
