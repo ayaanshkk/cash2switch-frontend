@@ -84,7 +84,7 @@ const statusConfig: Record<string, {
   "Renewed Directly": { requiresDate: true, requiresSold: false, deletesRecord: false, requiresNotes: true, requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
   "Incorrect Supplier": { requiresDate: false, requiresSold: false, deletesRecord: false, requiresNotes: true, requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
   "Not Called": { requiresDate: false, requiresSold: false, deletesRecord: false, requiresNotes: false, requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
-  "Dead": { requiresDate: false, requiresSold: false, deletesRecord: false, requiresNotes: false, requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
+  "Dead": { requiresDate: false, requiresSold: false, deletesRecord: true, requiresNotes: true, requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
   "Duplicate": { requiresDate: false, requiresSold: false, deletesRecord: true, requiresNotes: false, requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false }
 };
 
@@ -307,7 +307,7 @@ export default function EnergyCustomersPage() {
   const [newSupplier, setNewSupplier] = useState("");
   const [newAddress, setNewAddress] = useState("");
   const [usageSort, setUsageSort] = useState<"none" | "low-high" | "high-low">(() => (sessionStorage.getItem('renewals_usage_sort') as any) || "none");
-  const [endDateFilter, setEndDateFilter] = useState<"all" | "expired" | "30" | "60" | "90" | "90+">(() => (sessionStorage.getItem('renewals_end_date') as any) || "all");
+  const [endDateFilter, setEndDateFilter] = useState<"all" | "expired" | "365" | "30" | "60" | "90" | "90+">(() => (sessionStorage.getItem('renewals_end_date') as any) || "all");
   const [performanceStats, setPerformanceStats] = useState({
     renewed: 0,
     in_progress: 0,
@@ -326,7 +326,7 @@ export default function EnergyCustomersPage() {
   const [renewedBy, setRenewedBy] = useState<"customer" | "agent" | "">("");
   const [showFilterSidebar, setShowFilterSidebar] = useState(false);
   const [salespersonFilter, setSalespersonFilter] = useState<number | "All">(() => {
-    const saved = sessionStorage.getItem('leads_salesperson');
+    const saved = sessionStorage.getItem('renewals_salesperson');
     return saved && saved !== "All" ? parseInt(saved) : "All";
   });
 
@@ -378,7 +378,7 @@ export default function EnergyCustomersPage() {
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchTerm, supplierFilter, statusFilter, usageSort, endDateFilter]);
+  }, [searchTerm, supplierFilter, statusFilter, usageSort, endDateFilter, salespersonFilter]);
 
   useEffect(() => {
     sessionStorage.setItem('renewals_search', searchTerm);
@@ -405,7 +405,7 @@ export default function EnergyCustomersPage() {
   }, [endDateFilter]);
 
   useEffect(() => {
-    sessionStorage.setItem('leads_salesperson', salespersonFilter.toString());
+    sessionStorage.setItem('renewals_salesperson', salespersonFilter.toString());
   }, [salespersonFilter]);
 
   // ---------------- Fetch Functions ----------------
@@ -523,6 +523,7 @@ export default function EnergyCustomersPage() {
         const daysUntilEnd = Math.ceil((endDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
         switch (endDateFilter) {
           case "expired": matchesEndDate = daysUntilEnd < 0; break;
+          case "365": matchesEndDate = daysUntilEnd >= 0 && daysUntilEnd <= 365; break;
           case "30": matchesEndDate = daysUntilEnd >= 0 && daysUntilEnd <= 30; break;
           case "60": matchesEndDate = daysUntilEnd > 30 && daysUntilEnd <= 60; break;
           case "90": matchesEndDate = daysUntilEnd > 60 && daysUntilEnd <= 90; break;
@@ -644,6 +645,16 @@ export default function EnergyCustomersPage() {
       });
 
       if (!response || response.error) throw new Error(response?.error || "Failed to save callback");
+
+      if (response.display_only || callbackStatus === "Dead") {
+        await fetchCustomers();
+        await fetchPerformanceStats();
+        toast.success(`Status set to ${callbackStatus}`);
+        setShowCallbackModal(false);
+        setCallbackStatus("");
+        setCallbackNotes("");
+        return;
+      }
 
       if (response.moved_to_cleansing) {
         // Invalid Number or Incorrect Supplier → goes to Cleansing page
@@ -1478,6 +1489,7 @@ export default function EnergyCustomersPage() {
             <SelectTrigger className="w-44"><SelectValue /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Contracts</SelectItem>
+              <SelectItem value="365">Ending in 0-365 days</SelectItem>
               <SelectItem value="30">Ending in 30 days</SelectItem>
               <SelectItem value="60">Ending in 31-60 days</SelectItem>
               <SelectItem value="90">Ending in 61-90 days</SelectItem>
@@ -1603,6 +1615,7 @@ export default function EnergyCustomersPage() {
                 <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
                 <SelectContent position="popper" side="bottom" sideOffset={4} className="w-72 z-[60]">
                   <SelectItem value="all">All Contracts</SelectItem>
+                  <SelectItem value="365">Ending in 0-365 days</SelectItem>
                   <SelectItem value="30">Ending in 30 days</SelectItem>
                   <SelectItem value="60">Ending in 31–60 days</SelectItem>
                   <SelectItem value="90">Ending in 61–90 days</SelectItem>

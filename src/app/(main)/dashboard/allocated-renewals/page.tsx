@@ -30,6 +30,7 @@ const STATUS_OPTIONS = [
   { value: "Callback", label: "Callback" },
   { value: "Called", label: "Called" },
   { value: "Not Answered", label: "Not Answered" },
+  { value: "Dead", label: "Dead" },
   { value: "Priced", label: "Priced" },
   { value: "Lost", label: "Lost" },
   { value: "Lost COT", label: "Lost COT" },
@@ -56,6 +57,7 @@ const statusConfig: Record<string, {
   "Callback":          { requiresDate: true,  requiresSold: false, deletesRecord: false, requiresNotes: false, requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
   "Called":            { requiresDate: true,  requiresSold: false, deletesRecord: false, requiresNotes: false, requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
   "Not Answered":      { requiresDate: true,  requiresSold: false, deletesRecord: false, requiresNotes: false, requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
+  "Dead":              { requiresDate: false, requiresSold: false, deletesRecord: true,  requiresNotes: true,  requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
   "Priced":            { requiresDate: false, requiresSold: true,  deletesRecord: false, requiresNotes: false, requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
   "Lost":              { requiresDate: true,  requiresSold: false, deletesRecord: true,  requiresNotes: true,  requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
   "Lost COT":          { requiresDate: false, requiresSold: false, deletesRecord: true,  requiresNotes: true,  requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
@@ -163,7 +165,7 @@ export default function AllocatedContactsPage() {
   const [supplierFilter, setSupplierFilter] = useState<number | "All">("All");
   const [statusFilter, setStatusFilter] = useState<string | "All">("All");
   const [salespersonFilter, setSalespersonFilter] = useState<number | "All">("All");
-  const [endDateFilter, setEndDateFilter] = useState<"all" | "expired" | "30" | "60" | "90" | "90+">("all");
+  const [endDateFilter, setEndDateFilter] = useState<"all" | "expired" | "365" | "30" | "60" | "90" | "90+">("all");
   const [usageSort, setUsageSort] = useState<"none" | "low-high" | "high-low">("none");
 
   // Callback modal
@@ -265,6 +267,7 @@ export default function AllocatedContactsPage() {
       if (endDateFilter !== "all" && c.end_date) {
         const days = Math.ceil((new Date(c.end_date).getTime() - Date.now()) / 86400000);
         if (endDateFilter === "expired") matchesEndDate = days < 0;
+        else if (endDateFilter === "365") matchesEndDate = days >= 0 && days <= 365;
         else if (endDateFilter === "30") matchesEndDate = days >= 0 && days <= 30;
         else if (endDateFilter === "60") matchesEndDate = days > 30 && days <= 60;
         else if (endDateFilter === "90") matchesEndDate = days > 60 && days <= 90;
@@ -621,6 +624,7 @@ export default function AllocatedContactsPage() {
           <SelectTrigger className="w-52"><SelectValue /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All Contracts</SelectItem>
+            <SelectItem value="365">Ending in 0-365 days</SelectItem>
             <SelectItem value="30">Ending in 30 days</SelectItem>
             <SelectItem value="60">Ending in 31-60 days</SelectItem>
             <SelectItem value="90">Ending in 61-90 days</SelectItem>

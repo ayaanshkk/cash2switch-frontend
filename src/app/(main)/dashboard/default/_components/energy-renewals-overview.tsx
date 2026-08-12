@@ -64,6 +64,7 @@ interface PeriodBreakdown {
   contract_end_date: string;
   days_until_expiry: number;
   mpan_number: string;
+  mpan_mpr?: string;
   annual_usage: number;
   estimated_revenue: number;
   assigned_to: string;
@@ -744,7 +745,7 @@ export function EnergyRenewalsOverview({ userRole, employeeId }: EnergyRenewalsO
                   <div
                     key={renewal.client_id}
                     className="p-5 border rounded-xl hover:bg-gray-50 hover:shadow-sm cursor-pointer transition-all"
-                    onClick={() => window.open(`/dashboard/renewals/${renewal.client_id}`, '_blank')}
+                    onClick={() => window.open(`/dashboard/renewals/${renewal.client_id}`, "_blank", "noopener,noreferrer")}
                   >
                     <div className="flex items-start justify-between gap-4 mb-4">
                       <div className="flex-1 min-w-0">
@@ -781,8 +782,10 @@ export function EnergyRenewalsOverview({ userRole, employeeId }: EnergyRenewalsO
                       </div>
                       
                       <div className="min-w-0">
-                        <p className="text-xs text-gray-500 uppercase mb-1">MPAN</p>
-                        <p className="font-semibold text-sm text-gray-900 font-mono truncate">{renewal.mpan_number}</p>
+                        <p className="text-xs text-gray-500 uppercase mb-1">MPR</p>
+                        <p className="font-semibold text-sm text-gray-900 font-mono truncate">
+                          {renewal.mpan_mpr || renewal.mpan_number || "N/A"}
+                        </p>
                       </div>
                       
                       <div className="min-w-0">

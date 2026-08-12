@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
-import { useRouter } from "next/navigation";
 import { ColumnDef } from "@tanstack/react-table";
 import { format } from "date-fns";
 import { Eye } from "lucide-react";
@@ -23,6 +22,7 @@ export interface LeadRow {
   contact_person: string | null;
   tel_number: string | null;
   email: string | null;
+  mpan_mpr: string | null;
   stage_name: string | null;
   end_date: string | null;
   annual_usage?: number | null;
@@ -34,7 +34,6 @@ interface LeadsDashboardTableProps {
 }
 
 export function LeadsDashboardTable({ employeeId }: LeadsDashboardTableProps) {
-  const router = useRouter();
   const [leads, setLeads] = useState<LeadRow[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -117,6 +116,15 @@ export function LeadsDashboardTable({ employeeId }: LeadsDashboardTableProps) {
         ),
       },
       {
+        accessorKey: "mpan_mpr",
+        header: ({ column }) => <DataTableColumnHeader column={column} title="MPAN/MPR" />,
+        cell: ({ row }) => (
+          <div className="max-w-[160px] truncate font-mono text-sm text-slate-800" title={row.original.mpan_mpr || ""}>
+            {row.original.mpan_mpr || "—"}
+          </div>
+        ),
+      },
+      {
         accessorKey: "end_date",
         header: ({ column }) => <DataTableColumnHeader column={column} title="Contract end" />,
         cell: ({ row }) => {
@@ -152,7 +160,7 @@ export function LeadsDashboardTable({ employeeId }: LeadsDashboardTableProps) {
             variant="outline"
             size="sm"
             className="border-slate-200 bg-white text-slate-800 hover:bg-slate-50 hover:text-slate-900"
-            onClick={() => router.push(`/dashboard/leads/${row.original.opportunity_id}`)}
+            onClick={() => window.open(`/dashboard/leads/${row.original.opportunity_id}`, "_blank", "noopener,noreferrer")}
           >
             <Eye className="h-4 w-4" />
             <span className="ml-1">Open</span>
@@ -161,7 +169,7 @@ export function LeadsDashboardTable({ employeeId }: LeadsDashboardTableProps) {
         enableSorting: false,
       },
     ],
-    [router]
+    []
   );
 
   const table = useDataTableInstance({

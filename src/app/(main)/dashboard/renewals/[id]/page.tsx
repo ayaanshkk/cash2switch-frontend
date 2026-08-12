@@ -19,26 +19,14 @@ import {
   FileText,
   CreditCard,
   MoreVertical,
-  Upload,        
-  File,          
-  Download,      
-  Trash2,        
+  Upload,
+  File,
+  Download,
+  Trash2,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
@@ -47,6 +35,7 @@ const API_BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:50
 const TABS = [
   { id: "contact", label: "Contact Information", icon: User },
   { id: "contract", label: "Contract & Billing Details", icon: FileText },
+  { id: "payments", label: "Payments Log", icon: CreditCard },
   { id: "address", label: "Address", icon: MapPin },
   { id: "charges", label: "Charges", icon: DollarSign },
   { id: "banking", label: "Bank & Trading Account Details", icon: CreditCard },
@@ -78,34 +67,80 @@ const STATUS_OPTIONS = [
 const getStatusColor = (status: string | undefined): string => {
   if (!status) return "bg-gray-100 text-gray-800";
   const statusLower = status.toLowerCase();
-  if (statusLower === 'called' || statusLower === 'priced' || statusLower === 'callback') {
+  if (statusLower === "called" || statusLower === "priced" || statusLower === "callback") {
     return "bg-green-100 text-green-800";
   }
-  if (statusLower === 'not answered') {
+  if (statusLower === "not answered") {
     return "bg-yellow-100 text-yellow-800";
   }
-  if (statusLower === 'lost' || statusLower === 'lost cot') {
+  if (statusLower === "lost" || statusLower === "lost cot") {
     return "bg-red-100 text-red-800";
   }
-  if (statusLower === 'not called') {
+  if (statusLower === "not called") {
     return "bg-gray-100 text-gray-500";
   }
-  if (statusLower === 'dead') {
+  if (statusLower === "dead") {
     return "bg-red-200 text-red-900";
   }
   return "bg-gray-100 text-gray-800";
 };
 
+/** Whitelist fields sent on PUT — avoids oversized/invalid payloads breaking assign & save */
+function buildCustomerUpdatePayload(data: Partial<EnergyCustomer>, extra?: Record<string, unknown>) {
+  const payload: Record<string, unknown> = { ...extra };
+  const fields = [
+    "business_name",
+    "contact_person",
+    "phone",
+    "mobile_no",
+    "email",
+    "address",
+    "post_code",
+    "website",
+    "site_address",
+    "site_name",
+    "annual_usage",
+    "month_sold",
+    "house_name",
+    "house_number",
+    "mpan_top",
+    "mpan_bottom",
+    "supplier_id",
+    "old_supplier_id",
+    "start_date",
+    "end_date",
+    "unit_rate",
+    "standing_charge",
+    "rate_1",
+    "rate_2",
+    "rate_3",
+    "net_notch",
+    "comms_paid",
+    "payment_type",
+    "terms_of_sale",
+    "aggregator",
+    "term_sold",
+    "assigned_to_id",
+    "status",
+    "document_details",
+    "comments",
+  ] as const;
+  for (const key of fields) {
+    if (key in data && (data as Record<string, unknown>)[key] !== undefined) {
+      payload[key] = (data as Record<string, unknown>)[key];
+    }
+  }
+  return payload;
+}
+
 const getStatusLabel = (status: string | undefined): string => {
   if (!status) return "—";
   // Direct match first
-  const option = STATUS_OPTIONS.find(opt => opt.value === status);
+  const option = STATUS_OPTIONS.find((opt) => opt.value === status);
   if (option) return option.label;
-  
+
   // Fallback: case-insensitive match
-  const optionCaseInsensitive = STATUS_OPTIONS.find(
-    opt => opt.value.toLowerCase() === status.toLowerCase()
-  );
+  const optionCaseInsensitive = STATUS_OPTIONS.find((opt) => opt.value.toLowerCase() === status.toLowerCase());
   return optionCaseInsensitive?.label || status;
 };
 
@@ -137,31 +172,31 @@ interface EnergyCustomer {
   assigned_to_id?: number | null;
   created_at?: string;
   rate_1?: number;
-  
+
   bank_name?: string;
   bank_sort_code?: string;
   bank_account_number?: string;
-  
+
   trading_type?: string;
   trading_number?: string;
-  
+
   night_charge?: number;
   eve_weekend_charge?: number;
   other_charges_1?: number;
   other_charges_2?: number;
   other_charges_3?: number;
-  
+
   meter_ref?: string;
   payment_type?: string;
   aggregator?: string;
   uplift?: number;
   term_sold?: number;
   comments?: string;
-  
+
   position?: string;
   company_number?: string;
   date_of_birth?: string;
-  
+
   site_name?: string;
   month_sold?: string;
   house_name?: string;
@@ -169,14 +204,14 @@ interface EnergyCustomer {
   door_number?: string;
   town?: string;
   county?: string;
-  
+
   old_supplier_name?: string;
   old_supplier_id?: number;
   net_notch?: number;
   rate_2?: number;
   rate_3?: number;
   comms_paid?: number;
-  
+
   charity_ltd_company_number?: string;
   partner_details?: string;
 }
@@ -196,6 +231,63 @@ interface InteractionHistory {
   created_at?: string;
 }
 
+interface CustomerPaymentLog {
+  success: boolean;
+  is_admin: boolean;
+  totals: {
+    payment_count: number;
+    receipt_count: number;
+    agent_commission_count: number;
+    total_expected?: string;
+    total_received?: string;
+    total_outstanding?: string;
+  };
+  payments: Array<{
+    id: string;
+    contract_id: number | null;
+    instalment_year: number;
+    payment_policy_type: string | null;
+    payment_period_label: string | null;
+    payment_period_start: string | null;
+    payment_period_end: string | null;
+    supplier_name: string | null;
+    aggregator: string | null;
+    agent_name: string | null;
+    due_date: string | null;
+    status: string;
+    last_checked_at: string | null;
+    next_follow_up_date: string | null;
+    expected_net_amount?: string;
+    amount_received?: string;
+    outstanding_amount?: string;
+  }>;
+  receipts: Array<{
+    id: string;
+    commission_payment_id: string;
+    contract_id: number | null;
+    instalment_year: number | null;
+    payment_period_label: string | null;
+    amount_received: string;
+    date_received: string | null;
+    notes: string | null;
+    logged_by_name: string | null;
+    created_at: string | null;
+  }>;
+  agent_commissions: Array<{
+    id: string;
+    contract_id: number | null;
+    instalment_year: number | null;
+    payment_period_label: string | null;
+    client_name: string | null;
+    commission_rate: string;
+    commission_amount: string;
+    batch_month: string | null;
+    status: string;
+    receipt_amount?: string;
+    created_at: string | null;
+  }>;
+}
+
 const formatDate = (dateString?: string) => {
   if (!dateString) return "—";
   try {
@@ -210,13 +302,48 @@ const formatDate = (dateString?: string) => {
   }
 };
 
+const moneyFormatter = new Intl.NumberFormat("en-GB", {
+  style: "currency",
+  currency: "GBP",
+});
+
+const formatMoney = (value?: string | number | null) => moneyFormatter.format(Number(value || 0));
+
+const formatDateTime = (dateString?: string | null) => {
+  if (!dateString) return "—";
+  try {
+    return new Date(dateString).toLocaleString("en-GB", {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  } catch {
+    return "—";
+  }
+};
+
+const paymentStatusClass = (status?: string) => {
+  const normalized = String(status || "").toLowerCase();
+  if (normalized === "received" || normalized === "commission paid") return "bg-emerald-100 text-emerald-700";
+  if (normalized === "pending") return "bg-blue-100 text-blue-700";
+  if (normalized === "partially paid" || normalized === "awaiting payment") return "bg-orange-100 text-orange-800";
+  if (normalized === "chasing supplier" || normalized === "due") return "bg-red-100 text-red-700";
+  if (normalized === "closed") return "bg-zinc-200 text-zinc-700";
+  return "bg-slate-100 text-slate-700";
+};
+
 export default function EnergyCustomerDetailsPage() {
   const params = useParams();
   const router = useRouter();
   const { user } = useAuth();
+  const isAdmin = ["platform admin", "tenant super admin", "admin", "superadmin", "super admin"].includes(
+    user?.role?.trim().toLowerCase() || "",
+  );
   const id = params?.id as string;
   const searchParams = useSearchParams();
-  const fromPage = searchParams?.get('from') || 'renewals';
+  const fromPage = searchParams?.get("from") || "renewals";
 
   const [customer, setCustomer] = useState<EnergyCustomer | null>(null);
   const [employees, setEmployees] = useState<Employee[]>([]);
@@ -226,7 +353,7 @@ export default function EnergyCustomerDetailsPage() {
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [editedCustomer, setEditedCustomer] = useState<Partial<EnergyCustomer>>({});
-  
+
   const [uploadedDocuments, setUploadedDocuments] = useState<string[]>([]);
   const [isUploadingDocument, setIsUploadingDocument] = useState(false);
   const [showCallbackModal, setShowCallbackModal] = useState(false);
@@ -238,17 +365,19 @@ export default function EnergyCustomerDetailsPage() {
   const [isSubmittingCallback, setIsSubmittingCallback] = useState(false);
   const [callbackError, setCallbackError] = useState("");
   const [newSupplier, setNewSupplier] = useState("");
-  const [newAddress, setNewAddress] = useState("");  
+  const [newAddress, setNewAddress] = useState("");
   const [history, setHistory] = useState<InteractionHistory[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
+  const [paymentLog, setPaymentLog] = useState<CustomerPaymentLog | null>(null);
+  const [loadingPaymentLog, setLoadingPaymentLog] = useState(false);
+  const [paymentLogError, setPaymentLogError] = useState<string | null>(null);
   const [showAssignmentModal, setShowAssignmentModal] = useState(false);
   const [assigningEmployeeId, setAssigningEmployeeId] = useState<string>("");
   const [assignmentNotes, setAssignmentNotes] = useState("");
   const [isAssigningEmployee, setIsAssigningEmployee] = useState(false);
   const [suppliers, setSuppliers] = useState<{ supplier_id: number; supplier_name: string }[]>([]);
-  const [calledDate, setCalledDate] = useState(() => new Date().toISOString().split('T')[0]);
-  const [renewedBy, setRenewedBy] = useState<"customer" | "agent" | "">("");
-
+  const [calledDate, setCalledDate] = useState(() => new Date().toISOString().split("T")[0]);
+  const [renewedBy, setRenewedBy] = useState<"customer" | "supplier" | "agent" | "">("");
 
   useEffect(() => {
     loadCustomerData();
@@ -256,6 +385,12 @@ export default function EnergyCustomerDetailsPage() {
     loadHistory();
     loadSuppliers();
   }, [id]);
+
+  useEffect(() => {
+    if (isAdmin && customer?.client_id) {
+      loadPaymentLog(customer.client_id);
+    }
+  }, [customer?.client_id, isAdmin]);
 
   const loadCustomerData = async () => {
     setLoading(true);
@@ -271,16 +406,16 @@ export default function EnergyCustomerDetailsPage() {
       if (!response.ok) throw new Error("Failed to load customer data");
 
       const data = await response.json();
-      console.log('📥 Customer data loaded:', data);
-      console.log('📥 Status from API:', data.status);
+      console.log("📥 Customer data loaded:", data);
+      console.log("📥 Status from API:", data.status);
 
       setCustomer(data);
       setEditedCustomer(data);
-
       // ✅ ADD THIS: Populate the status dropdown with the value from API
       if (data.status) {
         setCallbackStatus(data.status);
       }
+      setCallbackDate(data.callback_date ? String(data.callback_date).slice(0, 10) : "");
 
       if (data.document_details) {
         try {
@@ -328,15 +463,18 @@ export default function EnergyCustomerDetailsPage() {
     }
   };
 
+  const resolveClientId = () => customer?.client_id ?? parseInt(id, 10);
+
   const loadHistory = async () => {
     setLoadingHistory(true);
     const token = localStorage.getItem("auth_token");
-    
+    const clientId = resolveClientId();
+
     try {
-      const response = await fetch(`${API_BASE_URL}/energy-clients/${id}/history`, {
+      const response = await fetch(`${API_BASE_URL}/energy-clients/${clientId}/history`, {
         headers: { Authorization: `Bearer ${token}` },
       });
-      
+
       if (response.ok) {
         const data = await response.json();
         setHistory(data.interactions || []);
@@ -348,52 +486,225 @@ export default function EnergyCustomerDetailsPage() {
     }
   };
 
-  const statusConfig: Record<string, {
-    requiresDate: boolean;
-    requiresSold: boolean;
-    deletesRecord: boolean;
-    requiresNotes: boolean;
-    requiresNewEndDate: boolean;
-    requiresSupplierChange: boolean;
-    requiresAddressChange: boolean;
-  }> = {
-    "Callback": { requiresDate: true, requiresSold: false, deletesRecord: false, requiresNotes: false, requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
+  const loadPaymentLog = async (clientIdOverride?: number) => {
+    setLoadingPaymentLog(true);
+    setPaymentLogError(null);
+    const token = localStorage.getItem("auth_token") || localStorage.getItem("token");
+    const clientId = clientIdOverride ?? resolveClientId();
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/commission/customer-log/${clientId}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data?.message || data?.error || "Failed to load payment log");
+      }
+
+      setPaymentLog(data);
+    } catch (error) {
+      setPaymentLogError(error instanceof Error ? error.message : "Failed to load payment log");
+      setPaymentLog(null);
+    } finally {
+      setLoadingPaymentLog(false);
+    }
+  };
+
+  const statusConfig: Record<
+    string,
+    {
+      requiresDate: boolean;
+      requiresSold: boolean;
+      deletesRecord: boolean;
+      requiresNotes: boolean;
+      requiresNewEndDate: boolean;
+      requiresSupplierChange: boolean;
+      requiresAddressChange: boolean;
+    }
+  > = {
+    Callback: {
+      requiresDate: true,
+      requiresSold: false,
+      deletesRecord: false,
+      requiresNotes: false,
+      requiresNewEndDate: false,
+      requiresSupplierChange: false,
+      requiresAddressChange: false,
+    },
     // "Called": { requiresDate: true, requiresSold: false, deletesRecord: false, requiresNotes: false, requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
-    "Not Answered": { requiresDate: true, requiresSold: false, deletesRecord: false, requiresNotes: false, requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
-    "Priced": { requiresDate: false, requiresSold: true, deletesRecord: false, requiresNotes: false, requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
-    "Lost": { requiresDate: true, requiresSold: false, deletesRecord: true, requiresNotes: true, requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
-    "Lost COT": { requiresDate: false, requiresSold: false, deletesRecord: true, requiresNotes: true, requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
-    "Already Renewed": { requiresDate: true, requiresSold: false, deletesRecord: false, requiresNotes: false, requiresNewEndDate: true, requiresSupplierChange: true, requiresAddressChange: true },
-    "Invalid Number": { requiresDate: false, requiresSold: false, deletesRecord: true, requiresNotes: false, requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
-    "Meter De-energised": { requiresDate: false, requiresSold: false, deletesRecord: true, requiresNotes: false, requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
-    "Broker in Place": { requiresDate: true, requiresSold: false, deletesRecord: false, requiresNotes: false, requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
-    "End Date Changed": { requiresDate: true, requiresSold: false, deletesRecord: false, requiresNotes: false, requiresNewEndDate: true, requiresSupplierChange: false, requiresAddressChange: false },
-    "Complaint": { requiresDate: true, requiresSold: false, deletesRecord: false, requiresNotes: true, requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
-    "Email Only": { requiresDate: true, requiresSold: false, deletesRecord: false, requiresNotes: false, requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
-    "Renewed Directly": { requiresDate: true, requiresSold: false, deletesRecord: false, requiresNotes: true, requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
-    "Incorrect Supplier": { requiresDate: false, requiresSold: false, deletesRecord: false, requiresNotes: true, requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
-    "Not Called": { requiresDate: false, requiresSold: false, deletesRecord: false, requiresNotes: false, requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
-    "Dead": { requiresDate: false, requiresSold: false, deletesRecord: false, requiresNotes: false, requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
-    "Duplicate": { requiresDate: false, requiresSold: false, deletesRecord: true, requiresNotes: false, requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
+    "Not Answered": {
+      requiresDate: true,
+      requiresSold: false,
+      deletesRecord: false,
+      requiresNotes: false,
+      requiresNewEndDate: false,
+      requiresSupplierChange: false,
+      requiresAddressChange: false,
+    },
+    Priced: {
+      requiresDate: false,
+      requiresSold: true,
+      deletesRecord: false,
+      requiresNotes: false,
+      requiresNewEndDate: false,
+      requiresSupplierChange: false,
+      requiresAddressChange: false,
+    },
+    Lost: {
+      requiresDate: true,
+      requiresSold: false,
+      deletesRecord: true,
+      requiresNotes: true,
+      requiresNewEndDate: false,
+      requiresSupplierChange: false,
+      requiresAddressChange: false,
+    },
+    "Lost COT": {
+      requiresDate: false,
+      requiresSold: false,
+      deletesRecord: true,
+      requiresNotes: true,
+      requiresNewEndDate: false,
+      requiresSupplierChange: false,
+      requiresAddressChange: false,
+    },
+    "Already Renewed": {
+      requiresDate: true,
+      requiresSold: false,
+      deletesRecord: false,
+      requiresNotes: false,
+      requiresNewEndDate: true,
+      requiresSupplierChange: true,
+      requiresAddressChange: true,
+    },
+    Sold: {
+      requiresDate: true,
+      requiresSold: false,
+      deletesRecord: false,
+      requiresNotes: false,
+      requiresNewEndDate: true,
+      requiresSupplierChange: true,
+      requiresAddressChange: true,
+    },
+    "Invalid Number": {
+      requiresDate: false,
+      requiresSold: false,
+      deletesRecord: true,
+      requiresNotes: false,
+      requiresNewEndDate: false,
+      requiresSupplierChange: false,
+      requiresAddressChange: false,
+    },
+    "Meter De-energised": {
+      requiresDate: false,
+      requiresSold: false,
+      deletesRecord: true,
+      requiresNotes: false,
+      requiresNewEndDate: false,
+      requiresSupplierChange: false,
+      requiresAddressChange: false,
+    },
+    "Broker in Place": {
+      requiresDate: true,
+      requiresSold: false,
+      deletesRecord: false,
+      requiresNotes: false,
+      requiresNewEndDate: false,
+      requiresSupplierChange: false,
+      requiresAddressChange: false,
+    },
+    "End Date Changed": {
+      requiresDate: true,
+      requiresSold: false,
+      deletesRecord: false,
+      requiresNotes: false,
+      requiresNewEndDate: true,
+      requiresSupplierChange: false,
+      requiresAddressChange: false,
+    },
+    Complaint: {
+      requiresDate: true,
+      requiresSold: false,
+      deletesRecord: false,
+      requiresNotes: true,
+      requiresNewEndDate: false,
+      requiresSupplierChange: false,
+      requiresAddressChange: false,
+    },
+    "Email Only": {
+      requiresDate: true,
+      requiresSold: false,
+      deletesRecord: false,
+      requiresNotes: false,
+      requiresNewEndDate: false,
+      requiresSupplierChange: false,
+      requiresAddressChange: false,
+    },
+    "Renewed Directly": {
+      requiresDate: true,
+      requiresSold: false,
+      deletesRecord: false,
+      requiresNotes: false,
+      requiresNewEndDate: true,
+      requiresSupplierChange: false,
+      requiresAddressChange: false,
+    },
+    "Incorrect Supplier": {
+      requiresDate: false,
+      requiresSold: false,
+      deletesRecord: false,
+      requiresNotes: true,
+      requiresNewEndDate: false,
+      requiresSupplierChange: false,
+      requiresAddressChange: false,
+    },
+    "Not Called": {
+      requiresDate: false,
+      requiresSold: false,
+      deletesRecord: false,
+      requiresNotes: false,
+      requiresNewEndDate: false,
+      requiresSupplierChange: false,
+      requiresAddressChange: false,
+    },
+    Dead: {
+      requiresDate: false,
+      requiresSold: false,
+      deletesRecord: false,
+      requiresNotes: false,
+      requiresNewEndDate: false,
+      requiresSupplierChange: false,
+      requiresAddressChange: false,
+    },
+    Duplicate: {
+      requiresDate: false,
+      requiresSold: false,
+      deletesRecord: true,
+      requiresNotes: false,
+      requiresNewEndDate: false,
+      requiresSupplierChange: false,
+      requiresAddressChange: false,
+    },
   };
 
   const isDateRequired = () => {
     if (!callbackStatus) return false;
-    
+
     const config = statusConfig[callbackStatus];
     if (!config) return false;
-    
+
     if (config.requiresSold) {
       return isSold === "yes";
     }
-    
+
     return config.requiresDate;
   };
 
   const handleOpenCallbackModal = () => {
     setCallbackStatus("");
     setCallbackDate("");
-    setCalledDate(new Date().toISOString().split('T')[0]);
+    setCalledDate(new Date().toISOString().split("T")[0]);
     setCallbackNotes("");
     setIsSold("");
     setCallbackError("");
@@ -410,6 +721,13 @@ export default function EnergyCustomerDetailsPage() {
     }
 
     const config = statusConfig[callbackStatus];
+    const isRenewalScheduleOnlyUpdate =
+      (callbackStatus === "Already Renewed" || callbackStatus === "Sold") &&
+      !renewedBy &&
+      Boolean(callbackDate) &&
+      !newEndDate &&
+      !newSupplier.trim() &&
+      !newAddress.trim();
 
     if (config?.requiresSold && !isSold) {
       setCallbackError("Please select if the contract was sold");
@@ -421,12 +739,14 @@ export default function EnergyCustomerDetailsPage() {
       return;
     }
 
-    if (callbackStatus === "Already Renewed" && !renewedBy) {
-      setCallbackError("Please select if renewed by customer or agent");
+    if ((callbackStatus === "Already Renewed" || callbackStatus === "Sold") && !renewedBy && !isRenewalScheduleOnlyUpdate) {
+      setCallbackError(
+        callbackStatus === "Sold" ? "Please select if sold by supplier or agent" : "Please select if renewed by customer or agent",
+      );
       return;
     }
 
-    if (callbackStatus === "End Date Changed" && !newEndDate) {
+    if (config?.requiresNewEndDate && !newEndDate && !isRenewalScheduleOnlyUpdate) {
       setCallbackError("Please enter the new contract end date");
       return;
     }
@@ -441,7 +761,7 @@ export default function EnergyCustomerDetailsPage() {
         status: callbackStatus,
         notes: callbackNotes,
         called_date: calledDate,
-        callback_date: callbackDate || null,  // ✅ always send, even if empty
+        callback_date: callbackDate || null, // ✅ always send, even if empty
       };
 
       if (config?.requiresSold) {
@@ -452,7 +772,7 @@ export default function EnergyCustomerDetailsPage() {
         payload.new_end_date = newEndDate;
       }
 
-      if (callbackStatus === "Already Renewed" && renewedBy) {
+      if ((callbackStatus === "Already Renewed" || callbackStatus === "Sold") && renewedBy) {
         payload.renewed_by = renewedBy;
       }
 
@@ -464,9 +784,8 @@ export default function EnergyCustomerDetailsPage() {
         payload.new_address = newAddress.trim();
       }
 
-      console.log("📤 Callback payload:", payload);  // ← add this to verify in browser
-
-      const response = await fetch(`${API_BASE_URL}/energy-clients/${customer?.client_id || id}/callback`, {
+      const clientId = resolveClientId();
+      const response = await fetch(`${API_BASE_URL}/energy-clients/${clientId}/callback`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -481,7 +800,17 @@ export default function EnergyCustomerDetailsPage() {
         throw new Error(data.error || "Failed to save callback");
       }
 
-      console.log("📥 Callback response:", data);  // ← and this
+      if (data.display_only || callbackStatus === "Dead") {
+        await loadCustomerData();
+        setCallbackStatus(callbackStatus);
+        alert(`✅ Status set to ${callbackStatus}`);
+        setCallbackNotes("");
+        await loadHistory();
+        return;
+      }
+
+      // ✅ ALWAYS reload customer data to get fresh values (including updated end date, supplier, address)
+      await loadCustomerData();
 
       if (data.moved_to_cleansing) {
         alert("🧹 Moved to Cleansing");
@@ -503,31 +832,34 @@ export default function EnergyCustomerDetailsPage() {
       await loadHistory();
 
       if (data.customer) {
-        setCustomer(prev => prev ? { ...prev, ...data.customer } : data.customer);
-        setEditedCustomer(prev => ({ ...prev, ...data.customer }));
+        setCustomer((prev) => (prev ? { ...prev, ...data.customer } : data.customer));
+        setEditedCustomer((prev) => ({ ...prev, ...data.customer }));
+        setCallbackDate(data.customer.callback_date ? String(data.customer.callback_date).slice(0, 10) : callbackDate);
       }
 
-      if (callbackStatus === "Already Renewed") alert("✅ Lead information updated");
-      else if (callbackStatus === "End Date Changed") alert(`✅ Contract end date updated to ${formatDate(newEndDate)}`);
+      if (callbackStatus === "Already Renewed" || callbackStatus === "Sold") alert("✅ Lead information updated");
+      else if (callbackStatus === "End Date Changed")
+        alert(`✅ Contract end date updated to ${formatDate(newEndDate)}`);
       else if (callbackStatus === "Converted") alert("✅ Lead marked as Converted");
       else alert("✅ Action saved successfully");
 
-      // Reset form fields only (not status)
-      setCallbackDate("");
+      // Reset form fields only (not status/date)
       setCallbackNotes("");
       setIsSold("");
       setNewEndDate("");
       setNewSupplier("");
       setNewAddress("");
       setCalledDate(new Date().toISOString().split("T")[0]);
-      setRenewedBy("");
+      // ✅ Don't reset callbackStatus, callbackDate, or renewedBy
+      // so the panel reflects the current saved state
       setCallbackError("");
 
       try {
         localStorage.setItem("calendar-refetch-trigger", Date.now().toString());
         window.dispatchEvent(new CustomEvent("calendar-refetch", { detail: { action: "refetch-calendar" } }));
-      } catch { /* non-blocking */ }
-
+      } catch {
+        /* non-blocking */
+      }
     } catch (err: any) {
       console.error("❌ Callback error:", err);
       setCallbackError(err.message || "Failed to save callback");
@@ -543,7 +875,7 @@ export default function EnergyCustomerDetailsPage() {
 
     try {
       const token = localStorage.getItem("auth_token");
-      
+
       const response = await fetch(`${API_BASE_URL}/energy-clients/${id}`, {
         method: "PUT",
         headers: {
@@ -559,12 +891,11 @@ export default function EnergyCustomerDetailsPage() {
 
       // Reload customer data to get fresh state
       await loadCustomerData();
-      
+
       // Reset the status dropdown
       setCallbackStatus("");
-      
+
       alert("✅ Status cleared successfully");
-      
     } catch (error) {
       console.error("Error clearing status:", error);
       alert("❌ Failed to clear status");
@@ -577,17 +908,14 @@ export default function EnergyCustomerDetailsPage() {
     }
 
     const token = localStorage.getItem("auth_token");
-    
+
     try {
-      const response = await fetch(
-        `${API_BASE_URL}/energy-clients/${id}/history/${interactionId}`,
-        {
-          method: "DELETE",
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
-      );
+      const response = await fetch(`${API_BASE_URL}/energy-clients/${resolveClientId()}/history/${interactionId}`, {
+        method: "DELETE",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
 
       if (!response.ok) {
         throw new Error("Failed to delete interaction");
@@ -607,26 +935,29 @@ export default function EnergyCustomerDetailsPage() {
 
     setIsSaving(true);
     const token = localStorage.getItem("auth_token");
+    const clientId = customer.client_id ?? parseInt(id, 10);
 
     try {
-      const response = await fetch(`${API_BASE_URL}/energy-clients/${id}`, {
+      const response = await fetch(`${API_BASE_URL}/energy-clients/${clientId}`, {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify(editedCustomer),
+        body: JSON.stringify(buildCustomerUpdatePayload(editedCustomer)),
       });
 
       if (response.ok) {
         const data = await response.json();
-        console.log('💾 Save response customer:', data.customer);
-        setCustomer(data.customer || data);
+        const updated = data.customer || data;
+        setCustomer(updated);
+        setEditedCustomer(updated);
         setIsEditing(false);
+        await loadHistory();
         alert("✅ Customer updated successfully!");
       } else {
         const errorData = await response.json().catch(() => ({ error: "Unknown error" }));
-        alert(`Failed to update customer: ${errorData.error}`);
+        alert(`Failed to update customer: ${errorData.error || response.statusText}`);
       }
     } catch (error) {
       console.error("Error updating customer:", error);
@@ -651,16 +982,20 @@ export default function EnergyCustomerDetailsPage() {
     setIsAssigningEmployee(true);
     try {
       const token = localStorage.getItem("auth_token");
-      
-      const payload: any = {
-        assigned_to_id: assigningEmployeeId === "0" ? null : parseInt(assigningEmployeeId),
-      };
+      const clientId = customer?.client_id ?? parseInt(id, 10);
+      const empId = assigningEmployeeId === "0" ? null : parseInt(assigningEmployeeId, 10);
 
+      if (assigningEmployeeId !== "0" && Number.isNaN(empId)) {
+        alert("Please select a valid salesperson");
+        return;
+      }
+
+      const payload: Record<string, unknown> = { assigned_to_id: empId };
       if (assignmentNotes.trim()) {
         payload.assignment_notes = assignmentNotes.trim();
       }
 
-      const response = await fetch(`${API_BASE_URL}/energy-clients/${id}`, {
+      const response = await fetch(`${API_BASE_URL}/energy-clients/${clientId}`, {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
@@ -670,29 +1005,33 @@ export default function EnergyCustomerDetailsPage() {
       });
 
       if (response.ok) {
-        const employee = employees.find(e => e.employee_id === parseInt(assigningEmployeeId));
-        
-        setCustomer((prev) =>
-          prev
-            ? {
-                ...prev,
-                assigned_to_id: assigningEmployeeId === "0" ? null : parseInt(assigningEmployeeId),
-                assigned_to_name: assigningEmployeeId === "0" ? undefined : employee?.employee_name,
-              }
-            : null
-        );
+        const data = await response.json();
+        const updated = data.customer || null;
+        const employee = employees.find((e) => e.employee_id === empId);
+
+        if (updated) {
+          setCustomer(updated);
+          setEditedCustomer(updated);
+        } else {
+          setCustomer((prev) =>
+            prev
+              ? {
+                  ...prev,
+                  assigned_to_id: empId,
+                  assigned_to_name: empId ? employee?.employee_name : undefined,
+                }
+              : null,
+          );
+        }
 
         alert("✅ Salesperson assigned successfully");
-        
-        // Close modal and reset
         setShowAssignmentModal(false);
         setAssigningEmployeeId("");
         setAssignmentNotes("");
-        
-        // Reload history to show assignment note
-        loadHistory();
+        await loadHistory();
       } else {
-        alert("Failed to assign salesperson");
+        const errorData = await response.json().catch(() => ({ error: "Unknown error" }));
+        alert(`Failed to assign salesperson: ${errorData.error || response.statusText}`);
       }
     } catch (error) {
       console.error("Error updating assignment:", error);
@@ -705,24 +1044,24 @@ export default function EnergyCustomerDetailsPage() {
   const handleDocumentUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = event.target.files;
     if (!files || files.length === 0) return;
-  
+
     setIsUploadingDocument(true);
-  
+
     try {
       const token = localStorage.getItem("auth_token");
       if (!token) {
         alert("No authentication token found. Please log in again.");
         return;
       }
-      
+
       const formData = new FormData();
-      
+
       Array.from(files).forEach((file) => {
         formData.append("documents", file);
       });
-      
+
       formData.append("client_id", id);
-  
+
       // ✅ UPDATED ENDPOINT URL
       const response = await fetch(`${API_BASE_URL}/api/crm/documents/upload-customer-documents`, {
         method: "POST",
@@ -731,7 +1070,7 @@ export default function EnergyCustomerDetailsPage() {
         },
         body: formData,
       });
-  
+
       if (!response.ok) {
         const errorText = await response.text();
         try {
@@ -742,25 +1081,24 @@ export default function EnergyCustomerDetailsPage() {
         }
         return;
       }
-  
+
       const result = await response.json();
-  
+
       if (!result.file_paths || result.file_paths.length === 0) {
         alert("Upload succeeded but no file paths were returned");
         return;
       }
-  
+
       const newDocuments = result.file_paths;
       const updatedDocuments = [...uploadedDocuments, ...newDocuments];
       setUploadedDocuments(updatedDocuments);
-  
+
       // ✅ This will update the database with new document URLs
       await updateDocumentDetails(updatedDocuments);
-      
+
       alert(`✅ ${newDocuments.length} document(s) uploaded successfully!`);
-      
     } catch (error: unknown) {
-      alert(`Network error: ${error instanceof Error ? error.message : 'Could not upload documents'}`);
+      alert(`Network error: ${error instanceof Error ? error.message : "Could not upload documents"}`);
     } finally {
       setIsUploadingDocument(false);
       if (event.target) {
@@ -771,7 +1109,7 @@ export default function EnergyCustomerDetailsPage() {
 
   const updateDocumentDetails = async (documents: string[]) => {
     if (!customer) return;
-    
+
     const token = localStorage.getItem("auth_token");
     try {
       await fetch(`${API_BASE_URL}/energy-clients/${customer.id}`, {
@@ -794,9 +1132,9 @@ export default function EnergyCustomerDetailsPage() {
 
     const updatedDocuments = uploadedDocuments.filter((_, index) => index !== docIndex);
     setUploadedDocuments(updatedDocuments);
-    
+
     await updateDocumentDetails(updatedDocuments);
-    
+
     alert("✅ Document removed successfully!");
   };
 
@@ -820,9 +1158,7 @@ export default function EnergyCustomerDetailsPage() {
       <div className="flex h-screen items-center justify-center bg-gray-50">
         <div className="text-center">
           <AlertCircle className="mx-auto h-12 w-12 text-red-500" />
-          <h3 className="mt-4 text-lg font-medium text-red-900">
-            {error || "Customer not found"}
-          </h3>
+          <h3 className="mt-4 text-lg font-medium text-red-900">{error || "Customer not found"}</h3>
           <Button onClick={() => router.push("/dashboard/renewals")} className="mt-4">
             Back to Customers
           </Button>
@@ -833,6 +1169,12 @@ export default function EnergyCustomerDetailsPage() {
 
   const displayCustomer = isEditing ? editedCustomer : customer;
   const currentConfig = callbackStatus ? statusConfig[callbackStatus] : null;
+  const isRenewalOrSoldAction = callbackStatus === "Already Renewed" || callbackStatus === "Sold";
+  const actionByLabel = callbackStatus === "Sold" ? "Sold By" : "Renewed By";
+  const supplierOptionLabel = callbackStatus === "Sold" ? "Sold by Supplier" : "Renewed by Customer";
+  const supplierOptionHelp = callbackStatus === "Sold" ? "Sold by the supplier" : "Counts as Renewed Directly";
+  const agentOptionLabel = callbackStatus === "Sold" ? "Sold by Agent" : "Renewed by Agent";
+  const agentOptionHelp = callbackStatus === "Sold" ? "Sold by an agent" : "Counts as Renewed";
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -841,13 +1183,15 @@ export default function EnergyCustomerDetailsPage() {
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-3">
             <button
-              onClick={() => router.push(
-                fromPage === 'allocated'
-                  ? '/dashboard/allocated-renewals'
-                  : fromPage === 'recycle-bin'
-                  ? '/dashboard/recycle-bin'
-                  : '/dashboard/renewals'
-              )}
+              onClick={() =>
+                router.push(
+                  fromPage === "allocated"
+                    ? "/dashboard/allocated-renewals"
+                    : fromPage === "recycle-bin"
+                      ? "/dashboard/recycle-bin"
+                      : "/dashboard/renewals",
+                )
+              }
               className="rounded-lg p-2 hover:bg-gray-100"
             >
               <ArrowLeft className="h-5 w-5 text-gray-600" />
@@ -867,19 +1211,6 @@ export default function EnergyCustomerDetailsPage() {
                   <X className="mr-2 h-4 w-4" />
                   Cancel
                 </Button>
-                <Button onClick={handleSave} disabled={isSaving} className="bg-black hover:bg-gray-800">
-                  {isSaving ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Saving...
-                    </>
-                  ) : (
-                    <>
-                      <Save className="mr-2 h-4 w-4" />
-                      Save Changes
-                    </>
-                  )}
-                </Button>
               </>
             ) : (
               <>
@@ -894,16 +1225,14 @@ export default function EnergyCustomerDetailsPage() {
 
         {/* Tabs */}
         <div className="mt-4 flex space-x-1 border-b border-gray-200">
-          {TABS.map((tab) => {
+          {TABS.filter((tab) => tab.id !== "payments" || isAdmin).map((tab) => {
             const Icon = tab.icon;
             return (
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
                 className={`flex items-center space-x-2 px-4 py-3 text-sm font-medium transition-colors ${
-                  activeTab === tab.id
-                    ? "border-b-2 border-black text-black"
-                    : "text-gray-600 hover:text-gray-900"
+                  activeTab === tab.id ? "border-b-2 border-black text-black" : "text-gray-600 hover:text-gray-900"
                 }`}
               >
                 <Icon className="h-4 w-4" />
@@ -930,7 +1259,8 @@ export default function EnergyCustomerDetailsPage() {
                     value={
                       (displayCustomer as any).display_order ||
                       (displayCustomer as any).display_id ||
-                      displayCustomer.client_id || ""
+                      displayCustomer.client_id ||
+                      ""
                     }
                     disabled
                     className="mt-1 bg-gray-50"
@@ -1041,21 +1371,14 @@ export default function EnergyCustomerDetailsPage() {
                       </SelectTrigger>
                       <SelectContent>
                         {employees.map((employee) => (
-                          <SelectItem
-                            key={employee.employee_id}
-                            value={employee.employee_id.toString()}
-                          >
+                          <SelectItem key={employee.employee_id} value={employee.employee_id.toString()}>
                             {employee.employee_name}
                           </SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
                   ) : (
-                    <Input
-                      value={displayCustomer.assigned_to_name || ""}
-                      disabled
-                      className="mt-1 bg-gray-50"
-                    />
+                    <Input value={displayCustomer.assigned_to_name || ""} disabled className="mt-1 bg-gray-50" />
                   )}
                 </div>
 
@@ -1095,11 +1418,7 @@ export default function EnergyCustomerDetailsPage() {
                       </SelectContent>
                     </Select>
                   ) : (
-                    <Input
-                      value={displayCustomer.old_supplier_name || ""}
-                      disabled
-                      className="mt-1 bg-gray-50"
-                    />
+                    <Input value={displayCustomer.old_supplier_name || ""} disabled className="mt-1 bg-gray-50" />
                   )}
                 </div>
 
@@ -1124,11 +1443,7 @@ export default function EnergyCustomerDetailsPage() {
                       </SelectContent>
                     </Select>
                   ) : (
-                    <Input
-                      value={displayCustomer.supplier_name || ""}
-                      disabled
-                      className="mt-1 bg-gray-50"
-                    />
+                    <Input value={displayCustomer.supplier_name || ""} disabled className="mt-1 bg-gray-50" />
                   )}
                 </div>
 
@@ -1149,8 +1464,11 @@ export default function EnergyCustomerDetailsPage() {
                   <Input
                     value={
                       displayCustomer.month_sold
-                        ? displayCustomer.month_sold.includes('T') || displayCustomer.month_sold.includes(' ')
-                          ? new Date(displayCustomer.month_sold).toLocaleDateString('en-GB', { month: 'short', year: 'numeric' })
+                        ? displayCustomer.month_sold.includes("T") || displayCustomer.month_sold.includes(" ")
+                          ? new Date(displayCustomer.month_sold).toLocaleDateString("en-GB", {
+                              month: "short",
+                              year: "numeric",
+                            })
                           : displayCustomer.month_sold
                         : ""
                     }
@@ -1285,8 +1603,8 @@ export default function EnergyCustomerDetailsPage() {
                 </div>
 
                 {/* Documents Section */}
-                <div className="md:col-span-2 border-t pt-6 mt-6">
-                  <div className="flex items-center justify-between mb-4">
+                <div className="mt-6 border-t pt-6 md:col-span-2">
+                  <div className="mb-4 flex items-center justify-between">
                     <label className="text-sm font-medium text-gray-700">Documents</label>
                     <div>
                       <input
@@ -1325,15 +1643,13 @@ export default function EnergyCustomerDetailsPage() {
                       {uploadedDocuments.map((doc, index) => (
                         <div
                           key={index}
-                          className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-200"
+                          className="flex items-center justify-between rounded-lg border border-gray-200 bg-gray-50 p-3"
                         >
-                          <div className="flex items-center space-x-3 flex-1 min-w-0">
-                            <File className="h-5 w-5 text-gray-400 flex-shrink-0" />
-                            <span className="text-sm text-gray-700 truncate">
-                              {getFileNameFromPath(doc)}
-                            </span>
+                          <div className="flex min-w-0 flex-1 items-center space-x-3">
+                            <File className="h-5 w-5 flex-shrink-0 text-gray-400" />
+                            <span className="truncate text-sm text-gray-700">{getFileNameFromPath(doc)}</span>
                           </div>
-                          <div className="flex items-center space-x-2 ml-4">
+                          <div className="ml-4 flex items-center space-x-2">
                             <Button
                               variant="ghost"
                               size="sm"
@@ -1342,30 +1658,278 @@ export default function EnergyCustomerDetailsPage() {
                             >
                               <Download className="h-4 w-4" />
                             </Button>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => handleDeleteDocument(index)}
-                                className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                                title="Delete"
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleDeleteDocument(index)}
+                              className="text-red-600 hover:bg-red-50 hover:text-red-700"
+                              title="Delete"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
                           </div>
                         </div>
                       ))}
                     </div>
                   ) : (
-                    <div className="p-6 text-center border-2 border-dashed border-gray-200 rounded-lg bg-gray-50">
-                      <File className="mx-auto h-8 w-8 text-gray-400 mb-2" />
+                    <div className="rounded-lg border-2 border-dashed border-gray-200 bg-gray-50 p-6 text-center">
+                      <File className="mx-auto mb-2 h-8 w-8 text-gray-400" />
                       <p className="text-sm text-gray-500">No documents uploaded yet</p>
-                      <p className="text-xs text-gray-400 mt-1">
-                        Click "Upload Documents" to add files
-                      </p>
+                      <p className="mt-1 text-xs text-gray-400">Click "Upload Documents" to add files</p>
                     </div>
                   )}
                 </div>
               </div>
+            </div>
+          )}
+
+          {/* Payments Log Tab */}
+          {activeTab === "payments" && (
+            <div className="space-y-6">
+              <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                <div>
+                  <h2 className="text-lg font-semibold text-gray-900">Payments Log</h2>
+                  <p className="mt-1 text-sm text-gray-500">
+                    Commission payment schedule, supplier receipt history, and agent commission entries for this
+                    customer.
+                  </p>
+                </div>
+                <Button
+                  variant="outline"
+                  onClick={() => loadPaymentLog(displayCustomer.client_id)}
+                  disabled={loadingPaymentLog}
+                >
+                  {loadingPaymentLog ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                  Refresh
+                </Button>
+              </div>
+
+              {paymentLogError && (
+                <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                  {paymentLogError}
+                </div>
+              )}
+
+              {loadingPaymentLog ? (
+                <div className="flex min-h-48 items-center justify-center rounded-lg border bg-gray-50 text-gray-500">
+                  <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                  Loading payment log...
+                </div>
+              ) : !paymentLog ? (
+                <div className="rounded-lg border border-dashed bg-gray-50 px-4 py-12 text-center text-sm text-gray-500">
+                  No payment log is available for this customer yet.
+                </div>
+              ) : (
+                <>
+                  <div className="grid gap-4 md:grid-cols-3">
+                    <div className="rounded-lg border bg-white p-4">
+                      <p className="text-sm font-medium text-gray-500">Payment Rows</p>
+                      <p className="mt-2 text-2xl font-semibold">{paymentLog.totals.payment_count}</p>
+                    </div>
+                    <div className="rounded-lg border bg-white p-4">
+                      <p className="text-sm font-medium text-gray-500">
+                        {paymentLog.is_admin ? "Supplier Receipts" : "Agent Commission Entries"}
+                      </p>
+                      <p className="mt-2 text-2xl font-semibold">
+                        {paymentLog.is_admin
+                          ? paymentLog.totals.receipt_count
+                          : paymentLog.totals.agent_commission_count}
+                      </p>
+                    </div>
+                    <div className="rounded-lg border bg-white p-4">
+                      <p className="text-sm font-medium text-gray-500">
+                        {paymentLog.is_admin ? "Outstanding" : "View"}
+                      </p>
+                      <p className="mt-2 text-2xl font-semibold">
+                        {paymentLog.is_admin ? formatMoney(paymentLog.totals.total_outstanding) : "Own commissions"}
+                      </p>
+                    </div>
+                  </div>
+
+                  {paymentLog.is_admin && (
+                    <div className="grid gap-4 md:grid-cols-3">
+                      <div className="rounded-lg border bg-slate-50 p-4">
+                        <p className="text-sm font-medium text-gray-500">Expected</p>
+                        <p className="mt-1 text-xl font-semibold">{formatMoney(paymentLog.totals.total_expected)}</p>
+                      </div>
+                      <div className="rounded-lg border bg-emerald-50 p-4">
+                        <p className="text-sm font-medium text-emerald-700">Received</p>
+                        <p className="mt-1 text-xl font-semibold text-emerald-900">
+                          {formatMoney(paymentLog.totals.total_received)}
+                        </p>
+                      </div>
+                      <div className="rounded-lg border bg-orange-50 p-4">
+                        <p className="text-sm font-medium text-orange-700">Outstanding</p>
+                        <p className="mt-1 text-xl font-semibold text-orange-900">
+                          {formatMoney(paymentLog.totals.total_outstanding)}
+                        </p>
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="rounded-lg border bg-white">
+                    <div className="border-b px-4 py-3">
+                      <h3 className="font-semibold text-gray-900">Commission Payment Schedule</h3>
+                    </div>
+                    <div className="overflow-x-auto">
+                      <table className="w-full min-w-[920px] text-sm">
+                        <thead className="bg-gray-50 text-left text-xs font-semibold text-gray-500 uppercase">
+                          <tr>
+                            <th className="px-4 py-3">Contract / Year</th>
+                            <th className="px-4 py-3">Supplier</th>
+                            <th className="px-4 py-3">Aggregator</th>
+                            <th className="px-4 py-3">Agent</th>
+                            {paymentLog.is_admin && <th className="px-4 py-3 text-right">Expected</th>}
+                            <th className="px-4 py-3">Due Date</th>
+                            {paymentLog.is_admin && <th className="px-4 py-3 text-right">Received</th>}
+                            {paymentLog.is_admin && <th className="px-4 py-3 text-right">Outstanding</th>}
+                            <th className="px-4 py-3">Status</th>
+                            <th className="px-4 py-3">Last Checked</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y">
+                          {paymentLog.payments.map((payment) => (
+                            <tr key={payment.id}>
+                              <td className="px-4 py-3 font-medium text-gray-900">
+                                Contract #{payment.contract_id || "-"}
+                                <span className="block text-xs text-gray-500">
+                                  {payment.payment_period_label || `Year ${payment.instalment_year}`}
+                                </span>
+                              </td>
+                              <td className="px-4 py-3 text-gray-700">{payment.supplier_name || "-"}</td>
+                              <td className="px-4 py-3 text-gray-700">{payment.aggregator || "-"}</td>
+                              <td className="px-4 py-3 text-gray-700">{payment.agent_name || "-"}</td>
+                              {paymentLog.is_admin && (
+                                <td className="px-4 py-3 text-right font-medium">
+                                  {formatMoney(payment.expected_net_amount)}
+                                </td>
+                              )}
+                              <td className="px-4 py-3 text-gray-700">{formatDate(payment.due_date || undefined)}</td>
+                              {paymentLog.is_admin && (
+                                <td className="px-4 py-3 text-right">{formatMoney(payment.amount_received)}</td>
+                              )}
+                              {paymentLog.is_admin && (
+                                <td className="px-4 py-3 text-right font-medium">
+                                  {formatMoney(payment.outstanding_amount)}
+                                </td>
+                              )}
+                              <td className="px-4 py-3">
+                                <span
+                                  className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${paymentStatusClass(
+                                    payment.status,
+                                  )}`}
+                                >
+                                  {payment.status}
+                                </span>
+                              </td>
+                              <td className="px-4 py-3 text-gray-700">{formatDateTime(payment.last_checked_at)}</td>
+                            </tr>
+                          ))}
+                          {paymentLog.payments.length === 0 && (
+                            <tr>
+                              <td
+                                colSpan={paymentLog.is_admin ? 10 : 7}
+                                className="px-4 py-10 text-center text-gray-500"
+                              >
+                                No commission payment rows have been generated for this customer yet.
+                              </td>
+                            </tr>
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+
+                  {paymentLog.is_admin && (
+                    <div className="rounded-lg border bg-white">
+                      <div className="border-b px-4 py-3">
+                        <h3 className="font-semibold text-gray-900">Supplier Receipt History</h3>
+                      </div>
+                      <div className="divide-y">
+                        {paymentLog.receipts.map((receipt) => (
+                          <div key={receipt.id} className="grid gap-3 px-4 py-3 text-sm md:grid-cols-[1fr_auto_auto]">
+                            <div>
+                              <p className="font-medium text-gray-900">
+                                Contract #{receipt.contract_id || "-"} · {receipt.payment_period_label || `Year ${receipt.instalment_year || "-"}`}
+                              </p>
+                              <p className="text-gray-500">
+                                Logged by {receipt.logged_by_name || "Unknown"} · {formatDateTime(receipt.created_at)}
+                              </p>
+                              {receipt.notes && <p className="mt-1 text-gray-700">{receipt.notes}</p>}
+                            </div>
+                            <div className="font-semibold text-gray-900">{formatMoney(receipt.amount_received)}</div>
+                            <div className="text-gray-500">{formatDate(receipt.date_received || undefined)}</div>
+                          </div>
+                        ))}
+                        {paymentLog.receipts.length === 0 && (
+                          <div className="px-4 py-10 text-center text-sm text-gray-500">
+                            No supplier receipts have been logged for this customer.
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="rounded-lg border bg-white">
+                    <div className="border-b px-4 py-3">
+                      <h3 className="font-semibold text-gray-900">Agent Commission Entries</h3>
+                    </div>
+                    <div className="overflow-x-auto">
+                      <table className="w-full min-w-[720px] text-sm">
+                        <thead className="bg-gray-50 text-left text-xs font-semibold text-gray-500 uppercase">
+                          <tr>
+                            <th className="px-4 py-3">Contract / Year</th>
+                            {paymentLog.is_admin && <th className="px-4 py-3 text-right">Receipt Amount</th>}
+                            <th className="px-4 py-3 text-right">Rate</th>
+                            <th className="px-4 py-3 text-right">Commission</th>
+                            <th className="px-4 py-3">Batch Month</th>
+                            <th className="px-4 py-3">Status</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y">
+                          {paymentLog.agent_commissions.map((item) => (
+                            <tr key={item.id}>
+                              <td className="px-4 py-3 font-medium text-gray-900">
+                                Contract #{item.contract_id || "-"}
+                                <span className="block text-xs text-gray-500">
+                                  {item.payment_period_label || `Year ${item.instalment_year || "-"}`}
+                                </span>
+                              </td>
+                              {paymentLog.is_admin && (
+                                <td className="px-4 py-3 text-right">{formatMoney(item.receipt_amount)}</td>
+                              )}
+                              <td className="px-4 py-3 text-right">{Number(item.commission_rate || 0).toFixed(2)}%</td>
+                              <td className="px-4 py-3 text-right font-semibold">
+                                {formatMoney(item.commission_amount)}
+                              </td>
+                              <td className="px-4 py-3 text-gray-700">{formatDate(item.batch_month || undefined)}</td>
+                              <td className="px-4 py-3">
+                                <span
+                                  className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${paymentStatusClass(
+                                    item.status,
+                                  )}`}
+                                >
+                                  {item.status}
+                                </span>
+                              </td>
+                            </tr>
+                          ))}
+                          {paymentLog.agent_commissions.length === 0 && (
+                            <tr>
+                              <td
+                                colSpan={paymentLog.is_admin ? 6 : 5}
+                                className="px-4 py-10 text-center text-gray-500"
+                              >
+                                No agent commission entries have been created for this customer yet.
+                              </td>
+                            </tr>
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </>
+              )}
             </div>
           )}
 
@@ -1533,9 +2097,7 @@ export default function EnergyCustomerDetailsPage() {
                     type="number"
                     step="0.01"
                     value={displayCustomer.eve_weekend_charge || ""}
-                    onChange={(e) =>
-                      handleUpdateField("eve_weekend_charge", parseFloat(e.target.value))
-                    }
+                    onChange={(e) => handleUpdateField("eve_weekend_charge", parseFloat(e.target.value))}
                     disabled={!isEditing}
                     className="mt-1"
                   />
@@ -1548,9 +2110,7 @@ export default function EnergyCustomerDetailsPage() {
                     type="number"
                     step="0.01"
                     value={displayCustomer.other_charges_1 || ""}
-                    onChange={(e) =>
-                      handleUpdateField("other_charges_1", parseFloat(e.target.value))
-                    }
+                    onChange={(e) => handleUpdateField("other_charges_1", parseFloat(e.target.value))}
                     disabled={!isEditing}
                     className="mt-1"
                   />
@@ -1563,9 +2123,7 @@ export default function EnergyCustomerDetailsPage() {
                     type="number"
                     step="0.01"
                     value={displayCustomer.other_charges_2 || ""}
-                    onChange={(e) =>
-                      handleUpdateField("other_charges_2", parseFloat(e.target.value))
-                    }
+                    onChange={(e) => handleUpdateField("other_charges_2", parseFloat(e.target.value))}
                     disabled={!isEditing}
                     className="mt-1"
                   />
@@ -1578,9 +2136,7 @@ export default function EnergyCustomerDetailsPage() {
                     type="number"
                     step="0.01"
                     value={displayCustomer.other_charges_3 || ""}
-                    onChange={(e) =>
-                      handleUpdateField("other_charges_3", parseFloat(e.target.value))
-                    }
+                    onChange={(e) => handleUpdateField("other_charges_3", parseFloat(e.target.value))}
                     disabled={!isEditing}
                     className="mt-1"
                   />
@@ -1592,9 +2148,7 @@ export default function EnergyCustomerDetailsPage() {
           {/* Banking Tab */}
           {activeTab === "banking" && (
             <div className="space-y-6">
-              <h2 className="text-lg font-semibold text-gray-900">
-                Bank & Trading Account Details
-              </h2>
+              <h2 className="text-lg font-semibold text-gray-900">Bank & Trading Account Details</h2>
 
               <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
                 {/* Bank Name */}
@@ -1702,17 +2256,37 @@ export default function EnergyCustomerDetailsPage() {
               </div>
             </div>
           )}
+
+          {isEditing && (
+            <div className="mt-8 flex items-center justify-end gap-3 border-t border-gray-200 pt-5">
+              <Button onClick={handleCancel} variant="outline" disabled={isSaving}>
+                <X className="mr-2 h-4 w-4" />
+                Cancel
+              </Button>
+              <Button onClick={handleSave} disabled={isSaving} className="bg-black hover:bg-gray-800">
+                {isSaving ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Saving...
+                  </>
+                ) : (
+                  <>
+                    <Save className="mr-2 h-4 w-4" />
+                    Save Customer Details
+                  </>
+                )}
+              </Button>
+            </div>
+          )}
         </div>
       </div>
 
       {/* ✅ CALLBACK MODAL */}
       <Dialog open={showCallbackModal} onOpenChange={setShowCallbackModal}>
-        <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-h-[90vh] max-w-md overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Add Callback</DialogTitle>
-            <DialogDescription>
-              Record customer interaction and set follow-up
-            </DialogDescription>
+            <DialogDescription>Record customer interaction and set follow-up</DialogDescription>
           </DialogHeader>
 
           <div className="space-y-4 py-4">
@@ -1725,8 +2299,10 @@ export default function EnergyCustomerDetailsPage() {
 
             <div className="space-y-2">
               <label className="text-sm font-medium">Status</label>
-              <div className="p-2 bg-gray-50 rounded border">
-                <span className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${getStatusColor(callbackStatus)}`}>
+              <div className="rounded border bg-gray-50 p-2">
+                <span
+                  className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${getStatusColor(callbackStatus)}`}
+                >
                   {getStatusLabel(callbackStatus)}
                 </span>
               </div>
@@ -1734,11 +2310,7 @@ export default function EnergyCustomerDetailsPage() {
 
             <div className="space-y-2">
               <label className="text-sm font-medium">Called Date</label>
-              <Input
-                type="date"
-                value={calledDate}
-                onChange={(e) => setCalledDate(e.target.value)}
-              />
+              <Input type="date" value={calledDate} onChange={(e) => setCalledDate(e.target.value)} />
             </div>
 
             {statusConfig[callbackStatus]?.requiresSold && (
@@ -1759,9 +2331,10 @@ export default function EnergyCustomerDetailsPage() {
             {isDateRequired() && (
               <div>
                 <label className="text-sm font-medium text-gray-700">
-                  {callbackStatus === "End Date Changed" || callbackStatus === "Already Renewed" 
-                    ? "Action Date:" 
-                    : "Callback Date:"} <span className="text-red-500">*</span>
+                  {callbackStatus === "End Date Changed" || isRenewalOrSoldAction
+                    ? "Action Date:"
+                    : "Callback Date:"}{" "}
+                  <span className="text-red-500">*</span>
                 </label>
                 <Input
                   type="date"
@@ -1775,90 +2348,79 @@ export default function EnergyCustomerDetailsPage() {
             {/* ✅ NEW: New End Date field for "End Date Changed" and "Already Renewed" */}
             {statusConfig[callbackStatus]?.requiresNewEndDate && (
               <div className="space-y-2">
-                <label className="text-sm font-medium">
-                  New Contract End Date {callbackStatus === "End Date Changed" ? "*" : ""}
-                </label>
-                <Input
-                  type="date"
-                  value={newEndDate}
-                  onChange={(e) => setNewEndDate(e.target.value)}
-                />
-                <p className="text-xs text-gray-500">
-                  {callbackStatus === "Already Renewed" 
-                    ? "Optional: Update if the contract end date has changed"
-                    : "The contract end date will be updated to this new date"
-                  }
-                </p>
+                <label className="text-sm font-medium">New Contract End Date *</label>
+                <Input type="date" value={newEndDate} onChange={(e) => setNewEndDate(e.target.value)} />
+                <p className="text-xs text-gray-500">The contract end date will be updated to this new date</p>
               </div>
             )}
 
-          {/* ✅ New Supplier for Already Renewed */}
-          {callbackStatus === "Already Renewed" && (
-            <div>
-              <label className="text-sm font-medium text-gray-700">
-                New Supplier <span className="text-gray-400 font-normal">(Optional)</span>
-              </label>
-              <Input
-                type="text"
-                className="mt-1"
-                placeholder="Enter new supplier name"
-                value={newSupplier}
-                onChange={(e) => setNewSupplier(e.target.value)}
-              />
-              <p className="text-xs text-gray-500 mt-1">Leave blank if supplier hasn't changed</p>
-            </div>
-          )}
-
-          {/* ✅ New Address for Already Renewed */}
-          {currentConfig?.requiresAddressChange && (
-            <div>
-              <label className="text-sm font-medium text-gray-700">
-                New Address <span className="text-gray-400 font-normal">(Optional)</span>
-              </label>
-              <Textarea
-                className="mt-1"
-                rows={2}
-                placeholder="Enter new address if changed"
-                value={newAddress}
-                onChange={(e) => setNewAddress(e.target.value)}
-              />
-              <p className="text-xs text-gray-500 mt-1">Leave blank if address hasn't changed</p>
-            </div>
-          )}
-
-            {/* Renewed By - only for Already Renewed */}
-            {callbackStatus === "Already Renewed" && (
+            {/* ✅ New Supplier for Already Renewed */}
+            {isRenewalOrSoldAction && (
               <div>
                 <label className="text-sm font-medium text-gray-700">
-                  Renewed By <span className="text-red-500">*</span>
+                  New Supplier <span className="font-normal text-gray-400">(Optional)</span>
                 </label>
-                <div className="mt-1 flex flex-col gap-2 p-3 border rounded-lg bg-white">
-                  <label className="flex items-center gap-3 cursor-pointer">
+                <Input
+                  type="text"
+                  className="mt-1"
+                  placeholder="Enter new supplier name"
+                  value={newSupplier}
+                  onChange={(e) => setNewSupplier(e.target.value)}
+                />
+                <p className="mt-1 text-xs text-gray-500">Leave blank if supplier hasn't changed</p>
+              </div>
+            )}
+
+            {/* ✅ New Address for Already Renewed */}
+            {currentConfig?.requiresAddressChange && (
+              <div>
+                <label className="text-sm font-medium text-gray-700">
+                  New Address <span className="font-normal text-gray-400">(Optional)</span>
+                </label>
+                <Textarea
+                  className="mt-1"
+                  rows={2}
+                  placeholder="Enter new address if changed"
+                  value={newAddress}
+                  onChange={(e) => setNewAddress(e.target.value)}
+                />
+                <p className="mt-1 text-xs text-gray-500">Leave blank if address hasn't changed</p>
+              </div>
+            )}
+
+            {/* Renewed By - only for Already Renewed */}
+            {isRenewalOrSoldAction && (
+              <div>
+                <label className="text-sm font-medium text-gray-700">
+                  {actionByLabel} <span className="text-red-500">*</span>
+                </label>
+                <div className="mt-1 flex flex-col gap-2 rounded-lg border bg-white p-3">
+                  <label className="flex cursor-pointer items-center gap-3">
                     <input
                       type="radio"
                       name="renewedBy_panel"
-                      value="customer"
-                      checked={renewedBy === "customer"}
-                      onChange={() => setRenewedBy("customer")}
-                      className="w-4 h-4 accent-black"
+                      value={callbackStatus === "Sold" ? "supplier" : "customer"}
+                      checked={renewedBy === (callbackStatus === "Sold" ? "supplier" : "customer")}
+                      onChange={() => setRenewedBy(callbackStatus === "Sold" ? "supplier" : "customer")}
+                      className="h-4 w-4 accent-black"
                     />
                     <div>
-                      <span className="text-sm font-medium text-gray-900">Renewed by Customer</span>
-                      <p className="text-xs text-gray-500">Counts as Renewed Directly</p>
+                      <span className="text-sm font-medium text-gray-900">{supplierOptionLabel}</span>
+                      <p className="text-xs text-gray-500">{supplierOptionHelp}</p>
                     </div>
                   </label>
-                  <label className="flex items-center gap-3 cursor-pointer">
+                  <label className="flex cursor-pointer items-center gap-3">
                     <input
                       type="radio"
                       name="renewedBy_panel"
                       value="agent"
                       checked={renewedBy === "agent"}
                       onChange={() => setRenewedBy("agent")}
-                      className="w-4 h-4 accent-black"
+                      className="h-4 w-4 accent-black"
                     />
                     <div>
-                      <span className="text-sm font-medium text-gray-900">Renewed by Agent</span>
-                      <p className="text-xs text-gray-500">Counts as Renewed</p>
+                      <span className="text-sm font-medium text-gray-900">{agentOptionLabel}</span>
+                      <p className="text-xs text-gray-500">{agentOptionHelp}</p>
                     </div>
                   </label>
                 </div>
@@ -1875,14 +2437,12 @@ export default function EnergyCustomerDetailsPage() {
                   value={newSupplier}
                   onChange={(e) => setNewSupplier(e.target.value)}
                 />
-                <p className="text-xs text-gray-500">
-                  Leave blank if supplier hasn't changed
-                </p>
+                <p className="text-xs text-gray-500">Leave blank if supplier hasn't changed</p>
               </div>
             )}
 
             {/* ✅ NEW: Address change field for "Already Renewed" */}
-            {callbackStatus === "Already Renewed" && (
+            {isRenewalOrSoldAction && (
               <div className="space-y-2">
                 <label className="text-sm font-medium">New Address (Optional)</label>
                 <Textarea
@@ -1891,9 +2451,7 @@ export default function EnergyCustomerDetailsPage() {
                   onChange={(e) => setNewAddress(e.target.value)}
                   rows={2}
                 />
-                <p className="text-xs text-gray-500">
-                  Leave blank if address hasn't changed
-                </p>
+                <p className="text-xs text-gray-500">Leave blank if address hasn't changed</p>
               </div>
             )}
 
@@ -1912,8 +2470,8 @@ export default function EnergyCustomerDetailsPage() {
               </label>
               <Textarea
                 placeholder={
-                  statusConfig[callbackStatus]?.requiresNotes 
-                    ? "Enter required notes explaining the reason for this status..." 
+                  statusConfig[callbackStatus]?.requiresNotes
+                    ? "Enter required notes explaining the reason for this status..."
                     : "Add any additional notes..."
                 }
                 value={callbackNotes}
@@ -1927,11 +2485,7 @@ export default function EnergyCustomerDetailsPage() {
           </div>
 
           <div className="flex justify-end gap-2">
-            <Button 
-              variant="outline" 
-              onClick={() => setShowCallbackModal(false)} 
-              disabled={isSubmittingCallback}
-            >
+            <Button variant="outline" onClick={() => setShowCallbackModal(false)} disabled={isSubmittingCallback}>
               Cancel
             </Button>
             <Button onClick={handleSubmitCallback} disabled={isSubmittingCallback}>
@@ -1952,20 +2506,13 @@ export default function EnergyCustomerDetailsPage() {
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle>Assign Salesperson</DialogTitle>
-            <DialogDescription>
-              Add an optional note about this assignment
-            </DialogDescription>
+            <DialogDescription>Add an optional note about this assignment</DialogDescription>
           </DialogHeader>
 
           <div className="space-y-4">
             <div>
-              <label className="text-sm font-medium text-gray-700">
-                Assigned To
-              </label>
-              <Select
-                value={assigningEmployeeId}
-                onValueChange={setAssigningEmployeeId}
-              >
+              <label className="text-sm font-medium text-gray-700">Assigned To</label>
+              <Select value={assigningEmployeeId} onValueChange={setAssigningEmployeeId}>
                 <SelectTrigger className="mt-1">
                   <SelectValue placeholder="Select salesperson" />
                 </SelectTrigger>
@@ -1981,9 +2528,7 @@ export default function EnergyCustomerDetailsPage() {
             </div>
 
             <div>
-              <label className="text-sm font-medium text-gray-700">
-                Assignment Notes (Optional)
-              </label>
+              <label className="text-sm font-medium text-gray-700">Assignment Notes (Optional)</label>
               <Textarea
                 className="mt-1"
                 placeholder="Why is this being assigned? Any specific instructions..."
@@ -1994,7 +2539,7 @@ export default function EnergyCustomerDetailsPage() {
             </div>
           </div>
 
-          <div className="flex justify-end gap-2 mt-4">
+          <div className="mt-4 flex justify-end gap-2">
             <Button
               variant="outline"
               onClick={() => {
@@ -2006,10 +2551,7 @@ export default function EnergyCustomerDetailsPage() {
             >
               Cancel
             </Button>
-            <Button
-              onClick={handleAssignEmployee}
-              disabled={isAssigningEmployee}
-            >
+            <Button onClick={handleAssignEmployee} disabled={isAssigningEmployee}>
               {isAssigningEmployee ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -2024,7 +2566,7 @@ export default function EnergyCustomerDetailsPage() {
       </Dialog>
 
       {/* ✅ SIMPLE ACTION PANEL (Right Side) - Direct Form, No Modal */}
-      <div className="fixed right-0 top-0 h-full w-80 border-l border-gray-200 bg-gray-50 p-6 overflow-y-auto">
+      <div className="fixed top-0 right-0 h-full w-80 overflow-y-auto border-l border-gray-200 bg-gray-50 p-6">
         <h3 className="mb-4 text-lg font-semibold text-gray-900">Action</h3>
 
         <div className="space-y-4">
@@ -2040,9 +2582,7 @@ export default function EnergyCustomerDetailsPage() {
               }}
             >
               <SelectTrigger className="mt-1">
-                <SelectValue placeholder="Unassigned">
-                  {customer.assigned_to_name || "Unassigned"}
-                </SelectValue>
+                <SelectValue placeholder="Unassigned">{customer.assigned_to_name || "Unassigned"}</SelectValue>
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="0">Unassigned</SelectItem>
@@ -2100,7 +2640,7 @@ export default function EnergyCustomerDetailsPage() {
                 <SelectItem value="Email Only">Email Only</SelectItem>
                 {customer.status && (
                   <>
-                    <div className="border-t my-1" />
+                    <div className="my-1 border-t" />
                     <SelectItem value="CLEAR_STATUS" className="text-red-600">
                       ✕ Clear Status
                     </SelectItem>
@@ -2108,18 +2648,12 @@ export default function EnergyCustomerDetailsPage() {
                 )}
               </SelectContent>
             </Select>
-
           </div>
 
           {callbackStatus && (
             <div>
               <label className="text-sm font-medium text-gray-700">Called Date</label>
-              <Input
-                type="date"
-                className="mt-1"
-                value={calledDate}
-                onChange={(e) => setCalledDate(e.target.value)}
-              />
+              <Input type="date" className="mt-1" value={calledDate} onChange={(e) => setCalledDate(e.target.value)} />
             </div>
           )}
 
@@ -2145,7 +2679,7 @@ export default function EnergyCustomerDetailsPage() {
           {isDateRequired() && (
             <div>
               <label className="text-sm font-medium text-gray-700">
-                Callback Date: <span className="text-gray-400 font-normal"></span>
+                Callback Date: <span className="font-normal text-gray-400"></span>
               </label>
               <Input
                 type="date"
@@ -2160,56 +2694,46 @@ export default function EnergyCustomerDetailsPage() {
           {currentConfig?.requiresNewEndDate && (
             <div>
               <label className="text-sm font-medium text-gray-700">
-                New Contract End Date: {callbackStatus === "End Date Changed" ? <span className="text-red-500">*</span> : <span className="text-gray-400">(Optional)</span>}
+                New Contract End Date: <span className="text-red-500">*</span>
               </label>
-              <Input
-                type="date"
-                className="mt-1"
-                value={newEndDate}
-                onChange={(e) => setNewEndDate(e.target.value)}
-              />
-              <p className="text-xs text-gray-500 mt-1">
-                {callbackStatus === "Already Renewed" 
-                  ? "Leave blank if end date hasn't changed"
-                  : "Contract end date will be updated"
-                }
-              </p>
+              <Input type="date" className="mt-1" value={newEndDate} onChange={(e) => setNewEndDate(e.target.value)} />
+              <p className="mt-1 text-xs text-gray-500">Contract end date will be updated</p>
             </div>
           )}
 
           {/* ✅ Renewed By - only for Already Renewed */}
-          {callbackStatus === "Already Renewed" && (
+          {isRenewalOrSoldAction && (
             <div>
               <label className="text-sm font-medium text-gray-700">
-                Renewed By <span className="text-red-500">*</span>
+                {actionByLabel} <span className="text-red-500">*</span>
               </label>
-              <div className="mt-1 flex flex-col gap-2 p-3 border rounded-lg bg-white">
-                <label className="flex items-center gap-3 cursor-pointer">
+              <div className="mt-1 flex flex-col gap-2 rounded-lg border bg-white p-3">
+                <label className="flex cursor-pointer items-center gap-3">
                   <input
                     type="radio"
                     name="renewedBy_action_panel"
-                    value="customer"
-                    checked={renewedBy === "customer"}
-                    onChange={() => setRenewedBy("customer")}
-                    className="w-4 h-4 accent-black"
+                    value={callbackStatus === "Sold" ? "supplier" : "customer"}
+                    checked={renewedBy === (callbackStatus === "Sold" ? "supplier" : "customer")}
+                    onChange={() => setRenewedBy(callbackStatus === "Sold" ? "supplier" : "customer")}
+                    className="h-4 w-4 accent-black"
                   />
                   <div>
-                    <span className="text-sm font-medium text-gray-900">Renewed by Customer</span>
-                    <p className="text-xs text-gray-500">Counts as Renewed Directly</p>
+                    <span className="text-sm font-medium text-gray-900">{supplierOptionLabel}</span>
+                    <p className="text-xs text-gray-500">{supplierOptionHelp}</p>
                   </div>
                 </label>
-                <label className="flex items-center gap-3 cursor-pointer">
+                <label className="flex cursor-pointer items-center gap-3">
                   <input
                     type="radio"
                     name="renewedBy_action_panel"
                     value="agent"
                     checked={renewedBy === "agent"}
                     onChange={() => setRenewedBy("agent")}
-                    className="w-4 h-4 accent-black"
+                    className="h-4 w-4 accent-black"
                   />
                   <div>
-                    <span className="text-sm font-medium text-gray-900">Renewed by Agent</span>
-                    <p className="text-xs text-gray-500">Counts as Renewed</p>
+                    <span className="text-sm font-medium text-gray-900">{agentOptionLabel}</span>
+                    <p className="text-xs text-gray-500">{agentOptionHelp}</p>
                   </div>
                 </label>
               </div>
@@ -2227,10 +2751,10 @@ export default function EnergyCustomerDetailsPage() {
           )}
 
           {/* New Supplier - Already Renewed */}
-          {callbackStatus === "Already Renewed" && (
+          {isRenewalOrSoldAction && (
             <div>
               <label className="text-sm font-medium text-gray-700">
-                New Supplier <span className="text-gray-400 font-normal">(Optional)</span>
+                New Supplier <span className="font-normal text-gray-400">(Optional)</span>
               </label>
               <Input
                 type="text"
@@ -2239,15 +2763,15 @@ export default function EnergyCustomerDetailsPage() {
                 value={newSupplier}
                 onChange={(e) => setNewSupplier(e.target.value)}
               />
-              <p className="text-xs text-gray-500 mt-1">Leave blank if supplier hasn't changed</p>
+              <p className="mt-1 text-xs text-gray-500">Leave blank if supplier hasn't changed</p>
             </div>
           )}
 
           {/* New Address - Already Renewed */}
-          {callbackStatus === "Already Renewed" && (
+          {isRenewalOrSoldAction && (
             <div>
               <label className="text-sm font-medium text-gray-700">
-                New Address <span className="text-gray-400 font-normal">(Optional)</span>
+                New Address <span className="font-normal text-gray-400">(Optional)</span>
               </label>
               <Textarea
                 className="mt-1"
@@ -2256,7 +2780,7 @@ export default function EnergyCustomerDetailsPage() {
                 value={newAddress}
                 onChange={(e) => setNewAddress(e.target.value)}
               />
-              <p className="text-xs text-gray-500 mt-1">Leave blank if address hasn't changed</p>
+              <p className="mt-1 text-xs text-gray-500">Leave blank if address hasn't changed</p>
             </div>
           )}
 
@@ -2268,17 +2792,11 @@ export default function EnergyCustomerDetailsPage() {
             <Textarea
               className="mt-1"
               rows={3}
-              placeholder={
-                currentConfig?.requiresNotes 
-                  ? "Enter reason why it was lost..." 
-                  : "Add notes..."
-              }
+              placeholder={currentConfig?.requiresNotes ? "Enter reason why it was lost..." : "Add notes..."}
               value={callbackNotes}
               onChange={(e) => setCallbackNotes(e.target.value)}
             />
-            {currentConfig?.requiresNotes && (
-              <p className="text-xs text-gray-500 mt-1">Required for Lost/Lost COT</p>
-            )}
+            {currentConfig?.requiresNotes && <p className="mt-1 text-xs text-gray-500">Required for Lost/Lost COT</p>}
           </div>
 
           {/* Error Display */}
@@ -2300,8 +2818,10 @@ export default function EnergyCustomerDetailsPage() {
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 Saving...
               </>
+            ) : callbackStatus ? (
+              `Save ${callbackStatus} Action`
             ) : (
-              callbackStatus ? `Save ${callbackStatus}` : "Save Action"
+              "Save Status Action"
             )}
           </Button>
         </div>
@@ -2309,7 +2829,7 @@ export default function EnergyCustomerDetailsPage() {
         {/* ✅ History Section */}
         <div className="mt-8">
           <h3 className="mb-3 text-lg font-semibold text-gray-900">History</h3>
-          
+
           {loadingHistory ? (
             <div className="flex items-center justify-center py-4">
               <Loader2 className="h-5 w-5 animate-spin text-gray-400" />
@@ -2319,24 +2839,31 @@ export default function EnergyCustomerDetailsPage() {
           ) : (
             <div className="space-y-3">
               {history.map((interaction) => {
-                const rawNotes = interaction.notes || '';
-                const cleanNotes = rawNotes.replace(/^\[.*?\]\s*/, '');
-                const displayStatus = interaction.interaction_type || 'Unknown';
-                
+                const rawNotes = interaction.notes || "";
+                const cleanNotes = rawNotes.replace(/^\[.*?\]\s*/, "");
+                const displayStatus = interaction.interaction_type || "Unknown";
+
                 // ✅ Check if this is a callback with a reminder date
-                const hasCallback = interaction.reminder_date && 
-                  ['Callback', 'Called', 'Not Answered', 'Broker in Place', 
-                  'End Date Changed', 'Already Renewed'].includes(displayStatus);
-                
+                const hasCallback =
+                  interaction.reminder_date &&
+                  [
+                    "Callback",
+                    "Called",
+                    "Not Answered",
+                    "Broker in Place",
+                    "End Date Changed",
+                    "Already Renewed",
+                  ].includes(displayStatus);
+
                 return (
-                  <div 
-                    key={interaction.interaction_id} 
-                    className="p-3 bg-white border border-gray-200 rounded-lg text-sm relative group"
+                  <div
+                    key={interaction.interaction_id}
+                    className="group relative rounded-lg border border-gray-200 bg-white p-3 text-sm"
                   >
                     {/* ✅ DELETE BUTTON - Shows on hover */}
                     <button
                       onClick={() => handleDeleteInteraction(interaction.interaction_id)}
-                      className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:bg-red-50 rounded"
+                      className="absolute top-2 right-2 rounded p-1 opacity-0 transition-opacity group-hover:opacity-100 hover:bg-red-50"
                       title="Delete this entry"
                     >
                       <Trash2 className="h-4 w-4 text-red-600" />
@@ -2344,33 +2871,29 @@ export default function EnergyCustomerDetailsPage() {
 
                     {/* ✅ Show the actual status */}
                     <div className="mb-2">
-                      <span className="font-semibold text-gray-900">
-                        {displayStatus}
-                      </span>
+                      <span className="font-semibold text-gray-900">{displayStatus}</span>
                     </div>
-                    
+
                     {/* ✅ ALWAYS show notes if they exist */}
-                    {cleanNotes && (
-                      <p className="text-gray-600 text-xs mb-2 pr-8">{cleanNotes}</p>
-                    )}
-                    
+                    {cleanNotes && <p className="mb-2 pr-8 text-xs text-gray-600">{cleanNotes}</p>}
+
                     {/* ✅ Show callback/reminder date with calendar icon - ONLY for callback-type statuses */}
                     {hasCallback && (
-                      <div className="flex items-center gap-1 text-xs text-purple-700 mb-1">
+                      <div className="mb-1 flex items-center gap-1 text-xs text-purple-700">
                         <Calendar className="h-3 w-3" />
                         <span>Callback: {formatDate(interaction.reminder_date)}</span>
                       </div>
                     )}
-                    
+
                     {/* ✅ Show timestamp for when this was created */}
                     {interaction.created_at && (
-                      <div className="text-xs text-gray-400 mt-1">
-                        {new Date(interaction.created_at).toLocaleString('en-GB', {
-                          day: '2-digit',
-                          month: '2-digit',
-                          year: 'numeric',
-                          hour: '2-digit',
-                          minute: '2-digit'
+                      <div className="mt-1 text-xs text-gray-400">
+                        {new Date(interaction.created_at).toLocaleString("en-GB", {
+                          day: "2-digit",
+                          month: "2-digit",
+                          year: "numeric",
+                          hour: "2-digit",
+                          minute: "2-digit",
                         })}
                       </div>
                     )}

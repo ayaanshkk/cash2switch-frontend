@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
 import { ColumnDef } from "@tanstack/react-table";
 import { format } from "date-fns";
 import { Eye, Phone, Mail, AlertTriangle } from "lucide-react";
@@ -26,6 +25,8 @@ interface RenewalCustomer {
   phone: string;
   email: string;
   supplier_name: string;
+  mpan_mpr?: string;
+  mpan_number?: string;
   end_date: string;
   annual_usage: number;
   days_until_expiry: number;
@@ -63,7 +64,6 @@ const getStatusColor = (status: string) => {
 
 // ✅ Accept employeeId prop
 export function RenewalsTable({ employeeId }: RenewalsTableProps = {}) {
-  const router = useRouter();
   const [renewals, setRenewals] = useState<RenewalCustomer[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -177,6 +177,18 @@ export function RenewalsTable({ employeeId }: RenewalsTableProps = {}) {
       ),
     },
     {
+      accessorKey: "mpan_mpr",
+      header: ({ column }) => <DataTableColumnHeader column={column} title="MPAN/MPR" />,
+      cell: ({ row }) => {
+        const mpan = row.original.mpan_mpr || row.original.mpan_number;
+        return (
+          <div className="max-w-[160px] truncate font-mono text-sm text-slate-800" title={mpan || ""}>
+            {mpan || "—"}
+          </div>
+        );
+      },
+    },
+    {
       accessorKey: "end_date",
       header: ({ column }) => <DataTableColumnHeader column={column} title="Expiry Date" />,
       cell: ({ row }) => {
@@ -229,7 +241,7 @@ export function RenewalsTable({ employeeId }: RenewalsTableProps = {}) {
           variant="outline"
           size="sm"
           className="border-slate-200 bg-white text-slate-800 hover:bg-slate-50 hover:text-slate-900"
-          onClick={() => router.push(`/dashboard/renewals/${row.original.client_id}`)}
+          onClick={() => window.open(`/dashboard/renewals/${row.original.client_id}`, "_blank", "noopener,noreferrer")}
         >
           <Eye className="h-4 w-4" />
           <span className="ml-1">View</span>

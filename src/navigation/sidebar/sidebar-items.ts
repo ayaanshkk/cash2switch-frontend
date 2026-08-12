@@ -2,6 +2,7 @@ import {
   ShoppingBag,
   Forklift,
   Mail,
+  MailCheck,
   MessageSquare,
   Calendar,
   Kanban,
@@ -176,9 +177,48 @@ const allSidebarItems: NavGroup[] = [
         roles: ["platform admin"],
       },
       {
+        title: "Payments",
+        url: "/dashboard/payments",
+        icon: Banknote,
+        roles: ["platform admin"],
+        isNew: true,
+        subItems: [
+          {
+            title: "Supplier Terms",
+            url: "/dashboard/payments/supplier-terms",
+            icon: Settings,
+            roles: ["platform admin"],
+          },
+          {
+            title: "Payment Checker",
+            url: "/dashboard/payments",
+            icon: ReceiptText,
+            roles: ["platform admin"],
+          },
+          {
+            title: "Agent Commissions",
+            url: "/dashboard/payments/agent-commissions",
+            icon: BadgePoundSterling,
+            roles: ["platform admin"],
+          },
+          {
+            title: "Reports",
+            url: "/dashboard/payments/reports",
+            icon: ChartBar,
+            roles: ["platform admin"],
+          },
+        ],
+      },
+      {
+        title: "Email Logs",
+        url: "/dashboard/email-logs",
+        icon: MailCheck,
+        roles: ["platform admin"],
+      },
+      {
         title: "Cleansing",
         url: "/dashboard/cleansing",
-        icon: Sparkles,  
+        icon: Sparkles,
         roles: ["platform admin", "salesperson"],
       },
       {
@@ -216,15 +256,20 @@ export const getSidebarItems = (userRole: string, notificationCount?: number): N
   // Normalize role to lowercase for comparison
   const normalizedRole = userRole?.toLowerCase().trim() || '';
   
-  // Check if user has platform admin role
-  const isPlatformAdmin = normalizedRole.includes('platform') && normalizedRole.includes('admin');
+  const isAdmin = [
+    'admin',
+    'platform admin',
+    'tenant super admin',
+    'super admin',
+    'superadmin',
+  ].includes(normalizedRole);
   const isSalesperson = normalizedRole.includes('salesperson') || normalizedRole.includes('sales');
   const isLeadsOffshore = normalizedRole.includes('leads') || normalizedRole.includes('offshore');
 
   
   // Determine allowed roles
   let allowedRoles: string[] = [];
-  if (isPlatformAdmin) {
+  if (isAdmin) {
     allowedRoles = ['platform admin', 'salesperson', 'leads offshore'];
   } else if (isSalesperson) {
     allowedRoles = ['salesperson'];
