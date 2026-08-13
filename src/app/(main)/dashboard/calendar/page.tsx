@@ -513,7 +513,7 @@ export default function CalendarPage() {
       setRenewals((prev) => prev.map(applyUpdate));
       setShowDetailDialog(false);
       setSelectedRenewal(null);
-      localStorage.setItem("calendar-refetch-trigger", Date.now().toString());
+      localStorage.setItem("calendar-refetch-trigger", `${Date.now()}-${Math.random()}`);
       window.dispatchEvent(new CustomEvent("calendar-refetch", { detail: { action: "refetch-calendar" } }));
       void loadCalendarEvents({ silent: true });
     } catch (err: any) {

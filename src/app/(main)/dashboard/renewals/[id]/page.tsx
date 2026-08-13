@@ -392,31 +392,26 @@ export default function EnergyCustomerDetailsPage() {
     }
   }, [customer?.client_id, isAdmin]);
 
-  const loadCustomerData = async () => {
+  const loadCustomerData = async (preserveFormState = false) => {
     setLoading(true);
     setError(null);
-
     const token = localStorage.getItem("auth_token");
-
     try {
       const response = await fetch(`${API_BASE_URL}/energy-clients/${id}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
-
       if (!response.ok) throw new Error("Failed to load customer data");
-
       const data = await response.json();
       console.log("📥 Customer data loaded:", data);
-      console.log("📥 Status from API:", data.status);
-
+      console.log("📥 Status from API:", data.status, "| preserveFormState:", preserveFormState);
       setCustomer(data);
       setEditedCustomer(data);
-      // ✅ ADD THIS: Populate the status dropdown with the value from API
-      if (data.status) {
-        setCallbackStatus(data.status);
+      // ✅ Only set callbackStatus and callbackDate on initial load, not after saves
+      if (!preserveFormState) {
+        // Only reset the form to DB values on initial load, not after user actions
+        setCallbackStatus(data.status || "");
+        setCallbackDate(data.callback_date ? String(data.callback_date).slice(0, 10) : "");
       }
-      setCallbackDate(data.callback_date ? String(data.callback_date).slice(0, 10) : "");
-
       if (data.document_details) {
         try {
           const docs = JSON.parse(data.document_details);
@@ -713,6 +708,11 @@ export default function EnergyCustomerDetailsPage() {
   };
 
   const handleSubmitCallback = async () => {
+    console.log("🚀 handleSubmitCallback fired");
+    console.log("📋 callbackStatus:", callbackStatus);
+    console.log("📋 callbackDate:", callbackDate);
+    console.log("📋 clientId:", resolveClientId());
+    console.log("📋 customer?.client_id:", customer?.client_id);
     setCallbackError("");
 
     if (!callbackStatus) {
@@ -785,6 +785,9 @@ export default function EnergyCustomerDetailsPage() {
       }
 
       const clientId = resolveClientId();
+      console.log("🚀 SENDING to:", `${API_BASE_URL}/energy-clients/${clientId}/callback`);
+      console.log("🚀 PAYLOAD:", JSON.stringify(payload, null, 2));
+
       const response = await fetch(`${API_BASE_URL}/energy-clients/${clientId}/callback`, {
         method: "POST",
         headers: {
@@ -794,14 +797,17 @@ export default function EnergyCustomerDetailsPage() {
         body: JSON.stringify(payload),
       });
 
+      console.log("📡 Response status:", response.status);
       const data = await response.json();
+      console.log("📡 Response body:", JSON.stringify(data, null, 2));
+      console.log("📡 customer.client_id:", customer?.client_id, "| id param:", id, "| resolved clientId:", clientId);
 
       if (!response.ok) {
         throw new Error(data.error || "Failed to save callback");
       }
 
       if (data.display_only || callbackStatus === "Dead") {
-        await loadCustomerData();
+        await loadCustomerData(true);  // ✅ preserve form state
         setCallbackStatus(callbackStatus);
         alert(`✅ Status set to ${callbackStatus}`);
         setCallbackNotes("");
@@ -809,8 +815,8 @@ export default function EnergyCustomerDetailsPage() {
         return;
       }
 
-      // ✅ ALWAYS reload customer data to get fresh values (including updated end date, supplier, address)
-      await loadCustomerData();
+      // Second call — main success path:
+      await loadCustomerData(true);
 
       if (data.moved_to_cleansing) {
         alert("🧹 Moved to Cleansing");
@@ -831,11 +837,21 @@ export default function EnergyCustomerDetailsPage() {
       // ✅ Reload history FIRST before resetting state
       await loadHistory();
 
+      const confirmedStatus = data.customer?.status ?? data.status ?? callbackStatus;
+      const confirmedCallbackDate = data.customer?.callback_date
+        ? String(data.customer.callback_date).slice(0, 10)
+        : data.callback_date
+          ? String(data.callback_date).slice(0, 10)
+          : callbackDate;
+
       if (data.customer) {
         setCustomer((prev) => (prev ? { ...prev, ...data.customer } : data.customer));
         setEditedCustomer((prev) => ({ ...prev, ...data.customer }));
-        setCallbackDate(data.customer.callback_date ? String(data.customer.callback_date).slice(0, 10) : callbackDate);
       }
+
+      // ✅ Always sync callbackStatus and callbackDate from confirmed server response
+      setCallbackStatus(confirmedStatus);
+      setCallbackDate(confirmedCallbackDate);
 
       if (callbackStatus === "Already Renewed" || callbackStatus === "Sold") alert("✅ Lead information updated");
       else if (callbackStatus === "End Date Changed")
@@ -2607,7 +2623,6 @@ export default function EnergyCustomerDetailsPage() {
                   handleClearStatus();
                 } else {
                   setCallbackStatus(value);
-                  setCallbackDate("");
                   setCallbackNotes("");
                   setIsSold("");
                   setNewEndDate("");
