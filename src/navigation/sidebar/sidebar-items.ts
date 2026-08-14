@@ -27,7 +27,6 @@ import {
   Bell,
   ClipboardList,
   DollarSign,
-  ClipboardCheck,
   History,
   TrendingUp,
   Phone,

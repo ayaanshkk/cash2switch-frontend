@@ -101,6 +101,33 @@ type PaymentGroup = {
   statuses: PaymentStatus[];
 };
 
+type PaymentColumnKey =
+  | "supplier"
+  | "mpan"
+  | "contractDates"
+  | "aggregator"
+  | "agent"
+  | "expected"
+  | "dueDate"
+  | "received"
+  | "outstanding"
+  | "status"
+  | "lastChecked";
+
+const paymentColumnOptions: Array<{ key: PaymentColumnKey; label: string; defaultVisible: boolean; align?: "right" }> = [
+  { key: "supplier", label: "Supplier", defaultVisible: true },
+  { key: "mpan", label: "MPAN/MPR", defaultVisible: true },
+  { key: "contractDates", label: "Contract Dates", defaultVisible: false },
+  { key: "aggregator", label: "Aggregator", defaultVisible: false },
+  { key: "agent", label: "Agent", defaultVisible: true },
+  { key: "expected", label: "Expected", defaultVisible: true, align: "right" },
+  { key: "dueDate", label: "Due Date", defaultVisible: true },
+  { key: "received", label: "Received", defaultVisible: true, align: "right" },
+  { key: "outstanding", label: "Outstanding", defaultVisible: true, align: "right" },
+  { key: "status", label: "Status", defaultVisible: true },
+  { key: "lastChecked", label: "Last Checked", defaultVisible: false },
+];
+
 const statusTone: Record<PaymentStatus, string> = {
   Scheduled: "bg-slate-100 text-slate-700 hover:bg-slate-100",
   Pending: "bg-blue-100 text-blue-700 hover:bg-blue-100",
@@ -167,6 +194,13 @@ export default function PaymentCheckerPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [visiblePaymentColumns, setVisiblePaymentColumns] = useState<Record<PaymentColumnKey, boolean>>(
+    () =>
+      paymentColumnOptions.reduce(
+        (acc, column) => ({ ...acc, [column.key]: column.defaultVisible }),
+        {} as Record<PaymentColumnKey, boolean>,
+      ),
+  );
   const [receiptDraft, setReceiptDraft] = useState({
     amount_received: "",
     date_received: new Date().toISOString().slice(0, 10),
@@ -399,6 +433,8 @@ export default function PaymentCheckerPage() {
   };
 
   const selectedIsClosed = selectedPayment?.status === "Closed";
+  const isColumnVisible = (key: PaymentColumnKey) => visiblePaymentColumns[key];
+  const visibleColumnCount = 1 + paymentColumnOptions.filter((column) => isColumnVisible(column.key)).length;
 
   return (
     <div className="min-h-screen bg-slate-50/50 px-4 py-6 sm:px-6 lg:px-8">
@@ -406,7 +442,9 @@ export default function PaymentCheckerPage() {
         <div className="flex flex-col gap-4 rounded-lg border bg-white p-5 shadow-sm md:flex-row md:items-center md:justify-between">
           <div>
             <p className="text-sm font-medium text-slate-500">Payments</p>
-            <h1 className="mt-1 text-3xl font-semibold tracking-tight text-slate-950">Payment Checker</h1>
+            <h1 className="mt-1 text-3xl font-semibold tracking-tight text-slate-950">
+              Payment Checker
+            </h1>
             <p className="mt-2 max-w-3xl text-sm text-slate-600">
               Track supplier commission receipts, outstanding balances, and follow-up actions.
             </p>
@@ -544,21 +582,51 @@ export default function PaymentCheckerPage() {
                 <span>
                   Showing {paymentGroups.length} of {pagination.total} renewals
                 </span>
-                <Select
-                  value={String(pagination.page_size)}
-                  onValueChange={(value) =>
-                    setPagination((current) => ({ ...current, page: 1, page_size: Number(value) }))
-                  }
-                >
-                  <SelectTrigger className="h-8 w-24">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="10">10</SelectItem>
-                    <SelectItem value="25">25</SelectItem>
-                    <SelectItem value="50">50</SelectItem>
-                  </SelectContent>
-                </Select>
+                <details className="relative">
+                  <summary className="flex h-8 cursor-pointer list-none items-center gap-2 rounded-md border bg-white px-3 text-sm font-medium text-slate-700 hover:bg-slate-50">
+                    Show/Hide Columns
+                    <ChevronDown className="h-4 w-4 text-slate-500" />
+                  </summary>
+                  <div className="absolute right-0 z-20 mt-2 w-56 rounded-md border bg-white p-3 shadow-lg">
+                    <div className="mb-2 text-xs font-semibold tracking-wide text-slate-500 uppercase">Show columns</div>
+                    <div className="space-y-2">
+                      {paymentColumnOptions.map((column) => (
+                        <label key={column.key} className="flex items-center gap-2 text-sm text-slate-700">
+                          <input
+                            type="checkbox"
+                            className="h-4 w-4 accent-slate-900"
+                            checked={isColumnVisible(column.key)}
+                            onChange={(event) =>
+                              setVisiblePaymentColumns((current) => ({
+                                ...current,
+                                [column.key]: event.target.checked,
+                              }))
+                            }
+                          />
+                          {column.label}
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                </details>
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-slate-500">Rows per page</span>
+                  <Select
+                    value={String(pagination.page_size)}
+                    onValueChange={(value) =>
+                      setPagination((current) => ({ ...current, page: 1, page_size: Number(value) }))
+                    }
+                  >
+                    <SelectTrigger className="h-8 w-24">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="10">10</SelectItem>
+                      <SelectItem value="25">25</SelectItem>
+                      <SelectItem value="50">50</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
             </div>
           </CardHeader>
@@ -681,22 +749,20 @@ export default function PaymentCheckerPage() {
                         {expanded && (
                           <div className="border-t bg-white">
                             <div className="overflow-x-auto">
-                              <table className="w-full min-w-[1280px] text-sm">
+                              <table className="w-full min-w-[860px] text-sm">
                                 <thead className="bg-slate-50 text-left text-xs font-semibold tracking-wide text-slate-500 uppercase">
                                   <tr>
                                     <th className="px-4 py-3">Instalment</th>
-                                    <th className="px-4 py-3">Supplier</th>
-                                    <th className="px-4 py-3">Service</th>
-                                    <th className="px-4 py-3">MPAN/MPR</th>
-                                    <th className="px-4 py-3">Contract Dates</th>
-                                    <th className="px-4 py-3">Aggregator</th>
-                                    <th className="px-4 py-3">Agent</th>
-                                    <th className="px-4 py-3 text-right">Expected</th>
-                                    <th className="px-4 py-3">Due Date</th>
-                                    <th className="px-4 py-3 text-right">Received</th>
-                                    <th className="px-4 py-3 text-right">Outstanding</th>
-                                    <th className="px-4 py-3">Status</th>
-                                    <th className="px-4 py-3">Last Checked</th>
+                                    {paymentColumnOptions.map((column) =>
+                                      isColumnVisible(column.key) ? (
+                                        <th
+                                          key={column.key}
+                                          className={`px-4 py-3 ${column.align === "right" ? "text-right" : ""}`}
+                                        >
+                                          {column.label}
+                                        </th>
+                                      ) : null,
+                                    )}
                                   </tr>
                                 </thead>
                                 <tbody className="divide-y bg-white">
@@ -710,34 +776,61 @@ export default function PaymentCheckerPage() {
                                         <div className="font-medium text-slate-900">
                                           {payment.payment_period_label || `Year ${payment.instalment_year}`}
                                         </div>
-                                        <div className="text-xs text-slate-500">ID {payment.id.slice(0, 8)}</div>
                                       </td>
-                                      <td className="px-4 py-3 text-slate-700">{payment.supplier_name || "-"}</td>
-                                      <td className="px-4 py-3 text-slate-700">{payment.service_title || "-"}</td>
-                                      <td className="px-4 py-3 font-mono text-xs text-slate-700">
-                                        {payment.mpan_number || payment.mpan_bottom || "-"}
-                                      </td>
-                                      <td className="px-4 py-3 text-slate-700">
-                                        {formatDate(payment.contract_start_date)} - {formatDate(payment.contract_end_date)}
-                                      </td>
-                                      <td className="px-4 py-3 text-slate-700">{payment.aggregator || "-"}</td>
-                                      <td className="px-4 py-3 text-slate-700">{payment.agent_name || "-"}</td>
-                                      <td className="px-4 py-3 text-right font-medium">
-                                        {formatMoney(payment.expected_net_amount)}
-                                      </td>
-                                      <td className="px-4 py-3 text-slate-700">{formatDate(payment.due_date)}</td>
-                                      <td className="px-4 py-3 text-right">{formatMoney(payment.amount_received)}</td>
-                                      <td className="px-4 py-3 text-right">
-                                        {formatMoney(payment.outstanding_amount)}
-                                      </td>
-                                      <td className="px-4 py-3">
-                                        <Badge className={statusTone[payment.status]}>{payment.status}</Badge>
-                                      </td>
-                                      <td className="px-4 py-3 text-slate-700">
-                                        {formatDateTime(payment.last_checked_at)}
-                                      </td>
+                                      {isColumnVisible("supplier") && (
+                                        <td className="px-4 py-3 text-slate-700">{payment.supplier_name || "-"}</td>
+                                      )}
+                                      {isColumnVisible("mpan") && (
+                                        <td className="px-4 py-3 font-mono text-xs text-slate-700">
+                                          {payment.mpan_number || payment.mpan_bottom || "-"}
+                                        </td>
+                                      )}
+                                      {isColumnVisible("contractDates") && (
+                                        <td className="px-4 py-3 text-slate-700">
+                                          {formatDate(payment.contract_start_date)} - {formatDate(payment.contract_end_date)}
+                                        </td>
+                                      )}
+                                      {isColumnVisible("aggregator") && (
+                                        <td className="px-4 py-3 text-slate-700">{payment.aggregator || "-"}</td>
+                                      )}
+                                      {isColumnVisible("agent") && (
+                                        <td className="px-4 py-3 text-slate-700">{payment.agent_name || "-"}</td>
+                                      )}
+                                      {isColumnVisible("expected") && (
+                                        <td className="px-4 py-3 text-right font-medium">
+                                          {formatMoney(payment.expected_net_amount)}
+                                        </td>
+                                      )}
+                                      {isColumnVisible("dueDate") && (
+                                        <td className="px-4 py-3 text-slate-700">{formatDate(payment.due_date)}</td>
+                                      )}
+                                      {isColumnVisible("received") && (
+                                        <td className="px-4 py-3 text-right">{formatMoney(payment.amount_received)}</td>
+                                      )}
+                                      {isColumnVisible("outstanding") && (
+                                        <td className="px-4 py-3 text-right">
+                                          {formatMoney(payment.outstanding_amount)}
+                                        </td>
+                                      )}
+                                      {isColumnVisible("status") && (
+                                        <td className="px-4 py-3">
+                                          <Badge className={statusTone[payment.status]}>{payment.status}</Badge>
+                                        </td>
+                                      )}
+                                      {isColumnVisible("lastChecked") && (
+                                        <td className="px-4 py-3 text-slate-700">
+                                          {formatDateTime(payment.last_checked_at)}
+                                        </td>
+                                      )}
                                     </tr>
                                   ))}
+                                  {orderedPayments.length === 0 && (
+                                    <tr>
+                                      <td colSpan={visibleColumnCount} className="px-4 py-8 text-center text-slate-500">
+                                        No payment rows for this renewal.
+                                      </td>
+                                    </tr>
+                                  )}
                                 </tbody>
                               </table>
                             </div>
