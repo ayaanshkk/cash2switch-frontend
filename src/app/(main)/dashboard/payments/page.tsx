@@ -120,7 +120,7 @@ type PaymentColumnKey =
 const paymentColumnOptions: Array<{ key: PaymentColumnKey; label: string; defaultVisible: boolean; align?: "right" }> = [
   { key: "supplier", label: "Supplier", defaultVisible: true },
   { key: "mpan", label: "MPAN/MPR", defaultVisible: true },
-  { key: "contractDates", label: "Contract Dates", defaultVisible: false },
+  { key: "contractDates", label: "Payment Period", defaultVisible: true },
   { key: "aggregator", label: "Aggregator", defaultVisible: false },
   { key: "agent", label: "Agent", defaultVisible: true },
   { key: "expected", label: "Expected", defaultVisible: true, align: "right" },
@@ -501,12 +501,12 @@ export default function PaymentCheckerPage() {
           <div>
             <p className="text-sm font-medium text-slate-500">Payments</p>
             <h1 className="mt-1 text-3xl font-semibold tracking-tight text-slate-950">
-              {isAlreadyRenewedPage ? "Already Renewed" : "Payment Checker"}
+              {isAlreadyRenewedPage ? "Already Renewed" : "Upcoming Renewals"}
             </h1>
             <p className="mt-2 max-w-3xl text-sm text-slate-600">
               {isAlreadyRenewedPage
                 ? "Temporary view for existing already renewed commission payments."
-                : "Track supplier commission receipts, outstanding balances, and follow-up actions."}
+                : "Track upcoming renewal commission receipts, outstanding balances, and follow-up actions."}
             </p>
           </div>
           <Button onClick={applyFilters} disabled={loading}>
@@ -860,7 +860,8 @@ export default function PaymentCheckerPage() {
                                       )}
                                       {isColumnVisible("contractDates") && (
                                         <td className="px-4 py-3 text-slate-700">
-                                          {formatDate(payment.contract_start_date)} - {formatDate(payment.contract_end_date)}
+                                          {formatDate(payment.payment_period_start || payment.contract_start_date)} -{" "}
+                                          {formatDate(payment.payment_period_end || payment.contract_end_date)}
                                         </td>
                                       )}
                                       {isColumnVisible("aggregator") && (
