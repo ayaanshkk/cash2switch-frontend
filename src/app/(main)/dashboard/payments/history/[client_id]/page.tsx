@@ -1,13 +1,16 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { Fragment, FormEvent, useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 
-import { ArrowLeft, BadgePoundSterling, CalendarCheck, CheckCircle2, Clock3, Loader2, RefreshCcw } from "lucide-react";
+import { ArrowLeft, BadgePoundSterling, Banknote, CalendarCheck, CheckCircle2, Clock3, Edit, Loader2, RefreshCcw } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { fetchWithAuth } from "@/lib/api";
 
 type PaymentLog = {
@@ -43,6 +46,7 @@ type PaymentLog = {
   }>;
   receipts: Array<{
     id: string;
+    commission_payment_id: string;
     contract_id: number | null;
     instalment_year: number | null;
     payment_period_label: string | null;
@@ -115,6 +119,19 @@ export default function PaymentHistoryPage() {
   const [log, setLog] = useState<PaymentLog | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [savingReceipt, setSavingReceipt] = useState(false);
+  const [activePaymentId, setActivePaymentId] = useState<string | null>(null);
+  const [receiptDraft, setReceiptDraft] = useState({
+    amount_received: "",
+    date_received: new Date().toISOString().slice(0, 10),
+    notes: "",
+  });
+  const [editingReceiptId, setEditingReceiptId] = useState<string | null>(null);
+  const [receiptEditDraft, setReceiptEditDraft] = useState({
+    amount_received: "",
+    date_received: "",
+    notes: "",
+  });
 
   const groupedPayments = useMemo<PaymentGroup[]>(() => {
     if (!log) return [];
@@ -148,6 +165,75 @@ export default function PaymentHistoryPage() {
       setLog(null);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const resetReceiptDraft = () => {
+    setActivePaymentId(null);
+    setReceiptDraft({
+      amount_received: "",
+      date_received: new Date().toISOString().slice(0, 10),
+      notes: "",
+    });
+  };
+
+  const startEditingReceipt = (receipt: PaymentLog["receipts"][number]) => {
+    setEditingReceiptId(receipt.id);
+    setReceiptEditDraft({
+      amount_received: String(receipt.amount_received || ""),
+      date_received: receipt.date_received || new Date().toISOString().slice(0, 10),
+      notes: receipt.notes || "",
+    });
+  };
+
+  const cancelEditingReceipt = () => {
+    setEditingReceiptId(null);
+    setReceiptEditDraft({ amount_received: "", date_received: "", notes: "" });
+  };
+
+  const submitReceipt = async (event: FormEvent<HTMLFormElement>, paymentId: string) => {
+    event.preventDefault();
+    setSavingReceipt(true);
+    setError(null);
+
+    try {
+      await fetchWithAuth(`/api/commission/payments/${paymentId}/receipts`, {
+        method: "POST",
+        body: JSON.stringify({
+          amount_received: Number(receiptDraft.amount_received),
+          date_received: receiptDraft.date_received,
+          notes: receiptDraft.notes,
+        }),
+      });
+      resetReceiptDraft();
+      await loadLog();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to log payment receipt");
+    } finally {
+      setSavingReceipt(false);
+    }
+  };
+
+  const submitReceiptEdit = async (event: FormEvent<HTMLFormElement>, receipt: PaymentLog["receipts"][number]) => {
+    event.preventDefault();
+    setSavingReceipt(true);
+    setError(null);
+
+    try {
+      await fetchWithAuth(`/api/commission/payments/${receipt.commission_payment_id}/receipts/${receipt.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          amount_received: Number(receiptEditDraft.amount_received),
+          date_received: receiptEditDraft.date_received,
+          notes: receiptEditDraft.notes,
+        }),
+      });
+      cancelEditingReceipt();
+      await loadLog();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to update payment receipt");
+    } finally {
+      setSavingReceipt(false);
     }
   };
 
@@ -280,36 +366,103 @@ export default function PaymentHistoryPage() {
                           {log.is_admin && <th className="px-4 py-3 text-right">Outstanding</th>}
                           <th className="px-4 py-3">Status</th>
                           <th className="px-4 py-3">Last Checked</th>
+                          {log.is_admin && <th className="px-4 py-3 text-right">Action</th>}
                         </tr>
                       </thead>
                       <tbody className="divide-y bg-white">
                         {group.payments.map((payment) => (
-                          <tr key={payment.id}>
-                            <td className="px-4 py-3 font-medium text-slate-950">
-                              {payment.payment_period_label || `Year ${payment.instalment_year}`}
-                            </td>
-                            <td className="px-4 py-3 text-slate-700">{payment.supplier_name || "-"}</td>
-                            <td className="px-4 py-3 text-slate-700">{payment.aggregator || "-"}</td>
-                            <td className="px-4 py-3 text-slate-700">{payment.agent_name || "-"}</td>
-                            {log.is_admin && (
-                              <td className="px-4 py-3 text-right font-medium">
-                                {formatMoney(payment.expected_net_amount)}
+                          <Fragment key={payment.id}>
+                            <tr>
+                              <td className="px-4 py-3 font-medium text-slate-950">
+                                {payment.payment_period_label || `Year ${payment.instalment_year}`}
                               </td>
-                            )}
-                            <td className="px-4 py-3 text-slate-700">{formatDate(payment.due_date)}</td>
-                            {log.is_admin && (
-                              <td className="px-4 py-3 text-right">{formatMoney(payment.amount_received)}</td>
-                            )}
-                            {log.is_admin && (
-                              <td className="px-4 py-3 text-right font-medium">
-                                {formatMoney(payment.outstanding_amount)}
+                              <td className="px-4 py-3 text-slate-700">{payment.supplier_name || "-"}</td>
+                              <td className="px-4 py-3 text-slate-700">{payment.aggregator || "-"}</td>
+                              <td className="px-4 py-3 text-slate-700">{payment.agent_name || "-"}</td>
+                              {log.is_admin && (
+                                <td className="px-4 py-3 text-right font-medium">
+                                  {formatMoney(payment.expected_net_amount)}
+                                </td>
+                              )}
+                              <td className="px-4 py-3 text-slate-700">{formatDate(payment.due_date)}</td>
+                              {log.is_admin && (
+                                <td className="px-4 py-3 text-right">{formatMoney(payment.amount_received)}</td>
+                              )}
+                              {log.is_admin && (
+                                <td className="px-4 py-3 text-right font-medium">
+                                  {formatMoney(payment.outstanding_amount)}
+                                </td>
+                              )}
+                              <td className="px-4 py-3">
+                                <Badge className={statusTone(payment.status)}>{payment.status}</Badge>
                               </td>
+                              <td className="px-4 py-3 text-slate-700">{formatDateTime(payment.last_checked_at)}</td>
+                              {log.is_admin && (
+                                <td className="px-4 py-3 text-right">
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => setActivePaymentId(payment.id)}
+                                    disabled={payment.status === "Closed"}
+                                  >
+                                    <Banknote className="mr-2 h-4 w-4" />
+                                    Log Payment
+                                  </Button>
+                                </td>
+                              )}
+                            </tr>
+                            {log.is_admin && activePaymentId === payment.id && (
+                              <tr key={`${payment.id}-form`}>
+                                <td colSpan={11} className="bg-slate-50 px-4 py-4">
+                                  <form onSubmit={(event) => submitReceipt(event, payment.id)} className="grid gap-3 md:grid-cols-[1fr_1fr_2fr_auto_auto] md:items-end">
+                                    <div className="space-y-2">
+                                      <Label htmlFor={`amount_${payment.id}`}>Amount received</Label>
+                                      <Input
+                                        id={`amount_${payment.id}`}
+                                        min="0.01"
+                                        step="0.01"
+                                        type="number"
+                                        value={receiptDraft.amount_received}
+                                        onChange={(event) =>
+                                          setReceiptDraft((current) => ({ ...current, amount_received: event.target.value }))
+                                        }
+                                        required
+                                      />
+                                    </div>
+                                    <div className="space-y-2">
+                                      <Label htmlFor={`date_${payment.id}`}>Date received</Label>
+                                      <Input
+                                        id={`date_${payment.id}`}
+                                        type="date"
+                                        value={receiptDraft.date_received}
+                                        onChange={(event) =>
+                                          setReceiptDraft((current) => ({ ...current, date_received: event.target.value }))
+                                        }
+                                      />
+                                    </div>
+                                    <div className="space-y-2">
+                                      <Label htmlFor={`notes_${payment.id}`}>Notes</Label>
+                                      <Input
+                                        id={`notes_${payment.id}`}
+                                        value={receiptDraft.notes}
+                                        onChange={(event) =>
+                                          setReceiptDraft((current) => ({ ...current, notes: event.target.value }))
+                                        }
+                                      />
+                                    </div>
+                                    <Button type="submit" disabled={savingReceipt}>
+                                      {savingReceipt ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                                      Save
+                                    </Button>
+                                    <Button type="button" variant="outline" onClick={resetReceiptDraft}>
+                                      Cancel
+                                    </Button>
+                                  </form>
+                                </td>
+                              </tr>
                             )}
-                            <td className="px-4 py-3">
-                              <Badge className={statusTone(payment.status)}>{payment.status}</Badge>
-                            </td>
-                            <td className="px-4 py-3 text-slate-700">{formatDateTime(payment.last_checked_at)}</td>
-                          </tr>
+                          </Fragment>
                         ))}
                       </tbody>
                     </table>
@@ -326,7 +479,55 @@ export default function PaymentHistoryPage() {
                 <CardContent className="p-0">
                   <div className="divide-y">
                     {log.receipts.map((receipt) => (
-                      <div key={receipt.id} className="grid gap-3 px-5 py-4 text-sm md:grid-cols-[1fr_auto_auto]">
+                      <div key={receipt.id} className="px-5 py-4 text-sm">
+                        {editingReceiptId === receipt.id ? (
+                          <form onSubmit={(event) => submitReceiptEdit(event, receipt)} className="grid gap-3 md:grid-cols-[1fr_1fr_2fr_auto_auto] md:items-end">
+                            <div className="space-y-2">
+                              <Label htmlFor={`edit_amount_${receipt.id}`}>Amount received</Label>
+                              <Input
+                                id={`edit_amount_${receipt.id}`}
+                                min="0.01"
+                                step="0.01"
+                                type="number"
+                                value={receiptEditDraft.amount_received}
+                                onChange={(event) =>
+                                  setReceiptEditDraft((current) => ({ ...current, amount_received: event.target.value }))
+                                }
+                                required
+                              />
+                            </div>
+                            <div className="space-y-2">
+                              <Label htmlFor={`edit_date_${receipt.id}`}>Date received</Label>
+                              <Input
+                                id={`edit_date_${receipt.id}`}
+                                type="date"
+                                value={receiptEditDraft.date_received}
+                                onChange={(event) =>
+                                  setReceiptEditDraft((current) => ({ ...current, date_received: event.target.value }))
+                                }
+                              />
+                            </div>
+                            <div className="space-y-2">
+                              <Label htmlFor={`edit_notes_${receipt.id}`}>Notes</Label>
+                              <Textarea
+                                id={`edit_notes_${receipt.id}`}
+                                value={receiptEditDraft.notes}
+                                onChange={(event) =>
+                                  setReceiptEditDraft((current) => ({ ...current, notes: event.target.value }))
+                                }
+                                rows={2}
+                              />
+                            </div>
+                            <Button type="submit" disabled={savingReceipt}>
+                              {savingReceipt ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                              Save
+                            </Button>
+                            <Button type="button" variant="outline" onClick={cancelEditingReceipt}>
+                              Cancel
+                            </Button>
+                          </form>
+                        ) : (
+                          <div className="grid gap-3 md:grid-cols-[1fr_auto_auto_auto]">
                         <div>
                           <p className="font-medium text-slate-950">
                             Contract #{receipt.contract_id || "-"} · {receipt.payment_period_label || `Year ${receipt.instalment_year || "-"}`}
@@ -338,6 +539,12 @@ export default function PaymentHistoryPage() {
                         </div>
                         <div className="font-semibold">{formatMoney(receipt.amount_received)}</div>
                         <div className="text-slate-500">{formatDate(receipt.date_received)}</div>
+                        <Button type="button" size="sm" variant="outline" onClick={() => startEditingReceipt(receipt)}>
+                          <Edit className="mr-2 h-4 w-4" />
+                          Edit
+                        </Button>
+                      </div>
+                    )}
                       </div>
                     ))}
                     {log.receipts.length === 0 && (

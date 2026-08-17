@@ -2,6 +2,7 @@
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 
 import {
   Banknote,
@@ -10,6 +11,7 @@ import {
   ChevronDown,
   ChevronRight,
   CircleDollarSign,
+  Edit,
   Layers3,
   Loader2,
   ReceiptText,
@@ -63,6 +65,7 @@ type CommissionPayment = {
 
 type Receipt = {
   id: string;
+  commission_payment_id?: string;
   amount_received: string;
   date_received: string | null;
   notes: string | null;
@@ -167,6 +170,8 @@ const formatDateTime = (value: string | null | undefined) => {
 
 export default function PaymentCheckerPage() {
   const router = useRouter();
+  const pathname = usePathname();
+  const isAlreadyRenewedPage = pathname?.endsWith("/payments/already-renewed");
   const [payments, setPayments] = useState<CommissionPayment[]>([]);
   const [selectedPayment, setSelectedPayment] = useState<CommissionPayment | null>(null);
   const [receipts, setReceipts] = useState<Receipt[]>([]);
@@ -204,6 +209,12 @@ export default function PaymentCheckerPage() {
   const [receiptDraft, setReceiptDraft] = useState({
     amount_received: "",
     date_received: new Date().toISOString().slice(0, 10),
+    notes: "",
+  });
+  const [editingReceiptId, setEditingReceiptId] = useState<string | null>(null);
+  const [receiptEditDraft, setReceiptEditDraft] = useState({
+    amount_received: "",
+    date_received: "",
     notes: "",
   });
 
@@ -290,6 +301,7 @@ export default function PaymentCheckerPage() {
     if (filters.due_from) params.set("due_from", filters.due_from);
     if (filters.due_to) params.set("due_to", filters.due_to);
     if (searchTerm.trim()) params.set("search", searchTerm.trim());
+    if (isAlreadyRenewedPage) params.set("contract_status", "already_renewed");
     return params.toString();
   };
 
@@ -379,6 +391,24 @@ export default function PaymentCheckerPage() {
     setSelectedPayment(payment);
   };
 
+  const togglePaymentGroup = (key: string) => {
+    setExpandedGroups((current) => ({ ...current, [key]: !(current[key] ?? false) }));
+  };
+
+  const startEditingReceipt = (receipt: Receipt) => {
+    setEditingReceiptId(receipt.id);
+    setReceiptEditDraft({
+      amount_received: String(receipt.amount_received || ""),
+      date_received: receipt.date_received || new Date().toISOString().slice(0, 10),
+      notes: receipt.notes || "",
+    });
+  };
+
+  const cancelEditingReceipt = () => {
+    setEditingReceiptId(null);
+    setReceiptEditDraft({ amount_received: "", date_received: "", notes: "" });
+  };
+
   const submitReceipt = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!selectedPayment) return;
@@ -406,6 +436,34 @@ export default function PaymentCheckerPage() {
       setSuccessMessage("Payment receipt logged.");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to log payment receipt");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const submitReceiptEdit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!selectedPayment || !editingReceiptId) return;
+
+    setSaving(true);
+    setError(null);
+    setSuccessMessage(null);
+
+    try {
+      const data = await fetchWithAuth(`/api/commission/payments/${selectedPayment.id}/receipts/${editingReceiptId}`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          amount_received: Number(receiptEditDraft.amount_received),
+          date_received: receiptEditDraft.date_received,
+          notes: receiptEditDraft.notes,
+        }),
+      });
+      updatePaymentInList(data.payment);
+      setReceipts((current) => current.map((receipt) => (receipt.id === editingReceiptId ? data.receipt : receipt)));
+      cancelEditingReceipt();
+      setSuccessMessage("Payment receipt updated.");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to update payment receipt");
     } finally {
       setSaving(false);
     }
@@ -443,10 +501,12 @@ export default function PaymentCheckerPage() {
           <div>
             <p className="text-sm font-medium text-slate-500">Payments</p>
             <h1 className="mt-1 text-3xl font-semibold tracking-tight text-slate-950">
-              Payment Checker
+              {isAlreadyRenewedPage ? "Already Renewed" : "Payment Checker"}
             </h1>
             <p className="mt-2 max-w-3xl text-sm text-slate-600">
-              Track supplier commission receipts, outstanding balances, and follow-up actions.
+              {isAlreadyRenewedPage
+                ? "Temporary view for existing already renewed commission payments."
+                : "Track supplier commission receipts, outstanding balances, and follow-up actions."}
             </p>
           </div>
           <Button onClick={applyFilters} disabled={loading}>
@@ -653,14 +713,27 @@ export default function PaymentCheckerPage() {
                         <div
                           className={`border-l-4 ${
                             index % 2 === 0 ? "border-l-slate-950" : "border-l-blue-600"
-                          } bg-white px-4 py-4`}
+                          } cursor-pointer bg-white px-4 py-4 transition-colors hover:bg-slate-50/70`}
+                          role="button"
+                          tabIndex={0}
+                          onClick={(event) => {
+                            const target = event.target as HTMLElement;
+                            if (target.closest("button,a,input,textarea,select,label,summary,details")) return;
+                            togglePaymentGroup(group.key);
+                          }}
+                          onKeyDown={(event) => {
+                            if (event.key === "Enter" || event.key === " ") {
+                              event.preventDefault();
+                              togglePaymentGroup(group.key);
+                            }
+                          }}
                         >
                           <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
                             <div className="flex min-w-0 flex-1 items-start gap-3">
                               <button
                                 type="button"
                                 className="mt-1 rounded-md border bg-slate-50 p-1"
-                                onClick={() => setExpandedGroups((current) => ({ ...current, [group.key]: !expanded }))}
+                                onClick={() => togglePaymentGroup(group.key)}
                                 aria-label={expanded ? "Collapse renewal" : "Expand renewal"}
                               >
                                 {expanded ? (
@@ -1019,6 +1092,61 @@ export default function PaymentCheckerPage() {
                   ) : receipts.length > 0 ? (
                     receipts.map((receipt) => (
                       <div key={receipt.id} className="rounded-lg border p-3 text-sm">
+                        {editingReceiptId === receipt.id ? (
+                          <form onSubmit={submitReceiptEdit} className="space-y-3">
+                            <div className="grid gap-3 sm:grid-cols-2">
+                              <div className="space-y-2">
+                                <Label htmlFor={`edit_amount_${receipt.id}`}>Amount received</Label>
+                                <Input
+                                  id={`edit_amount_${receipt.id}`}
+                                  min="0.01"
+                                  step="0.01"
+                                  type="number"
+                                  value={receiptEditDraft.amount_received}
+                                  onChange={(event) =>
+                                    setReceiptEditDraft((current) => ({
+                                      ...current,
+                                      amount_received: event.target.value,
+                                    }))
+                                  }
+                                  required
+                                />
+                              </div>
+                              <div className="space-y-2">
+                                <Label htmlFor={`edit_date_${receipt.id}`}>Date received</Label>
+                                <Input
+                                  id={`edit_date_${receipt.id}`}
+                                  type="date"
+                                  value={receiptEditDraft.date_received}
+                                  onChange={(event) =>
+                                    setReceiptEditDraft((current) => ({ ...current, date_received: event.target.value }))
+                                  }
+                                />
+                              </div>
+                            </div>
+                            <div className="space-y-2">
+                              <Label htmlFor={`edit_notes_${receipt.id}`}>Notes</Label>
+                              <Textarea
+                                id={`edit_notes_${receipt.id}`}
+                                value={receiptEditDraft.notes}
+                                onChange={(event) =>
+                                  setReceiptEditDraft((current) => ({ ...current, notes: event.target.value }))
+                                }
+                                rows={2}
+                              />
+                            </div>
+                            <div className="flex flex-wrap gap-2">
+                              <Button type="submit" size="sm" disabled={saving}>
+                                {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                                Save Receipt
+                              </Button>
+                              <Button type="button" size="sm" variant="outline" onClick={cancelEditingReceipt}>
+                                Cancel
+                              </Button>
+                            </div>
+                          </form>
+                        ) : (
+                          <>
                         <div className="flex items-center justify-between gap-3">
                           <p className="font-semibold">{formatMoney(receipt.amount_received)}</p>
                           <p className="text-slate-500">{formatDate(receipt.date_received)}</p>
@@ -1027,6 +1155,18 @@ export default function PaymentCheckerPage() {
                           {receipt.logged_by_name || "Logged"} · {formatDateTime(receipt.created_at)}
                         </p>
                         {receipt.notes && <p className="mt-2 text-slate-700">{receipt.notes}</p>}
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          className="mt-3"
+                          onClick={() => startEditingReceipt(receipt)}
+                        >
+                          <Edit className="mr-2 h-4 w-4" />
+                          Edit Receipt
+                        </Button>
+                      </>
+                    )}
                       </div>
                     ))
                   ) : (
