@@ -12,6 +12,7 @@ import {
   ChevronRight,
   CircleDollarSign,
   Edit,
+  ExternalLink,
   Layers3,
   Loader2,
   ReceiptText,
@@ -78,6 +79,7 @@ type FilterOption = {
   supplier_name?: string | null;
   employee_id?: number;
   employee_name?: string | null;
+  aggregator?: string | null;
 };
 
 type PaymentPagination = {
@@ -178,10 +180,12 @@ export default function PaymentCheckerPage() {
   const [statuses, setStatuses] = useState<PaymentStatus[]>([]);
   const [suppliers, setSuppliers] = useState<FilterOption[]>([]);
   const [agents, setAgents] = useState<FilterOption[]>([]);
+  const [aggregators, setAggregators] = useState<FilterOption[]>([]);
   const [filters, setFilters] = useState({
     status: "all",
     supplier: "all",
     agent: "all",
+    aggregator: "all",
     due_from: "",
     due_to: "",
   });
@@ -290,27 +294,36 @@ export default function PaymentCheckerPage() {
     });
   }, [filteredPayments]);
 
-  const buildQuery = () => {
+  const buildQuery = (
+    nextFilters = filters,
+    nextSearchTerm = searchTerm,
+    nextPagination = pagination,
+  ) => {
     const params = new URLSearchParams({
-      page: String(pagination.page),
-      page_size: String(pagination.page_size),
+      page: String(nextPagination.page),
+      page_size: String(nextPagination.page_size),
     });
-    if (filters.status !== "all") params.set("status", filters.status);
-    if (filters.supplier !== "all") params.set("supplier", filters.supplier);
-    if (filters.agent !== "all") params.set("agent", filters.agent);
-    if (filters.due_from) params.set("due_from", filters.due_from);
-    if (filters.due_to) params.set("due_to", filters.due_to);
-    if (searchTerm.trim()) params.set("search", searchTerm.trim());
+    if (nextFilters.status !== "all") params.set("status", nextFilters.status);
+    if (nextFilters.supplier !== "all") params.set("supplier", nextFilters.supplier);
+    if (nextFilters.agent !== "all") params.set("agent", nextFilters.agent);
+    if (nextFilters.aggregator !== "all") params.set("aggregator", nextFilters.aggregator);
+    if (nextFilters.due_from) params.set("due_from", nextFilters.due_from);
+    if (nextFilters.due_to) params.set("due_to", nextFilters.due_to);
+    if (nextSearchTerm.trim()) params.set("search", nextSearchTerm.trim());
     if (isAlreadyRenewedPage) params.set("contract_status", "already_renewed");
     return params.toString();
   };
 
-  const loadPayments = async () => {
+  const loadPayments = async (
+    nextFilters = filters,
+    nextSearchTerm = searchTerm,
+    nextPagination = pagination,
+  ) => {
     setLoading(true);
     setError(null);
 
     try {
-      const data = await fetchWithAuth(`/api/commission/payments?${buildQuery()}`);
+      const data = await fetchWithAuth(`/api/commission/payments?${buildQuery(nextFilters, nextSearchTerm, nextPagination)}`);
       setPayments(data.payments || []);
       setTotals({
         expected: Number(data.summary?.expected || 0),
@@ -321,6 +334,7 @@ export default function PaymentCheckerPage() {
       setStatuses(data.filters?.statuses || []);
       setSuppliers(data.filters?.suppliers || []);
       setAgents(data.filters?.agents || []);
+      setAggregators(data.filters?.aggregators || []);
       const rows: CommissionPayment[] = data.payments || [];
       const groupKeys: string[] = Array.from(
         new Set(
@@ -348,6 +362,24 @@ export default function PaymentCheckerPage() {
       return;
     }
     setPagination((current) => ({ ...current, page: 1 }));
+  };
+
+  const applyStatusShortcut = (status: PaymentStatus) => {
+    const nextFilters = { ...filters, status };
+    const nextPagination = { ...pagination, page: 1 };
+    setFilters(nextFilters);
+    setPagination(nextPagination);
+    loadPayments(nextFilters, searchTerm, nextPagination);
+  };
+
+  const openCustomerDetails = (clientId: number | null) => {
+    if (!clientId) return;
+    router.push(`/dashboard/renewals/${clientId}`);
+  };
+
+  const openPaymentHistory = (clientId: number | null) => {
+    if (!clientId) return;
+    router.push(`/dashboard/payments/history/${clientId}`);
   };
 
   const changePage = (nextPage: number) => {
@@ -535,7 +567,18 @@ export default function PaymentCheckerPage() {
             </CardHeader>
             <CardContent className="text-2xl font-semibold">{formatMoney(totals.expected)}</CardContent>
           </Card>
-          <Card className="border-slate-200 shadow-sm">
+          <Card
+            className="cursor-pointer border-slate-200 shadow-sm transition-colors hover:border-emerald-300 hover:bg-emerald-50/40"
+            role="button"
+            tabIndex={0}
+            onClick={() => applyStatusShortcut("Received")}
+            onKeyDown={(event) => {
+              if (event.key === "Enter" || event.key === " ") {
+                event.preventDefault();
+                applyStatusShortcut("Received");
+              }
+            }}
+          >
             <CardHeader className="pb-2">
               <CardTitle className="flex items-center gap-2 text-sm font-medium text-slate-600">
                 <CheckCircle2 className="h-4 w-4 text-emerald-600" />
@@ -559,7 +602,7 @@ export default function PaymentCheckerPage() {
           <CardHeader className="pb-3">
             <CardTitle className="text-base">Filters</CardTitle>
           </CardHeader>
-          <CardContent className="grid gap-4 md:grid-cols-2 xl:grid-cols-[minmax(220px,1.3fr)_150px_minmax(220px,1fr)_minmax(170px,0.8fr)_160px_160px]">
+          <CardContent className="grid gap-4 md:grid-cols-2 xl:grid-cols-[minmax(220px,1.3fr)_150px_minmax(200px,1fr)_minmax(170px,0.8fr)_minmax(170px,0.8fr)_160px_160px]">
             <div className="relative">
               <Search className="pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-slate-400" />
               <Input
@@ -613,6 +656,23 @@ export default function PaymentCheckerPage() {
                 {agents.map((agent) => (
                   <SelectItem key={agent.employee_id} value={String(agent.employee_id)}>
                     {agent.employee_name || `Agent #${agent.employee_id}`}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            <Select
+              value={filters.aggregator}
+              onValueChange={(aggregator) => setFilters((current) => ({ ...current, aggregator }))}
+            >
+              <SelectTrigger className="min-w-0 [&>span]:truncate">
+                <SelectValue placeholder="Aggregator" />
+              </SelectTrigger>
+              <SelectContent className="max-w-80">
+                <SelectItem value="all">All aggregators</SelectItem>
+                {aggregators.filter((item): item is FilterOption & { aggregator: string } => Boolean(item.aggregator)).map((item) => (
+                  <SelectItem key={item.aggregator} value={String(item.aggregator)}>
+                    {item.aggregator}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -747,9 +807,8 @@ export default function PaymentCheckerPage() {
                                   <button
                                     type="button"
                                     className="text-left text-base font-semibold text-slate-950 hover:underline"
-                                    onClick={() =>
-                                      group.clientId && router.push(`/dashboard/payments/history/${group.clientId}`)
-                                    }
+                                    onClick={() => openCustomerDetails(group.clientId)}
+                                    disabled={!group.clientId}
                                   >
                                     {group.title}
                                   </button>
@@ -779,13 +838,21 @@ export default function PaymentCheckerPage() {
                                   className="mt-3"
                                   size="sm"
                                   variant="outline"
-                                  onClick={() =>
-                                    group.clientId && router.push(`/dashboard/payments/history/${group.clientId}`)
-                                  }
+                                  onClick={() => openPaymentHistory(group.clientId)}
                                   disabled={!group.clientId}
                                 >
                                   <ReceiptText className="mr-2 h-4 w-4" />
                                   Open Payment History
+                                </Button>
+                                <Button
+                                  className="mt-3 ml-2"
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => openCustomerDetails(group.clientId)}
+                                  disabled={!group.clientId}
+                                >
+                                  <ExternalLink className="mr-2 h-4 w-4" />
+                                  View Customer Details
                                 </Button>
                               </div>
                             </div>
@@ -958,9 +1025,13 @@ export default function PaymentCheckerPage() {
                 <div className="rounded-lg border p-4">
                   <div className="flex items-start justify-between gap-4">
                     <div className="min-w-0">
-                      <h2 className="pr-2 text-lg font-semibold break-words text-slate-950">
+                      <button
+                        type="button"
+                        className="pr-2 text-left text-lg font-semibold break-words text-slate-950 hover:underline"
+                        onClick={() => openCustomerDetails(selectedPayment.client_id)}
+                      >
                         {selectedPayment.business_name || selectedPayment.customer_name || "Customer"}
-                      </h2>
+                      </button>
                       <p className="mt-1 text-sm break-words text-slate-500">
                         {selectedPayment.supplier_name || "Supplier"} · {selectedPayment.agent_name || "Unassigned"}
                       </p>

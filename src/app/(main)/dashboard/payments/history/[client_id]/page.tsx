@@ -3,7 +3,7 @@
 import { Fragment, FormEvent, useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 
-import { ArrowLeft, BadgePoundSterling, Banknote, CalendarCheck, CheckCircle2, Clock3, Edit, Loader2, RefreshCcw } from "lucide-react";
+import { ArrowLeft, BadgePoundSterling, Banknote, CalendarCheck, CheckCircle2, Clock3, Edit, ExternalLink, Loader2, RefreshCcw } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -34,6 +34,8 @@ type PaymentLog = {
     payment_period_start: string | null;
     payment_period_end: string | null;
     supplier_name: string | null;
+    mpan_number: string | null;
+    mpan_bottom: string | null;
     aggregator: string | null;
     agent_name: string | null;
     due_date: string | null;
@@ -262,10 +264,16 @@ export default function PaymentHistoryPage() {
                 Customer #{clientId} commission schedule, supplier receipts, and agent commission history.
               </p>
             </div>
-            <Button onClick={loadLog} disabled={loading}>
-              {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCcw className="mr-2 h-4 w-4" />}
-              Refresh
-            </Button>
+            <div className="flex flex-wrap gap-2">
+              <Button variant="outline" onClick={() => router.push(`/dashboard/renewals/${clientId}`)}>
+                <ExternalLink className="mr-2 h-4 w-4" />
+                View Customer Details
+              </Button>
+              <Button onClick={loadLog} disabled={loading}>
+                {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCcw className="mr-2 h-4 w-4" />}
+                Refresh
+              </Button>
+            </div>
           </div>
         </div>
 
@@ -353,11 +361,12 @@ export default function PaymentHistoryPage() {
                     </div>
                   </div>
                   <div className="overflow-x-auto border-t">
-                    <table className="w-full min-w-[980px] text-sm">
+                    <table className="w-full min-w-[1080px] text-sm">
                       <thead className="bg-slate-50 text-left text-xs font-semibold tracking-wide text-slate-500 uppercase">
                         <tr>
                           <th className="px-4 py-3">Year</th>
                           <th className="px-4 py-3">Supplier</th>
+                          <th className="px-4 py-3">MPAN/MPR</th>
                           <th className="px-4 py-3">Aggregator</th>
                           <th className="px-4 py-3">Agent</th>
                           {log.is_admin && <th className="px-4 py-3 text-right">Expected</th>}
@@ -377,6 +386,9 @@ export default function PaymentHistoryPage() {
                                 {payment.payment_period_label || `Year ${payment.instalment_year}`}
                               </td>
                               <td className="px-4 py-3 text-slate-700">{payment.supplier_name || "-"}</td>
+                              <td className="px-4 py-3 font-mono text-xs text-slate-700">
+                                {payment.mpan_number || payment.mpan_bottom || "-"}
+                              </td>
                               <td className="px-4 py-3 text-slate-700">{payment.aggregator || "-"}</td>
                               <td className="px-4 py-3 text-slate-700">{payment.agent_name || "-"}</td>
                               {log.is_admin && (
@@ -414,7 +426,7 @@ export default function PaymentHistoryPage() {
                             </tr>
                             {log.is_admin && activePaymentId === payment.id && (
                               <tr key={`${payment.id}-form`}>
-                                <td colSpan={11} className="bg-slate-50 px-4 py-4">
+                                <td colSpan={12} className="bg-slate-50 px-4 py-4">
                                   <form onSubmit={(event) => submitReceipt(event, payment.id)} className="grid gap-3 md:grid-cols-[1fr_1fr_2fr_auto_auto] md:items-end">
                                     <div className="space-y-2">
                                       <Label htmlFor={`amount_${payment.id}`}>Amount received</Label>
