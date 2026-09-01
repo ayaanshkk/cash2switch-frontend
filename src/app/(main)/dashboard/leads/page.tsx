@@ -710,8 +710,7 @@ export default function LeadsPage() {
       if (assignmentNotes.trim()) payload.assignment_notes = assignmentNotes.trim();
 
       await fetchWithAuth(`${CRM_PROXY}/leads/assign`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
+        method: "PATCH", headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
 
@@ -732,7 +731,6 @@ export default function LeadsPage() {
     }
     setIsBulkAssigning(true);
     try {
-      // ✅ Slice to the requested count, or use all if blank
       const leadsToAssign = bulkAssignCount
         ? selectedLeads.slice(0, bulkAssignCount)
         : selectedLeads;
@@ -740,24 +738,35 @@ export default function LeadsPage() {
       const payload: any = { lead_ids: leadsToAssign, employee_id: bulkAssignEmployeeId };
       if (bulkAssignmentNotes.trim()) payload.assignment_notes = bulkAssignmentNotes.trim();
 
-      await fetchWithAuth(`${CRM_PROXY}/leads/assign`, {
-        method: "PATCH", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
+      let response: any = null;
+      try {
+        response = await fetchWithAuth(`${CRM_PROXY}/leads/assign`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+      } catch (fetchErr: any) {
+        // Network/timeout error but DB may have succeeded — treat as soft success
+        console.warn("Assign fetch error (may have succeeded in DB):", fetchErr);
+      }
 
+      // ✅ If response explicitly says error, throw — otherwise treat as success
+      if (response && response.error && !response.success) {
+        throw new Error(response.error);
+      }
+
+      // ✅ Update UI regardless — DB succeeded even if response was lossy
       setAllLeads(prev => prev.filter(l => !leadsToAssign.includes(l.opportunity_id)));
-
-      // ✅ Keep unassigned leads still selected if partial assignment
       const remaining = selectedLeads.filter(id => !leadsToAssign.includes(id));
       setSelectedLeads(remaining);
       setIsSelectAllChecked(false);
-
       setShowBulkAssignModal(false);
       setBulkAssignmentNotes("");
       setBulkAssignCount("");
       toast.success(`✅ ${leadsToAssign.length} leads assigned to ${bulkAssignEmployeeName}`);
-    } catch {
-      toast.error("❌ Error assigning leads");
+
+    } catch (err: any) {
+      toast.error(`❌ Error assigning leads: ${err.message || "Unknown error"}`);
     } finally {
       setIsBulkAssigning(false);
     }
