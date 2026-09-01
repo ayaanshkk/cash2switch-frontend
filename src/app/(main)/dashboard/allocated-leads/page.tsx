@@ -106,14 +106,17 @@ const formatDate = (d?: string | null) => {
 const getStatusColor = (s?: string | null) => {
   if (!s) return "bg-gray-100 text-gray-800";
   const l = s.toLowerCase();
+  if (l === "lead" || l === "not called") return "bg-gray-100 text-gray-500";
   if (["callback", "priced", "called", "converted", "won"].includes(l)) return "bg-green-100 text-green-800";
   if (l === "not answered") return "bg-yellow-100 text-yellow-800";
   if (["lost", "lost cot"].includes(l)) return "bg-red-100 text-red-800";
+  if (l === "dead") return "bg-red-200 text-red-900";
   return "bg-gray-100 text-gray-800";
 };
 
 const getStatusLabel = (s?: string | null) => {
   if (!s) return "—";
+  if (s.toLowerCase() === "lead") return "Not Called";
   return STATUS_OPTIONS.find(o => o.value === s)?.label ||
     STATUS_OPTIONS.find(o => o.value.toLowerCase() === s.toLowerCase())?.label || s;
 };
@@ -279,7 +282,11 @@ export default function AllocatedLeadsPage() {
         (l.email          || "").toLowerCase().includes(term);
 
       const matchSupplier = supplierFilter === "All" || l.supplier_id === supplierFilter;
-      const matchStatus   = statusFilter   === "All" || l.stage_name === statusFilter;
+      const normaliseStage = (s: string | null | undefined) => {
+        if (!s || s.toLowerCase() === "lead") return "Not Called";
+        return s;
+      };
+      const matchStatus = statusFilter === "All" || normaliseStage(l.stage_name) === statusFilter;
       const matchSalesperson = !isAdmin || salespersonFilter === "All" || l.opportunity_owner_employee_id === salespersonFilter;
 
       let matchEndDate = true;
