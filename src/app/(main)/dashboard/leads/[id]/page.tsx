@@ -47,6 +47,7 @@ const STATUS_OPTIONS = [
   { value: "Not Answered", label: "Not Answered" },
   { value: "Dead", label: "Dead" },
   { value: "Priced", label: "Priced" },
+  { value: "Sold", label: "Sold" },
   { value: "Won", label: "Won" },
   { value: "Converted", label: "Converted" },
   { value: "Lost", label: "Lost" },
@@ -182,6 +183,15 @@ const formatDate = (d?: string | null) => {
   }
 };
 
+const getActionOptionLabelFromNotes = (notes?: string | null) => {
+  const raw = notes || "";
+  if (raw.includes("[Renewed by Agent]")) return "Renewed by Agent";
+  if (raw.includes("[Renewed by Customer]")) return "Renewed by Customer";
+  if (raw.includes("[Sold by Agent]")) return "Sold by Agent";
+  if (raw.includes("[Sold by Supplier]")) return "Sold by Supplier";
+  return "";
+};
+
 const statusConfig: Record<
   string,
   {
@@ -220,6 +230,15 @@ const statusConfig: Record<
     requiresNewEndDate: false,
     requiresSupplierChange: false,
     requiresAddressChange: false,
+  },
+  Sold: {
+    requiresDate: true,
+    requiresSold: false,
+    deletesRecord: false,
+    requiresNotes: false,
+    requiresNewEndDate: true,
+    requiresSupplierChange: true,
+    requiresAddressChange: true,
   },
   Converted: {
     requiresDate: false,
@@ -397,11 +416,12 @@ export default function LeadDetailsPage() {
   const [callbackDate, setCallbackDate] = useState("");
   const [callbackNotes, setCallbackNotes] = useState("");
   const [isSold, setIsSold] = useState<string>("");
+  const [newStartDate, setNewStartDate] = useState("");
   const [newEndDate, setNewEndDate] = useState("");
   const [newSupplier, setNewSupplier] = useState("");
   const [newAddress, setNewAddress] = useState("");
   const [calledDate, setCalledDate] = useState(() => new Date().toISOString().split("T")[0]);
-  const [renewedBy, setRenewedBy] = useState<"customer" | "agent" | "">("");
+  const [renewedBy, setRenewedBy] = useState<"customer" | "supplier" | "agent" | "">("");
   const [isSubmittingCallback, setIsSubmittingCallback] = useState(false);
   const [callbackError, setCallbackError] = useState("");
 
@@ -680,8 +700,13 @@ export default function LeadDetailsPage() {
       setCallbackError("Please enter the reason for this status");
       return;
     }
-    if (callbackStatus === "Already Renewed" && !renewedBy) {
-      setCallbackError("Please select if renewed by customer or agent");
+    const isRenewalOrSoldAction = callbackStatus === "Already Renewed" || callbackStatus === "Sold";
+    if (isRenewalOrSoldAction && !renewedBy) {
+      setCallbackError(callbackStatus === "Sold" ? "Please select if sold by supplier or agent" : "Please select if renewed by customer or agent");
+      return;
+    }
+    if (isRenewalOrSoldAction && renewedBy === "agent" && !newStartDate) {
+      setCallbackError("Please enter the contract start date");
       return;
     }
     if (cfg?.requiresNewEndDate && !newEndDate) {
@@ -701,8 +726,9 @@ export default function LeadDetailsPage() {
       const stageId = getStageIdFromStatus(callbackStatus);
       if (stageId) payload.stage_id = stageId;
       if (cfg?.requiresSold) payload.is_sold = isSold === "yes";
+      if (isRenewalOrSoldAction && newStartDate) payload.new_start_date = newStartDate;
       if (cfg?.requiresNewEndDate && newEndDate) payload.new_end_date = newEndDate;
-      if (callbackStatus === "Already Renewed" && renewedBy) payload.renewed_by = renewedBy;
+      if (isRenewalOrSoldAction && renewedBy) payload.renewed_by = renewedBy;
       if (cfg?.requiresSupplierChange && newSupplier.trim()) payload.new_supplier = newSupplier.trim();
       if (cfg?.requiresAddressChange && newAddress.trim()) payload.new_address = newAddress.trim();
 
@@ -768,7 +794,7 @@ export default function LeadDetailsPage() {
         if (data.lead.stage_name) setCallbackStatus(data.lead.stage_name);
       }
 
-      if (callbackStatus === "Already Renewed") alert("✅ Lead information updated");
+      if (callbackStatus === "Already Renewed" || callbackStatus === "Sold") alert("✅ Lead information updated");
       else if (callbackStatus === "End Date Changed")
         alert(`✅ Contract end date updated to ${formatDate(newEndDate)}`);
       else if (callbackStatus === "Converted") alert("✅ Lead marked as Converted");
@@ -777,6 +803,7 @@ export default function LeadDetailsPage() {
       // ✅ Reset form fields only — keep callbackStatus
       setCallbackNotes("");
       setIsSold("");
+      setNewStartDate("");
       setNewEndDate("");
       setNewSupplier("");
       setNewAddress("");
@@ -1686,6 +1713,7 @@ export default function LeadDetailsPage() {
                 setCallbackStatus(v);
                 setCallbackNotes("");
                 setIsSold("");
+                setNewStartDate("");
                 setNewEndDate("");
                 setNewSupplier("");
                 setNewAddress("");
@@ -1743,7 +1771,9 @@ export default function LeadDetailsPage() {
           {/* Callback Date */}
           {callbackStatus && (
             <div>
-              <label className="text-sm font-medium text-gray-700">Callback Date:</label>
+              <label className="text-sm font-medium text-gray-700">
+                {callbackStatus === "Already Renewed" || callbackStatus === "Sold" ? "Action Date:" : "Callback Date:"}
+              </label>
               <Input
                 type="date"
                 className="mt-1"
@@ -1754,6 +1784,15 @@ export default function LeadDetailsPage() {
           )}
 
           {/* New Contract End Date */}
+          {(callbackStatus === "Already Renewed" || callbackStatus === "Sold") && renewedBy === "agent" && (
+            <div>
+              <label className="text-sm font-medium text-gray-700">
+                Contract Start Date: <span className="text-red-500">*</span>
+              </label>
+              <Input type="date" className="mt-1" value={newStartDate} onChange={(e) => setNewStartDate(e.target.value)} />
+            </div>
+          )}
+
           {currentConfig?.requiresNewEndDate && (
             <div>
               <label className="text-sm font-medium text-gray-700">
@@ -1765,13 +1804,13 @@ export default function LeadDetailsPage() {
           )}
 
           {/* Renewed By */}
-          {callbackStatus === "Already Renewed" && (
+          {(callbackStatus === "Already Renewed" || callbackStatus === "Sold") && (
             <div>
               <label className="text-sm font-medium text-gray-700">
-                Renewed By <span className="text-red-500">*</span>
+                {callbackStatus === "Sold" ? "Sold By" : "Renewed By"} <span className="text-red-500">*</span>
               </label>
               <div className="mt-1 flex flex-col gap-2 rounded-lg border bg-white p-3">
-                {(["customer", "agent"] as const).map((v) => (
+                {(callbackStatus === "Sold" ? (["supplier", "agent"] as const) : (["customer", "agent"] as const)).map((v) => (
                   <label key={v} className="flex cursor-pointer items-center gap-3">
                     <input
                       type="radio"
@@ -1783,10 +1822,10 @@ export default function LeadDetailsPage() {
                     />
                     <div>
                       <span className="text-sm font-medium text-gray-900">
-                        Renewed by {v.charAt(0).toUpperCase() + v.slice(1)}
+                        {callbackStatus === "Sold" ? `Sold by ${v.charAt(0).toUpperCase() + v.slice(1)}` : `Renewed by ${v.charAt(0).toUpperCase() + v.slice(1)}`}
                       </span>
                       <p className="text-xs text-gray-500">
-                        {v === "customer" ? "Counts as Renewed Directly" : "Counts as Renewed"}
+                        {v === "agent" ? "Counts for agent commission" : callbackStatus === "Sold" ? "Sold directly by supplier" : "Counts as Renewed Directly"}
                       </p>
                     </div>
                   </label>
@@ -1806,7 +1845,7 @@ export default function LeadDetailsPage() {
           )}
 
           {/* New Supplier */}
-          {callbackStatus === "Already Renewed" && (
+          {(callbackStatus === "Already Renewed" || callbackStatus === "Sold") && (
             <div>
               <label className="text-sm font-medium text-gray-700">
                 New Supplier <span className="font-normal text-gray-400">(Optional)</span>
@@ -1823,7 +1862,7 @@ export default function LeadDetailsPage() {
           )}
 
           {/* New Address */}
-          {callbackStatus === "Already Renewed" && (
+          {(callbackStatus === "Already Renewed" || callbackStatus === "Sold") && (
             <div>
               <label className="text-sm font-medium text-gray-700">
                 New Address <span className="font-normal text-gray-400">(Optional)</span>
@@ -1907,6 +1946,7 @@ export default function LeadDetailsPage() {
                         .replace(/^Status:[^|]*(\|)?/, "") // remove "Status: X → Y" part
                         .trim();
                 const displayStatus = interaction.interaction_type || "Unknown";
+                const actionOptionLabel = getActionOptionLabelFromNotes(rawNotes);
 
                 // ✅ Check if this is a callback with a reminder date
                 const hasCallback =
@@ -1940,6 +1980,14 @@ export default function LeadDetailsPage() {
                     </div>
 
                     {/* ✅ ALWAYS show notes if they exist */}
+                    {actionOptionLabel && (
+                      <div className="mb-2">
+                        <span className="inline-flex rounded-full bg-slate-100 px-2 py-1 text-xs font-medium text-slate-700">
+                          {actionOptionLabel}
+                        </span>
+                      </div>
+                    )}
+
                     {cleanNotes && <p className="mb-2 pr-8 text-xs text-gray-600">{cleanNotes}</p>}
 
                     {/* ✅ Show callback/reminder date with calendar icon - ONLY for callback-type statuses */}

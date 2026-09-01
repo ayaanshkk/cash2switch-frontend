@@ -454,7 +454,7 @@ export default function AllocatedLeadsPage() {
 
   // ---------------- Render ----------------
   return (
-    <div className="w-full p-6">
+    <div className="w-full max-w-full overflow-x-hidden p-6">
       <Toaster position="top-right" />
 
       <h1 className="mb-2 text-4xl font-semibold tracking-tight text-slate-900">Allocated Leads</h1>
@@ -538,8 +538,8 @@ export default function AllocatedLeadsPage() {
       )}
 
       {/* Search & Filters */}
-      <div className="mb-6 flex flex-wrap gap-3">
-        <div className="relative w-64">
+      <div className="mb-6 grid grid-cols-[repeat(auto-fit,minmax(150px,1fr))] gap-3">
+        <div className="relative min-w-0 sm:col-span-2 xl:col-span-1">
           <Search className="text-muted-foreground absolute top-2.5 left-2 h-4 w-4" />
           <Input placeholder="Search leads..." className="pl-8" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
         </div>
@@ -547,12 +547,14 @@ export default function AllocatedLeadsPage() {
         {isAdmin && (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="outline">
+              <Button variant="outline" className="min-w-0 justify-between">
                 <Users className="mr-2 h-4 w-4" />
-                {salespersonFilter === "All"
-                  ? "All Salespersons"
-                  : employees.find(e => e.employee_id === salespersonFilter)?.employee_name || "Salesperson"}
-                <ChevronDown className="ml-1 h-3 w-3" />
+                <span className="truncate">
+                  {salespersonFilter === "All"
+                    ? "All Salespersons"
+                    : employees.find(e => e.employee_id === salespersonFilter)?.employee_name || "Salesperson"}
+                </span>
+                <ChevronDown className="ml-1 h-3 w-3 flex-shrink-0" />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent>
@@ -568,10 +570,10 @@ export default function AllocatedLeadsPage() {
 
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="outline">
+            <Button variant="outline" className="min-w-0 justify-between">
               <Filter className="mr-2 h-4 w-4" />
-              {supplierFilter === "All" ? "All Suppliers" : getSupplierName(supplierFilter as number)}
-              <ChevronDown className="ml-1 h-3 w-3" />
+              <span className="truncate">{supplierFilter === "All" ? "All Suppliers" : getSupplierName(supplierFilter as number)}</span>
+              <ChevronDown className="ml-1 h-3 w-3 flex-shrink-0" />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent>
@@ -586,10 +588,10 @@ export default function AllocatedLeadsPage() {
 
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="outline">
+            <Button variant="outline" className="min-w-0 justify-between">
               <Filter className="mr-2 h-4 w-4" />
-              {statusFilter === "All" ? "All Status" : getStatusLabel(statusFilter as string)}
-              <ChevronDown className="ml-1 h-3 w-3" />
+              <span className="truncate">{statusFilter === "All" ? "All Status" : getStatusLabel(statusFilter as string)}</span>
+              <ChevronDown className="ml-1 h-3 w-3 flex-shrink-0" />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent>
@@ -601,7 +603,7 @@ export default function AllocatedLeadsPage() {
         </DropdownMenu>
 
         <Select value={endDateFilter} onValueChange={(v: any) => setEndDateFilter(v)}>
-          <SelectTrigger className="w-52"><SelectValue /></SelectTrigger>
+          <SelectTrigger className="w-full min-w-0"><SelectValue /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All Contracts</SelectItem>
             <SelectItem value="30">Ending in 30 days</SelectItem>
@@ -613,7 +615,7 @@ export default function AllocatedLeadsPage() {
         </Select>
 
         <Select value={usageSort} onValueChange={(v: any) => setUsageSort(v)}>
-          <SelectTrigger className="w-48"><SelectValue /></SelectTrigger>
+          <SelectTrigger className="w-full min-w-0"><SelectValue /></SelectTrigger>
           <SelectContent>
             <SelectItem value="none">Usage: Default</SelectItem>
             <SelectItem value="low-high">Usage: Low to High</SelectItem>
@@ -628,7 +630,7 @@ export default function AllocatedLeadsPage() {
           <table className="w-full divide-y divide-gray-200 table-fixed">
             <thead className="bg-gray-50">
               <tr>
-                <th className="px-2 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase w-10 border-r-2 border-gray-300">ID</th>
+                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase w-20 border-r-2 border-gray-300">ID</th>
                 <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase w-[9%]">Client Name</th>
                 <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase w-[11%]">Trading Name</th>
                 <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase w-[8%]">Tel No</th>
@@ -638,7 +640,7 @@ export default function AllocatedLeadsPage() {
                 <th className="px-3 py-3 text-right text-xs font-medium tracking-wider text-gray-500 uppercase w-[9%] whitespace-nowrap">Annual Usage</th>
                 <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase w-[9%] whitespace-nowrap">Start Date</th>
                 <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase w-[9%] whitespace-nowrap">Contract End</th>
-                <th className="px-3 py-3 text-center text-xs font-medium tracking-wider text-gray-500 uppercase w-[12%]">Status</th>
+                <th className="px-3 py-3 text-center text-xs font-medium tracking-wider text-gray-500 uppercase w-[13%]">Status</th>
                 <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase w-[9%]">Assigned To</th>
               </tr>
             </thead>
@@ -679,8 +681,8 @@ export default function AllocatedLeadsPage() {
                       className="hover:bg-gray-50 transition-colors cursor-pointer"
                       onClick={() => window.open(`/dashboard/leads/${lead.opportunity_id}`, "_blank")}
                     >
-                      <td className="px-2 py-3 text-sm font-medium text-gray-900 border-r-2 border-gray-300 align-top">
-                        {displayId}
+                      <td className="px-3 py-3 text-sm font-medium text-gray-900 border-r-2 border-gray-300 align-top">
+                        <div className="whitespace-nowrap">{displayId}</div>
                       </td>
 
                       <td className="px-3 py-3 text-sm text-gray-700 align-top overflow-hidden">
@@ -731,14 +733,14 @@ export default function AllocatedLeadsPage() {
                           value={lead.stage_name || ""}
                           onValueChange={v => openCallbackModal(lead.opportunity_id, v === "CLEAR_STATUS" ? "" : v)}
                         >
-                          <SelectTrigger className="h-7 text-xs w-full max-w-[150px]">
+                          <SelectTrigger className="h-7 text-xs w-full max-w-[140px]">
                             <SelectValue placeholder="Set status">
                               {lead.stage_name ? (
                                 <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-semibold ${getStatusColor(lead.stage_name)}`}>
                                   {getStatusLabel(lead.stage_name)}
                                 </span>
                               ) : (
-                                <span className="text-gray-500">Set status</span>
+                                <span className="text-gray-500 text-xs">Set status</span>
                               )}
                             </SelectValue>
                           </SelectTrigger>
@@ -768,7 +770,7 @@ export default function AllocatedLeadsPage() {
                               setShowAssignModal(true);
                             }}
                           >
-                            <SelectTrigger className="h-7 text-xs w-full max-w-[150px]">
+                            <SelectTrigger className="h-7 text-xs w-full max-w-[140px]">
                               <SelectValue placeholder="Assign">
                                 {lead.assigned_to_name || "Unassigned"}
                               </SelectValue>

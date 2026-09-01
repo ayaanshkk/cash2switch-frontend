@@ -4,7 +4,7 @@ import React, { useState, useEffect, useMemo } from "react";
 import {
   Search, Plus, Trash2, ChevronDown, Filter, AlertCircle,
   ChevronRight, ChevronLeft, ChevronLast, ChevronFirst,
-  Upload, Users, UserCheck, Info, Loader2,
+  Upload, Users, UserCheck, Info, Loader2, Download,
   TrendingUp, TrendingDown, AlertTriangle, CheckCircle2, Calendar, X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -27,8 +27,9 @@ import { AddLeadModal } from "@/components/ui/AddLeadModal";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 const CUSTOMERS_PER_PAGE = 25;
-const CRM_PROXY = "/backend-api/api/crm";
-const BACKEND_PROXY = "/backend-api";
+const API_BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
+const CRM_PROXY = `${API_BASE_URL}/api/crm`;
+const BACKEND_PROXY = API_BASE_URL;
 const LEADS_CACHE_PREFIX = "cash2switch_leads_cache";
 const LEADS_PERFORMANCE_CACHE_PREFIX = "cash2switch_leads_performance_cache";
 const MAX_CACHED_LEADS = 1200;
@@ -41,6 +42,7 @@ const STATUS_OPTIONS = [
   { value: "Not Answered",       label: "Not Answered" },
   { value: "Dead",               label: "Dead" },
   { value: "Priced",             label: "Priced" },
+  { value: "Sold",               label: "Sold" },
   { value: "Won",                label: "Won" },
   { value: "Converted",          label: "Converted" },
   { value: "Already Renewed",    label: "Already Renewed" },
@@ -65,6 +67,7 @@ const statusConfig: Record<string, {
   "Callback":          { requiresDate: true,  requiresSold: false, deletesRecord: false, requiresNotes: false, requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
   "Not Answered":      { requiresDate: true,  requiresSold: false, deletesRecord: false, requiresNotes: false, requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
   "Priced":            { requiresDate: false, requiresSold: true,  deletesRecord: false, requiresNotes: false, requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
+  "Sold":              { requiresDate: true,  requiresSold: false, deletesRecord: false, requiresNotes: false, requiresNewEndDate: true,  requiresSupplierChange: true,  requiresAddressChange: true  },
   "Lost":              { requiresDate: true,  requiresSold: false, deletesRecord: true,  requiresNotes: true,  requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
   "Lost COT":          { requiresDate: false, requiresSold: false, deletesRecord: true,  requiresNotes: true,  requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
   "Already Renewed":   { requiresDate: true,  requiresSold: false, deletesRecord: false, requiresNotes: false, requiresNewEndDate: true,  requiresSupplierChange: true,  requiresAddressChange: true  },
@@ -200,6 +203,7 @@ export default function LeadsPage() {
     success: boolean; successful: number; duplicates?: number; errors: string[]; assigned_to?: string;
     duplicate_report?: string[];
   } | null>(null);
+  const [bulkAssignCount, setBulkAssignCount] = useState<number | "">("");
 
   // ── Callback modal ─────────────────────────────────────────────────────────
   const [showCallbackModal, setShowCallbackModal]               = useState(false);
@@ -207,6 +211,7 @@ export default function LeadsPage() {
   const [callbackStatus, setCallbackStatus]                     = useState("");
   const [callbackDate, setCallbackDate]                         = useState("");
   const [callbackNotes, setCallbackNotes]                       = useState("");
+  const [newStartDate, setNewStartDate]                         = useState("");
   const [newEndDate, setNewEndDate]                             = useState("");
   const [isSold, setIsSold]                                     = useState("");
   const [isSubmittingCallback, setIsSubmittingCallback]         = useState(false);
@@ -214,7 +219,7 @@ export default function LeadsPage() {
   const [newSupplier, setNewSupplier]                           = useState("");
   const [newAddress, setNewAddress]                             = useState("");
   const [calledDate, setCalledDate] = useState(() => new Date().toISOString().split("T")[0]);
-  const [renewedBy, setRenewedBy]   = useState<"customer" | "agent" | "">("");
+  const [renewedBy, setRenewedBy]   = useState<"customer" | "supplier" | "agent" | "">("");
 
   // ── Assign modal ───────────────────────────────────────────────────────────
   const [showAssignModal, setShowAssignModal]       = useState(false);
@@ -541,6 +546,7 @@ export default function LeadsPage() {
     setCallbackDate("");
     setCallbackNotes("");
     setIsSold("");
+    setNewStartDate("");
     setNewEndDate("");
     setNewSupplier("");
     setNewAddress("");
@@ -567,9 +573,14 @@ export default function LeadsPage() {
       setCallbackError("Please enter the reason for this status"); 
       return; 
     }
-    if (callbackStatus === "Already Renewed" && !renewedBy) { 
-      setCallbackError("Please select if renewed by customer or agent"); 
+    const isRenewalOrSoldAction = callbackStatus === "Already Renewed" || callbackStatus === "Sold";
+    if (isRenewalOrSoldAction && !renewedBy) { 
+      setCallbackError(callbackStatus === "Sold" ? "Please select if sold by supplier or agent" : "Please select if renewed by customer or agent"); 
       return; 
+    }
+    if (isRenewalOrSoldAction && renewedBy === "agent" && !newStartDate) {
+      setCallbackError("Please enter the contract start date");
+      return;
     }
     if (callbackStatus === "End Date Changed" && !newEndDate) { 
       setCallbackError("Please enter the new contract end date"); 
@@ -588,8 +599,9 @@ export default function LeadsPage() {
       if (calledDate) payload.called_date = calledDate;
       if (isDateRequired() && callbackDate) payload.callback_date = callbackDate;
       if (cfg?.requiresSold) payload.is_sold = isSold === "yes";
+      if (isRenewalOrSoldAction && newStartDate) payload.new_start_date = newStartDate;
       if (cfg?.requiresNewEndDate && newEndDate) payload.new_end_date = newEndDate;
-      if (callbackStatus === "Already Renewed" && renewedBy) payload.renewed_by = renewedBy;
+      if (isRenewalOrSoldAction && renewedBy) payload.renewed_by = renewedBy;
       if ((callbackStatus === "Converted" || callbackStatus === "Won") && assignToEmployeeId && assignToEmployeeId !== "0") {
         payload.assigned_to = parseInt(assignToEmployeeId);
       }
@@ -667,6 +679,7 @@ export default function LeadsPage() {
       setCallbackDate("");
       setCallbackNotes("");
       setIsSold("");
+      setNewStartDate("");
       setNewEndDate("");
       setNewSupplier("");
       setNewAddress("");
@@ -712,7 +725,12 @@ export default function LeadsPage() {
     }
     setIsBulkAssigning(true);
     try {
-      const payload: any = { lead_ids: selectedLeads, employee_id: bulkAssignEmployeeId };
+      // ✅ Slice to the requested count, or use all if blank
+      const leadsToAssign = bulkAssignCount
+        ? selectedLeads.slice(0, bulkAssignCount)
+        : selectedLeads;
+
+      const payload: any = { lead_ids: leadsToAssign, employee_id: bulkAssignEmployeeId };
       if (bulkAssignmentNotes.trim()) payload.assignment_notes = bulkAssignmentNotes.trim();
 
       await fetchWithAuth(`${CRM_PROXY}/leads/assign`, {
@@ -720,14 +738,22 @@ export default function LeadsPage() {
         body: JSON.stringify(payload),
       });
 
-      // ✅ When ANY user bulk assigns, those leads are removed from view (become allocated)
-      setAllLeads(prev => prev.filter(l => !selectedLeads.includes(l.opportunity_id)));
+      setAllLeads(prev => prev.filter(l => !leadsToAssign.includes(l.opportunity_id)));
 
-      setSelectedLeads([]); setIsSelectAllChecked(false);
-      setShowBulkAssignModal(false); setBulkAssignmentNotes("");
-      toast.success(`✅ ${selectedLeads.length} leads assigned to ${bulkAssignEmployeeName}`);
-    } catch { toast.error("❌ Error assigning leads"); }
-    finally { setIsBulkAssigning(false); }
+      // ✅ Keep unassigned leads still selected if partial assignment
+      const remaining = selectedLeads.filter(id => !leadsToAssign.includes(id));
+      setSelectedLeads(remaining);
+      setIsSelectAllChecked(false);
+
+      setShowBulkAssignModal(false);
+      setBulkAssignmentNotes("");
+      setBulkAssignCount("");
+      toast.success(`✅ ${leadsToAssign.length} leads assigned to ${bulkAssignEmployeeName}`);
+    } catch {
+      toast.error("❌ Error assigning leads");
+    } finally {
+      setIsBulkAssigning(false);
+    }
   };
 
   // ── Delete ─────────────────────────────────────────────────────────────────
@@ -981,9 +1007,53 @@ export default function LeadsPage() {
     );
   };
 
+  const downloadLeadsCsv = () => {
+    const escapeCsv = (value: unknown) => `"${String(value ?? "").replace(/"/g, '""')}"`;
+    const headers = [
+      "ID",
+      "Client Name",
+      "Trading Name",
+      "Phone",
+      "Mobile",
+      "Email",
+      "MPAN/MPR",
+      "Supplier",
+      "Annual Usage",
+      "Start Date",
+      "End Date",
+      "Status",
+      "Assigned To",
+    ];
+    const rows = filteredLeads.map((lead) => [
+      lead.tenant_lead_id ?? lead.opportunity_id,
+      lead.contact_person,
+      lead.business_name,
+      lead.tel_number,
+      lead.mobile_no,
+      lead.email,
+      lead.mpan_mpr,
+      lead.supplier_name || getSupplierName(lead.supplier_id),
+      lead.annual_usage,
+      formatDate(lead.start_date),
+      formatDate(lead.end_date),
+      getStatusLabel(lead.stage_name || undefined),
+      lead.assigned_to_name,
+    ]);
+    const csv = [headers, ...rows].map((row) => row.map(escapeCsv).join(",")).join("\r\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `leads-${service}-${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
   // ─── Render ─────────────────────────────────────────────────────────────────
   return (
-    <div className="w-full p-6">
+    <div className="w-full max-w-full overflow-x-hidden p-6">
       <Toaster position="top-right" />
       <h1 className="mb-6 text-4xl font-semibold tracking-tight text-slate-900">Leads</h1>
 
@@ -1158,9 +1228,9 @@ export default function LeadsPage() {
       </Dialog>
 
       {/* Search / Filter Bar */}
-      <div className="mb-6 flex flex-wrap gap-3 justify-between">
-        <div className="flex flex-wrap gap-3">
-          <div className="relative w-64">
+      <div className="mb-6 grid grid-cols-1 gap-3 xl:grid-cols-[minmax(0,1fr)_auto]">
+        <div className="grid min-w-0 grid-cols-[repeat(auto-fit,minmax(150px,1fr))] gap-3">
+          <div className="relative min-w-0 sm:col-span-2 xl:col-span-1">
             <Search className="text-muted-foreground absolute top-2.5 left-2 h-4 w-4" />
             <Input placeholder="Search leads..." className="pl-8" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
             {isSearching && (
@@ -1172,7 +1242,11 @@ export default function LeadsPage() {
 
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="outline"><Filter className="mr-2 h-4 w-4" />{supplierFilter === "All" ? "All Suppliers" : getSupplierName(supplierFilter as number)}<ChevronDown className="ml-1 h-3 w-3" /></Button>
+              <Button variant="outline" className="min-w-0 justify-between">
+                <Filter className="mr-2 h-4 w-4" />
+                <span className="truncate">{supplierFilter === "All" ? "All Suppliers" : getSupplierName(supplierFilter as number)}</span>
+                <ChevronDown className="ml-1 h-3 w-3 flex-shrink-0" />
+              </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent>
               <DropdownMenuItem onClick={() => setSupplierFilter("All")}>All Suppliers</DropdownMenuItem>
@@ -1182,7 +1256,11 @@ export default function LeadsPage() {
 
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="outline"><Filter className="mr-2 h-4 w-4" />{statusFilter === "All" ? "All Status" : getStatusLabel(statusFilter as string)}<ChevronDown className="ml-1 h-3 w-3" /></Button>
+              <Button variant="outline" className="min-w-0 justify-between">
+                <Filter className="mr-2 h-4 w-4" />
+                <span className="truncate">{statusFilter === "All" ? "All Status" : getStatusLabel(statusFilter as string)}</span>
+                <ChevronDown className="ml-1 h-3 w-3 flex-shrink-0" />
+              </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent>
               <DropdownMenuItem onClick={() => setStatusFilter("All")}>All Status</DropdownMenuItem>
@@ -1191,7 +1269,7 @@ export default function LeadsPage() {
           </DropdownMenu>
 
           <Select value={endDateFilter} onValueChange={(v: any) => setEndDateFilter(v)}>
-            <SelectTrigger className="w-52"><SelectValue /></SelectTrigger>
+            <SelectTrigger className="w-full min-w-0"><SelectValue /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Contracts</SelectItem>
               <SelectItem value="30">Ending in 30 days</SelectItem>
@@ -1203,7 +1281,7 @@ export default function LeadsPage() {
           </Select>
 
           <Select value={usageSort} onValueChange={(v: any) => setUsageSort(v)}>
-            <SelectTrigger className="w-48"><SelectValue /></SelectTrigger>
+            <SelectTrigger className="w-full min-w-0"><SelectValue /></SelectTrigger>
             <SelectContent>
               <SelectItem value="none">Usage: Default</SelectItem>
               <SelectItem value="low-high">Usage: Low to High</SelectItem>
@@ -1211,7 +1289,7 @@ export default function LeadsPage() {
             </SelectContent>
           </Select>
 
-          <Button variant="outline" onClick={() => setShowFilterSidebar(true)} className="relative">
+          <Button variant="outline" onClick={() => setShowFilterSidebar(true)} className="relative min-w-0">
             <Filter className="mr-2 h-4 w-4" />
             All Filters
             {(isAdmin && salespersonFilter !== "All") && (
@@ -1220,7 +1298,12 @@ export default function LeadsPage() {
           </Button>
         </div>
 
-        <div className="flex gap-2 items-center">
+        <div className="flex flex-wrap items-center gap-2 xl:justify-end">
+          {isAdmin && (
+            <Button onClick={downloadLeadsCsv} variant="outline" disabled={filteredLeads.length === 0}>
+              <Download className="mr-2 h-4 w-4" />Download Leads
+            </Button>
+          )}
           <Button onClick={() => setShowImportModal(true)} variant="outline">
             <Upload className="mr-2 h-4 w-4" />Bulk Import
           </Button>
@@ -1748,40 +1831,56 @@ export default function LeadsPage() {
             )}
             {isDateRequired() && (
               <div className="space-y-2">
-                <label className="text-sm font-medium">Callback Date</label>
+                <label className="text-sm font-medium">
+                  {callbackStatus === "Already Renewed" || callbackStatus === "Sold" ? "Action Date" : "Callback Date"}
+                </label>
                 <Input type="date" value={callbackDate} onChange={e => setCallbackDate(e.target.value)} />
+              </div>
+            )}
+            {(callbackStatus === "Already Renewed" || callbackStatus === "Sold") && renewedBy === "agent" && (
+              <div className="space-y-2">
+                <label className="text-sm font-medium">
+                  Contract Start Date <span className="text-red-500">*</span>
+                </label>
+                <Input type="date" value={newStartDate} onChange={e => setNewStartDate(e.target.value)} />
               </div>
             )}
             {statusConfig[callbackStatus]?.requiresNewEndDate && (
               <div className="space-y-2">
                 <label className="text-sm font-medium">New Contract End Date {callbackStatus === "End Date Changed" ? "*" : ""}</label>
                 <Input type="date" value={newEndDate} onChange={e => setNewEndDate(e.target.value)} />
-                <p className="text-xs text-gray-500">{callbackStatus === "Already Renewed" ? "Optional: Update if the contract end date has changed" : "The contract end date will be updated to this new date"}</p>
+                <p className="text-xs text-gray-500">{callbackStatus === "Already Renewed" || callbackStatus === "Sold" ? "Update if the contract end date has changed" : "The contract end date will be updated to this new date"}</p>
               </div>
             )}
-            {callbackStatus === "Already Renewed" && (
+            {(callbackStatus === "Already Renewed" || callbackStatus === "Sold") && (
               <div className="space-y-2">
-                <label className="text-sm font-medium">Renewed By <span className="text-red-500">*</span></label>
+                <label className="text-sm font-medium">
+                  {callbackStatus === "Sold" ? "Sold By" : "Renewed By"} <span className="text-red-500">*</span>
+                </label>
                 <div className="flex flex-col gap-2 p-3 border rounded-lg bg-gray-50">
-                  {(["customer", "agent"] as const).map(v => (
+                  {(callbackStatus === "Sold" ? (["supplier", "agent"] as const) : (["customer", "agent"] as const)).map(v => (
                     <label key={v} className="flex items-center gap-3 cursor-pointer">
                       <input type="radio" name="renewedBy" value={v} checked={renewedBy === v} onChange={() => setRenewedBy(v)} className="w-4 h-4 accent-black" />
                       <div>
-                        <span className="text-sm font-medium text-gray-900">Renewed by {v.charAt(0).toUpperCase() + v.slice(1)}</span>
-                        <p className="text-xs text-gray-500">{v === "customer" ? "Customer renewed directly without agent" : "Agent successfully renewed the contract"}</p>
+                        <span className="text-sm font-medium text-gray-900">
+                          {callbackStatus === "Sold" ? `Sold by ${v.charAt(0).toUpperCase() + v.slice(1)}` : `Renewed by ${v.charAt(0).toUpperCase() + v.slice(1)}`}
+                        </span>
+                        <p className="text-xs text-gray-500">
+                          {v === "agent" ? "Counts for agent commission" : callbackStatus === "Sold" ? "Sold directly by supplier" : "Customer renewed directly without agent"}
+                        </p>
                       </div>
                     </label>
                   ))}
                 </div>
               </div>
             )}
-            {statusConfig[callbackStatus]?.requiresSupplierChange && (
+            {(callbackStatus === "Already Renewed" || callbackStatus === "Sold") && (
               <div className="space-y-2">
                 <label className="text-sm font-medium">New Supplier (Optional)</label>
                 <Input type="text" placeholder="Enter new supplier name" value={newSupplier} onChange={e => setNewSupplier(e.target.value)} />
               </div>
             )}
-            {statusConfig[callbackStatus]?.requiresAddressChange && (
+            {(callbackStatus === "Already Renewed" || callbackStatus === "Sold") && (
               <div className="space-y-2">
                 <label className="text-sm font-medium">New Address (Optional)</label>
                 <Textarea placeholder="Enter new address if changed" value={newAddress} onChange={e => setNewAddress(e.target.value)} rows={2} />
@@ -1876,21 +1975,89 @@ export default function LeadsPage() {
       {/* Bulk Assign Modal */}
       <Dialog open={showBulkAssignModal} onOpenChange={setShowBulkAssignModal}>
         <DialogContent className="max-w-md">
-          <DialogHeader><DialogTitle>Bulk Assign Leads</DialogTitle><DialogDescription>Assign {selectedLeads.length} lead(s) to {bulkAssignEmployeeName}</DialogDescription></DialogHeader>
+          <DialogHeader>
+            <DialogTitle>Bulk Assign Leads</DialogTitle>
+            <DialogDescription>
+              Assign leads from your selection to {bulkAssignEmployeeName}
+            </DialogDescription>
+          </DialogHeader>
           <div className="space-y-4">
             <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
-              <div className="flex items-center gap-2 mb-2"><UserCheck className="h-4 w-4 text-blue-600" /><span className="text-sm font-medium text-blue-900">{selectedLeads.length} lead{selectedLeads.length !== 1 ? "s" : ""} selected</span></div>
-              <div className="text-sm text-blue-700">Assigning to: <strong>{bulkAssignEmployeeName}</strong></div>
+              <div className="flex items-center gap-2 mb-2">
+                <UserCheck className="h-4 w-4 text-blue-600" />
+                <span className="text-sm font-medium text-blue-900">
+                  {selectedLeads.length} lead{selectedLeads.length !== 1 ? "s" : ""} selected
+                </span>
+              </div>
+              <div className="text-sm text-blue-700">
+                Assigning to: <strong>{bulkAssignEmployeeName}</strong>
+              </div>
             </div>
+
             <div>
-              <label className="text-sm font-medium text-gray-700">Assignment Notes (Optional)</label>
-              <Textarea className="mt-1" placeholder="Why are these being assigned?" value={bulkAssignmentNotes} onChange={e => setBulkAssignmentNotes(e.target.value)} rows={3} />
+              <label className="text-sm font-medium text-gray-700">
+                Number of Leads to Assign{" "}
+                <span className="text-gray-400 font-normal">
+                  (max {selectedLeads.length})
+                </span>
+              </label>
+              <Input
+                type="number"
+                min={1}
+                max={selectedLeads.length}
+                className="mt-1"
+                placeholder={`Enter a number (default: all ${selectedLeads.length})`}
+                value={bulkAssignCount}
+                onChange={e => {
+                  const val = parseInt(e.target.value);
+                  if (e.target.value === "") {
+                    setBulkAssignCount("");
+                  } else if (!isNaN(val) && val >= 1 && val <= selectedLeads.length) {
+                    setBulkAssignCount(val);
+                  }
+                }}
+              />
+              <p className="text-xs text-gray-500 mt-1">
+                Leave blank to assign all selected leads.
+              </p>
+            </div>
+
+            <div>
+              <label className="text-sm font-medium text-gray-700">
+                Assignment Notes (Optional)
+              </label>
+              <Textarea
+                className="mt-1"
+                placeholder="Why are these being assigned?"
+                value={bulkAssignmentNotes}
+                onChange={e => setBulkAssignmentNotes(e.target.value)}
+                rows={3}
+              />
             </div>
           </div>
           <div className="flex justify-end gap-2 mt-4">
-            <Button variant="outline" onClick={() => { setShowBulkAssignModal(false); setBulkAssignmentNotes(""); setBulkAssignEmployeeId(null); setBulkAssignEmployeeName(""); }} disabled={isBulkAssigning}>Cancel</Button>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowBulkAssignModal(false);
+                setBulkAssignmentNotes("");
+                setBulkAssignEmployeeId(null);
+                setBulkAssignEmployeeName("");
+                setBulkAssignCount("");
+              }}
+              disabled={isBulkAssigning}
+            >
+              Cancel
+            </Button>
             <Button onClick={handleBulkAssignWithNotes} disabled={isBulkAssigning}>
-              {isBulkAssigning ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Assigning...</> : `Assign ${selectedLeads.length} Lead${selectedLeads.length !== 1 ? "s" : ""}`}
+              {isBulkAssigning ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Assigning...
+                </>
+              ) : (
+                `Assign ${bulkAssignCount || selectedLeads.length} Lead${(bulkAssignCount || selectedLeads.length) !== 1 ? "s" : ""}`
+              )}
             </Button>
           </div>
         </DialogContent>

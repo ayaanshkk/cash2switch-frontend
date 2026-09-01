@@ -2,6 +2,7 @@
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 
 import {
   Banknote,
@@ -10,6 +11,8 @@ import {
   ChevronDown,
   ChevronRight,
   CircleDollarSign,
+  Edit,
+  ExternalLink,
   Layers3,
   Loader2,
   ReceiptText,
@@ -63,6 +66,7 @@ type CommissionPayment = {
 
 type Receipt = {
   id: string;
+  commission_payment_id?: string;
   amount_received: string;
   date_received: string | null;
   notes: string | null;
@@ -75,6 +79,7 @@ type FilterOption = {
   supplier_name?: string | null;
   employee_id?: number;
   employee_name?: string | null;
+  aggregator?: string | null;
 };
 
 type PaymentPagination = {
@@ -100,6 +105,33 @@ type PaymentGroup = {
   nextDue: string | null;
   statuses: PaymentStatus[];
 };
+
+type PaymentColumnKey =
+  | "supplier"
+  | "mpan"
+  | "contractDates"
+  | "aggregator"
+  | "agent"
+  | "expected"
+  | "dueDate"
+  | "received"
+  | "outstanding"
+  | "status"
+  | "lastChecked";
+
+const paymentColumnOptions: Array<{ key: PaymentColumnKey; label: string; defaultVisible: boolean; align?: "right" }> = [
+  { key: "supplier", label: "Supplier", defaultVisible: true },
+  { key: "mpan", label: "MPAN/MPR", defaultVisible: true },
+  { key: "contractDates", label: "Payment Period", defaultVisible: true },
+  { key: "aggregator", label: "Aggregator", defaultVisible: false },
+  { key: "agent", label: "Agent", defaultVisible: true },
+  { key: "expected", label: "Expected", defaultVisible: true, align: "right" },
+  { key: "dueDate", label: "Due Date", defaultVisible: true },
+  { key: "received", label: "Received", defaultVisible: true, align: "right" },
+  { key: "outstanding", label: "Outstanding", defaultVisible: true, align: "right" },
+  { key: "status", label: "Status", defaultVisible: true },
+  { key: "lastChecked", label: "Last Checked", defaultVisible: false },
+];
 
 const statusTone: Record<PaymentStatus, string> = {
   Scheduled: "bg-slate-100 text-slate-700 hover:bg-slate-100",
@@ -140,16 +172,20 @@ const formatDateTime = (value: string | null | undefined) => {
 
 export default function PaymentCheckerPage() {
   const router = useRouter();
+  const pathname = usePathname();
+  const isAlreadyRenewedPage = pathname?.endsWith("/payments/already-renewed");
   const [payments, setPayments] = useState<CommissionPayment[]>([]);
   const [selectedPayment, setSelectedPayment] = useState<CommissionPayment | null>(null);
   const [receipts, setReceipts] = useState<Receipt[]>([]);
   const [statuses, setStatuses] = useState<PaymentStatus[]>([]);
   const [suppliers, setSuppliers] = useState<FilterOption[]>([]);
   const [agents, setAgents] = useState<FilterOption[]>([]);
+  const [aggregators, setAggregators] = useState<FilterOption[]>([]);
   const [filters, setFilters] = useState({
     status: "all",
     supplier: "all",
     agent: "all",
+    aggregator: "all",
     due_from: "",
     due_to: "",
   });
@@ -167,9 +203,22 @@ export default function PaymentCheckerPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [visiblePaymentColumns, setVisiblePaymentColumns] = useState<Record<PaymentColumnKey, boolean>>(
+    () =>
+      paymentColumnOptions.reduce(
+        (acc, column) => ({ ...acc, [column.key]: column.defaultVisible }),
+        {} as Record<PaymentColumnKey, boolean>,
+      ),
+  );
   const [receiptDraft, setReceiptDraft] = useState({
     amount_received: "",
     date_received: new Date().toISOString().slice(0, 10),
+    notes: "",
+  });
+  const [editingReceiptId, setEditingReceiptId] = useState<string | null>(null);
+  const [receiptEditDraft, setReceiptEditDraft] = useState({
+    amount_received: "",
+    date_received: "",
     notes: "",
   });
 
@@ -245,26 +294,36 @@ export default function PaymentCheckerPage() {
     });
   }, [filteredPayments]);
 
-  const buildQuery = () => {
+  const buildQuery = (
+    nextFilters = filters,
+    nextSearchTerm = searchTerm,
+    nextPagination = pagination,
+  ) => {
     const params = new URLSearchParams({
-      page: String(pagination.page),
-      page_size: String(pagination.page_size),
+      page: String(nextPagination.page),
+      page_size: String(nextPagination.page_size),
     });
-    if (filters.status !== "all") params.set("status", filters.status);
-    if (filters.supplier !== "all") params.set("supplier", filters.supplier);
-    if (filters.agent !== "all") params.set("agent", filters.agent);
-    if (filters.due_from) params.set("due_from", filters.due_from);
-    if (filters.due_to) params.set("due_to", filters.due_to);
-    if (searchTerm.trim()) params.set("search", searchTerm.trim());
+    if (nextFilters.status !== "all") params.set("status", nextFilters.status);
+    if (nextFilters.supplier !== "all") params.set("supplier", nextFilters.supplier);
+    if (nextFilters.agent !== "all") params.set("agent", nextFilters.agent);
+    if (nextFilters.aggregator !== "all") params.set("aggregator", nextFilters.aggregator);
+    if (nextFilters.due_from) params.set("due_from", nextFilters.due_from);
+    if (nextFilters.due_to) params.set("due_to", nextFilters.due_to);
+    if (nextSearchTerm.trim()) params.set("search", nextSearchTerm.trim());
+    if (isAlreadyRenewedPage) params.set("contract_status", "already_renewed");
     return params.toString();
   };
 
-  const loadPayments = async () => {
+  const loadPayments = async (
+    nextFilters = filters,
+    nextSearchTerm = searchTerm,
+    nextPagination = pagination,
+  ) => {
     setLoading(true);
     setError(null);
 
     try {
-      const data = await fetchWithAuth(`/api/commission/payments?${buildQuery()}`);
+      const data = await fetchWithAuth(`/api/commission/payments?${buildQuery(nextFilters, nextSearchTerm, nextPagination)}`);
       setPayments(data.payments || []);
       setTotals({
         expected: Number(data.summary?.expected || 0),
@@ -275,6 +334,7 @@ export default function PaymentCheckerPage() {
       setStatuses(data.filters?.statuses || []);
       setSuppliers(data.filters?.suppliers || []);
       setAgents(data.filters?.agents || []);
+      setAggregators(data.filters?.aggregators || []);
       const rows: CommissionPayment[] = data.payments || [];
       const groupKeys: string[] = Array.from(
         new Set(
@@ -302,6 +362,24 @@ export default function PaymentCheckerPage() {
       return;
     }
     setPagination((current) => ({ ...current, page: 1 }));
+  };
+
+  const applyStatusShortcut = (status: PaymentStatus) => {
+    const nextFilters = { ...filters, status };
+    const nextPagination = { ...pagination, page: 1 };
+    setFilters(nextFilters);
+    setPagination(nextPagination);
+    loadPayments(nextFilters, searchTerm, nextPagination);
+  };
+
+  const openCustomerDetails = (clientId: number | null) => {
+    if (!clientId) return;
+    router.push(`/dashboard/renewals/${clientId}`);
+  };
+
+  const openPaymentHistory = (clientId: number | null) => {
+    if (!clientId) return;
+    router.push(`/dashboard/payments/history/${clientId}`);
   };
 
   const changePage = (nextPage: number) => {
@@ -345,6 +423,24 @@ export default function PaymentCheckerPage() {
     setSelectedPayment(payment);
   };
 
+  const togglePaymentGroup = (key: string) => {
+    setExpandedGroups((current) => ({ ...current, [key]: !(current[key] ?? false) }));
+  };
+
+  const startEditingReceipt = (receipt: Receipt) => {
+    setEditingReceiptId(receipt.id);
+    setReceiptEditDraft({
+      amount_received: String(receipt.amount_received || ""),
+      date_received: receipt.date_received || new Date().toISOString().slice(0, 10),
+      notes: receipt.notes || "",
+    });
+  };
+
+  const cancelEditingReceipt = () => {
+    setEditingReceiptId(null);
+    setReceiptEditDraft({ amount_received: "", date_received: "", notes: "" });
+  };
+
   const submitReceipt = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!selectedPayment) return;
@@ -377,6 +473,34 @@ export default function PaymentCheckerPage() {
     }
   };
 
+  const submitReceiptEdit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!selectedPayment || !editingReceiptId) return;
+
+    setSaving(true);
+    setError(null);
+    setSuccessMessage(null);
+
+    try {
+      const data = await fetchWithAuth(`/api/commission/payments/${selectedPayment.id}/receipts/${editingReceiptId}`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          amount_received: Number(receiptEditDraft.amount_received),
+          date_received: receiptEditDraft.date_received,
+          notes: receiptEditDraft.notes,
+        }),
+      });
+      updatePaymentInList(data.payment);
+      setReceipts((current) => current.map((receipt) => (receipt.id === editingReceiptId ? data.receipt : receipt)));
+      cancelEditingReceipt();
+      setSuccessMessage("Payment receipt updated.");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to update payment receipt");
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const patchStatus = async (status: "Chasing Supplier" | "Closed") => {
     if (!selectedPayment) return;
 
@@ -399,6 +523,8 @@ export default function PaymentCheckerPage() {
   };
 
   const selectedIsClosed = selectedPayment?.status === "Closed";
+  const isColumnVisible = (key: PaymentColumnKey) => visiblePaymentColumns[key];
+  const visibleColumnCount = 1 + paymentColumnOptions.filter((column) => isColumnVisible(column.key)).length;
 
   return (
     <div className="min-h-screen bg-slate-50/50 px-4 py-6 sm:px-6 lg:px-8">
@@ -406,9 +532,13 @@ export default function PaymentCheckerPage() {
         <div className="flex flex-col gap-4 rounded-lg border bg-white p-5 shadow-sm md:flex-row md:items-center md:justify-between">
           <div>
             <p className="text-sm font-medium text-slate-500">Payments</p>
-            <h1 className="mt-1 text-3xl font-semibold tracking-tight text-slate-950">Payment Checker</h1>
+            <h1 className="mt-1 text-3xl font-semibold tracking-tight text-slate-950">
+              {isAlreadyRenewedPage ? "Already Renewed" : "Upcoming Renewals"}
+            </h1>
             <p className="mt-2 max-w-3xl text-sm text-slate-600">
-              Track supplier commission receipts, outstanding balances, and follow-up actions.
+              {isAlreadyRenewedPage
+                ? "Temporary view for existing already renewed commission payments."
+                : "Track upcoming renewal commission receipts, outstanding balances, and follow-up actions."}
             </p>
           </div>
           <Button onClick={applyFilters} disabled={loading}>
@@ -437,7 +567,18 @@ export default function PaymentCheckerPage() {
             </CardHeader>
             <CardContent className="text-2xl font-semibold">{formatMoney(totals.expected)}</CardContent>
           </Card>
-          <Card className="border-slate-200 shadow-sm">
+          <Card
+            className="cursor-pointer border-slate-200 shadow-sm transition-colors hover:border-emerald-300 hover:bg-emerald-50/40"
+            role="button"
+            tabIndex={0}
+            onClick={() => applyStatusShortcut("Received")}
+            onKeyDown={(event) => {
+              if (event.key === "Enter" || event.key === " ") {
+                event.preventDefault();
+                applyStatusShortcut("Received");
+              }
+            }}
+          >
             <CardHeader className="pb-2">
               <CardTitle className="flex items-center gap-2 text-sm font-medium text-slate-600">
                 <CheckCircle2 className="h-4 w-4 text-emerald-600" />
@@ -461,8 +602,8 @@ export default function PaymentCheckerPage() {
           <CardHeader className="pb-3">
             <CardTitle className="text-base">Filters</CardTitle>
           </CardHeader>
-          <CardContent className="grid gap-4 md:grid-cols-2 xl:grid-cols-[minmax(220px,1.3fr)_150px_minmax(220px,1fr)_minmax(170px,0.8fr)_160px_160px]">
-            <div className="relative">
+          <CardContent className="grid grid-cols-[repeat(auto-fit,minmax(150px,1fr))] gap-4">
+            <div className="relative min-w-0 sm:col-span-2 xl:col-span-1">
               <Search className="pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-slate-400" />
               <Input
                 className="pl-9"
@@ -520,13 +661,32 @@ export default function PaymentCheckerPage() {
               </SelectContent>
             </Select>
 
+            <Select
+              value={filters.aggregator}
+              onValueChange={(aggregator) => setFilters((current) => ({ ...current, aggregator }))}
+            >
+              <SelectTrigger className="min-w-0 [&>span]:truncate">
+                <SelectValue placeholder="Aggregator" />
+              </SelectTrigger>
+              <SelectContent className="max-w-80">
+                <SelectItem value="all">All aggregators</SelectItem>
+                {aggregators.filter((item): item is FilterOption & { aggregator: string } => Boolean(item.aggregator)).map((item) => (
+                  <SelectItem key={item.aggregator} value={String(item.aggregator)}>
+                    {item.aggregator}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
             <Input
               type="date"
+              className="min-w-0"
               value={filters.due_from}
               onChange={(event) => setFilters((current) => ({ ...current, due_from: event.target.value }))}
             />
             <Input
               type="date"
+              className="min-w-0"
               value={filters.due_to}
               onChange={(event) => setFilters((current) => ({ ...current, due_to: event.target.value }))}
             />
@@ -544,21 +704,51 @@ export default function PaymentCheckerPage() {
                 <span>
                   Showing {paymentGroups.length} of {pagination.total} renewals
                 </span>
-                <Select
-                  value={String(pagination.page_size)}
-                  onValueChange={(value) =>
-                    setPagination((current) => ({ ...current, page: 1, page_size: Number(value) }))
-                  }
-                >
-                  <SelectTrigger className="h-8 w-24">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="10">10</SelectItem>
-                    <SelectItem value="25">25</SelectItem>
-                    <SelectItem value="50">50</SelectItem>
-                  </SelectContent>
-                </Select>
+                <details className="relative">
+                  <summary className="flex h-8 cursor-pointer list-none items-center gap-2 rounded-md border bg-white px-3 text-sm font-medium text-slate-700 hover:bg-slate-50">
+                    Show/Hide Columns
+                    <ChevronDown className="h-4 w-4 text-slate-500" />
+                  </summary>
+                  <div className="absolute right-0 z-20 mt-2 w-56 rounded-md border bg-white p-3 shadow-lg">
+                    <div className="mb-2 text-xs font-semibold tracking-wide text-slate-500 uppercase">Show columns</div>
+                    <div className="space-y-2">
+                      {paymentColumnOptions.map((column) => (
+                        <label key={column.key} className="flex items-center gap-2 text-sm text-slate-700">
+                          <input
+                            type="checkbox"
+                            className="h-4 w-4 accent-slate-900"
+                            checked={isColumnVisible(column.key)}
+                            onChange={(event) =>
+                              setVisiblePaymentColumns((current) => ({
+                                ...current,
+                                [column.key]: event.target.checked,
+                              }))
+                            }
+                          />
+                          {column.label}
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                </details>
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-slate-500">Rows per page</span>
+                  <Select
+                    value={String(pagination.page_size)}
+                    onValueChange={(value) =>
+                      setPagination((current) => ({ ...current, page: 1, page_size: Number(value) }))
+                    }
+                  >
+                    <SelectTrigger className="h-8 w-24">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="10">10</SelectItem>
+                      <SelectItem value="25">25</SelectItem>
+                      <SelectItem value="50">50</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
             </div>
           </CardHeader>
@@ -585,14 +775,27 @@ export default function PaymentCheckerPage() {
                         <div
                           className={`border-l-4 ${
                             index % 2 === 0 ? "border-l-slate-950" : "border-l-blue-600"
-                          } bg-white px-4 py-4`}
+                          } cursor-pointer bg-white px-4 py-4 transition-colors hover:bg-slate-50/70`}
+                          role="button"
+                          tabIndex={0}
+                          onClick={(event) => {
+                            const target = event.target as HTMLElement;
+                            if (target.closest("button,a,input,textarea,select,label,summary,details")) return;
+                            togglePaymentGroup(group.key);
+                          }}
+                          onKeyDown={(event) => {
+                            if (event.key === "Enter" || event.key === " ") {
+                              event.preventDefault();
+                              togglePaymentGroup(group.key);
+                            }
+                          }}
                         >
                           <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
                             <div className="flex min-w-0 flex-1 items-start gap-3">
                               <button
                                 type="button"
                                 className="mt-1 rounded-md border bg-slate-50 p-1"
-                                onClick={() => setExpandedGroups((current) => ({ ...current, [group.key]: !expanded }))}
+                                onClick={() => togglePaymentGroup(group.key)}
                                 aria-label={expanded ? "Collapse renewal" : "Expand renewal"}
                               >
                                 {expanded ? (
@@ -606,9 +809,8 @@ export default function PaymentCheckerPage() {
                                   <button
                                     type="button"
                                     className="text-left text-base font-semibold text-slate-950 hover:underline"
-                                    onClick={() =>
-                                      group.clientId && router.push(`/dashboard/payments/history/${group.clientId}`)
-                                    }
+                                    onClick={() => openCustomerDetails(group.clientId)}
+                                    disabled={!group.clientId}
                                   >
                                     {group.title}
                                   </button>
@@ -638,13 +840,21 @@ export default function PaymentCheckerPage() {
                                   className="mt-3"
                                   size="sm"
                                   variant="outline"
-                                  onClick={() =>
-                                    group.clientId && router.push(`/dashboard/payments/history/${group.clientId}`)
-                                  }
+                                  onClick={() => openPaymentHistory(group.clientId)}
                                   disabled={!group.clientId}
                                 >
                                   <ReceiptText className="mr-2 h-4 w-4" />
                                   Open Payment History
+                                </Button>
+                                <Button
+                                  className="mt-3 ml-2"
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => openCustomerDetails(group.clientId)}
+                                  disabled={!group.clientId}
+                                >
+                                  <ExternalLink className="mr-2 h-4 w-4" />
+                                  View Customer Details
                                 </Button>
                               </div>
                             </div>
@@ -681,22 +891,20 @@ export default function PaymentCheckerPage() {
                         {expanded && (
                           <div className="border-t bg-white">
                             <div className="overflow-x-auto">
-                              <table className="w-full min-w-[1280px] text-sm">
+                              <table className="w-full min-w-[860px] text-sm">
                                 <thead className="bg-slate-50 text-left text-xs font-semibold tracking-wide text-slate-500 uppercase">
                                   <tr>
                                     <th className="px-4 py-3">Instalment</th>
-                                    <th className="px-4 py-3">Supplier</th>
-                                    <th className="px-4 py-3">Service</th>
-                                    <th className="px-4 py-3">MPAN/MPR</th>
-                                    <th className="px-4 py-3">Contract Dates</th>
-                                    <th className="px-4 py-3">Aggregator</th>
-                                    <th className="px-4 py-3">Agent</th>
-                                    <th className="px-4 py-3 text-right">Expected</th>
-                                    <th className="px-4 py-3">Due Date</th>
-                                    <th className="px-4 py-3 text-right">Received</th>
-                                    <th className="px-4 py-3 text-right">Outstanding</th>
-                                    <th className="px-4 py-3">Status</th>
-                                    <th className="px-4 py-3">Last Checked</th>
+                                    {paymentColumnOptions.map((column) =>
+                                      isColumnVisible(column.key) ? (
+                                        <th
+                                          key={column.key}
+                                          className={`px-4 py-3 ${column.align === "right" ? "text-right" : ""}`}
+                                        >
+                                          {column.label}
+                                        </th>
+                                      ) : null,
+                                    )}
                                   </tr>
                                 </thead>
                                 <tbody className="divide-y bg-white">
@@ -710,34 +918,62 @@ export default function PaymentCheckerPage() {
                                         <div className="font-medium text-slate-900">
                                           {payment.payment_period_label || `Year ${payment.instalment_year}`}
                                         </div>
-                                        <div className="text-xs text-slate-500">ID {payment.id.slice(0, 8)}</div>
                                       </td>
-                                      <td className="px-4 py-3 text-slate-700">{payment.supplier_name || "-"}</td>
-                                      <td className="px-4 py-3 text-slate-700">{payment.service_title || "-"}</td>
-                                      <td className="px-4 py-3 font-mono text-xs text-slate-700">
-                                        {payment.mpan_number || payment.mpan_bottom || "-"}
-                                      </td>
-                                      <td className="px-4 py-3 text-slate-700">
-                                        {formatDate(payment.contract_start_date)} - {formatDate(payment.contract_end_date)}
-                                      </td>
-                                      <td className="px-4 py-3 text-slate-700">{payment.aggregator || "-"}</td>
-                                      <td className="px-4 py-3 text-slate-700">{payment.agent_name || "-"}</td>
-                                      <td className="px-4 py-3 text-right font-medium">
-                                        {formatMoney(payment.expected_net_amount)}
-                                      </td>
-                                      <td className="px-4 py-3 text-slate-700">{formatDate(payment.due_date)}</td>
-                                      <td className="px-4 py-3 text-right">{formatMoney(payment.amount_received)}</td>
-                                      <td className="px-4 py-3 text-right">
-                                        {formatMoney(payment.outstanding_amount)}
-                                      </td>
-                                      <td className="px-4 py-3">
-                                        <Badge className={statusTone[payment.status]}>{payment.status}</Badge>
-                                      </td>
-                                      <td className="px-4 py-3 text-slate-700">
-                                        {formatDateTime(payment.last_checked_at)}
-                                      </td>
+                                      {isColumnVisible("supplier") && (
+                                        <td className="px-4 py-3 text-slate-700">{payment.supplier_name || "-"}</td>
+                                      )}
+                                      {isColumnVisible("mpan") && (
+                                        <td className="px-4 py-3 font-mono text-xs text-slate-700">
+                                          {payment.mpan_number || payment.mpan_bottom || "-"}
+                                        </td>
+                                      )}
+                                      {isColumnVisible("contractDates") && (
+                                        <td className="px-4 py-3 text-slate-700">
+                                          {formatDate(payment.payment_period_start || payment.contract_start_date)} -{" "}
+                                          {formatDate(payment.payment_period_end || payment.contract_end_date)}
+                                        </td>
+                                      )}
+                                      {isColumnVisible("aggregator") && (
+                                        <td className="px-4 py-3 text-slate-700">{payment.aggregator || "-"}</td>
+                                      )}
+                                      {isColumnVisible("agent") && (
+                                        <td className="px-4 py-3 text-slate-700">{payment.agent_name || "-"}</td>
+                                      )}
+                                      {isColumnVisible("expected") && (
+                                        <td className="px-4 py-3 text-right font-medium">
+                                          {formatMoney(payment.expected_net_amount)}
+                                        </td>
+                                      )}
+                                      {isColumnVisible("dueDate") && (
+                                        <td className="px-4 py-3 text-slate-700">{formatDate(payment.due_date)}</td>
+                                      )}
+                                      {isColumnVisible("received") && (
+                                        <td className="px-4 py-3 text-right">{formatMoney(payment.amount_received)}</td>
+                                      )}
+                                      {isColumnVisible("outstanding") && (
+                                        <td className="px-4 py-3 text-right">
+                                          {formatMoney(payment.outstanding_amount)}
+                                        </td>
+                                      )}
+                                      {isColumnVisible("status") && (
+                                        <td className="px-4 py-3">
+                                          <Badge className={statusTone[payment.status]}>{payment.status}</Badge>
+                                        </td>
+                                      )}
+                                      {isColumnVisible("lastChecked") && (
+                                        <td className="px-4 py-3 text-slate-700">
+                                          {formatDateTime(payment.last_checked_at)}
+                                        </td>
+                                      )}
                                     </tr>
                                   ))}
+                                  {orderedPayments.length === 0 && (
+                                    <tr>
+                                      <td colSpan={visibleColumnCount} className="px-4 py-8 text-center text-slate-500">
+                                        No payment rows for this renewal.
+                                      </td>
+                                    </tr>
+                                  )}
                                 </tbody>
                               </table>
                             </div>
@@ -791,9 +1027,13 @@ export default function PaymentCheckerPage() {
                 <div className="rounded-lg border p-4">
                   <div className="flex items-start justify-between gap-4">
                     <div className="min-w-0">
-                      <h2 className="pr-2 text-lg font-semibold break-words text-slate-950">
+                      <button
+                        type="button"
+                        className="pr-2 text-left text-lg font-semibold break-words text-slate-950 hover:underline"
+                        onClick={() => openCustomerDetails(selectedPayment.client_id)}
+                      >
                         {selectedPayment.business_name || selectedPayment.customer_name || "Customer"}
-                      </h2>
+                      </button>
                       <p className="mt-1 text-sm break-words text-slate-500">
                         {selectedPayment.supplier_name || "Supplier"} · {selectedPayment.agent_name || "Unassigned"}
                       </p>
@@ -926,6 +1166,61 @@ export default function PaymentCheckerPage() {
                   ) : receipts.length > 0 ? (
                     receipts.map((receipt) => (
                       <div key={receipt.id} className="rounded-lg border p-3 text-sm">
+                        {editingReceiptId === receipt.id ? (
+                          <form onSubmit={submitReceiptEdit} className="space-y-3">
+                            <div className="grid gap-3 sm:grid-cols-2">
+                              <div className="space-y-2">
+                                <Label htmlFor={`edit_amount_${receipt.id}`}>Amount received</Label>
+                                <Input
+                                  id={`edit_amount_${receipt.id}`}
+                                  min="0.01"
+                                  step="0.01"
+                                  type="number"
+                                  value={receiptEditDraft.amount_received}
+                                  onChange={(event) =>
+                                    setReceiptEditDraft((current) => ({
+                                      ...current,
+                                      amount_received: event.target.value,
+                                    }))
+                                  }
+                                  required
+                                />
+                              </div>
+                              <div className="space-y-2">
+                                <Label htmlFor={`edit_date_${receipt.id}`}>Date received</Label>
+                                <Input
+                                  id={`edit_date_${receipt.id}`}
+                                  type="date"
+                                  value={receiptEditDraft.date_received}
+                                  onChange={(event) =>
+                                    setReceiptEditDraft((current) => ({ ...current, date_received: event.target.value }))
+                                  }
+                                />
+                              </div>
+                            </div>
+                            <div className="space-y-2">
+                              <Label htmlFor={`edit_notes_${receipt.id}`}>Notes</Label>
+                              <Textarea
+                                id={`edit_notes_${receipt.id}`}
+                                value={receiptEditDraft.notes}
+                                onChange={(event) =>
+                                  setReceiptEditDraft((current) => ({ ...current, notes: event.target.value }))
+                                }
+                                rows={2}
+                              />
+                            </div>
+                            <div className="flex flex-wrap gap-2">
+                              <Button type="submit" size="sm" disabled={saving}>
+                                {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                                Save Receipt
+                              </Button>
+                              <Button type="button" size="sm" variant="outline" onClick={cancelEditingReceipt}>
+                                Cancel
+                              </Button>
+                            </div>
+                          </form>
+                        ) : (
+                          <>
                         <div className="flex items-center justify-between gap-3">
                           <p className="font-semibold">{formatMoney(receipt.amount_received)}</p>
                           <p className="text-slate-500">{formatDate(receipt.date_received)}</p>
@@ -934,6 +1229,18 @@ export default function PaymentCheckerPage() {
                           {receipt.logged_by_name || "Logged"} · {formatDateTime(receipt.created_at)}
                         </p>
                         {receipt.notes && <p className="mt-2 text-slate-700">{receipt.notes}</p>}
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          className="mt-3"
+                          onClick={() => startEditingReceipt(receipt)}
+                        >
+                          <Edit className="mr-2 h-4 w-4" />
+                          Edit Receipt
+                        </Button>
+                      </>
+                    )}
                       </div>
                     ))
                   ) : (

@@ -31,7 +31,7 @@ type Notification = {
 function getNotificationIcon(notification: Notification) {
   if (notification.notification_type === 'assignment') return '📋';
   if (notification.priority === 'urgent') return '🚨';
-  if (notification.notification_type.includes('expiry')) return '⏰';
+  if (notification.notification_type?.includes('expiry')) return '⏰';
   return '📌';
 }
 

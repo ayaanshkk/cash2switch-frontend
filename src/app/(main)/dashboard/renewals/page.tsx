@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { 
   Search, Plus, Edit, Trash2, ChevronDown, Filter, AlertCircle, 
-  ChevronRight, ChevronLeft, ChevronLast, ChevronFirst, Zap, Building2, Upload, Users, UserCheck, Info, Loader2, TrendingUp, TrendingDown, AlertTriangle, CheckCircle2, Calendar, X,
+  ChevronRight, ChevronLeft, ChevronLast, ChevronFirst, Zap, Building2, Upload, Users, UserCheck, Info, Loader2, TrendingUp, TrendingDown, AlertTriangle, CheckCircle2, Calendar, X, Download,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -73,7 +73,8 @@ const statusConfig: Record<string, {
   // "Called": { requiresDate: true, requiresSold: false, deletesRecord: false, requiresNotes: false, requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
   "Not Answered": { requiresDate: true, requiresSold: false, deletesRecord: false, requiresNotes: false, requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
   "Priced": { requiresDate: false, requiresSold: true, deletesRecord: false, requiresNotes: false, requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
-  "Sold": { requiresDate: false, requiresSold: false, deletesRecord: false, requiresNotes: false, requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },  "Lost": { requiresDate: false, requiresSold: false, deletesRecord: true, requiresNotes: true, requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
+  "Sold": { requiresDate: true, requiresSold: false, deletesRecord: false, requiresNotes: false, requiresNewEndDate: true, requiresSupplierChange: true, requiresAddressChange: true },
+  "Lost": { requiresDate: false, requiresSold: false, deletesRecord: true, requiresNotes: true, requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
   "Already Renewed": { requiresDate: true, requiresSold: false, deletesRecord: false, requiresNotes: false, requiresNewEndDate: true, requiresSupplierChange: true, requiresAddressChange: true },
   "Invalid Number": { requiresDate: false, requiresSold: false, deletesRecord: true, requiresNotes: false, requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
   "Meter De-energised": { requiresDate: false, requiresSold: false, deletesRecord: true, requiresNotes: false, requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
@@ -300,6 +301,7 @@ export default function EnergyCustomersPage() {
   const [callbackStatus, setCallbackStatus] = useState("");
   const [callbackDate, setCallbackDate] = useState("");
   const [callbackNotes, setCallbackNotes] = useState("");
+  const [newStartDate, setNewStartDate] = useState("");
   const [newEndDate, setNewEndDate] = useState("");
   const [isSold, setIsSold] = useState<string>("");
   const [isSubmittingCallback, setIsSubmittingCallback] = useState(false);
@@ -323,7 +325,7 @@ export default function EnergyCustomersPage() {
   const [performanceFilter, setPerformanceFilter] = useState<'priced' | 'lost' | 'renewed' | 'in_progress' | 'not_contacted' | 'renewed_directly' | 'end_date_changed' | 'not_due' | null>(null);
   const [performanceFilteredCustomers, setPerformanceFilteredCustomers] = useState<EnergyCustomer[]>([]);
   const [calledDate, setCalledDate] = useState(() => new Date().toISOString().split('T')[0]);
-  const [renewedBy, setRenewedBy] = useState<"customer" | "agent" | "">("");
+  const [renewedBy, setRenewedBy] = useState<"customer" | "supplier" | "agent" | "">("");
   const [showFilterSidebar, setShowFilterSidebar] = useState(false);
   const [salespersonFilter, setSalespersonFilter] = useState<number | "All">(() => {
     const saved = sessionStorage.getItem('renewals_salesperson');
@@ -594,6 +596,7 @@ export default function EnergyCustomersPage() {
     setCallbackDate("");
     setCallbackNotes("");
     setIsSold("");
+    setNewStartDate("");
     setNewEndDate("");
     setNewSupplier("");
     setNewAddress("");
@@ -618,8 +621,13 @@ export default function EnergyCustomersPage() {
       setCallbackError("Please enter the reason for this status");
       return;
     }
-    if (callbackStatus === "Already Renewed" && !renewedBy) {
-      setCallbackError("Please select if renewed by customer or agent");
+    const isRenewalOrSoldAction = callbackStatus === "Already Renewed" || callbackStatus === "Sold";
+    if (isRenewalOrSoldAction && !renewedBy) {
+      setCallbackError(callbackStatus === "Sold" ? "Please select if sold by supplier or agent" : "Please select if renewed by customer or agent");
+      return;
+    }
+    if (isRenewalOrSoldAction && renewedBy === "agent" && !newStartDate) {
+      setCallbackError("Please enter the contract start date");
       return;
     }
     if (callbackStatus === "End Date Changed" && !newEndDate) {
@@ -633,8 +641,9 @@ export default function EnergyCustomersPage() {
       if (calledDate) payload.called_date = calledDate;
       if (isDateRequired() && callbackDate) payload.callback_date = callbackDate;
       if (config?.requiresSold) payload.is_sold = isSold === "yes";
+      if (isRenewalOrSoldAction && newStartDate) payload.new_start_date = newStartDate;
       if (config?.requiresNewEndDate && newEndDate) payload.new_end_date = newEndDate;
-      if (callbackStatus === "Already Renewed" && renewedBy) payload.renewed_by = renewedBy;
+      if (isRenewalOrSoldAction && renewedBy) payload.renewed_by = renewedBy;
       if (config?.requiresSupplierChange && newSupplier.trim()) payload.new_supplier = newSupplier.trim();
       if (config?.requiresAddressChange && newAddress.trim()) payload.new_address = newAddress.trim();
 
@@ -674,9 +683,9 @@ export default function EnergyCustomersPage() {
         toast.success("✅ Moved to Priced page");
         setShowCallbackModal(false);
       } else {
-        if (callbackStatus === "End Date Changed" || callbackStatus === "Already Renewed") {
+        if (callbackStatus === "End Date Changed" || callbackStatus === "Already Renewed" || callbackStatus === "Sold") {
           // ✅ Optimistically update supplier on list before refetch
-          if (callbackStatus === "Already Renewed" && newSupplier.trim()) {
+          if (isRenewalOrSoldAction && newSupplier.trim()) {
             setAllCustomers(prev =>
               prev.map(c =>
                 c.client_id === selectedCustomerForCallback
@@ -1212,8 +1221,50 @@ export default function EnergyCustomersPage() {
     );
   };
 
+  const downloadRenewalsCsv = () => {
+    const escapeCsv = (value: unknown) => `"${String(value ?? "").replace(/"/g, '""')}"`;
+    const headers = [
+      "ID",
+      "Client Name",
+      "Trading Name",
+      "Phone",
+      "Email",
+      "MPAN/MPR",
+      "Supplier",
+      "Annual Usage",
+      "Start Date",
+      "End Date",
+      "Status",
+      "Assigned To",
+    ];
+    const rows = filteredCustomers.map((customer) => [
+      customer.display_id ?? customer.display_order ?? customer.client_id,
+      customer.contact_person,
+      customer.business_name,
+      customer.phone,
+      customer.email,
+      customer.mpan_top || customer.mpan_mpr,
+      customer.supplier_name,
+      customer.annual_usage,
+      formatDate(customer.start_date),
+      formatDate(customer.end_date),
+      getStatusLabel(customer.status),
+      customer.assigned_to_name,
+    ]);
+    const csv = [headers, ...rows].map((row) => row.map(escapeCsv).join(",")).join("\r\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `renewals-${service}-${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
   return (
-    <div className="w-full p-6">
+    <div className="w-full max-w-full overflow-x-hidden p-6">
       <Toaster position="top-right" />
       <h1 className="mb-6 text-4xl font-semibold tracking-tight text-slate-900">Renewals</h1>
 
@@ -1437,9 +1488,9 @@ export default function EnergyCustomersPage() {
       </Dialog>
 
       {/* Search and Filter Bar */}
-      <div className="mb-6 flex gap-3 items-center justify-between">
-        <div className="flex gap-3 items-center">
-          <div className="relative w-64">
+      <div className="mb-6 grid grid-cols-1 gap-3 xl:grid-cols-[minmax(0,1fr)_auto]">
+        <div className="grid min-w-0 grid-cols-[repeat(auto-fit,minmax(150px,1fr))] gap-3">
+          <div className="relative min-w-0 sm:col-span-2 xl:col-span-1">
             <Search className="text-muted-foreground absolute top-2.5 left-2 h-4 w-4" />
             <Input placeholder="Search clients..." className="pl-8" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
             {isSearching && (
@@ -1451,10 +1502,10 @@ export default function EnergyCustomersPage() {
 
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="outline">
+              <Button variant="outline" className="min-w-0 justify-between">
                 <Filter className="mr-2 h-4 w-4" />
-                {supplierFilter === "All" ? "All Suppliers" : getSupplierName(supplierFilter as number)}
-                <ChevronDown className="ml-1 h-3 w-3" />
+                <span className="truncate">{supplierFilter === "All" ? "All Suppliers" : getSupplierName(supplierFilter as number)}</span>
+                <ChevronDown className="ml-1 h-3 w-3 flex-shrink-0" />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent>
@@ -1469,10 +1520,10 @@ export default function EnergyCustomersPage() {
 
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="outline">
+              <Button variant="outline" className="min-w-0 justify-between">
                 <Filter className="mr-2 h-4 w-4" />
-                {statusFilter === "All" ? "All Status" : getStatusLabel(statusFilter as string)}
-                <ChevronDown className="ml-1 h-3 w-3" />
+                <span className="truncate">{statusFilter === "All" ? "All Status" : getStatusLabel(statusFilter as string)}</span>
+                <ChevronDown className="ml-1 h-3 w-3 flex-shrink-0" />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent>
@@ -1486,7 +1537,7 @@ export default function EnergyCustomersPage() {
           </DropdownMenu>
 
           <Select value={endDateFilter} onValueChange={(value: any) => setEndDateFilter(value)}>
-            <SelectTrigger className="w-44"><SelectValue /></SelectTrigger>
+            <SelectTrigger className="w-full min-w-0"><SelectValue /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Contracts</SelectItem>
               <SelectItem value="365">Ending in 0-365 days</SelectItem>
@@ -1499,7 +1550,7 @@ export default function EnergyCustomersPage() {
           </Select>
 
           <Select value={usageSort} onValueChange={(value: any) => setUsageSort(value)}>
-            <SelectTrigger className="w-40"><SelectValue /></SelectTrigger>
+            <SelectTrigger className="w-full min-w-0"><SelectValue /></SelectTrigger>
             <SelectContent>
               <SelectItem value="none">Usage: Default</SelectItem>
               <SelectItem value="low-high">Usage: Low to High</SelectItem>
@@ -1507,7 +1558,7 @@ export default function EnergyCustomersPage() {
             </SelectContent>
           </Select>
 
-          <Button variant="outline" onClick={() => setShowFilterSidebar(true)} className="relative flex-shrink-0">
+          <Button variant="outline" onClick={() => setShowFilterSidebar(true)} className="relative min-w-0">
             <Filter className="mr-2 h-4 w-4" />
             All Filters
             {(isAdmin && salespersonFilter !== "All") && (
@@ -1516,7 +1567,13 @@ export default function EnergyCustomersPage() {
           </Button>
         </div>
 
-        <div className="flex gap-2 items-center flex-shrink-0">
+        <div className="flex flex-wrap items-center gap-2 xl:justify-end">
+          {isAdmin && (
+            <Button onClick={downloadRenewalsCsv} variant="outline" disabled={filteredCustomers.length === 0}>
+              <Download className="mr-2 h-4 w-4" />
+              Download Renewals
+            </Button>
+          )}
           <Button onClick={() => setShowImportModal(true)} variant="outline">
             <Upload className="mr-2 h-4 w-4" />
             Bulk Import
@@ -2101,8 +2158,18 @@ export default function EnergyCustomersPage() {
             )}
             {isDateRequired() && (
               <div className="space-y-2">
-                <label className="text-sm font-medium">Callback Date</label>
+                <label className="text-sm font-medium">
+                  {callbackStatus === "Already Renewed" || callbackStatus === "Sold" ? "Action Date" : "Callback Date"}
+                </label>
                 <Input type="date" value={callbackDate} onChange={(e) => setCallbackDate(e.target.value)} />
+              </div>
+            )}
+            {(callbackStatus === "Already Renewed" || callbackStatus === "Sold") && renewedBy === "agent" && (
+              <div className="space-y-2">
+                <label className="text-sm font-medium">
+                  Contract Start Date <span className="text-red-500">*</span>
+                </label>
+                <Input type="date" value={newStartDate} onChange={(e) => setNewStartDate(e.target.value)} />
               </div>
             )}
             {statusConfig[callbackStatus]?.requiresNewEndDate && (
@@ -2110,26 +2177,38 @@ export default function EnergyCustomersPage() {
                 <label className="text-sm font-medium">New Contract End Date {callbackStatus === "End Date Changed" ? "*" : ""}</label>
                 <Input type="date" value={newEndDate} onChange={(e) => setNewEndDate(e.target.value)} />
                 <p className="text-xs text-gray-500">
-                  {callbackStatus === "Already Renewed" ? "Optional: Update if the contract end date has changed" : "The contract end date will be updated to this new date"}
+                  {callbackStatus === "Already Renewed" || callbackStatus === "Sold" ? "Update if the contract end date has changed" : "The contract end date will be updated to this new date"}
                 </p>
               </div>
             )}
-            {callbackStatus === "Already Renewed" && (
+            {(callbackStatus === "Already Renewed" || callbackStatus === "Sold") && (
               <div className="space-y-2">
-                <label className="text-sm font-medium">Renewed By <span className="text-red-500">*</span></label>
+                <label className="text-sm font-medium">
+                  {callbackStatus === "Sold" ? "Sold By" : "Renewed By"} <span className="text-red-500">*</span>
+                </label>
                 <div className="flex flex-col gap-2 p-3 border rounded-lg bg-gray-50">
-                  <label className="flex items-center gap-3 cursor-pointer">
-                    <input type="radio" name="renewedBy" value="customer" checked={renewedBy === "customer"} onChange={() => setRenewedBy("customer")} className="w-4 h-4 accent-black" />
-                    <div>
-                      <span className="text-sm font-medium text-gray-900">Renewed by Customer</span>
-                      <p className="text-xs text-gray-500">Customer renewed directly without agent</p>
-                    </div>
-                  </label>
+                  {callbackStatus === "Sold" ? (
+                    <label className="flex items-center gap-3 cursor-pointer">
+                      <input type="radio" name="renewedBy" value="supplier" checked={renewedBy === "supplier"} onChange={() => setRenewedBy("supplier")} className="w-4 h-4 accent-black" />
+                      <div>
+                        <span className="text-sm font-medium text-gray-900">Sold by Supplier</span>
+                        <p className="text-xs text-gray-500">Sold directly by supplier</p>
+                      </div>
+                    </label>
+                  ) : (
+                    <label className="flex items-center gap-3 cursor-pointer">
+                      <input type="radio" name="renewedBy" value="customer" checked={renewedBy === "customer"} onChange={() => setRenewedBy("customer")} className="w-4 h-4 accent-black" />
+                      <div>
+                        <span className="text-sm font-medium text-gray-900">Renewed by Customer</span>
+                        <p className="text-xs text-gray-500">Customer renewed directly without agent</p>
+                      </div>
+                    </label>
+                  )}
                   <label className="flex items-center gap-3 cursor-pointer">
                     <input type="radio" name="renewedBy" value="agent" checked={renewedBy === "agent"} onChange={() => setRenewedBy("agent")} className="w-4 h-4 accent-black" />
                     <div>
-                      <span className="text-sm font-medium text-gray-900">Renewed by Agent</span>
-                      <p className="text-xs text-gray-500">Agent successfully renewed the contract</p>
+                      <span className="text-sm font-medium text-gray-900">{callbackStatus === "Sold" ? "Sold by Agent" : "Renewed by Agent"}</span>
+                      <p className="text-xs text-gray-500">{callbackStatus === "Sold" ? "Agent sold the contract" : "Agent successfully renewed the contract"}</p>
                     </div>
                   </label>
                 </div>

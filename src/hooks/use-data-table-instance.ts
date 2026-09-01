@@ -51,7 +51,10 @@ export function useDataTableInstance<TData, TValue>({
       pagination,
     },
     enableRowSelection,
-    getRowId: getRowId ?? ((row) => (row as any).id.toString()),
+    getRowId: getRowId ?? ((row, index) => {
+      const rawId = (row as any)?.id ?? (row as any)?.client_id ?? (row as any)?.opportunity_id;
+      return rawId != null ? String(rawId) : String(index);
+    }),
     onRowSelectionChange: setRowSelection,
     onSortingChange: setSorting,
     onColumnFiltersChange: setColumnFilters,

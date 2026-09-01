@@ -30,6 +30,7 @@ type NotificationContextType = {
 const NotificationContext = createContext<NotificationContextType | undefined>(undefined);
 
 const POLL_INTERVAL_MS = 60_000; // 60 seconds
+const NOTIFICATION_SOUND_PATH = process.env.NEXT_PUBLIC_NOTIFICATION_SOUND_PATH;
 
 export function NotificationProvider({ children }: { children: ReactNode }) {
   const [notifications, setNotifications] = useState<Notification[]>([]);
@@ -68,8 +69,8 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
       const data = await api.getNotifications();
       consecutiveFailsRef.current = 0;
 
-      const newNotifications: Notification[] = data.notifications || [];
-      const newUnreadCount: number = data.unread_count || 0;
+      const newNotifications: Notification[] = Array.isArray(data?.notifications) ? data.notifications : [];
+      const newUnreadCount: number = Number(data?.unread_count) || 0;
 
       setNotifications(newNotifications);
       setUnreadCount(newUnreadCount);
@@ -84,8 +85,8 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
           (n) => !n.read && n.priority === 'urgent'
         );
 
-        if (hasUrgent) {
-          const audio = new Audio('/notification-sound.mp3');
+        if (hasUrgent && NOTIFICATION_SOUND_PATH) {
+          const audio = new Audio(NOTIFICATION_SOUND_PATH);
           audio.volume = 1.0;
           audio.play().catch(() => {});
 

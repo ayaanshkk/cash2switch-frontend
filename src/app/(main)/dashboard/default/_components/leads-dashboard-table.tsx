@@ -175,7 +175,7 @@ export function LeadsDashboardTable({ employeeId }: LeadsDashboardTableProps) {
   const table = useDataTableInstance({
     data: leads,
     columns,
-    getRowId: (row) => row.opportunity_id.toString(),
+    getRowId: (row, index) => (row.opportunity_id != null ? String(row.opportunity_id) : String(index)),
   });
 
   if (loading) {

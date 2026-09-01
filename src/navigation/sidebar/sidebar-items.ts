@@ -26,8 +26,8 @@ import {
   Bot,
   Bell,
   ClipboardList,
-  DollarSign,
   ClipboardCheck,
+  DollarSign,
   History,
   TrendingUp,
   Phone,
@@ -199,6 +199,12 @@ const allSidebarItems: NavGroup[] = [
             title: "Agent Commissions",
             url: "/dashboard/payments/agent-commissions",
             icon: BadgePoundSterling,
+            roles: ["platform admin"],
+          },
+          {
+            title: "Already Renewed",
+            url: "/dashboard/payments/already-renewed",
+            icon: ClipboardCheck,
             roles: ["platform admin"],
           },
           {

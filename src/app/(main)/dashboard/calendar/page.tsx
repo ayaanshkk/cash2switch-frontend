@@ -481,7 +481,7 @@ export default function CalendarPage() {
       }
 
       if (!isLeadEvent && (callbackChanged || endDateChanged || notesChanged)) {
-        await fetchWithAuth(`/backend-api/api/calendar/renewals/${renewalSnapshot.customer_id}/schedule`, {
+        await fetchWithAuth(`/api/calendar/renewals/${renewalSnapshot.customer_id}/schedule`, {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({

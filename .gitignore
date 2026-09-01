@@ -1,6 +1,26 @@
 .vercel
 .next/
-.node_modules/
 .next/type
 .next/types
-node_modules
+node_modules/
+
+# Environment (use Vercel/host env vars for production)
+.env
+.env.*
+!.env.example
+
+# Python / tooling caches (if present in frontend repo)
+__pycache__/
+*.pyc
+.pytest_cache/
+.mypy_cache/
+
+# Local virtualenvs
+.venv/
+.venv-new/
+
+# Local databases / logs
+instance/
+local.db
+backend/local.db
+*.log

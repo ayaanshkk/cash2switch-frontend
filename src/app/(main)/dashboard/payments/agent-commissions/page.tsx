@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { useAuth } from "@/contexts/AuthContext";
-import { fetchWithAuth } from "@/lib/api";
+import { API_BASE_URL, fetchWithAuth } from "@/lib/api";
 
 type CommissionItem = {
   id?: string;
@@ -94,8 +94,8 @@ export default function AgentCommissionsPage() {
   }, [items, searchTerm]);
 
   const adminTotals = useMemo(
-    () =>
-      batches.reduce(
+    () => {
+      const batchTotals = batches.reduce(
         (acc, batch) => {
           acc.total += Number(batch.total_amount || 0);
           if (batch.status === "Commission Paid") acc.paid += Number(batch.total_amount || 0);
@@ -103,8 +103,18 @@ export default function AgentCommissionsPage() {
           return acc;
         },
         { total: 0, paid: 0, awaiting: 0 },
-      ),
-    [batches],
+      );
+      const unbatchedAwaiting = items
+        .filter((item) => !item.batch_id)
+        .reduce((total, item) => total + Number(item.commission_amount || 0), 0);
+
+      return {
+        total: batchTotals.total + unbatchedAwaiting,
+        paid: batchTotals.paid,
+        awaiting: batchTotals.awaiting + unbatchedAwaiting,
+      };
+    },
+    [batches, items],
   );
 
   const agentStatus = useMemo(() => {
@@ -180,7 +190,7 @@ export default function AgentCommissionsPage() {
 
     try {
       const token = localStorage.getItem("auth_token") || localStorage.getItem("token");
-      const res = await fetch(`/backend-api/api/commission/batches/${batchId}/statement`, {
+      const res = await fetch(`${API_BASE_URL}/api/commission/batches/${batchId}/statement`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (!res.ok) throw new Error(`Download failed: ${res.status}`);
@@ -380,6 +390,7 @@ export default function AgentCommissionsPage() {
                     <th className="px-4 py-3">Agent</th>
                     <th className="px-4 py-3">Client</th>
                     <th className="px-4 py-3 text-right">Supplier Receipt</th>
+                    <th className="px-4 py-3 text-right">Rate</th>
                     <th className="px-4 py-3 text-right">Commission</th>
                   </tr>
                 </thead>
@@ -391,6 +402,14 @@ export default function AgentCommissionsPage() {
                         <td className="px-4 py-3">{item.agent_name}</td>
                         <td className="px-4 py-3 font-medium">{item.client_name || "Client"}</td>
                         <td className="px-4 py-3 text-right">{formatMoney(item.receipt_amount)}</td>
+                        <td className="px-4 py-3 text-right">
+                          {Number(item.commission_rate || 0).toFixed(2)}%
+                          {Number(item.commission_rate || 0) === 0 && (
+                            <span className="ml-2 rounded bg-red-50 px-2 py-0.5 text-xs font-medium text-red-700">
+                              Missing
+                            </span>
+                          )}
+                        </td>
                         <td className="px-4 py-3 text-right font-semibold">{formatMoney(item.commission_amount)}</td>
                       </tr>
                     ))}

@@ -509,8 +509,8 @@ export default function DraftsPage() {
       </div>
 
       {/* Inline filters */}
-      <div className="mb-4 flex flex-wrap items-center gap-3">
-        <div className="relative flex-1 min-w-[200px] max-w-[300px]">
+      <div className="mb-4 grid grid-cols-[repeat(auto-fit,minmax(160px,1fr))] gap-3">
+        <div className="relative min-w-0 sm:col-span-2 xl:col-span-1">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
           <Input
             placeholder="Search clients…"
@@ -520,7 +520,7 @@ export default function DraftsPage() {
           />
         </div>
         <Select value={selectedSupplier} onValueChange={setSelectedSupplier}>
-          <SelectTrigger className="w-[180px]">
+          <SelectTrigger className="w-full min-w-0">
             <SelectValue placeholder="All Suppliers" />
           </SelectTrigger>
           <SelectContent>
@@ -533,7 +533,7 @@ export default function DraftsPage() {
           </SelectContent>
         </Select>
         <Select value={endDateFilter} onValueChange={(v) => setEndDateFilter(v as typeof endDateFilter)}>
-          <SelectTrigger className="w-[200px]">
+          <SelectTrigger className="w-full min-w-0">
             <SelectValue placeholder="Contract End" />
           </SelectTrigger>
           <SelectContent>
@@ -546,7 +546,7 @@ export default function DraftsPage() {
           </SelectContent>
         </Select>
         <Select value={usageSort} onValueChange={(v) => setUsageSort(v as typeof usageSort)}>
-          <SelectTrigger className="w-[180px]">
+          <SelectTrigger className="w-full min-w-0">
             <SelectValue placeholder="Usage Sort" />
           </SelectTrigger>
           <SelectContent>

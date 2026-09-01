@@ -100,13 +100,12 @@ export default function PricedPage() {
   const fetchPriced = async () => {
     try {
       setLoading(true);
-      const [leadResponse, renewalResponse] = await Promise.all([
-        fetchWithAuth(`/api/crm/leads/priced?service=${encodeURIComponent(service)}`),
-        fetchWithAuth(`/energy-clients/priced?service=${encodeURIComponent(service)}`),
-      ]);
+      const pricedResponse = await fetchWithAuth(
+        `/api/crm/priced?service=${encodeURIComponent(service)}`
+      );
 
-      const leadRows = Array.isArray(leadResponse) ? leadResponse : leadResponse?.data || [];
-      const renewalRows = Array.isArray(renewalResponse) ? renewalResponse : renewalResponse?.data || [];
+      const leadRows = Array.isArray(pricedResponse?.leads) ? pricedResponse.leads : [];
+      const renewalRows = Array.isArray(pricedResponse?.renewals) ? pricedResponse.renewals : [];
 
       setLeads(leadRows.map(normalizeLead));
       setRenewals(renewalRows.map(normalizeRenewal));

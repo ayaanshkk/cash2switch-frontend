@@ -63,7 +63,9 @@ export async function fetchWithAuth(url: string, options: RequestInit = {}) {
 
   const isAbsoluteUrl = url.startsWith("http");
   const isProxyPath = url.startsWith("/backend-api/");
-  const isAuthProxyPath = url.startsWith("/auth/");
+  const isDirectBackendAuthPath =
+    url === "/auth/me" || url.startsWith("/auth/me?");
+  const isAuthProxyPath = url.startsWith("/auth/") && !isDirectBackendAuthPath;
   const isBackendApiPath =
     url.startsWith("/api/crm/") ||
     url.startsWith("/api/admin/") ||
@@ -72,20 +74,21 @@ export async function fetchWithAuth(url: string, options: RequestInit = {}) {
     url.startsWith("/api/commission/") ||
     url.startsWith("/api/task-status/");
   const isOtherNextApiPath = url.startsWith("/api/") && !isBackendApiPath;
-  const isBackendRootPath = url.startsWith("/") && !isProxyPath && !isAuthProxyPath && !isOtherNextApiPath;
 
-  // ✅ Declare method early so it can be used for URL routing
+  // ✅ Declare method early so it can be used for retries
   const method = (options.method || "GET").toUpperCase();
-  const isMutatingRequest = ["PATCH", "POST", "PUT", "DELETE"].includes(method);
 
+  // GETs used to be rewritten to `/backend-api${url}` so the browser called the
+  // Vercel origin and Next.js proxied via next.config rewrites. After the
+  // Hetzner move that proxy 403s (CORS allow-origin still localhost). Login
+  // already goes direct via API_BASE_URL; use the same host for backend calls.
   let fullUrl = url;
-  if (isAbsoluteUrl || isProxyPath || isAuthProxyPath || isOtherNextApiPath) {
+  if (isAbsoluteUrl || isAuthProxyPath || isOtherNextApiPath) {
     fullUrl = url;
-  } else if (isMutatingRequest && (isBackendApiPath || isBackendRootPath)) {
-    // Bypass proxy — go direct to backend for writes
-    fullUrl = `${API_BASE_URL}${url}`;
-  } else if (isBackendApiPath || isBackendRootPath) {
-    fullUrl = `/backend-api${url}`;
+  } else if (isProxyPath) {
+    // Legacy /backend-api/* callers: strip the Vercel proxy prefix and go
+    // direct to Hetzner. /backend-api/api/crm/leads → ${API_BASE_URL}/api/crm/leads
+    fullUrl = `${API_BASE_URL}${url.slice("/backend-api".length)}`;
   } else {
     fullUrl = `${API_BASE_URL}${url}`;
   }
@@ -189,9 +192,12 @@ export async function fetchPublic(url: string, options: RequestInit = {}) {
     headers["Content-Type"] = "application/json";
   }
 
-  // ✅ CRITICAL FIX: Only /backend-api/ should be treated as proxy
   const isProxyPath = url.startsWith("/backend-api/");
-  const fullUrl = (url.startsWith("http") || isProxyPath) ? url : `${API_BASE_URL}${url}`;
+  const fullUrl = url.startsWith("http")
+    ? url
+    : isProxyPath
+      ? `${API_BASE_URL}${url.slice("/backend-api".length)}`
+      : `${API_BASE_URL}${url}`;
 
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 30000); // 30s timeout
@@ -287,16 +293,16 @@ export const api = {
     }),
 
   // ==================== CALENDAR ====================
-  getContractSchedule: () => fetchWithAuth("/backend-api/api/calendar/contracts"),
-  getCalendarClients: () => fetchWithAuth("/backend-api/api/calendar/clients"),
-  getCalendarEmployees: () => fetchWithAuth("/backend-api/api/calendar/employees"),
+  getContractSchedule: () => fetchWithAuth("/api/calendar/contracts"),
+  getCalendarClients: () => fetchWithAuth("/api/calendar/clients"),
+  getCalendarEmployees: () => fetchWithAuth("/api/calendar/employees"),
   
   getCalendarRenewals: (employeeId?: number) => {
     const params = new URLSearchParams();
     if (employeeId !== undefined) {
       params.append('employee_id', employeeId.toString());
     }
-    const url = `/backend-api/api/calendar/renewals${params.toString() ? '?' + params.toString() : ''}`;
+    const url = `/api/calendar/renewals${params.toString() ? '?' + params.toString() : ''}`;
     console.log("📡 Calendar API URL:", url);
     return fetchWithAuth(url, { timeoutMs: 120000 } as RequestInit & { timeoutMs: number });
   },
@@ -304,12 +310,12 @@ export const api = {
   getCalendarLeads: (employeeId?: number, service = 'utilities') => {
     const params = new URLSearchParams({ service });
     if (employeeId) params.set('employee_id', String(employeeId));
-    return fetchWithAuth(`/backend-api/api/calendar/leads?${params}`, { timeoutMs: 120000 } as RequestInit & { timeoutMs: number });
+    return fetchWithAuth(`/api/calendar/leads?${params}`, { timeoutMs: 120000 } as RequestInit & { timeoutMs: number });
   },
 
   // ==================== NOTIFICATIONS ====================
   getNotifications: () => fetchWithAuth("/notifications/production"),
-  
+
   markNotificationAsRead: (id: string) =>
     fetchWithAuth(`/notifications/mark-read/${id}`, {
       method: "PATCH",

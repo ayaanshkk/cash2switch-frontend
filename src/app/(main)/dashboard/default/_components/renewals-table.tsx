@@ -254,7 +254,7 @@ export function RenewalsTable({ employeeId }: RenewalsTableProps = {}) {
   const table = useDataTableInstance({
     data: renewals,
     columns,
-    getRowId: (row) => row.client_id.toString(),
+    getRowId: (row, index) => (row.client_id != null ? String(row.client_id) : String(index)),
   });
 
   if (loading) {

@@ -38,7 +38,7 @@ function extractDisplayId(message: string): string | null {
 function getNotificationIcon(n: Notification) {
   if (n.notification_type === 'assignment') return '📋';
   if (n.priority === 'urgent') return '🚨';
-  if (n.notification_type.includes('expiry')) return '⏰';
+  if (n.notification_type?.includes('expiry')) return '⏰';
   return '📌';
 }
 
@@ -98,13 +98,13 @@ const NotificationsPage = () => {
     setSelectedNotifications(new Set());
   };
 
-  const expiryCount = notifications.filter(n => n.notification_type.includes('expiry')).length;
+  const expiryCount = notifications.filter(n => n.notification_type?.includes('expiry')).length;
   const assignmentCount = notifications.filter(n => n.notification_type === 'assignment').length;
 
   const filteredNotifications = notifications.filter((n: Notification) => {
     if (activeTab === 'unread') return !n.read;
     if (activeTab === 'read') return n.read;
-    if (activeTab === 'expiry') return n.notification_type.includes('expiry');
+    if (activeTab === 'expiry') return n.notification_type?.includes('expiry');
     if (activeTab === 'assignments') return n.notification_type === 'assignment';
     return true;
   }).filter((n: Notification) =>

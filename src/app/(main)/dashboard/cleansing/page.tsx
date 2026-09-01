@@ -258,7 +258,7 @@ export default function CleansingPage() {
       const endpoint =
         record.source === "lead"
           ? `/api/crm/leads/${record.id}/cleanse`
-          : `/api/energy-clients/${record.client_id}/cleanse`;
+          : `/energy-clients/${record.client_id}/cleanse`;
 
       await fetchWithAuth(endpoint, {
         method: "POST",
@@ -284,7 +284,7 @@ export default function CleansingPage() {
         const endpoint =
           r.source === "lead"
             ? `/api/crm/leads/${r.id}/cleanse`
-            : `/api/energy-clients/${r.client_id}/cleanse`;
+            : `/energy-clients/${r.client_id}/cleanse`;
         return fetchWithAuth(endpoint, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -333,7 +333,7 @@ export default function CleansingPage() {
   // RENDER
   // ================================================================
   return (
-    <div className="w-full p-6">
+    <div className="w-full max-w-full overflow-x-hidden p-6">
       <Toaster position="top-right" />
       <h1 className="mb-6 text-4xl font-semibold tracking-tight text-slate-900">Cleansing</h1>
 
@@ -411,9 +411,9 @@ export default function CleansingPage() {
       )}
 
       {/* Search & Filter Bar — same layout as renewals */}
-      <div className="mb-6 flex flex-wrap gap-3 justify-between">
-        <div className="flex flex-wrap gap-3">
-          <div className="relative w-64">
+      <div className="mb-6 grid grid-cols-1 gap-3 xl:grid-cols-[minmax(0,1fr)_auto]">
+        <div className="grid min-w-0 grid-cols-[repeat(auto-fit,minmax(150px,1fr))] gap-3">
+          <div className="relative min-w-0 sm:col-span-2 xl:col-span-1">
             <Search className="text-muted-foreground absolute top-2.5 left-2 h-4 w-4" />
             <Input
               placeholder="Search records..."
@@ -425,10 +425,10 @@ export default function CleansingPage() {
 
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="outline">
+              <Button variant="outline" className="min-w-0 justify-between">
                 <Filter className="mr-2 h-4 w-4" />
-                {reasonFilter === "All" ? "All Reasons" : reasonFilter}
-                <ChevronDown className="ml-1 h-3 w-3" />
+                <span className="truncate">{reasonFilter === "All" ? "All Reasons" : reasonFilter}</span>
+                <ChevronDown className="ml-1 h-3 w-3 flex-shrink-0" />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent>
@@ -440,7 +440,7 @@ export default function CleansingPage() {
           </DropdownMenu>
         </div>
 
-        <div className="flex gap-2 items-center">
+        <div className="flex flex-wrap items-center gap-2 xl:justify-end">
           <Button variant="outline" onClick={fetchRecords}>
             <RotateCcw className="mr-2 h-4 w-4" />
             Refresh
@@ -682,14 +682,25 @@ export default function CleansingPage() {
                               )
                             );
                             // persist
-                            const endpoint = record.source === "lead"
-                              ? `/api/crm/leads/${record.id}/cleanse-assign`
-                              : `/api/energy-clients/${record.client_id}`;
-                            fetchWithAuth(endpoint, {
-                              method: "POST",
-                              headers: { "Content-Type": "application/json" },
-                              body: JSON.stringify({ assigned_to_id: value === "0" ? null : parseInt(value) }),
-                            }).catch(() => toast.error("Failed to assign"));
+                            if (record.source === "lead") {
+                              const empId = value === "0" ? null : parseInt(value);
+                              fetchWithAuth("/api/crm/leads/assign", {
+                                method: "PATCH",
+                                headers: { "Content-Type": "application/json" },
+                                body: JSON.stringify({
+                                  lead_ids: [record.id],
+                                  employee_id: empId,
+                                }),
+                              }).catch(() => toast.error("Failed to assign"));
+                            } else {
+                              fetchWithAuth(`/energy-clients/${record.client_id}`, {
+                                method: "PUT",
+                                headers: { "Content-Type": "application/json" },
+                                body: JSON.stringify({
+                                  assigned_to_id: value === "0" ? null : parseInt(value),
+                                }),
+                              }).catch(() => toast.error("Failed to assign"));
+                            }
                           }}
                         >
                           <SelectTrigger className="h-7 text-xs w-full max-w-[150px]">

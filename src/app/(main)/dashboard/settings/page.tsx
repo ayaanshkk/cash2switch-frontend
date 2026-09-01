@@ -82,6 +82,7 @@ export default function SettingsPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [resendingUserId, setResendingUserId] = useState<number | null>(null);
   const [deletingEmployeeId, setDeletingEmployeeId] = useState<number | null>(null);
+  const [updatingRoleEmployeeId, setUpdatingRoleEmployeeId] = useState<number | null>(null);
 
 
   // ── Bootstrap ───────────────────────────────────────────────────────────────
@@ -211,6 +212,36 @@ export default function SettingsPage() {
   const copyInviteLink = (link?: string) => {
     navigator.clipboard.writeText(link || generatedInviteLink);
     alert("Link copied to clipboard!");
+  };
+
+  const handleUpdateMemberRole = async (member: TeamMember, roleId: string) => {
+    if (!member.user_id || String(member.role_id || "") === roleId) return;
+    setUpdatingRoleEmployeeId(member.employee_id);
+    try {
+      const token = localStorage.getItem("auth_token");
+      const res = await fetch(`${API_BASE_URL}/auth/invite/update-role/${member.employee_id}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ role_id: parseInt(roleId) }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to update role");
+      setMembers((current) =>
+        current.map((item) =>
+          item.employee_id === member.employee_id
+            ? { ...item, role_id: data.role_id, role: data.role }
+            : item,
+        ),
+      );
+      alert("User permissions updated");
+    } catch (err: any) {
+      alert(err.message || "Failed to update user permissions");
+    } finally {
+      setUpdatingRoleEmployeeId(null);
+    }
   };
 
   const handleDeleteMember = async (employeeId: number, employeeName: string) => {
@@ -400,11 +431,22 @@ return (
                       </div>
                     </div>
 
-                    {member.role && (
-                      <span className="inline-flex rounded-full bg-blue-100 px-3 py-1 text-xs font-semibold text-blue-800">
-                        {member.role}
-                      </span>
-                    )}
+                    <div className="w-44">
+                      <Select
+                        value={member.role_id ? String(member.role_id) : ""}
+                        onValueChange={(roleId) => handleUpdateMemberRole(member, roleId)}
+                        disabled={!member.user_id || updatingRoleEmployeeId === member.employee_id}
+                      >
+                        <SelectTrigger className="h-9">
+                          <SelectValue placeholder={member.role || "Select role"} />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="2">Platform Admin</SelectItem>
+                          <SelectItem value="3">Salesperson</SelectItem>
+                          <SelectItem value="5">Leads Offshore</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
 
                     {member.is_invite_pending ? (
                       <span className="inline-flex rounded-full bg-orange-100 px-3 py-1 text-xs font-semibold text-orange-800">

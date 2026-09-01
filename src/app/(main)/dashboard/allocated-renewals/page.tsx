@@ -454,7 +454,7 @@ export default function AllocatedContactsPage() {
   const colSpan = isAdmin ? 14 : 13;
 
   return (
-    <div className="w-full p-6">
+    <div className="w-full max-w-full overflow-x-hidden p-6">
       <Toaster position="top-right" />
 
       <h1 className="mb-2 text-4xl font-semibold tracking-tight text-slate-900">Allocated Renewals</h1>
@@ -549,8 +549,8 @@ export default function AllocatedContactsPage() {
       )}
 
       {/* Search & Filters */}
-      <div className="mb-6 flex flex-wrap gap-3">
-        <div className="relative w-64">
+      <div className="mb-6 grid grid-cols-[repeat(auto-fit,minmax(150px,1fr))] gap-3">
+        <div className="relative min-w-0 sm:col-span-2 xl:col-span-1">
           <Search className="text-muted-foreground absolute top-2.5 left-2 h-4 w-4" />
           <Input
             placeholder="Search contacts..."
@@ -564,12 +564,14 @@ export default function AllocatedContactsPage() {
         {isAdmin && (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="outline">
+              <Button variant="outline" className="min-w-0 justify-between">
                 <Users className="mr-2 h-4 w-4" />
-                {salespersonFilter === "All"
-                  ? "All Salespersons"
-                  : employees.find(e => e.employee_id === salespersonFilter)?.employee_name || "Salesperson"}
-                <ChevronDown className="ml-1 h-3 w-3" />
+                <span className="truncate">
+                  {salespersonFilter === "All"
+                    ? "All Salespersons"
+                    : employees.find(e => e.employee_id === salespersonFilter)?.employee_name || "Salesperson"}
+                </span>
+                <ChevronDown className="ml-1 h-3 w-3 flex-shrink-0" />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent>
@@ -586,10 +588,10 @@ export default function AllocatedContactsPage() {
         {/* Supplier filter */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="outline">
+            <Button variant="outline" className="min-w-0 justify-between">
               <Filter className="mr-2 h-4 w-4" />
-              {supplierFilter === "All" ? "All Suppliers" : getSupplierName(supplierFilter as number)}
-              <ChevronDown className="ml-1 h-3 w-3" />
+              <span className="truncate">{supplierFilter === "All" ? "All Suppliers" : getSupplierName(supplierFilter as number)}</span>
+              <ChevronDown className="ml-1 h-3 w-3 flex-shrink-0" />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent>
@@ -605,10 +607,10 @@ export default function AllocatedContactsPage() {
         {/* Status filter */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="outline">
+            <Button variant="outline" className="min-w-0 justify-between">
               <Filter className="mr-2 h-4 w-4" />
-              {statusFilter === "All" ? "All Status" : getStatusLabel(statusFilter as string)}
-              <ChevronDown className="ml-1 h-3 w-3" />
+              <span className="truncate">{statusFilter === "All" ? "All Status" : getStatusLabel(statusFilter as string)}</span>
+              <ChevronDown className="ml-1 h-3 w-3 flex-shrink-0" />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent>
@@ -621,7 +623,7 @@ export default function AllocatedContactsPage() {
 
         {/* End date filter */}
         <Select value={endDateFilter} onValueChange={(v: any) => setEndDateFilter(v)}>
-          <SelectTrigger className="w-52"><SelectValue /></SelectTrigger>
+          <SelectTrigger className="w-full min-w-0"><SelectValue /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All Contracts</SelectItem>
             <SelectItem value="365">Ending in 0-365 days</SelectItem>
@@ -635,7 +637,7 @@ export default function AllocatedContactsPage() {
 
         {/* Usage sort */}
         <Select value={usageSort} onValueChange={(v: any) => setUsageSort(v)}>
-          <SelectTrigger className="w-48"><SelectValue /></SelectTrigger>
+          <SelectTrigger className="w-full min-w-0"><SelectValue /></SelectTrigger>
           <SelectContent>
             <SelectItem value="none">Usage: Default</SelectItem>
             <SelectItem value="low-high">Usage: Low to High</SelectItem>

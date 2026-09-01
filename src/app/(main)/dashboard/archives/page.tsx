@@ -370,7 +370,7 @@ export default function ArchivesPage() {
   };
 
   return (
-    <div className="w-full p-6">
+    <div className="w-full max-w-full overflow-x-hidden p-6">
       <Toaster position="top-right" />
       
       <h1 className="mb-6 text-4xl font-semibold tracking-tight text-slate-900">
@@ -441,9 +441,9 @@ export default function ArchivesPage() {
       )}
 
       {/* ✅ NEW: Search and Filter Bar with Sort AND Salesperson Filter */}
-      <div className="mb-6 flex flex-wrap gap-3 justify-between">
-        <div className="flex flex-wrap gap-3">
-          <div className="relative w-64">
+      <div className="mb-6 grid grid-cols-1 gap-3 xl:grid-cols-[minmax(0,1fr)_auto]">
+        <div className="grid min-w-0 grid-cols-[repeat(auto-fit,minmax(150px,1fr))] gap-3">
+          <div className="relative min-w-0 sm:col-span-2 xl:col-span-1">
             <Search className="text-muted-foreground absolute top-2.5 left-2 h-4 w-4" />
             <Input
               placeholder="Search archives..."
@@ -456,10 +456,10 @@ export default function ArchivesPage() {
           {/* Supplier Filter */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="outline">
+              <Button variant="outline" className="min-w-0 justify-between">
                 <Filter className="mr-2 h-4 w-4" />
-                {supplierFilter === "All" ? "All Suppliers" : getSupplierName(supplierFilter as number)}
-                <ChevronDown className="ml-1 h-3 w-3" />
+                <span className="truncate">{supplierFilter === "All" ? "All Suppliers" : getSupplierName(supplierFilter as number)}</span>
+                <ChevronDown className="ml-1 h-3 w-3 flex-shrink-0" />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent>
@@ -481,12 +481,14 @@ export default function ArchivesPage() {
           {isAdmin && (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="outline">
+                <Button variant="outline" className="min-w-0 justify-between">
                   <Users className="mr-2 h-4 w-4" />
-                  {salespersonFilter === "All" 
-                    ? "All Salespeople" 
-                    : employees.find(e => e.employee_id === salespersonFilter)?.employee_name || "All Salespeople"}
-                  <ChevronDown className="ml-1 h-3 w-3" />
+                  <span className="truncate">
+                    {salespersonFilter === "All" 
+                      ? "All Salespeople" 
+                      : employees.find(e => e.employee_id === salespersonFilter)?.employee_name || "All Salespeople"}
+                  </span>
+                  <ChevronDown className="ml-1 h-3 w-3 flex-shrink-0" />
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent>
@@ -507,7 +509,7 @@ export default function ArchivesPage() {
 
           {/* Sort Filter */}
           <Select value={sortOrder} onValueChange={(value: "newest" | "oldest") => setSortOrder(value)}>
-            <SelectTrigger className="w-40">
+            <SelectTrigger className="w-full min-w-0">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -517,7 +519,7 @@ export default function ArchivesPage() {
           </Select>
         </div>
 
-        <div className="flex gap-2">
+        <div className="flex flex-wrap items-center gap-2 xl:justify-end">
           <Button
             variant="outline"
             onClick={loadArchives}

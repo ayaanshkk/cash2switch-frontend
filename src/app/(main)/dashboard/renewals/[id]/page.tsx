@@ -324,6 +324,15 @@ const formatDateTime = (dateString?: string | null) => {
   }
 };
 
+const getActionOptionLabelFromNotes = (notes?: string | null) => {
+  const raw = notes || "";
+  if (raw.includes("[Renewed by Agent]")) return "Renewed by Agent";
+  if (raw.includes("[Renewed by Customer]")) return "Renewed by Customer";
+  if (raw.includes("[Sold by Agent]")) return "Sold by Agent";
+  if (raw.includes("[Sold by Supplier]")) return "Sold by Supplier";
+  return "";
+};
+
 const paymentStatusClass = (status?: string) => {
   const normalized = String(status || "").toLowerCase();
   if (normalized === "received" || normalized === "commission paid") return "bg-emerald-100 text-emerald-700";
@@ -361,6 +370,7 @@ export default function EnergyCustomerDetailsPage() {
   const [callbackDate, setCallbackDate] = useState("");
   const [callbackNotes, setCallbackNotes] = useState("");
   const [isSold, setIsSold] = useState<string>("");
+  const [newStartDate, setNewStartDate] = useState("");
   const [newEndDate, setNewEndDate] = useState("");
   const [isSubmittingCallback, setIsSubmittingCallback] = useState(false);
   const [callbackError, setCallbackError] = useState("");
@@ -371,6 +381,19 @@ export default function EnergyCustomerDetailsPage() {
   const [paymentLog, setPaymentLog] = useState<CustomerPaymentLog | null>(null);
   const [loadingPaymentLog, setLoadingPaymentLog] = useState(false);
   const [paymentLogError, setPaymentLogError] = useState<string | null>(null);
+  const [savingPaymentReceipt, setSavingPaymentReceipt] = useState(false);
+  const [activePaymentReceiptId, setActivePaymentReceiptId] = useState<string | null>(null);
+  const [paymentReceiptDraft, setPaymentReceiptDraft] = useState({
+    amount_received: "",
+    date_received: new Date().toISOString().slice(0, 10),
+    notes: "",
+  });
+  const [editingPaymentReceiptId, setEditingPaymentReceiptId] = useState<string | null>(null);
+  const [paymentReceiptEditDraft, setPaymentReceiptEditDraft] = useState({
+    amount_received: "",
+    date_received: "",
+    notes: "",
+  });
   const [showAssignmentModal, setShowAssignmentModal] = useState(false);
   const [assigningEmployeeId, setAssigningEmployeeId] = useState<string>("");
   const [assignmentNotes, setAssignmentNotes] = useState("");
@@ -503,6 +526,97 @@ export default function EnergyCustomerDetailsPage() {
       setPaymentLog(null);
     } finally {
       setLoadingPaymentLog(false);
+    }
+  };
+
+  const resetPaymentReceiptDraft = () => {
+    setActivePaymentReceiptId(null);
+    setPaymentReceiptDraft({
+      amount_received: "",
+      date_received: new Date().toISOString().slice(0, 10),
+      notes: "",
+    });
+  };
+
+  const startEditingPaymentReceipt = (receipt: CustomerPaymentLog["receipts"][number]) => {
+    setEditingPaymentReceiptId(receipt.id);
+    setPaymentReceiptEditDraft({
+      amount_received: String(receipt.amount_received || ""),
+      date_received: receipt.date_received || new Date().toISOString().slice(0, 10),
+      notes: receipt.notes || "",
+    });
+  };
+
+  const cancelEditingPaymentReceipt = () => {
+    setEditingPaymentReceiptId(null);
+    setPaymentReceiptEditDraft({ amount_received: "", date_received: "", notes: "" });
+  };
+
+  const submitPaymentReceipt = async (event: React.FormEvent<HTMLFormElement>, paymentId: string) => {
+    event.preventDefault();
+    setSavingPaymentReceipt(true);
+    setPaymentLogError(null);
+    const token = localStorage.getItem("auth_token") || localStorage.getItem("token");
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/commission/payments/${paymentId}/receipts`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          amount_received: Number(paymentReceiptDraft.amount_received),
+          date_received: paymentReceiptDraft.date_received,
+          notes: paymentReceiptDraft.notes,
+        }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data?.message || data?.error || "Failed to log payment receipt");
+
+      resetPaymentReceiptDraft();
+      await loadPaymentLog(resolveClientId());
+    } catch (error) {
+      setPaymentLogError(error instanceof Error ? error.message : "Failed to log payment receipt");
+    } finally {
+      setSavingPaymentReceipt(false);
+    }
+  };
+
+  const submitPaymentReceiptEdit = async (
+    event: React.FormEvent<HTMLFormElement>,
+    receipt: CustomerPaymentLog["receipts"][number],
+  ) => {
+    event.preventDefault();
+    setSavingPaymentReceipt(true);
+    setPaymentLogError(null);
+    const token = localStorage.getItem("auth_token") || localStorage.getItem("token");
+
+    try {
+      const response = await fetch(
+        `${API_BASE_URL}/api/commission/payments/${receipt.commission_payment_id}/receipts/${receipt.id}`,
+        {
+          method: "PATCH",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            amount_received: Number(paymentReceiptEditDraft.amount_received),
+            date_received: paymentReceiptEditDraft.date_received,
+            notes: paymentReceiptEditDraft.notes,
+          }),
+        },
+      );
+      const data = await response.json();
+      if (!response.ok) throw new Error(data?.message || data?.error || "Failed to update payment receipt");
+
+      cancelEditingPaymentReceipt();
+      await loadPaymentLog(resolveClientId());
+    } catch (error) {
+      setPaymentLogError(error instanceof Error ? error.message : "Failed to update payment receipt");
+    } finally {
+      setSavingPaymentReceipt(false);
     }
   };
 
@@ -702,6 +816,7 @@ export default function EnergyCustomerDetailsPage() {
     setCalledDate(new Date().toISOString().split("T")[0]);
     setCallbackNotes("");
     setIsSold("");
+    setNewStartDate("");
     setCallbackError("");
     setShowCallbackModal(true);
     setRenewedBy("");
@@ -725,6 +840,7 @@ export default function EnergyCustomerDetailsPage() {
       (callbackStatus === "Already Renewed" || callbackStatus === "Sold") &&
       !renewedBy &&
       Boolean(callbackDate) &&
+      !newStartDate &&
       !newEndDate &&
       !newSupplier.trim() &&
       !newAddress.trim();
@@ -743,6 +859,11 @@ export default function EnergyCustomerDetailsPage() {
       setCallbackError(
         callbackStatus === "Sold" ? "Please select if sold by supplier or agent" : "Please select if renewed by customer or agent",
       );
+      return;
+    }
+
+    if ((callbackStatus === "Already Renewed" || callbackStatus === "Sold") && renewedBy === "agent" && !newStartDate) {
+      setCallbackError("Please enter the contract start date");
       return;
     }
 
@@ -774,6 +895,10 @@ export default function EnergyCustomerDetailsPage() {
 
       if ((callbackStatus === "Already Renewed" || callbackStatus === "Sold") && renewedBy) {
         payload.renewed_by = renewedBy;
+      }
+
+      if ((callbackStatus === "Already Renewed" || callbackStatus === "Sold") && newStartDate) {
+        payload.new_start_date = newStartDate;
       }
 
       if (config?.requiresSupplierChange && newSupplier.trim()) {
@@ -862,6 +987,7 @@ export default function EnergyCustomerDetailsPage() {
       // Reset form fields only (not status/date)
       setCallbackNotes("");
       setIsSold("");
+      setNewStartDate("");
       setNewEndDate("");
       setNewSupplier("");
       setNewAddress("");
@@ -1801,50 +1927,134 @@ export default function EnergyCustomerDetailsPage() {
                             {paymentLog.is_admin && <th className="px-4 py-3 text-right">Outstanding</th>}
                             <th className="px-4 py-3">Status</th>
                             <th className="px-4 py-3">Last Checked</th>
+                            {paymentLog.is_admin && <th className="px-4 py-3 text-right">Action</th>}
                           </tr>
                         </thead>
                         <tbody className="divide-y">
                           {paymentLog.payments.map((payment) => (
-                            <tr key={payment.id}>
-                              <td className="px-4 py-3 font-medium text-gray-900">
-                                Contract #{payment.contract_id || "-"}
-                                <span className="block text-xs text-gray-500">
-                                  {payment.payment_period_label || `Year ${payment.instalment_year}`}
-                                </span>
-                              </td>
-                              <td className="px-4 py-3 text-gray-700">{payment.supplier_name || "-"}</td>
-                              <td className="px-4 py-3 text-gray-700">{payment.aggregator || "-"}</td>
-                              <td className="px-4 py-3 text-gray-700">{payment.agent_name || "-"}</td>
-                              {paymentLog.is_admin && (
-                                <td className="px-4 py-3 text-right font-medium">
-                                  {formatMoney(payment.expected_net_amount)}
+                            <React.Fragment key={payment.id}>
+                              <tr>
+                                <td className="px-4 py-3 font-medium text-gray-900">
+                                  Contract #{payment.contract_id || "-"}
+                                  <span className="block text-xs text-gray-500">
+                                    {payment.payment_period_label || `Year ${payment.instalment_year}`}
+                                  </span>
                                 </td>
-                              )}
-                              <td className="px-4 py-3 text-gray-700">{formatDate(payment.due_date || undefined)}</td>
-                              {paymentLog.is_admin && (
-                                <td className="px-4 py-3 text-right">{formatMoney(payment.amount_received)}</td>
-                              )}
-                              {paymentLog.is_admin && (
-                                <td className="px-4 py-3 text-right font-medium">
-                                  {formatMoney(payment.outstanding_amount)}
+                                <td className="px-4 py-3 text-gray-700">{payment.supplier_name || "-"}</td>
+                                <td className="px-4 py-3 text-gray-700">{payment.aggregator || "-"}</td>
+                                <td className="px-4 py-3 text-gray-700">{payment.agent_name || "-"}</td>
+                                {paymentLog.is_admin && (
+                                  <td className="px-4 py-3 text-right font-medium">
+                                    {formatMoney(payment.expected_net_amount)}
+                                  </td>
+                                )}
+                                <td className="px-4 py-3 text-gray-700">{formatDate(payment.due_date || undefined)}</td>
+                                {paymentLog.is_admin && (
+                                  <td className="px-4 py-3 text-right">{formatMoney(payment.amount_received)}</td>
+                                )}
+                                {paymentLog.is_admin && (
+                                  <td className="px-4 py-3 text-right font-medium">
+                                    {formatMoney(payment.outstanding_amount)}
+                                  </td>
+                                )}
+                                <td className="px-4 py-3">
+                                  <span
+                                    className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${paymentStatusClass(
+                                      payment.status,
+                                    )}`}
+                                  >
+                                    {payment.status}
+                                  </span>
                                 </td>
+                                <td className="px-4 py-3 text-gray-700">{formatDateTime(payment.last_checked_at)}</td>
+                                {paymentLog.is_admin && (
+                                  <td className="px-4 py-3 text-right">
+                                    <Button
+                                      type="button"
+                                      size="sm"
+                                      variant="outline"
+                                      onClick={() => setActivePaymentReceiptId(payment.id)}
+                                      disabled={payment.status === "Closed"}
+                                    >
+                                      Log Payment
+                                    </Button>
+                                  </td>
+                                )}
+                              </tr>
+                              {paymentLog.is_admin && activePaymentReceiptId === payment.id && (
+                                <tr>
+                                  <td colSpan={11} className="bg-gray-50 px-4 py-4">
+                                    <form
+                                      onSubmit={(event) => submitPaymentReceipt(event, payment.id)}
+                                      className="grid gap-3 md:grid-cols-[1fr_1fr_2fr_auto_auto] md:items-end"
+                                    >
+                                      <div className="space-y-2">
+                                        <label className="text-sm font-medium" htmlFor={`payment_amount_${payment.id}`}>
+                                          Amount received
+                                        </label>
+                                        <Input
+                                          id={`payment_amount_${payment.id}`}
+                                          min="0.01"
+                                          step="0.01"
+                                          type="number"
+                                          value={paymentReceiptDraft.amount_received}
+                                          onChange={(event) =>
+                                            setPaymentReceiptDraft((current) => ({
+                                              ...current,
+                                              amount_received: event.target.value,
+                                            }))
+                                          }
+                                          required
+                                        />
+                                      </div>
+                                      <div className="space-y-2">
+                                        <label className="text-sm font-medium" htmlFor={`payment_date_${payment.id}`}>
+                                          Date received
+                                        </label>
+                                        <Input
+                                          id={`payment_date_${payment.id}`}
+                                          type="date"
+                                          value={paymentReceiptDraft.date_received}
+                                          onChange={(event) =>
+                                            setPaymentReceiptDraft((current) => ({
+                                              ...current,
+                                              date_received: event.target.value,
+                                            }))
+                                          }
+                                        />
+                                      </div>
+                                      <div className="space-y-2">
+                                        <label className="text-sm font-medium" htmlFor={`payment_notes_${payment.id}`}>
+                                          Notes
+                                        </label>
+                                        <Input
+                                          id={`payment_notes_${payment.id}`}
+                                          value={paymentReceiptDraft.notes}
+                                          onChange={(event) =>
+                                            setPaymentReceiptDraft((current) => ({
+                                              ...current,
+                                              notes: event.target.value,
+                                            }))
+                                          }
+                                        />
+                                      </div>
+                                      <Button type="submit" disabled={savingPaymentReceipt}>
+                                        {savingPaymentReceipt ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                                        Save
+                                      </Button>
+                                      <Button type="button" variant="outline" onClick={resetPaymentReceiptDraft}>
+                                        Cancel
+                                      </Button>
+                                    </form>
+                                  </td>
+                                </tr>
                               )}
-                              <td className="px-4 py-3">
-                                <span
-                                  className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${paymentStatusClass(
-                                    payment.status,
-                                  )}`}
-                                >
-                                  {payment.status}
-                                </span>
-                              </td>
-                              <td className="px-4 py-3 text-gray-700">{formatDateTime(payment.last_checked_at)}</td>
-                            </tr>
+                            </React.Fragment>
                           ))}
                           {paymentLog.payments.length === 0 && (
                             <tr>
                               <td
-                                colSpan={paymentLog.is_admin ? 10 : 7}
+                                colSpan={paymentLog.is_admin ? 11 : 7}
                                 className="px-4 py-10 text-center text-gray-500"
                               >
                                 No commission payment rows have been generated for this customer yet.
@@ -1863,7 +2073,70 @@ export default function EnergyCustomerDetailsPage() {
                       </div>
                       <div className="divide-y">
                         {paymentLog.receipts.map((receipt) => (
-                          <div key={receipt.id} className="grid gap-3 px-4 py-3 text-sm md:grid-cols-[1fr_auto_auto]">
+                          <div key={receipt.id} className="px-4 py-3 text-sm">
+                            {editingPaymentReceiptId === receipt.id ? (
+                              <form
+                                onSubmit={(event) => submitPaymentReceiptEdit(event, receipt)}
+                                className="grid gap-3 md:grid-cols-[1fr_1fr_2fr_auto_auto] md:items-end"
+                              >
+                                <div className="space-y-2">
+                                  <label className="text-sm font-medium" htmlFor={`edit_payment_amount_${receipt.id}`}>
+                                    Amount received
+                                  </label>
+                                  <Input
+                                    id={`edit_payment_amount_${receipt.id}`}
+                                    min="0.01"
+                                    step="0.01"
+                                    type="number"
+                                    value={paymentReceiptEditDraft.amount_received}
+                                    onChange={(event) =>
+                                      setPaymentReceiptEditDraft((current) => ({
+                                        ...current,
+                                        amount_received: event.target.value,
+                                      }))
+                                    }
+                                    required
+                                  />
+                                </div>
+                                <div className="space-y-2">
+                                  <label className="text-sm font-medium" htmlFor={`edit_payment_date_${receipt.id}`}>
+                                    Date received
+                                  </label>
+                                  <Input
+                                    id={`edit_payment_date_${receipt.id}`}
+                                    type="date"
+                                    value={paymentReceiptEditDraft.date_received}
+                                    onChange={(event) =>
+                                      setPaymentReceiptEditDraft((current) => ({
+                                        ...current,
+                                        date_received: event.target.value,
+                                      }))
+                                    }
+                                  />
+                                </div>
+                                <div className="space-y-2">
+                                  <label className="text-sm font-medium" htmlFor={`edit_payment_notes_${receipt.id}`}>
+                                    Notes
+                                  </label>
+                                  <Textarea
+                                    id={`edit_payment_notes_${receipt.id}`}
+                                    value={paymentReceiptEditDraft.notes}
+                                    onChange={(event) =>
+                                      setPaymentReceiptEditDraft((current) => ({ ...current, notes: event.target.value }))
+                                    }
+                                    rows={2}
+                                  />
+                                </div>
+                                <Button type="submit" disabled={savingPaymentReceipt}>
+                                  {savingPaymentReceipt ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                                  Save
+                                </Button>
+                                <Button type="button" variant="outline" onClick={cancelEditingPaymentReceipt}>
+                                  Cancel
+                                </Button>
+                              </form>
+                            ) : (
+                              <div className="grid gap-3 md:grid-cols-[1fr_auto_auto_auto]">
                             <div>
                               <p className="font-medium text-gray-900">
                                 Contract #{receipt.contract_id || "-"} · {receipt.payment_period_label || `Year ${receipt.instalment_year || "-"}`}
@@ -1875,6 +2148,17 @@ export default function EnergyCustomerDetailsPage() {
                             </div>
                             <div className="font-semibold text-gray-900">{formatMoney(receipt.amount_received)}</div>
                             <div className="text-gray-500">{formatDate(receipt.date_received || undefined)}</div>
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="outline"
+                              onClick={() => startEditingPaymentReceipt(receipt)}
+                            >
+                              <Edit className="mr-2 h-4 w-4" />
+                              Edit
+                            </Button>
+                              </div>
+                            )}
                           </div>
                         ))}
                         {paymentLog.receipts.length === 0 && (
@@ -2362,6 +2646,15 @@ export default function EnergyCustomerDetailsPage() {
             )}
 
             {/* ✅ NEW: New End Date field for "End Date Changed" and "Already Renewed" */}
+            {isRenewalOrSoldAction && renewedBy === "agent" && (
+              <div className="space-y-2">
+                <label className="text-sm font-medium">
+                  Contract Start Date <span className="text-red-500">*</span>
+                </label>
+                <Input type="date" value={newStartDate} onChange={(e) => setNewStartDate(e.target.value)} />
+              </div>
+            )}
+
             {statusConfig[callbackStatus]?.requiresNewEndDate && (
               <div className="space-y-2">
                 <label className="text-sm font-medium">New Contract End Date *</label>
@@ -2625,6 +2918,7 @@ export default function EnergyCustomerDetailsPage() {
                   setCallbackStatus(value);
                   setCallbackNotes("");
                   setIsSold("");
+                  setNewStartDate("");
                   setNewEndDate("");
                   setNewSupplier("");
                   setNewAddress("");
@@ -2694,7 +2988,7 @@ export default function EnergyCustomerDetailsPage() {
           {isDateRequired() && (
             <div>
               <label className="text-sm font-medium text-gray-700">
-                Callback Date: <span className="font-normal text-gray-400"></span>
+                {isRenewalOrSoldAction ? "Action Date:" : "Callback Date:"} <span className="font-normal text-gray-400"></span>
               </label>
               <Input
                 type="date"
@@ -2706,6 +3000,15 @@ export default function EnergyCustomerDetailsPage() {
           )}
 
           {/* ✅ NEW: Contract End Date field for "End Date Changed" */}
+          {isRenewalOrSoldAction && renewedBy === "agent" && (
+            <div>
+              <label className="text-sm font-medium text-gray-700">
+                Contract Start Date: <span className="text-red-500">*</span>
+              </label>
+              <Input type="date" className="mt-1" value={newStartDate} onChange={(e) => setNewStartDate(e.target.value)} />
+            </div>
+          )}
+
           {currentConfig?.requiresNewEndDate && (
             <div>
               <label className="text-sm font-medium text-gray-700">
@@ -2857,6 +3160,7 @@ export default function EnergyCustomerDetailsPage() {
                 const rawNotes = interaction.notes || "";
                 const cleanNotes = rawNotes.replace(/^\[.*?\]\s*/, "");
                 const displayStatus = interaction.interaction_type || "Unknown";
+                const actionOptionLabel = getActionOptionLabelFromNotes(rawNotes);
 
                 // ✅ Check if this is a callback with a reminder date
                 const hasCallback =
@@ -2890,6 +3194,14 @@ export default function EnergyCustomerDetailsPage() {
                     </div>
 
                     {/* ✅ ALWAYS show notes if they exist */}
+                    {actionOptionLabel && (
+                      <div className="mb-2">
+                        <span className="inline-flex rounded-full bg-slate-100 px-2 py-1 text-xs font-medium text-slate-700">
+                          {actionOptionLabel}
+                        </span>
+                      </div>
+                    )}
+
                     {cleanNotes && <p className="mb-2 pr-8 text-xs text-gray-600">{cleanNotes}</p>}
 
                     {/* ✅ Show callback/reminder date with calendar icon - ONLY for callback-type statuses */}
