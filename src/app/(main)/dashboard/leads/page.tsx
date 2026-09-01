@@ -133,19 +133,22 @@ const formatDate = (d: string | null | undefined) => {
 
 const formatUsage = (u: number | null | undefined) => u ? `${u.toLocaleString()} kWh` : "—";
 
-const getStatusColor = (s: string | undefined) => {
+const getStatusColor = (s?: string | null) => {
   if (!s) return "bg-gray-100 text-gray-800";
   const l = s.toLowerCase();
+  // Treat "lead" as "not called"
+  if (l === "lead" || l === "not called") return "bg-gray-100 text-gray-500";
   if (["callback", "priced", "called", "converted", "won"].includes(l)) return "bg-green-100 text-green-800";
   if (l === "not answered") return "bg-yellow-100 text-yellow-800";
   if (["lost", "lost cot"].includes(l)) return "bg-red-100 text-red-800";
-  if (l === "not called") return "bg-gray-100 text-gray-500";
   if (l === "dead") return "bg-red-200 text-red-900";
   return "bg-gray-100 text-gray-800";
 };
 
-const getStatusLabel = (s: string | undefined) => {
+const getStatusLabel = (s?: string | null) => {
   if (!s) return "—";
+  // Treat raw "Lead" stage (default import stage) as "Not Called"
+  if (s.toLowerCase() === "lead") return "Not Called";
   return STATUS_OPTIONS.find(o => o.value === s)?.label ||
     STATUS_OPTIONS.find(o => o.value.toLowerCase() === s.toLowerCase())?.label || s;
 };
@@ -464,7 +467,11 @@ export default function LeadsPage() {
         (l.tel_number     || "").toLowerCase().includes(term) ||
         (l.mpan_mpr       || "").toLowerCase().includes(term);
       const matchSupplier = supplierFilter === "All" || l.supplier_id === supplierFilter;
-      const matchStatus   = statusFilter   === "All" || l.stage_name === statusFilter;
+      const normaliseStage = (s: string | null | undefined) => {
+        if (!s || s.toLowerCase() === 'lead') return 'Not Called';
+        return s;
+      };
+      const matchStatus = statusFilter === "All" || normaliseStage(l.stage_name) === statusFilter;
       let matchEndDate = true;
       if (endDateFilter !== "all" && l.end_date) {
         const today = new Date();
@@ -1469,10 +1476,10 @@ export default function LeadsPage() {
                 <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase w-[11%]">
                   Trading Name
                 </th>
-                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase w-[8%]">
+                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase w-[8%] overflow-hidden">
                   Tel No
                 </th>
-                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase w-[8%]">
+                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase w-[8%] overflow-hidden">
                   Mobile No
                 </th>
                 <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase w-[10%]">
@@ -1602,13 +1609,17 @@ export default function LeadsPage() {
                     </td>
 
                     {/* Tel No */}
-                    <td className="px-3 py-3 text-sm text-gray-900 align-top">
-                      <div className="whitespace-nowrap">{lead.tel_number ? String(lead.tel_number).replace(/\.0$/, "") : "—"}</div>
+                    <td className="px-3 py-3 text-sm text-gray-900 align-top overflow-hidden">
+                      <div className="truncate max-w-[100px]" title={lead.tel_number ? String(lead.tel_number).replace(/\.0$/, "") : ""}>
+                        {lead.tel_number ? String(lead.tel_number).replace(/\.0$/, "") : "—"}
+                      </div>
                     </td>
 
                     {/* Mobile No */}
-                    <td className="px-3 py-3 text-sm text-gray-900 align-top">
-                      <div className="whitespace-nowrap">{lead.mobile_no ? String(lead.mobile_no).replace(/\.0$/, "") : "—"}</div>
+                    <td className="px-3 py-3 text-sm text-gray-900 align-top overflow-hidden">
+                      <div className="truncate max-w-[100px]" title={lead.mobile_no ? String(lead.mobile_no).replace(/\.0$/, "") : ""}>
+                        {lead.mobile_no ? String(lead.mobile_no).replace(/\.0$/, "") : "—"}
+                      </div>
                     </td>
 
                     {/* MPAN Top */}
