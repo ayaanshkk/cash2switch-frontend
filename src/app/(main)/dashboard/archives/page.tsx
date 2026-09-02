@@ -24,6 +24,7 @@ import {
   ChevronFirst,
   Info,
   AlertCircle,
+  Trash2,
   Users,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
@@ -121,6 +122,9 @@ export default function ArchivesPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [sortOrder, setSortOrder] = useState<"newest" | "oldest">("newest");
   const [salespersonFilter, setSalespersonFilter] = useState<number | "All">("All");
+  const [selectedArchives, setSelectedArchives] = useState<number[]>([]);
+  const [isSelectAllChecked, setIsSelectAllChecked] = useState(false);
+  const [isDeletingArchives, setIsDeletingArchives] = useState(false);
 
   useEffect(() => {
     loadArchives();
@@ -369,6 +373,53 @@ export default function ArchivesPage() {
     );
   };
 
+  const handleSelectArchive = (clientId: number) => {
+    setSelectedArchives(prev => {
+      const next = prev.includes(clientId)
+        ? prev.filter(id => id !== clientId)
+        : [...prev, clientId];
+      setIsSelectAllChecked(next.length === filteredCustomers.length);
+      return next;
+    });
+  };
+
+  const handleSelectAll = () => {
+    if (isSelectAllChecked) {
+      setSelectedArchives([]);
+      setIsSelectAllChecked(false);
+    } else {
+      setSelectedArchives(filteredCustomers.map(c => c.client_id));
+      setIsSelectAllChecked(true);
+    }
+  };
+
+  const handleDeleteSelected = async () => {
+    if (!selectedArchives.length) return;
+    if (!confirm(`Permanently delete ${selectedArchives.length} archived record(s)? This cannot be undone.`)) return;
+
+    setIsDeletingArchives(true);
+    const token = localStorage.getItem("auth_token");
+
+    try {
+      await Promise.all(
+        selectedArchives.map(clientId =>
+          fetch(`${API_BASE_URL}/energy-clients/${clientId}/permanent-delete`, {
+            method: "DELETE",
+            headers: { Authorization: `Bearer ${token}` },
+          })
+        )
+      );
+      setAllCustomers(prev => prev.filter(c => !selectedArchives.includes(c.client_id)));
+      setSelectedArchives([]);
+      setIsSelectAllChecked(false);
+      toast.success(`✅ Deleted ${selectedArchives.length} archived record(s)`);
+    } catch (err) {
+      toast.error("Failed to delete some records");
+    } finally {
+      setIsDeletingArchives(false);
+    }
+  };
+
   return (
     <div className="w-full max-w-full overflow-x-hidden p-6">
       <Toaster position="top-right" />
@@ -520,11 +571,20 @@ export default function ArchivesPage() {
         </div>
 
         <div className="flex flex-wrap items-center gap-2 xl:justify-end">
-          <Button
-            variant="outline"
-            onClick={loadArchives}
-            disabled={loading}
-          >
+          {selectedArchives.length > 0 && (
+            <Button
+              variant="destructive"
+              onClick={handleDeleteSelected}
+              disabled={isDeletingArchives}
+            >
+              {isDeletingArchives ? (
+                <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Deleting...</>
+              ) : (
+                <>Delete Selected ({selectedArchives.length})</>
+              )}
+            </Button>
+          )}
+          <Button variant="outline" onClick={loadArchives} disabled={loading}>
             <RefreshCw className={`mr-2 h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
             Refresh
           </Button>
@@ -537,6 +597,14 @@ export default function ArchivesPage() {
           <table className="w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
+                <th className="px-3 py-3 text-left w-8">
+                  <input
+                    type="checkbox"
+                    className="rounded border-gray-300"
+                    checked={isSelectAllChecked}
+                    onChange={handleSelectAll}
+                  />
+                </th>
                 <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase w-20 border-r-2 border-gray-300">
                   ID
                 </th>
@@ -579,14 +647,14 @@ export default function ArchivesPage() {
             <tbody className="divide-y divide-gray-200 bg-white">
               {loading ? (
                 <tr>
-                  <td colSpan={12} className="px-6 py-12 text-center">
+                  <td colSpan={13} className="px-6 py-12 text-center">
                     <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-current border-r-transparent text-gray-600"></div>
                     <p className="mt-4 text-gray-500">Loading archives...</p>
                   </td>
                 </tr>
               ) : error ? (
                 <tr>
-                  <td colSpan={12} className="px-6 py-12 text-center text-gray-500">
+                  <td colSpan={13} className="px-6 py-12 text-center text-gray-500">
                     <AlertCircle className="h-12 w-12 text-red-400 mx-auto mb-3" />
                     <p className="text-lg text-red-600">Failed to load archives</p>
                     <p className="mt-2 text-sm">{error}</p>
@@ -594,7 +662,7 @@ export default function ArchivesPage() {
                 </tr>
               ) : paginatedCustomers.length === 0 ? (
                 <tr>
-                  <td colSpan={12} className="px-6 py-12 text-center text-gray-500">
+                  <td colSpan={13} className="px-6 py-12 text-center text-gray-500">
                     <Archive className="h-12 w-12 text-gray-400 mx-auto mb-3" />
                     <p className="text-lg">No archived records found</p>
                     <p className="mt-2 text-sm">
@@ -608,10 +676,22 @@ export default function ArchivesPage() {
                 paginatedCustomers.map((customer) => (
                   <tr
                     key={customer.client_id}
-                    className="hover:bg-gray-50 transition-colors cursor-pointer"
+                    className={`hover:bg-gray-50 transition-colors cursor-pointer ${
+                      selectedArchives.includes(customer.client_id) ? 'bg-blue-50' : ''
+                    }`}
                     onClick={() => handleViewDetails(customer.client_id)}
                   >
-                    {/* ID Column - matches renewals exactly */}
+                    {/* ✅ Checkbox cell */}
+                    <td className="px-3 py-3 align-top" onClick={e => e.stopPropagation()}>
+                      <input
+                        type="checkbox"
+                        className="rounded border-gray-300 mt-1"
+                        checked={selectedArchives.includes(customer.client_id)}
+                        onChange={() => handleSelectArchive(customer.client_id)}
+                      />
+                    </td>
+
+                    {/* ID column — unchanged */}
                     <td className="px-3 py-3 text-sm font-medium text-gray-900 border-r-2 border-gray-300 align-top">
                       <div className="whitespace-nowrap">
                         {customer.display_id || customer.tenant_client_id || customer.id}

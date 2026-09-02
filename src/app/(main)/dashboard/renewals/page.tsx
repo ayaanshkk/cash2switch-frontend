@@ -416,19 +416,34 @@ export default function EnergyCustomersPage() {
     setError(null);
     try {
       const response = await fetchWithAuth(`/energy-clients?service=${encodeURIComponent(service)}`);
-      const activeData = Array.isArray(response) ? response : (response?.data || []);
-      setAllCustomers(activeData);
+      const activeData: EnergyCustomer[] = Array.isArray(response) ? response : (response?.data || []);
 
-      // Archives fetched separately after active data is painted
+      let archivedData: EnergyCustomer[] = [];
       try {
         const archiveResponse = await fetchWithAuth(`/energy-clients/archives?service=${encodeURIComponent(service)}`);
-        const archivedData = Array.isArray(archiveResponse) ? archiveResponse : [];
-        if (archivedData.length > 0) {
-          setAllCustomers(prev => [...prev, ...archivedData]);
-        }
+        archivedData = Array.isArray(archiveResponse) ? archiveResponse : [];
       } catch {
         // Archives optional — silent fail
       }
+
+      // ✅ Deduplicate by client_id — active takes priority over archived
+      const seen = new Set<number>();
+      const combined: EnergyCustomer[] = [];
+
+      for (const c of activeData) {
+        if (!seen.has(c.client_id)) {
+          seen.add(c.client_id);
+          combined.push(c);
+        }
+      }
+      for (const c of archivedData) {
+        if (!seen.has(c.client_id)) {
+          seen.add(c.client_id);
+          combined.push(c);
+        }
+      }
+
+      setAllCustomers(combined);
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : "Unknown error occurred";
       setError(errorMessage);
@@ -683,6 +698,18 @@ export default function EnergyCustomersPage() {
         toast.success("✅ Moved to Priced page");
         setShowCallbackModal(false);
       } else {
+        // ✅ Handle contract date change — backend archived old, created new record
+        if (response.date_change && response.new_client_id) {
+          // Remove the old (now archived) record from the active list
+          setAllCustomers(prev => prev.filter(c => c.client_id !== selectedCustomerForCallback));
+          setSelectedCustomers(prev => prev.filter(id => id !== selectedCustomerForCallback));
+          await fetchCustomers();
+          await fetchPerformanceStats();
+          toast.success("✅ Contract dates updated — old record archived, new record created");
+          setShowCallbackModal(false);
+          return;
+        }
+
         if (callbackStatus === "End Date Changed" || callbackStatus === "Already Renewed" || callbackStatus === "Sold") {
           // ✅ Optimistically update supplier on list before refetch
           if (isRenewalOrSoldAction && newSupplier.trim()) {

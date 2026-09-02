@@ -1772,7 +1772,7 @@ export default function LeadDetailsPage() {
           {callbackStatus && (
             <div>
               <label className="text-sm font-medium text-gray-700">
-                {callbackStatus === "Already Renewed" || callbackStatus === "Sold" ? "Action Date:" : "Callback Date:"}
+                {callbackStatus === "Already Renewed" || callbackStatus === "Sold" ? "Callback Date:" : "Callback Date:"}
               </label>
               <Input
                 type="date"

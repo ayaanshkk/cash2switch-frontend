@@ -1092,6 +1092,12 @@ export default function EnergyCustomerDetailsPage() {
       if (response.ok) {
         const data = await response.json();
         const updated = data.customer || data;
+
+      if (data.date_change && data.new_client_id) {
+        alert("✅ Contract dates updated — previous record archived, new record created.");
+        router.push(`/dashboard/renewals/${data.new_client_id}?from=${fromPage}`);
+        return;
+      }
         setCustomer(updated);
         setEditedCustomer(updated);
         setIsEditing(false);
@@ -2632,7 +2638,7 @@ export default function EnergyCustomerDetailsPage() {
               <div>
                 <label className="text-sm font-medium text-gray-700">
                   {callbackStatus === "End Date Changed" || isRenewalOrSoldAction
-                    ? "Action Date:"
+                    ? "Callback Date:"
                     : "Callback Date:"}{" "}
                   <span className="text-red-500">*</span>
                 </label>
@@ -2988,7 +2994,7 @@ export default function EnergyCustomerDetailsPage() {
           {isDateRequired() && (
             <div>
               <label className="text-sm font-medium text-gray-700">
-                {isRenewalOrSoldAction ? "Action Date:" : "Callback Date:"} <span className="font-normal text-gray-400"></span>
+                {isRenewalOrSoldAction ? "Callback Date:" : "Callback Date:"} <span className="font-normal text-gray-400"></span>
               </label>
               <Input
                 type="date"
