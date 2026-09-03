@@ -62,6 +62,7 @@ type CommissionPayment = {
   status: PaymentStatus;
   last_checked_at: string | null;
   next_follow_up_date: string | null;
+  is_archived?: boolean;
 };
 
 type Receipt = {
@@ -104,6 +105,7 @@ type PaymentGroup = {
   outstanding: number;
   nextDue: string | null;
   statuses: PaymentStatus[];
+  isArchived: boolean;
 };
 
 type PaymentColumnKey =
@@ -272,6 +274,7 @@ export default function PaymentCheckerPage() {
         outstanding: 0,
         nextDue: null,
         statuses: [],
+        isArchived: payment.is_archived ?? false,
       };
 
       group.payments.push(payment);
@@ -357,11 +360,9 @@ export default function PaymentCheckerPage() {
   };
 
   const applyFilters = () => {
-    if (pagination.page === 1) {
-      loadPayments();
-      return;
-    }
-    setPagination((current) => ({ ...current, page: 1 }));
+    const nextPagination = { ...pagination, page: 1 };
+    setPagination(nextPagination);
+    loadPayments(filters, searchTerm, nextPagination);
   };
 
   const applyStatusShortcut = (status: PaymentStatus) => {
@@ -400,6 +401,17 @@ export default function PaymentCheckerPage() {
     loadPayments();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      const nextPagination = { ...pagination, page: 1 };
+      setPagination(nextPagination);
+      loadPayments(filters, searchTerm, nextPagination);
+    }, 500); // 500ms debounce
+
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchTerm]);
 
   const openPayment = async (payment: CommissionPayment) => {
     setSelectedPayment(payment);
@@ -774,8 +786,12 @@ export default function PaymentCheckerPage() {
                       >
                         <div
                           className={`border-l-4 ${
-                            index % 2 === 0 ? "border-l-slate-950" : "border-l-blue-600"
-                          } cursor-pointer bg-white px-4 py-4 transition-colors hover:bg-slate-50/70`}
+                            group.isArchived
+                              ? "border-l-amber-400 bg-amber-50/40"
+                              : index % 2 === 0
+                              ? "border-l-slate-950"
+                              : "border-l-blue-600"
+                          } cursor-pointer px-4 py-4 transition-colors hover:bg-slate-50/70`}
                           role="button"
                           tabIndex={0}
                           onClick={(event) => {
@@ -820,6 +836,11 @@ export default function PaymentCheckerPage() {
                                   <Badge className="bg-slate-100 text-slate-700 hover:bg-slate-100">
                                     {group.payments.length} instalment{group.payments.length === 1 ? "" : "s"}
                                   </Badge>
+                                  {group.isArchived && (
+                                    <Badge className="bg-amber-100 text-amber-700 hover:bg-amber-100">
+                                      Archived
+                                    </Badge>
+                                  )}
                                 </div>
                                 <div className="mt-1 text-sm break-words text-slate-500">{group.subtitle}</div>
                                 <div className="mt-2 flex flex-wrap gap-2 text-xs text-slate-600">
