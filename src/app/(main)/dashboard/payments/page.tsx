@@ -1,8 +1,7 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import React, { FormEvent, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { usePathname } from "next/navigation";
 
 import {
   Banknote,
@@ -63,6 +62,7 @@ type CommissionPayment = {
   last_checked_at: string | null;
   next_follow_up_date: string | null;
   is_archived?: boolean;
+  is_deleted?: boolean;
 };
 
 type Receipt = {
@@ -106,6 +106,7 @@ type PaymentGroup = {
   nextDue: string | null;
   statuses: PaymentStatus[];
   isArchived: boolean;
+  isDeleted: boolean;
 };
 
 type PaymentColumnKey =
@@ -174,12 +175,18 @@ const formatDateTime = (value: string | null | undefined) => {
 
 export default function PaymentCheckerPage() {
   const router = useRouter();
-  const pathname = usePathname();
-  const isAlreadyRenewedPage = pathname?.endsWith("/payments/already-renewed");
   const [payments, setPayments] = useState<CommissionPayment[]>([]);
   const [selectedPayment, setSelectedPayment] = useState<CommissionPayment | null>(null);
   const [receipts, setReceipts] = useState<Receipt[]>([]);
-  const [statuses, setStatuses] = useState<PaymentStatus[]>([]);
+  const statuses: PaymentStatus[] = [
+    "Scheduled",
+    "Pending",
+    "Due",
+    "Received",
+    "Partially Paid",
+    "Chasing Supplier",
+    "Closed",
+  ];
   const [suppliers, setSuppliers] = useState<FilterOption[]>([]);
   const [agents, setAgents] = useState<FilterOption[]>([]);
   const [aggregators, setAggregators] = useState<FilterOption[]>([]);
@@ -275,6 +282,7 @@ export default function PaymentCheckerPage() {
         nextDue: null,
         statuses: [],
         isArchived: payment.is_archived ?? false,
+        isDeleted: payment.is_deleted ?? false,
       };
 
       group.payments.push(payment);
@@ -313,7 +321,6 @@ export default function PaymentCheckerPage() {
     if (nextFilters.due_from) params.set("due_from", nextFilters.due_from);
     if (nextFilters.due_to) params.set("due_to", nextFilters.due_to);
     if (nextSearchTerm.trim()) params.set("search", nextSearchTerm.trim());
-    if (isAlreadyRenewedPage) params.set("contract_status", "already_renewed");
     return params.toString();
   };
 
@@ -326,26 +333,92 @@ export default function PaymentCheckerPage() {
     setError(null);
 
     try {
-      const data = await fetchWithAuth(`/api/commission/payments?${buildQuery(nextFilters, nextSearchTerm, nextPagination)}`);
-      setPayments(data.payments || []);
+      const params = new URLSearchParams({
+        page: String(nextPagination.page),
+        page_size: String(nextPagination.page_size),
+      });
+      if (nextFilters.supplier !== "all") params.set("supplier", nextFilters.supplier);
+      if (nextFilters.agent !== "all") params.set("agent", nextFilters.agent);
+      if (nextSearchTerm.trim()) params.set("search", nextSearchTerm.trim());
+
+      const data = await fetchWithAuth(`/api/commission/clients-with-payments?${params.toString()}`);
+
+      // Map to CommissionPayment shape for existing rendering
+      const mappedPayments: CommissionPayment[] = [];
+      for (const client of data.clients || []) {
+        if (client.payments.length > 0) {
+          for (const p of client.payments) {
+            mappedPayments.push({
+              ...p,
+              customer_name: client.business_name,
+              business_name: client.business_name,
+              supplier_name: client.supplier_name,
+              agent_name: client.agent_name,
+              mpan_number: client.mpan_number,
+              mpan_bottom: client.mpan_bottom,
+              contract_start_date: client.contract_start_date,
+              contract_end_date: client.contract_end_date,
+              service_id: client.service_id,
+              service_title: client.service_title,
+              aggregator: client.aggregator,
+              is_archived: client.is_archived,
+              is_deleted: client.is_deleted,
+              payment_policy_type: null,
+              next_follow_up_date: null,
+            });
+          }
+        } else {
+          // Client has no commission payments — show as a stub row
+          mappedPayments.push({
+            id: `stub-${client.contract_id}`,
+            client_id: client.client_id,
+            project_id: null,
+            contract_id: client.contract_id,
+            supplier_id: null,
+            employee_id: null,
+            instalment_year: 0,
+            payment_policy_type: null,
+            payment_period_label: 'No commission record',
+            payment_period_start: null,
+            payment_period_end: null,
+            customer_name: client.business_name,
+            business_name: client.business_name,
+            supplier_name: client.supplier_name,
+            agent_name: client.agent_name,
+            mpan_number: client.mpan_number,
+            mpan_bottom: client.mpan_bottom,
+            contract_start_date: client.contract_start_date,
+            contract_end_date: client.contract_end_date,
+            service_id: client.service_id,
+            service_title: client.service_title,
+            aggregator: client.aggregator,
+            expected_net_amount: '0.00',
+            due_date: null,
+            amount_received: '0.00',
+            outstanding_amount: '0.00',
+            status: 'Pending' as PaymentStatus,
+            last_checked_at: null,
+            next_follow_up_date: null,
+            is_archived: client.is_archived,
+            is_deleted: client.is_deleted,
+          });
+        }
+      }
+
+      setPayments(mappedPayments);
       setTotals({
         expected: Number(data.summary?.expected || 0),
         received: Number(data.summary?.received || 0),
         outstanding: Number(data.summary?.outstanding || 0),
       });
-      setPagination(data.pagination || pagination);
-      setStatuses(data.filters?.statuses || []);
+      setPagination(data.pagination || nextPagination);
       setSuppliers(data.filters?.suppliers || []);
       setAgents(data.filters?.agents || []);
       setAggregators(data.filters?.aggregators || []);
-      const rows: CommissionPayment[] = data.payments || [];
-      const groupKeys: string[] = Array.from(
-        new Set(
-          rows.map((payment: CommissionPayment) =>
-            payment.contract_id ? `contract-${payment.contract_id}` : `payment-${payment.id}`,
-          ),
-        ),
-      );
+
+      const groupKeys = Array.from(new Set(
+        mappedPayments.map((p) => p.contract_id ? `contract-${p.contract_id}` : `payment-${p.id}`)
+      ));
       setExpandedGroups(
         groupKeys.reduce<Record<string, boolean>>((acc, key) => {
           acc[key] = groupKeys.length <= 8;
@@ -375,7 +448,7 @@ export default function PaymentCheckerPage() {
 
   const openCustomerDetails = (clientId: number | null) => {
     if (!clientId) return;
-    router.push(`/dashboard/renewals/${clientId}`);
+    window.open(`/dashboard/renewals/${clientId}`, '_blank');
   };
 
   const openPaymentHistory = (clientId: number | null) => {
@@ -414,6 +487,7 @@ export default function PaymentCheckerPage() {
   }, [searchTerm]);
 
   const openPayment = async (payment: CommissionPayment) => {
+    if (String(payment.id).startsWith('stub-')) return;
     setSelectedPayment(payment);
     setReceipts([]);
     setDetailLoading(true);
@@ -539,24 +613,18 @@ export default function PaymentCheckerPage() {
   const visibleColumnCount = 1 + paymentColumnOptions.filter((column) => isColumnVisible(column.key)).length;
 
   return (
-    <div className="min-h-screen bg-slate-50/50 px-4 py-6 sm:px-6 lg:px-8">
-      <div className="mx-auto max-w-7xl space-y-6">
+    <div className="min-h-screen bg-slate-50/50 px-4 py-6">
+      <div className="space-y-6">
         <div className="flex flex-col gap-4 rounded-lg border bg-white p-5 shadow-sm md:flex-row md:items-center md:justify-between">
           <div>
             <p className="text-sm font-medium text-slate-500">Payments</p>
             <h1 className="mt-1 text-3xl font-semibold tracking-tight text-slate-950">
-              {isAlreadyRenewedPage ? "Already Renewed" : "Upcoming Renewals"}
+              Payment Checker
             </h1>
             <p className="mt-2 max-w-3xl text-sm text-slate-600">
-              {isAlreadyRenewedPage
-                ? "Temporary view for existing already renewed commission payments."
-                : "Track upcoming renewal commission receipts, outstanding balances, and follow-up actions."}
+              Track all renewal commission receipts, outstanding balances, and follow-up actions.
             </p>
           </div>
-          <Button onClick={applyFilters} disabled={loading}>
-            {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Search className="mr-2 h-4 w-4" />}
-            Apply Filters
-          </Button>
         </div>
 
         {error && (
@@ -614,20 +682,26 @@ export default function PaymentCheckerPage() {
           <CardHeader className="pb-3">
             <CardTitle className="text-base">Filters</CardTitle>
           </CardHeader>
-          <CardContent className="grid grid-cols-[repeat(auto-fit,minmax(150px,1fr))] gap-4">
-            <div className="relative min-w-0 sm:col-span-2 xl:col-span-1">
+          <CardContent className="flex flex-wrap items-center gap-2">
+            <div className="relative">
               <Search className="pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-slate-400" />
               <Input
-                className="pl-9"
-                placeholder="Search customer, supplier, agent, contract..."
+                className="pl-9 w-64"
+                placeholder="Search..."
                 value={searchTerm}
                 onChange={(event) => setSearchTerm(event.target.value)}
               />
             </div>
-
+            
             <Select
               value={filters.status}
-              onValueChange={(status) => setFilters((current) => ({ ...current, status }))}
+              onValueChange={(status) => {
+                const nextFilters = { ...filters, status };
+                const nextPagination = { ...pagination, page: 1 };
+                setFilters(nextFilters);
+                setPagination(nextPagination);
+                loadPayments(nextFilters, searchTerm, nextPagination);
+              }}
             >
               <SelectTrigger className="min-w-0 [&>span]:truncate">
                 <SelectValue placeholder="Status" />
@@ -644,7 +718,13 @@ export default function PaymentCheckerPage() {
 
             <Select
               value={filters.supplier}
-              onValueChange={(supplier) => setFilters((current) => ({ ...current, supplier }))}
+              onValueChange={(supplier) => {
+                const nextFilters = { ...filters, supplier };
+                const nextPagination = { ...pagination, page: 1 };
+                setFilters(nextFilters);
+                setPagination(nextPagination);
+                loadPayments(nextFilters, searchTerm, nextPagination);
+              }}
             >
               <SelectTrigger className="min-w-0 [&>span]:truncate">
                 <SelectValue placeholder="Supplier" />
@@ -659,7 +739,16 @@ export default function PaymentCheckerPage() {
               </SelectContent>
             </Select>
 
-            <Select value={filters.agent} onValueChange={(agent) => setFilters((current) => ({ ...current, agent }))}>
+            <Select
+              value={filters.agent}
+              onValueChange={(agent) => {
+                const nextFilters = { ...filters, agent };
+                const nextPagination = { ...pagination, page: 1 };
+                setFilters(nextFilters);
+                setPagination(nextPagination);
+                loadPayments(nextFilters, searchTerm, nextPagination);
+              }}
+            >
               <SelectTrigger className="min-w-0 [&>span]:truncate">
                 <SelectValue placeholder="Agent" />
               </SelectTrigger>
@@ -675,7 +764,13 @@ export default function PaymentCheckerPage() {
 
             <Select
               value={filters.aggregator}
-              onValueChange={(aggregator) => setFilters((current) => ({ ...current, aggregator }))}
+              onValueChange={(aggregator) => {
+                const nextFilters = { ...filters, aggregator };
+                const nextPagination = { ...pagination, page: 1 };
+                setFilters(nextFilters);
+                setPagination(nextPagination);
+                loadPayments(nextFilters, searchTerm, nextPagination);
+              }}
             >
               <SelectTrigger className="min-w-0 [&>span]:truncate">
                 <SelectValue placeholder="Aggregator" />
@@ -692,13 +787,13 @@ export default function PaymentCheckerPage() {
 
             <Input
               type="date"
-              className="min-w-0"
+              className="w-36"
               value={filters.due_from}
               onChange={(event) => setFilters((current) => ({ ...current, due_from: event.target.value }))}
             />
             <Input
               type="date"
-              className="min-w-0"
+              className="w-36"
               value={filters.due_to}
               onChange={(event) => setFilters((current) => ({ ...current, due_to: event.target.value }))}
             />
@@ -716,33 +811,6 @@ export default function PaymentCheckerPage() {
                 <span>
                   Showing {paymentGroups.length} of {pagination.total} renewals
                 </span>
-                <details className="relative">
-                  <summary className="flex h-8 cursor-pointer list-none items-center gap-2 rounded-md border bg-white px-3 text-sm font-medium text-slate-700 hover:bg-slate-50">
-                    Show/Hide Columns
-                    <ChevronDown className="h-4 w-4 text-slate-500" />
-                  </summary>
-                  <div className="absolute right-0 z-20 mt-2 w-56 rounded-md border bg-white p-3 shadow-lg">
-                    <div className="mb-2 text-xs font-semibold tracking-wide text-slate-500 uppercase">Show columns</div>
-                    <div className="space-y-2">
-                      {paymentColumnOptions.map((column) => (
-                        <label key={column.key} className="flex items-center gap-2 text-sm text-slate-700">
-                          <input
-                            type="checkbox"
-                            className="h-4 w-4 accent-slate-900"
-                            checked={isColumnVisible(column.key)}
-                            onChange={(event) =>
-                              setVisiblePaymentColumns((current) => ({
-                                ...current,
-                                [column.key]: event.target.checked,
-                              }))
-                            }
-                          />
-                          {column.label}
-                        </label>
-                      ))}
-                    </div>
-                  </div>
-                </details>
                 <div className="flex items-center gap-2">
                   <span className="text-sm text-slate-500">Rows per page</span>
                   <Select
@@ -771,265 +839,173 @@ export default function PaymentCheckerPage() {
                 Loading commission payments...
               </div>
             ) : (
-              <div className="border-t bg-slate-50/70">
-                <div className="space-y-4 p-4">
-                  {paymentGroups.map((group, index) => {
-                    const expanded = expandedGroups[group.key] ?? false;
-                    const orderedPayments = group.payments
-                      .slice()
-                      .sort((a, b) => a.instalment_year - b.instalment_year);
+              <div className="border-t">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead className="bg-slate-50 text-left text-xs font-semibold tracking-wide text-slate-500 uppercase border-b">
+                      <tr>
+                        <th className="px-3 py-2">Customer</th>
+                        <th className="px-3 py-2">Supplier</th>
+                        <th className="px-3 py-2">Aggregator</th>
+                        <th className="px-3 py-2">Agent</th>
+                        <th className="px-3 py-2">MPAN/MPR</th>
+                        <th className="px-3 py-2">Start</th>
+                        <th className="px-3 py-2">End</th>
+                        <th className="px-3 py-2 text-right">Expected</th>
+                        <th className="px-3 py-2 text-right">Received</th>
+                        <th className="px-3 py-2 text-right">Outstanding</th>
+                        <th className="px-3 py-2">Next Due</th>
+                        <th className="px-3 py-2">Status</th>
+                        <th className="px-3 py-2"></th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y bg-white">
+                      {paymentGroups.map((group, index) => {
+                        const expanded = expandedGroups[group.key] ?? false;
+                        const orderedPayments = group.payments
+                          .slice()
+                          .sort((a, b) => a.instalment_year - b.instalment_year);
 
-                    return (
-                      <section
-                        key={group.key}
-                        className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm ring-1 ring-slate-100"
-                      >
-                        <div
-                          className={`border-l-4 ${
-                            group.isArchived
-                              ? "border-l-amber-400 bg-amber-50/40"
-                              : index % 2 === 0
-                              ? "border-l-slate-950"
-                              : "border-l-blue-600"
-                          } cursor-pointer px-4 py-4 transition-colors hover:bg-slate-50/70`}
-                          role="button"
-                          tabIndex={0}
-                          onClick={(event) => {
-                            const target = event.target as HTMLElement;
-                            if (target.closest("button,a,input,textarea,select,label,summary,details")) return;
-                            togglePaymentGroup(group.key);
-                          }}
-                          onKeyDown={(event) => {
-                            if (event.key === "Enter" || event.key === " ") {
-                              event.preventDefault();
-                              togglePaymentGroup(group.key);
-                            }
-                          }}
-                        >
-                          <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
-                            <div className="flex min-w-0 flex-1 items-start gap-3">
-                              <button
-                                type="button"
-                                className="mt-1 rounded-md border bg-slate-50 p-1"
-                                onClick={() => togglePaymentGroup(group.key)}
-                                aria-label={expanded ? "Collapse renewal" : "Expand renewal"}
-                              >
-                                {expanded ? (
-                                  <ChevronDown className="h-4 w-4 text-slate-600" />
-                                ) : (
-                                  <ChevronRight className="h-4 w-4 text-slate-600" />
-                                )}
-                              </button>
-                              <div className="min-w-0">
-                                <div className="flex flex-wrap items-center gap-2">
+                        return (
+                          <React.Fragment key={group.key}>
+                            <tr
+                              className={`cursor-pointer transition-colors hover:bg-slate-50 ${
+                                group.isDeleted
+                                  ? "bg-red-50/40"
+                                  : group.isArchived
+                                  ? "bg-amber-50/40"
+                                  : ""
+                              }`}
+                              onClick={() => togglePaymentGroup(group.key)}
+                            >
+                              <td className="px-3 py-2">
+                                <div className="flex items-center gap-2">
                                   <button
                                     type="button"
-                                    className="text-left text-base font-semibold text-slate-950 hover:underline"
-                                    onClick={() => openCustomerDetails(group.clientId)}
-                                    disabled={!group.clientId}
+                                    className="rounded border bg-slate-50 p-0.5 shrink-0"
+                                    onClick={(e) => { e.stopPropagation(); togglePaymentGroup(group.key); }}
                                   >
-                                    {group.title}
+                                    {expanded
+                                      ? <ChevronDown className="h-3 w-3 text-slate-600" />
+                                      : <ChevronRight className="h-3 w-3 text-slate-600" />}
                                   </button>
-                                  <Badge className="bg-slate-900 text-white hover:bg-slate-900">
-                                    Renewal {index + 1}
-                                  </Badge>
-                                  <Badge className="bg-slate-100 text-slate-700 hover:bg-slate-100">
-                                    {group.payments.length} instalment{group.payments.length === 1 ? "" : "s"}
-                                  </Badge>
-                                  {group.isArchived && (
-                                    <Badge className="bg-amber-100 text-amber-700 hover:bg-amber-100">
-                                      Archived
-                                    </Badge>
-                                  )}
-                                </div>
-                                <div className="mt-1 text-sm break-words text-slate-500">{group.subtitle}</div>
-                                <div className="mt-2 flex flex-wrap gap-2 text-xs text-slate-600">
-                                  <span className="rounded bg-slate-100 px-2 py-1">
-                                    {group.serviceTitle || "Service missing"}
-                                  </span>
-                                  <span className="rounded bg-slate-100 px-2 py-1">
-                                    MPAN/MPR: {group.mpan || "-"}
-                                  </span>
-                                  <span className="rounded bg-slate-100 px-2 py-1">
-                                    Start: {formatDate(group.contractStartDate)}
-                                  </span>
-                                  <span className="rounded bg-slate-100 px-2 py-1">
-                                    End: {formatDate(group.contractEndDate)}
-                                  </span>
-                                </div>
-                                <Button
-                                  className="mt-3"
-                                  size="sm"
-                                  variant="outline"
-                                  onClick={() => openPaymentHistory(group.clientId)}
-                                  disabled={!group.clientId}
-                                >
-                                  <ReceiptText className="mr-2 h-4 w-4" />
-                                  Open Payment History
-                                </Button>
-                                <Button
-                                  className="mt-3 ml-2"
-                                  size="sm"
-                                  variant="outline"
-                                  onClick={() => openCustomerDetails(group.clientId)}
-                                  disabled={!group.clientId}
-                                >
-                                  <ExternalLink className="mr-2 h-4 w-4" />
-                                  View Customer Details
-                                </Button>
-                              </div>
-                            </div>
-
-                            <div className="grid grid-cols-2 gap-2 text-sm sm:grid-cols-4 xl:min-w-[560px]">
-                              <div className="rounded-md bg-slate-50 px-3 py-2">
-                                <p className="text-xs font-medium text-slate-500">Expected</p>
-                                <p className="font-semibold text-slate-950">{formatMoney(group.expected)}</p>
-                              </div>
-                              <div className="rounded-md bg-emerald-50 px-3 py-2">
-                                <p className="text-xs font-medium text-emerald-700">Received</p>
-                                <p className="font-semibold text-emerald-900">{formatMoney(group.received)}</p>
-                              </div>
-                              <div className="rounded-md bg-orange-50 px-3 py-2">
-                                <p className="text-xs font-medium text-orange-700">Outstanding</p>
-                                <p className="font-semibold text-orange-900">{formatMoney(group.outstanding)}</p>
-                              </div>
-                              <div className="rounded-md bg-blue-50 px-3 py-2">
-                                <p className="text-xs font-medium text-blue-700">Next Due</p>
-                                <p className="font-semibold text-blue-950">{formatDate(group.nextDue)}</p>
-                              </div>
-                            </div>
-                          </div>
-
-                          <div className="mt-3 flex flex-wrap gap-1">
-                            {group.statuses.map((status) => (
-                              <Badge key={status} className={statusTone[status]}>
-                                {status}
-                              </Badge>
-                            ))}
-                          </div>
-                        </div>
-
-                        {expanded && (
-                          <div className="border-t bg-white">
-                            <div className="overflow-x-auto">
-                              <table className="w-full min-w-[860px] text-sm">
-                                <thead className="bg-slate-50 text-left text-xs font-semibold tracking-wide text-slate-500 uppercase">
-                                  <tr>
-                                    <th className="px-4 py-3">Instalment</th>
-                                    {paymentColumnOptions.map((column) =>
-                                      isColumnVisible(column.key) ? (
-                                        <th
-                                          key={column.key}
-                                          className={`px-4 py-3 ${column.align === "right" ? "text-right" : ""}`}
-                                        >
-                                          {column.label}
-                                        </th>
-                                      ) : null,
-                                    )}
-                                  </tr>
-                                </thead>
-                                <tbody className="divide-y bg-white">
-                                  {orderedPayments.map((payment) => (
-                                    <tr
-                                      key={payment.id}
-                                      className="cursor-pointer transition-colors hover:bg-slate-50"
-                                      onClick={() => openPayment(payment)}
+                                  <div>
+                                    <button
+                                      type="button"
+                                      className="font-semibold text-slate-950 hover:underline text-left"
+                                      onClick={(e) => { e.stopPropagation(); openCustomerDetails(group.clientId); }}
                                     >
-                                      <td className="px-4 py-3">
-                                        <div className="font-medium text-slate-900">
-                                          {payment.payment_period_label || `Year ${payment.instalment_year}`}
-                                        </div>
-                                      </td>
-                                      {isColumnVisible("supplier") && (
-                                        <td className="px-4 py-3 text-slate-700">{payment.supplier_name || "-"}</td>
-                                      )}
-                                      {isColumnVisible("mpan") && (
-                                        <td className="px-4 py-3 font-mono text-xs text-slate-700">
-                                          {payment.mpan_number || payment.mpan_bottom || "-"}
-                                        </td>
-                                      )}
-                                      {isColumnVisible("contractDates") && (
-                                        <td className="px-4 py-3 text-slate-700">
-                                          {formatDate(payment.payment_period_start || payment.contract_start_date)} -{" "}
-                                          {formatDate(payment.payment_period_end || payment.contract_end_date)}
-                                        </td>
-                                      )}
-                                      {isColumnVisible("aggregator") && (
-                                        <td className="px-4 py-3 text-slate-700">{payment.aggregator || "-"}</td>
-                                      )}
-                                      {isColumnVisible("agent") && (
-                                        <td className="px-4 py-3 text-slate-700">{payment.agent_name || "-"}</td>
-                                      )}
-                                      {isColumnVisible("expected") && (
-                                        <td className="px-4 py-3 text-right font-medium">
-                                          {formatMoney(payment.expected_net_amount)}
-                                        </td>
-                                      )}
-                                      {isColumnVisible("dueDate") && (
-                                        <td className="px-4 py-3 text-slate-700">{formatDate(payment.due_date)}</td>
-                                      )}
-                                      {isColumnVisible("received") && (
-                                        <td className="px-4 py-3 text-right">{formatMoney(payment.amount_received)}</td>
-                                      )}
-                                      {isColumnVisible("outstanding") && (
-                                        <td className="px-4 py-3 text-right">
-                                          {formatMoney(payment.outstanding_amount)}
-                                        </td>
-                                      )}
-                                      {isColumnVisible("status") && (
-                                        <td className="px-4 py-3">
-                                          <Badge className={statusTone[payment.status]}>{payment.status}</Badge>
-                                        </td>
-                                      )}
-                                      {isColumnVisible("lastChecked") && (
-                                        <td className="px-4 py-3 text-slate-700">
-                                          {formatDateTime(payment.last_checked_at)}
-                                        </td>
-                                      )}
-                                    </tr>
+                                      {group.title}
+                                    </button>
+                                    <div className="flex gap-1 mt-0.5 flex-wrap">
+                                      <Badge className="bg-slate-900 text-white hover:bg-slate-900 text-xs">
+                                        {group.payments.length} instalment{group.payments.length === 1 ? "" : "s"}
+                                      </Badge>
+                                      {group.isArchived && <Badge className="bg-amber-100 text-amber-700 hover:bg-amber-100 text-xs">Archived</Badge>}
+                                      {group.isDeleted && <Badge className="bg-red-100 text-red-700 hover:bg-red-100 text-xs">Deleted</Badge>}
+                                    </div>
+                                  </div>
+                                </div>
+                              </td>
+                              <td className="px-3 py-2 text-slate-700">{group.payments[0]?.supplier_name || '-'}</td>
+                              <td className="px-3 py-2 text-slate-700">{group.payments[0]?.aggregator || '-'}</td>
+                              <td className="px-3 py-2 text-slate-700">{group.payments[0]?.agent_name || '-'}</td>
+                              <td className="px-3 py-2 font-mono text-xs text-slate-700">{group.mpan || '-'}</td>
+                              <td className="px-3 py-2 text-slate-700 whitespace-nowrap">{formatDate(group.contractStartDate)}</td>
+                              <td className="px-3 py-2 text-slate-700 whitespace-nowrap">{formatDate(group.contractEndDate)}</td>
+                              <td className="px-3 py-2 text-right font-medium">{formatMoney(group.expected)}</td>
+                              <td className="px-3 py-2 text-right text-emerald-700 font-medium">{formatMoney(group.received)}</td>
+                              <td className="px-3 py-2 text-right text-orange-700 font-medium">{formatMoney(group.outstanding)}</td>
+                              <td className="px-3 py-2 text-slate-700 whitespace-nowrap">{formatDate(group.nextDue)}</td>
+                              <td className="px-3 py-2">
+                                <div className="flex flex-wrap gap-1">
+                                  {group.statuses.map((status) => (
+                                    <Badge key={status} className={statusTone[status]}>{status}</Badge>
                                   ))}
-                                  {orderedPayments.length === 0 && (
-                                    <tr>
-                                      <td colSpan={visibleColumnCount} className="px-4 py-8 text-center text-slate-500">
-                                        No payment rows for this renewal.
-                                      </td>
-                                    </tr>
-                                  )}
-                                </tbody>
-                              </table>
-                            </div>
-                          </div>
-                        )}
-                      </section>
-                    );
-                  })}
-                  {paymentGroups.length === 0 && (
-                    <div className="rounded-lg border border-dashed bg-white px-4 py-12 text-center text-slate-500">
-                      No commission payments match the current filters.
-                    </div>
-                  )}
+                                </div>
+                              </td>
+                              <td className="px-3 py-2">
+                                <div className="flex gap-1" onClick={(e) => e.stopPropagation()}>
+                                  <Button size="sm" variant="outline" className="h-7 px-2 text-xs" onClick={() => openPaymentHistory(group.clientId)}>
+                                    <ReceiptText className="h-3 w-3" />
+                                  </Button>
+                                  <Button size="sm" variant="outline" className="h-7 px-2 text-xs" onClick={() => openCustomerDetails(group.clientId)}>
+                                    <ExternalLink className="h-3 w-3" />
+                                  </Button>
+                                </div>
+                              </td>
+                            </tr>
+
+                            {expanded && (
+                              <tr key={`${group.key}-expanded`}>
+                                <td colSpan={13} className="p-0 bg-slate-50">
+                                  <table className="w-full text-sm border-t border-b border-slate-200">
+                                    <thead className="bg-slate-100 text-left text-xs font-semibold tracking-wide text-slate-500 uppercase">
+                                      <tr>
+                                        <th className="px-8 py-2">Instalment</th>
+                                        <th className="px-4 py-2">Payment Period</th>
+                                        <th className="px-4 py-2 text-right">Expected</th>
+                                        <th className="px-4 py-2">Due Date</th>
+                                        <th className="px-4 py-2 text-right">Received</th>
+                                        <th className="px-4 py-2 text-right">Outstanding</th>
+                                        <th className="px-4 py-2">Status</th>
+                                      </tr>
+                                    </thead>
+                                    <tbody className="divide-y bg-white">
+                                      {orderedPayments.map((payment) => (
+                                        <tr
+                                          key={payment.id}
+                                          className={`transition-colors hover:bg-slate-50 ${String(payment.id).startsWith('stub-') ? 'opacity-50 cursor-default' : 'cursor-pointer'}`}
+                                          onClick={() => !String(payment.id).startsWith('stub-') && openPayment(payment)}
+                                        >
+                                          <td className="px-8 py-2 font-medium text-slate-900">
+                                            {payment.payment_period_label || `Year ${payment.instalment_year}`}
+                                          </td>
+                                          <td className="px-4 py-2 text-slate-700">
+                                            {formatDate(payment.payment_period_start || payment.contract_start_date)}
+                                            {' – '}
+                                            {formatDate(payment.payment_period_end || payment.contract_end_date)}
+                                          </td>
+                                          <td className="px-4 py-2 text-right font-medium">{formatMoney(payment.expected_net_amount)}</td>
+                                          <td className="px-4 py-2 text-slate-700">{formatDate(payment.due_date)}</td>
+                                          <td className="px-4 py-2 text-right">{formatMoney(payment.amount_received)}</td>
+                                          <td className="px-4 py-2 text-right">{formatMoney(payment.outstanding_amount)}</td>
+                                          <td className="px-4 py-2">
+                                            <Badge className={statusTone[payment.status]}>{payment.status}</Badge>
+                                          </td>
+                                        </tr>
+                                      ))}
+                                      {orderedPayments.length === 0 && (
+                                        <tr>
+                                          <td colSpan={7} className="px-8 py-4 text-center text-slate-500">
+                                            No payment rows for this renewal.
+                                          </td>
+                                        </tr>
+                                      )}
+                                    </tbody>
+                                  </table>
+                                </td>
+                              </tr>
+                            )}
+                          </React.Fragment>
+                        );
+                      })}
+                      {paymentGroups.length === 0 && (
+                        <tr>
+                          <td colSpan={13} className="px-4 py-12 text-center text-slate-500">
+                            No commission payments match the current filters.
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
                 </div>
+
                 <div className="flex flex-col gap-3 border-t bg-white px-4 py-3 text-sm text-slate-600 sm:flex-row sm:items-center sm:justify-between">
-                  <span>
-                    Page {pagination.page} of {pagination.total_pages || 1}
-                  </span>
+                  <span>Page {pagination.page} of {pagination.total_pages || 1}</span>
                   <div className="flex gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => changePage(pagination.page - 1)}
-                      disabled={loading || pagination.page <= 1}
-                    >
-                      Previous
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => changePage(pagination.page + 1)}
-                      disabled={loading || pagination.page >= (pagination.total_pages || 1)}
-                    >
-                      Next
-                    </Button>
+                    <Button variant="outline" size="sm" onClick={() => changePage(pagination.page - 1)} disabled={loading || pagination.page <= 1}>Previous</Button>
+                    <Button variant="outline" size="sm" onClick={() => changePage(pagination.page + 1)} disabled={loading || pagination.page >= (pagination.total_pages || 1)}>Next</Button>
                   </div>
                 </div>
               </div>
