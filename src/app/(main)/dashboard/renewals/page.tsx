@@ -1445,7 +1445,7 @@ export default function EnergyCustomersPage() {
                     <div className="flex items-start justify-between gap-4 mb-4">
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 mb-2">
-                          <h3 className="text-lg font-bold text-gray-900 truncate">{customer.business_name || customer.client_name}</h3>
+                          <h3 className="text-lg font-bold text-gray-900 truncate">{customer.business_name}</h3>
                           {customer.status && (
                             <Badge variant="outline" className={`text-xs flex-shrink-0 ${getStatusColor(customer.status)}`}>
                               {getStatusLabel(customer.status)}
