@@ -362,17 +362,12 @@ export default function EnergyCustomersPage() {
   
   useEffect(() => {
     const loadPageData = async () => {
-      // 1. Fetch customers first — paints the table ASAP
-      await fetchCustomers();
-
-      // 2. Fetch dropdowns in a single combined call
-      await fetchInitData();
-
-      // 3. Non-critical stats — after table is usable
-      await fetchPerformanceStats();
-      if (isAdmin) {
-        await fetchEmployeeStats();
-      }
+      await Promise.all([
+        fetchCustomers(),
+        fetchInitData(),
+        fetchPerformanceStats(),
+        ...(isAdmin ? [fetchEmployeeStats()] : []),
+      ]);
     };
 
     loadPageData();
@@ -411,45 +406,62 @@ export default function EnergyCustomersPage() {
   }, [salespersonFilter]);
 
   // ---------------- Fetch Functions ----------------
-  const fetchCustomers = async () => {
-    setIsLoading(true);
-    setError(null);
+  const fetchCustomers = async (page = 1, append = false) => {
+    if (page === 1) {
+      setIsLoading(true);
+      setError(null);
+    }
+
     try {
-      const response = await fetchWithAuth(`/energy-clients?service=${encodeURIComponent(service)}`);
-      const activeData: EnergyCustomer[] = Array.isArray(response) ? response : (response?.data || []);
+      const [activeResponse, archiveResponse] = await Promise.allSettled([
+        fetchWithAuth(`/energy-clients?service=${encodeURIComponent(service)}&page=${page}&page_size=50`),
+        page === 1
+          ? fetchWithAuth(`/energy-clients/archives?service=${encodeURIComponent(service)}`)
+          : Promise.resolve([]),
+      ]);
 
-      let archivedData: EnergyCustomer[] = [];
-      try {
-        const archiveResponse = await fetchWithAuth(`/energy-clients/archives?service=${encodeURIComponent(service)}`);
-        archivedData = Array.isArray(archiveResponse) ? archiveResponse : [];
-      } catch {
-        // Archives optional — silent fail
-      }
+      const activeData: EnergyCustomer[] =
+        activeResponse.status === "fulfilled"
+          ? activeResponse.value?.data || (Array.isArray(activeResponse.value) ? activeResponse.value : [])
+          : [];
 
-      // ✅ Deduplicate by client_id — active takes priority over archived
+      const archivedData: EnergyCustomer[] =
+        archiveResponse.status === "fulfilled"
+          ? Array.isArray(archiveResponse.value) ? archiveResponse.value : []
+          : [];
+
       const seen = new Set<number>();
       const combined: EnergyCustomer[] = [];
 
       for (const c of activeData) {
-        if (!seen.has(c.client_id)) {
-          seen.add(c.client_id);
-          combined.push(c);
-        }
+        if (!seen.has(c.client_id)) { seen.add(c.client_id); combined.push(c); }
       }
-      for (const c of archivedData) {
-        if (!seen.has(c.client_id)) {
-          seen.add(c.client_id);
-          combined.push(c);
+      // Only merge archives on first page load
+      if (page === 1) {
+        for (const c of archivedData) {
+          if (!seen.has(c.client_id)) { seen.add(c.client_id); combined.push(c); }
         }
       }
 
-      setAllCustomers(combined);
+      setAllCustomers(prev => append ? [...prev, ...combined] : combined);
+
+      // Auto-load remaining pages in background
+      const totalPages = activeResponse.status === "fulfilled"
+        ? activeResponse.value?.pagination?.total_pages || 1
+        : 1;
+
+      if (page < totalPages) {
+        // Load next page after a short delay so UI stays responsive
+        setTimeout(() => fetchCustomers(page + 1, true), 200);
+      }
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : "Unknown error occurred";
-      setError(errorMessage);
-      setAllCustomers([]);
+      if (page === 1) {
+        setError(errorMessage);
+        setAllCustomers([]);
+      }
     } finally {
-      setIsLoading(false);
+      if (page === 1) setIsLoading(false);
     }
   };
 
