@@ -202,12 +202,6 @@ const allSidebarItems: NavGroup[] = [
             roles: ["platform admin"],
           },
           {
-            title: "Already Renewed",
-            url: "/dashboard/payments/already-renewed",
-            icon: ClipboardCheck,
-            roles: ["platform admin"],
-          },
-          {
             title: "Reports",
             url: "/dashboard/payments/reports",
             icon: ChartBar,
