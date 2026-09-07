@@ -11,6 +11,7 @@ import {
   Search,
   ChevronLeft,
   Sparkles,
+  Calendar,
 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
@@ -33,6 +34,7 @@ interface StaffStat {
   end_date_changed_count: number;
   priced_count: number;
 }
+
 
 interface StaffPerformanceGridProps {
   employeeId?: number;
@@ -353,6 +355,30 @@ function MemberSpotlight({
 }
 
 
+type Period = "daily" | "weekly" | "monthly";
+
+function PeriodSelector({ period, onChange }: { period: Period; onChange: (p: Period) => void }) {
+  return (
+    <div className="flex items-center gap-1 rounded-xl border border-stone-200 bg-stone-50 p-1">
+      {(["daily", "weekly", "monthly", "alltime"] as const).map((p) => (
+        <button
+          key={p}
+          type="button"
+          onClick={() => onChange(p)}
+          className={cn(
+            "rounded-lg px-3 py-1 text-xs font-medium capitalize transition-all duration-150",
+            period === p
+              ? "bg-white text-stone-900 shadow-sm"
+              : "text-stone-500 hover:text-stone-700"
+          )}
+        >
+          {p === "alltime" ? "All time" : p}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 /* ─── Main Component ─── */
 // ✅ FIX: Add isLeadsDashboard to props
 export function StaffPerformanceGrid({ employeeId, isLeadsDashboard = false }: StaffPerformanceGridProps) {
@@ -364,6 +390,7 @@ export function StaffPerformanceGrid({ employeeId, isLeadsDashboard = false }: S
   const [searchQuery, setSearchQuery] = useState("");
   const stripContainerRef = useRef<HTMLDivElement>(null);
   const [visibleCount, setVisibleCount] = useState(10);
+  const [period, setPeriod] = useState<Period>("daily");
 
   // ✅ CONDITIONAL OUTCOME META - Changes label based on dashboard type
   const outcomeMeta = isLeadsDashboard 
@@ -399,29 +426,55 @@ export function StaffPerformanceGrid({ employeeId, isLeadsDashboard = false }: S
     return () => window.removeEventListener('resize', calculateVisible);
   }, [staffStats]);
 
-  const fetchPerformanceData = async () => {
+  const fetchPerformanceDataSilent = async (currentPeriod: Period) => {
     try {
       const token = localStorage.getItem("auth_token");
-      const employeeParam = employeeId ? `?employee_id=${employeeId}` : "";
-      
-      // ✅ Now isLeadsDashboard is properly defined
-      const endpoint = isLeadsDashboard 
-        ? `/api/crm/leads/staff-performance${employeeParam}`
-        : `/energy-renewals/staff-status-counts${employeeParam}`;
-      
-      console.log(`🔍 Fetching ${isLeadsDashboard ? 'LEADS' : 'RENEWALS'} performance from:`, endpoint);
-      
+      const params = new URLSearchParams();
+      if (employeeId) params.set("employee_id", String(employeeId));
+      params.set("period", currentPeriod); // ✅ use passed value not closure
+      const queryString = `?${params.toString()}`;
+
+      console.log("🔍 Fetching period:", currentPeriod, queryString); // debug
+
+      const response = await fetch(
+        `${API_BASE_URL}/api/crm/leads/staff-performance${queryString}`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+
+      if (response.ok) {
+        const data = await response.json();
+        setStaffStats(data);
+      }
+    } catch (error) {
+      console.error("Error fetching performance:", error);
+    }
+  };
+
+  useEffect(() => {
+    if (!isLeadsDashboard) return;
+    fetchPerformanceDataSilent(period);
+  }, [period]);
+
+  const fetchPerformanceData = async () => {
+    try {
+      setLoading(true);
+      const token = localStorage.getItem("auth_token");
+      const params = new URLSearchParams();
+      if (employeeId) params.set("employee_id", String(employeeId));
+      if (isLeadsDashboard) params.set("period", period);
+      const queryString = params.toString() ? `?${params.toString()}` : "";
+
+      const endpoint = isLeadsDashboard
+        ? `/api/crm/leads/staff-performance${queryString}`
+        : `/energy-renewals/staff-status-counts${queryString}`;
+
       const response = await fetch(`${API_BASE_URL}${endpoint}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
-      
+
       if (response.ok) {
         const data = await response.json();
-        console.log(`✅ Received ${data.length} staff members:`, data);
         setStaffStats(data);
-      } else {
-        const errorText = await response.text();
-        console.error(`❌ Failed to fetch performance:`, errorText);
       }
     } catch (error) {
       console.error("Error fetching performance:", error);
@@ -430,7 +483,6 @@ export function StaffPerformanceGrid({ employeeId, isLeadsDashboard = false }: S
     }
   };
 
-  // ... rest of the component remains the same
   const stats = staffStats;
   const strip = [...stats].sort((a, b) => a.employee_name.localeCompare(b.employee_name)).slice(0, visibleCount);
 
@@ -475,11 +527,11 @@ export function StaffPerformanceGrid({ employeeId, isLeadsDashboard = false }: S
         ))}
       </div>
     );
-    
+
   return (
     <>
       <div className="crm-panel rounded-[28px] px-5 pb-5 pt-4">
-        <div className="mb-4 flex items-center gap-3">
+        <div className="mb-4 flex flex-wrap items-center gap-3">
           <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-black text-white shadow-sm">
             <Users className="h-4 w-4" />
           </div>
@@ -489,17 +541,23 @@ export function StaffPerformanceGrid({ employeeId, isLeadsDashboard = false }: S
             </p>
             <p className="text-xs text-stone-500">{subtitle}</p>
           </div>
-          <button
-            type="button"
-            onClick={() => {
-              setSelectedEmployeeId(null);
-              setOpen(true);
-            }}
-            className="group ml-auto inline-flex items-center gap-1.5 rounded-xl border border-stone-200/90 bg-white px-3 py-1.5 text-xs font-medium text-stone-700 shadow-sm transition hover:border-stone-300 hover:bg-stone-50 hover:text-stone-900 active:scale-[0.98]"
-          >
-            View all
-            <ArrowRight className="h-3 w-3 transition-transform duration-200 group-hover:translate-x-0.5" />
-          </button>
+
+          <div className="ml-auto flex items-center gap-2">
+            {isLeadsDashboard && (
+              <PeriodSelector period={period} onChange={setPeriod} />
+            )}
+            <button
+              type="button"
+              onClick={() => {
+                setSelectedEmployeeId(null);
+                setOpen(true);
+              }}
+              className="group inline-flex items-center gap-1.5 rounded-xl border border-stone-200/90 bg-white px-3 py-1.5 text-xs font-medium text-stone-700 shadow-sm transition hover:border-stone-300 hover:bg-stone-50 hover:text-stone-900 active:scale-[0.98]"
+            >
+              View all
+              <ArrowRight className="h-3 w-3 transition-transform duration-200 group-hover:translate-x-0.5" />
+            </button>
+          </div>
         </div>
 
         {strip.length === 0 ? (
@@ -547,7 +605,6 @@ export function StaffPerformanceGrid({ employeeId, isLeadsDashboard = false }: S
           )}
         >
           <div className="cp-performance-modal-surface flex max-h-[92vh] flex-col overflow-hidden rounded-2xl border border-stone-200 bg-white shadow-xl">
-            {/* Header — solid surface so title & KPIs never compete with blurred layers */}
             <div className="relative z-[1] border-b border-stone-200 bg-stone-50 px-6 py-6 md:px-8">
               <DialogHeader className="relative space-y-4">
                 <div className="flex flex-wrap items-center gap-3">
@@ -580,7 +637,14 @@ export function StaffPerformanceGrid({ employeeId, isLeadsDashboard = false }: S
                       : "Compare conversion and pipeline health across the team."}
                 </p>
 
-                {/* Summary strip — team only (single member uses spotlight for metrics) */}
+                {/* ✅ Period selector inside modal — leads dashboard only */}
+                {isLeadsDashboard && (
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-medium text-stone-500">Period:</span>
+                    <PeriodSelector period={period} onChange={setPeriod} />
+                  </div>
+                )}
+
                 {!selectedStat && (
                   <div className="grid grid-cols-2 gap-3 pt-2 sm:grid-cols-4">
                     {[
@@ -644,12 +708,7 @@ export function StaffPerformanceGrid({ employeeId, isLeadsDashboard = false }: S
                 {selectedStat ? (
                   <MemberSpotlight stat={selectedStat} delay={0} outcomeMeta={outcomeMeta} />
                 ) : (
-                  <div
-                    className={cn(
-                      "grid gap-4",
-                      "grid-cols-1 sm:grid-cols-2 xl:grid-cols-3",
-                    )}
-                  >
+                  <div className={cn("grid gap-4", "grid-cols-1 sm:grid-cols-2 xl:grid-cols-3")}>
                     {sorted.map((s, i) => (
                       <DetailCard key={s.employee_id} stat={s} delay={i * 40} outcomeMeta={outcomeMeta} />
                     ))}

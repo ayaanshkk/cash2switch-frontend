@@ -252,6 +252,7 @@ export default function LeadsPage() {
     const saved = sessionStorage.getItem('leads_salesperson');
     return saved && saved !== "All" ? parseInt(saved) : "All";
   });
+  const [performanceModalLoading, setPerformanceModalLoading] = useState(false);
 
   // Reset page when filters change
   useEffect(() => { setCurrentPage(1); }, [searchTerm, supplierFilter, statusFilter, usageSort, endDateFilter, salespersonFilter]);
@@ -373,18 +374,17 @@ export default function LeadsPage() {
       console.error("Error fetching lead performance stats:", err);
       const cached = sessionStorage.getItem(performanceCacheKey);
       if (cached) {
-        try {
-          setPerformanceStats(JSON.parse(cached));
-        } catch {
-          sessionStorage.removeItem(performanceCacheKey);
-        }
+        try { setPerformanceStats(JSON.parse(cached)); }
+        catch { sessionStorage.removeItem(performanceCacheKey); }
       }
     }
   };
 
   useEffect(() => {
-    fetchLeads();
-    fetchPerformanceStats();
+    Promise.all([
+      fetchLeads(),
+      fetchPerformanceStats(),
+    ]);
   }, [service]);
 
   useEffect(() => {
@@ -975,31 +975,32 @@ export default function LeadsPage() {
   // ── Performance modal ──────────────────────────────────────────────────────
   const handlePerformanceClick = async (type: string) => {
     setPerformanceFilter(type);
+    setShowPerformanceModal(true);
+    setPerformanceFilteredLeads([]);
+    setPerformanceModalLoading(true);
+
     try {
       const resp = await fetchWithAuth(
-        `${CRM_PROXY}/leads?service=${encodeURIComponent(service)}`
+        `${CRM_PROXY}/leads/performance?service=${encodeURIComponent(service)}&return_records=true&stage_filter=${encodeURIComponent(type)}`
       );
-      const all: LeadCustomer[] = Array.isArray(resp) ? resp : (resp?.data || []);
-      let filtered: LeadCustomer[] = [];
-      switch (type) {
-        case "converted":       filtered = all.filter(l => { const s = (l.stage_name || "").toLowerCase(); return s === "converted" || s === "won"; }); break;
-        case "renewed":         filtered = all.filter(l => { const s = (l.stage_name || "").toLowerCase(); return ["priced","already renewed","end date changed"].includes(s); }); break;
-        case "in_progress":     filtered = all.filter(l => { const s = (l.stage_name || "").toLowerCase(); return ["callback","not answered"].includes(s); }); break;
-        case "not_contacted":   filtered = all.filter(l => { const s = (l.stage_name || "").toLowerCase(); return !s || s === "not called"; }); break;
-        case "lost":            filtered = all.filter(l => { const s = (l.stage_name || "").toLowerCase(); return ["lost","lost cot"].includes(s); }); break;
-        case "renewed_directly":filtered = all.filter(l => (l.stage_name || "").toLowerCase() === "renewed directly"); break;
-        case "end_date_changed":filtered = all.filter(l => (l.stage_name || "").toLowerCase() === "end date changed"); break;
-        case "priced":          filtered = all.filter(l => (l.stage_name || "").toLowerCase() === "priced"); break;
-      }
-      setPerformanceFilteredLeads(filtered);
-      setShowPerformanceModal(true);
-    } catch { toast.error("Failed to load leads"); }
+      setPerformanceFilteredLeads(resp?.records || []);
+    } catch {
+      toast.error("Failed to load leads");
+      setPerformanceFilteredLeads([]);
+    } finally {
+      setPerformanceModalLoading(false);
+    }
   };
 
   const getPerformanceLabel = (type: string) => ({
-    converted: "Converted", renewed: "Renewed", in_progress: "In Progress",
-    not_contacted: "Not Contacted", lost: "Lost", renewed_directly: "Renewed Directly",
-    end_date_changed: "End Date Changed", priced: "Priced",
+    converted: "Converted",
+    renewed: "Renewed",
+    in_progress: "In Progress",
+    not_contacted: "Not Contacted",
+    lost: "Lost",
+    renewed_directly: "Renewed Directly",
+    end_date_changed: "End Date Changed",
+    priced: "Priced",
   }[type] || "");
 
   // ── Pagination ─────────────────────────────────────────────────────────────
@@ -1199,8 +1200,15 @@ export default function LeadsPage() {
             <DialogDescription>Showing {performanceFilteredLeads.length} lead{performanceFilteredLeads.length !== 1 ? "s" : ""}</DialogDescription>
           </DialogHeader>
           <div className="flex-1 overflow-y-auto pr-2">
-            {performanceFilteredLeads.length === 0 ? (
-              <div className="text-center py-16 text-gray-500"><p className="text-lg">No leads in this category</p></div>
+            {performanceModalLoading ? (
+              <div className="flex min-h-64 items-center justify-center text-slate-500">
+                <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                Loading leads...
+              </div>
+            ) : performanceFilteredLeads.length === 0 ? (
+              <div className="text-center py-16 text-gray-500">
+                <p className="text-lg">No leads in this category</p>
+              </div>
             ) : (
               <div className="space-y-3 py-4">
                 {performanceFilteredLeads.map(l => (
