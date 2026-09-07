@@ -1361,7 +1361,7 @@ export default function EnergyCustomersPage() {
           <div className="flex-1">
             <h3 className="text-sm font-medium text-red-800">Error Loading Clients</h3>
             <p className="mt-1 text-sm text-red-700">{error}</p>
-            <Button onClick={fetchCustomers} variant="outline" size="sm" className="mt-3">Try Again</Button>
+            <Button onClick={() => fetchCustomers()} variant="outline" size="sm" className="mt-3">Try Again</Button>
           </div>
         </div>
       )}
