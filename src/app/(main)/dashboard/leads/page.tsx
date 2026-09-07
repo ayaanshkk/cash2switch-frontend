@@ -237,6 +237,7 @@ export default function LeadsPage() {
   const [bulkAssignEmployeeName, setBulkAssignEmployeeName] = useState("");
   const [bulkAssignmentNotes, setBulkAssignmentNotes]       = useState("");
   const [isBulkAssigning, setIsBulkAssigning]               = useState(false);
+  
 
   // ── Performance ────────────────────────────────────────────────────────────
   const [performanceStats, setPerformanceStats] = useState({
@@ -253,6 +254,7 @@ export default function LeadsPage() {
     return saved && saved !== "All" ? parseInt(saved) : "All";
   });
   const [performanceModalLoading, setPerformanceModalLoading] = useState(false);
+  const [performancePeriod, setPerformancePeriod] = useState<'daily' | 'weekly' | 'monthly' | 'alltime'>('alltime');
 
   // Reset page when filters change
   useEffect(() => { setCurrentPage(1); }, [searchTerm, supplierFilter, statusFilter, usageSort, endDateFilter, salespersonFilter]);
@@ -350,10 +352,10 @@ export default function LeadsPage() {
     }
   };
 
-  const fetchPerformanceStats = async () => {
+  const fetchPerformanceStats = async (period = performancePeriod) => {
     try {
       const resp = await fetchWithAuth(
-        `${CRM_PROXY}/leads/performance?service=${encodeURIComponent(service)}`
+        `${CRM_PROXY}/leads/performance?service=${encodeURIComponent(service)}&period=${period}`
       );
       if (resp && !resp.error) {
         const nextStats = {
@@ -379,6 +381,16 @@ export default function LeadsPage() {
       }
     }
   };
+
+  useEffect(() => {
+    fetchPerformanceStats(performancePeriod);
+  }, [performancePeriod, service]);
+
+  useEffect(() => {
+    const handleFocus = () => fetchPerformanceStats(performancePeriod);
+    window.addEventListener('focus', handleFocus);
+    return () => window.removeEventListener('focus', handleFocus);
+  }, [performancePeriod, service]);
 
   useEffect(() => {
     Promise.all([
@@ -1164,6 +1176,28 @@ export default function LeadsPage() {
             <h2 className="text-xl font-semibold text-gray-900">Lead Performance</h2>
             <p className="text-sm text-gray-600">{isAdmin ? "Overall lead success metrics" : "Your lead success metrics"}</p>
           </div>
+
+          {/* Period selector */}
+          <div className="flex items-center gap-2 mb-4">
+            <span className="text-xs font-medium text-gray-500">Period:</span>
+            <div className="flex items-center gap-1 rounded-xl border border-gray-200 bg-gray-50 p-1">
+              {(['daily', 'weekly', 'monthly', 'alltime'] as const).map((p) => (
+                <button
+                  key={p}
+                  type="button"
+                  onClick={() => setPerformancePeriod(p)}
+                  className={`rounded-lg px-3 py-1 text-xs font-medium capitalize transition-all duration-150 ${
+                    performancePeriod === p
+                      ? 'bg-white text-gray-900 shadow-sm'
+                      : 'text-gray-500 hover:text-gray-700'
+                  }`}
+                >
+                  {p === 'alltime' ? 'All Time' : p}
+                </button>
+              ))}
+            </div>
+          </div>
+          
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
             {[
               { key: "converted",        label: "Converted",        color: "emerald", icon: <CheckCircle2 className="h-6 w-6 text-emerald-600 mx-auto" />, val: performanceStats.converted },

@@ -355,7 +355,7 @@ function MemberSpotlight({
 }
 
 
-type Period = "daily" | "weekly" | "monthly";
+type Period = "daily" | "weekly" | "monthly" | "alltime";
 
 function PeriodSelector({ period, onChange }: { period: Period; onChange: (p: Period) => void }) {
   return (
@@ -431,13 +431,15 @@ export function StaffPerformanceGrid({ employeeId, isLeadsDashboard = false }: S
       const token = localStorage.getItem("auth_token");
       const params = new URLSearchParams();
       if (employeeId) params.set("employee_id", String(employeeId));
-      params.set("period", currentPeriod); // ✅ use passed value not closure
-      const queryString = `?${params.toString()}`;
+      params.set("period", currentPeriod); 
+      console.log("🔍 period sent:", currentPeriod); 
 
-      console.log("🔍 Fetching period:", currentPeriod, queryString); // debug
+      const endpoint = isLeadsDashboard
+        ? `/api/crm/leads/staff-performance`
+        : `/energy-renewals/staff-status-counts`;
 
       const response = await fetch(
-        `${API_BASE_URL}/api/crm/leads/staff-performance${queryString}`,
+        `${API_BASE_URL}${endpoint}?${params.toString()}`,
         { headers: { Authorization: `Bearer ${token}` } }
       );
 
@@ -451,7 +453,6 @@ export function StaffPerformanceGrid({ employeeId, isLeadsDashboard = false }: S
   };
 
   useEffect(() => {
-    if (!isLeadsDashboard) return;
     fetchPerformanceDataSilent(period);
   }, [period]);
 
@@ -543,9 +544,7 @@ export function StaffPerformanceGrid({ employeeId, isLeadsDashboard = false }: S
           </div>
 
           <div className="ml-auto flex items-center gap-2">
-            {isLeadsDashboard && (
-              <PeriodSelector period={period} onChange={setPeriod} />
-            )}
+            <PeriodSelector period={period} onChange={setPeriod} />
             <button
               type="button"
               onClick={() => {
@@ -638,12 +637,10 @@ export function StaffPerformanceGrid({ employeeId, isLeadsDashboard = false }: S
                 </p>
 
                 {/* ✅ Period selector inside modal — leads dashboard only */}
-                {isLeadsDashboard && (
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs font-medium text-stone-500">Period:</span>
-                    <PeriodSelector period={period} onChange={setPeriod} />
-                  </div>
-                )}
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-medium text-stone-500">Period:</span>
+                  <PeriodSelector period={period} onChange={setPeriod} />
+                </div>
 
                 {!selectedStat && (
                   <div className="grid grid-cols-2 gap-3 pt-2 sm:grid-cols-4">

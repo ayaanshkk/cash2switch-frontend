@@ -331,34 +331,39 @@ export default function EnergyCustomersPage() {
     const saved = sessionStorage.getItem('renewals_salesperson');
     return saved && saved !== "All" ? parseInt(saved) : "All";
   });
+  const [performancePeriod, setPerformancePeriod] = useState<'daily' | 'weekly' | 'monthly' | 'alltime'>('alltime');
 
   const router = useRouter();
   const { user } = useAuth();
 
   const isAdmin = user?.role === "Platform Admin" || user?.role === "Tenant Super Admin";
 
-  const fetchPerformanceStats = async () => {
+  const fetchPerformanceStats = async (period = performancePeriod) => {
     try {
       const response = await fetchWithAuth(
-        `/energy-renewals/performance?use_current_user=true&service=${encodeURIComponent(service)}`
+        `/energy-renewals/performance?use_current_user=true&service=${encodeURIComponent(service)}&period=${period}`
       );
       if (response && !response.error) {
         setPerformanceStats({
-          renewed: response.renewed_count || 0,
-          in_progress: response.contacted_count || 0,
-          not_contacted: response.not_contacted_count || 0,
-          lost: response.lost_count || 0,
-          success_rate: response.success_rate || 0,
+          renewed:          response.renewed_count          || 0,
+          in_progress:      response.contacted_count        || 0,
+          not_contacted:    response.not_contacted_count    || 0,
+          lost:             response.lost_count             || 0,
+          success_rate:     response.success_rate           || 0,
           renewed_directly: response.renewed_directly_count || 0,
           end_date_changed: response.end_date_changed_count || 0,
-          priced: response.priced_count || 0,
-          not_due: response.not_due || 0,  
+          priced:           response.priced_count           || 0,
+          not_due:          response.not_due                || 0,
         });
       }
     } catch (err) {
       console.error("Error fetching performance stats:", err);
     }
   };
+
+  useEffect(() => {
+    fetchPerformanceStats(performancePeriod);
+  }, [performancePeriod, service]);
   
   useEffect(() => {
     const loadPageData = async () => {
@@ -372,6 +377,16 @@ export default function EnergyCustomersPage() {
 
     loadPageData();
   }, [service, isAdmin]);
+
+  useEffect(() => {
+    fetchPerformanceStats(performancePeriod);
+  }, [performancePeriod, service]);
+
+  useEffect(() => {
+    const handleFocus = () => fetchPerformanceStats(performancePeriod);
+    window.addEventListener('focus', handleFocus);
+    return () => window.removeEventListener('focus', handleFocus);
+  }, [performancePeriod, service]);
 
   useEffect(() => {
     setCurrentPage(1);
@@ -406,18 +421,14 @@ export default function EnergyCustomersPage() {
   }, [salespersonFilter]);
 
   // ---------------- Fetch Functions ----------------
-  const fetchCustomers = async (page = 1, append = false) => {
-    if (page === 1) {
-      setIsLoading(true);
-      setError(null);
-    }
+  const fetchCustomers = async () => {
+    setIsLoading(true);
+    setError(null);
 
     try {
       const [activeResponse, archiveResponse] = await Promise.allSettled([
-        fetchWithAuth(`/energy-clients?service=${encodeURIComponent(service)}&page=${page}&page_size=50`),
-        page === 1
-          ? fetchWithAuth(`/energy-clients/archives?service=${encodeURIComponent(service)}`)
-          : Promise.resolve([]),
+        fetchWithAuth(`/energy-clients?service=${encodeURIComponent(service)}`),
+        fetchWithAuth(`/energy-clients/archives?service=${encodeURIComponent(service)}`),
       ]);
 
       const activeData: EnergyCustomer[] =
@@ -436,32 +447,17 @@ export default function EnergyCustomersPage() {
       for (const c of activeData) {
         if (!seen.has(c.client_id)) { seen.add(c.client_id); combined.push(c); }
       }
-      // Only merge archives on first page load
-      if (page === 1) {
-        for (const c of archivedData) {
-          if (!seen.has(c.client_id)) { seen.add(c.client_id); combined.push(c); }
-        }
+      for (const c of archivedData) {
+        if (!seen.has(c.client_id)) { seen.add(c.client_id); combined.push(c); }
       }
 
-      setAllCustomers(prev => append ? [...prev, ...combined] : combined);
-
-      // Auto-load remaining pages in background
-      const totalPages = activeResponse.status === "fulfilled"
-        ? activeResponse.value?.pagination?.total_pages || 1
-        : 1;
-
-      if (page < totalPages) {
-        // Load next page after a short delay so UI stays responsive
-        setTimeout(() => fetchCustomers(page + 1, true), 200);
-      }
+      setAllCustomers(combined);
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : "Unknown error occurred";
-      if (page === 1) {
-        setError(errorMessage);
-        setAllCustomers([]);
-      }
+      setError(errorMessage);
+      setAllCustomers([]);
     } finally {
-      if (page === 1) setIsLoading(false);
+      setIsLoading(false);
     }
   };
 
@@ -1139,82 +1135,24 @@ export default function EnergyCustomersPage() {
     return suppliers.find(s => s.supplier_id === supplierId)?.supplier_name || "—";
   };
 
+  const [performanceModalLoading, setPerformanceModalLoading] = useState(false);
+
   const handlePerformanceClick = async (type: 'renewed' | 'in_progress' | 'not_contacted' | 'lost' | 'renewed_directly' | 'end_date_changed' | 'priced' | 'not_due') => {
     setPerformanceFilter(type);
+    setShowPerformanceModal(true);
+    setPerformanceFilteredCustomers([]);
+    setPerformanceModalLoading(true);
+
     try {
-      const today = new Date();
-
-      // ✅ Reuse already-fetched allCustomers (filtered to current user)
-      // For archived records, they're already in allCustomers from fetchCustomers
-      const activeRecords = allCustomers.filter(c => !c.is_archived);
-      const archivedRecords = allCustomers.filter(c => c.is_archived === true);
-      const allActive = [...activeRecords, ...archivedRecords];
-
-      // ✅ For lost, fetch recycle bin separately (already employee-filtered by backend)
-      let recycleBinData: EnergyCustomer[] = [];
-      if (type === 'lost') {
-        try {
-          const recycleBinResponse = await fetchWithAuth(`/energy-clients/recycle-bin?service=${encodeURIComponent(service)}`);
-          recycleBinData = Array.isArray(recycleBinResponse) ? recycleBinResponse : [];
-        } catch {
-          recycleBinData = [];
-        }
-      }
-
-      let filtered: EnergyCustomer[] = [];
-
-      switch (type) {
-        case 'renewed':
-          filtered = allActive.filter(c => (c.status || '').toLowerCase() === 'already renewed');
-          break;
-        case 'in_progress':
-          filtered = allActive.filter(c => {
-            const s = (c.status || '').toLowerCase();
-            return ['called', 'callback', 'contacted', 'not answered', 'broker in place', 'email only'].includes(s);
-          });
-          break;
-        case 'not_contacted':
-          filtered = allActive.filter(c => {
-            const s = (c.status || '').toLowerCase();
-            const knownStatuses = [
-              'already renewed', 'renewed directly', 'end date changed', 'priced', 'sold',
-              'called', 'callback', 'contacted', 'not answered', 'broker in place', 'email only',
-              'lost', 'lost cot', 'invalid number', 'incorrect supplier',
-              'meter de-energised', 'complaint',
-            ];
-            return !c.status || s === '' || s === 'not called' || s === 'dead' || !knownStatuses.includes(s);
-          });
-          break;
-        case 'lost':
-          filtered = recycleBinData.filter(c => {
-            const s = ((c as any).deleted_reason || c.status || '').toLowerCase();
-            return s === 'lost' || s === 'lost cot';
-          });
-          break;
-        case 'renewed_directly':
-          filtered = allActive.filter(c => (c.status || '').toLowerCase() === 'renewed directly');
-          break;
-        case 'end_date_changed':
-          filtered = allActive.filter(c => (c.status || '').toLowerCase() === 'end date changed');
-          break;
-        case 'priced':
-          filtered = allActive.filter(c => (c.status || '').toLowerCase() === 'priced');
-          break;
-        case 'not_due':
-          filtered = allActive.filter(c => {
-            if (!c.end_date) return false;
-            const endDate = new Date(c.end_date);
-            const daysUntilEnd = Math.ceil((endDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-            return daysUntilEnd > 365;
-          });
-          break;
-      }
-
-      setPerformanceFilteredCustomers(filtered);
-      setShowPerformanceModal(true);
-    } catch (err) {
-      console.error("❌ Error in performance click:", err);
+      const resp = await fetchWithAuth(
+        `/energy-renewals/performance?use_current_user=true&service=${encodeURIComponent(service)}&return_records=true&stage_filter=${encodeURIComponent(type)}`
+      );
+      setPerformanceFilteredCustomers(resp?.records || []);
+    } catch {
       toast.error("Failed to load customers");
+      setPerformanceFilteredCustomers([]);
+    } finally {
+      setPerformanceModalLoading(false);
     }
   };
   
@@ -1405,6 +1343,28 @@ export default function EnergyCustomersPage() {
             <h2 className="text-xl font-semibold text-gray-900">Renewal Performance</h2>
             <p className="text-sm text-gray-600">{isAdmin ? "Overall renewal success metrics" : "Your renewal success metrics"}</p>
           </div>
+
+          {/* Period selector */}
+          <div className="flex items-center gap-2 mb-4">
+            <span className="text-xs font-medium text-gray-500">Period:</span>
+            <div className="flex items-center gap-1 rounded-xl border border-gray-200 bg-gray-50 p-1">
+              {(['daily', 'weekly', 'monthly', 'alltime'] as const).map((p) => (
+                <button
+                  key={p}
+                  type="button"
+                  onClick={() => setPerformancePeriod(p)}
+                  className={`rounded-lg px-3 py-1 text-xs font-medium capitalize transition-all duration-150 ${
+                    performancePeriod === p
+                      ? 'bg-white text-gray-900 shadow-sm'
+                      : 'text-gray-500 hover:text-gray-700'
+                  }`}
+                >
+                  {p === 'alltime' ? 'All Time' : p}
+                </button>
+              ))}
+            </div>
+          </div>
+
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 lg:grid-cols-4 gap-4">
             <div className="text-center p-6 border rounded-lg bg-green-50 cursor-pointer hover:shadow-md transition-shadow" onClick={() => handlePerformanceClick('renewed')}>
               <div className="text-4xl font-bold text-green-700">{performanceStats.renewed}</div>
@@ -1467,7 +1427,12 @@ export default function EnergyCustomersPage() {
             </DialogDescription>
           </DialogHeader>
           <div className="flex-1 overflow-y-auto pr-2">
-            {performanceFilteredCustomers.length === 0 ? (
+            {performanceModalLoading ? (
+              <div className="flex min-h-64 items-center justify-center text-slate-500">
+                <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                Loading customers...
+              </div>
+            ) : performanceFilteredCustomers.length === 0 ? (
               <div className="text-center py-16 text-gray-500">
                 <p className="text-lg">No customers found in this category</p>
               </div>
@@ -1480,7 +1445,7 @@ export default function EnergyCustomersPage() {
                     <div className="flex items-start justify-between gap-4 mb-4">
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 mb-2">
-                          <h3 className="text-lg font-bold text-gray-900 truncate">{customer.business_name}</h3>
+                          <h3 className="text-lg font-bold text-gray-900 truncate">{customer.business_name || customer.client_name}</h3>
                           {customer.status && (
                             <Badge variant="outline" className={`text-xs flex-shrink-0 ${getStatusColor(customer.status)}`}>
                               {getStatusLabel(customer.status)}
@@ -1494,18 +1459,14 @@ export default function EnergyCustomersPage() {
                         {customer.end_date && <p className="text-xs text-gray-500 mt-1">End: {formatDate(customer.end_date)}</p>}
                       </div>
                     </div>
-                    <div className="grid grid-cols-4 gap-4 pt-3 border-t border-gray-100">
+                    <div className="grid grid-cols-3 gap-4 pt-3 border-t border-gray-100">
                       <div className="min-w-0">
                         <p className="text-xs text-gray-500 uppercase mb-1">Supplier</p>
                         <p className="font-semibold text-sm text-gray-900 truncate">{customer.supplier_name || '—'}</p>
                       </div>
                       <div className="min-w-0">
-                        <p className="text-xs text-gray-500 uppercase mb-1">MPAN</p>
-                        <p className="font-semibold text-sm text-gray-900 font-mono truncate">{customer.mpan_mpr || customer.mpan_bottom || '—'}</p>
-                      </div>
-                      <div className="min-w-0">
-                        <p className="text-xs text-gray-500 uppercase mb-1">Annual Usage</p>
-                        <p className="font-semibold text-sm text-gray-900 truncate">{customer.annual_usage?.toLocaleString() || '—'} kWh</p>
+                        <p className="text-xs text-gray-500 uppercase mb-1">Status</p>
+                        <p className="font-semibold text-sm text-gray-900 truncate">{customer.status || '—'}</p>
                       </div>
                       <div className="min-w-0">
                         <p className="text-xs text-gray-500 uppercase mb-1">Assigned To</p>
