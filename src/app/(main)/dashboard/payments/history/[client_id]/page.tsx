@@ -632,7 +632,7 @@ export default function PaymentHistoryPage() {
                     <p className="text-slate-500">Aggregator</p>
                     <p className="font-semibold">{sheetPayment.aggregator || "-"}</p>
                   </div>
-                  {log.is_admin && (
+                  {log?.is_admin && (
                     <>
                       <div>
                         <p className="text-slate-500">Expected</p>
@@ -659,8 +659,9 @@ export default function PaymentHistoryPage() {
                 </div>
               </div>
 
-              {log.is_admin && (
-                <form onSubmit={submitReceiptFromSheet} className="space-y-4 rounded-lg border p-4">
+              {log?.is_admin && (
+                <form onSubmit={submitReceiptFromSheet}
+                className="space-y-4 rounded-lg border p-4">
                   <div className="flex items-center gap-2 text-sm font-semibold">
                     <Banknote className="h-4 w-4" />
                     Log Payment
