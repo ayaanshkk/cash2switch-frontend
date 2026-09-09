@@ -6,6 +6,7 @@ import { useParams, useRouter } from "next/navigation";
 import { ArrowLeft, BadgePoundSterling, Banknote, CalendarCheck, CheckCircle2, Clock3, Edit, ExternalLink, Loader2, RefreshCcw } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -134,6 +135,16 @@ export default function PaymentHistoryPage() {
     date_received: "",
     notes: "",
   });
+  const [sheetPaymentId, setSheetPaymentId] = useState<string | null>(null);
+  const [sheetReceipts, setSheetReceipts] = useState<PaymentLog["receipts"]>([]);
+  const [sheetLoading, setSheetLoading] = useState(false);
+
+  const sheetPayment = sheetPaymentId
+    ? log?.payments.find((p) => p.id === sheetPaymentId) ?? null
+    : null;
+  const sheetReceiptsForPayment = log?.receipts.filter(
+    (r) => r.commission_payment_id === sheetPaymentId
+  ) ?? [];
 
   const groupedPayments = useMemo<PaymentGroup[]>(() => {
     if (!log) return [];
@@ -193,6 +204,18 @@ export default function PaymentHistoryPage() {
     setReceiptEditDraft({ amount_received: "", date_received: "", notes: "" });
   };
 
+  const openSheet = (paymentId: string) => {
+    setSheetPaymentId(paymentId);
+    setActivePaymentId(null);
+    setEditingReceiptId(null);
+  };
+
+  const closeSheet = () => {
+    setSheetPaymentId(null);
+    setSheetReceipts([]);
+    setEditingReceiptId(null);
+  };
+
   const submitReceipt = async (event: FormEvent<HTMLFormElement>, paymentId: string) => {
     event.preventDefault();
     setSavingReceipt(true);
@@ -214,6 +237,12 @@ export default function PaymentHistoryPage() {
     } finally {
       setSavingReceipt(false);
     }
+  };
+
+  const submitReceiptFromSheet = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!sheetPaymentId) return;
+    await submitReceipt(event, sheetPaymentId);
   };
 
   const submitReceiptEdit = async (event: FormEvent<HTMLFormElement>, receipt: PaymentLog["receipts"][number]) => {
@@ -379,103 +408,58 @@ export default function PaymentHistoryPage() {
                         </tr>
                       </thead>
                       <tbody className="divide-y bg-white">
-                        {group.payments.map((payment) => (
-                          <Fragment key={payment.id}>
-                            <tr>
-                              <td className="px-4 py-3 font-medium text-slate-950">
-                                {payment.payment_period_label || `Year ${payment.instalment_year}`}
-                              </td>
-                              <td className="px-4 py-3 text-slate-700">{payment.supplier_name || "-"}</td>
-                              <td className="px-4 py-3 font-mono text-xs text-slate-700">
-                                {payment.mpan_number || payment.mpan_bottom || "-"}
-                              </td>
-                              <td className="px-4 py-3 text-slate-700">{payment.aggregator || "-"}</td>
-                              <td className="px-4 py-3 text-slate-700">{payment.agent_name || "-"}</td>
-                              {log.is_admin && (
-                                <td className="px-4 py-3 text-right font-medium">
-                                  {formatMoney(payment.expected_net_amount)}
+                        {group.payments.map((payment) => {
+                          const paymentReceipts = log.receipts.filter(
+                            (r) => r.commission_payment_id === payment.id
+                          );
+
+                          return (
+                            <Fragment key={payment.id}>
+                              <tr>
+                                <td className="px-4 py-3 font-medium text-slate-950">
+                                  {payment.payment_period_label || `Year ${payment.instalment_year}`}
                                 </td>
-                              )}
-                              <td className="px-4 py-3 text-slate-700">{formatDate(payment.due_date)}</td>
-                              {log.is_admin && (
-                                <td className="px-4 py-3 text-right">{formatMoney(payment.amount_received)}</td>
-                              )}
-                              {log.is_admin && (
-                                <td className="px-4 py-3 text-right font-medium">
-                                  {formatMoney(payment.outstanding_amount)}
+                                <td className="px-4 py-3 text-slate-700">{payment.supplier_name || "-"}</td>
+                                <td className="px-4 py-3 font-mono text-xs text-slate-700">
+                                  {payment.mpan_number || payment.mpan_bottom || "-"}
                                 </td>
-                              )}
-                              <td className="px-4 py-3">
-                                <Badge className={statusTone(payment.status)}>{payment.status}</Badge>
-                              </td>
-                              <td className="px-4 py-3 text-slate-700">{formatDateTime(payment.last_checked_at)}</td>
-                              {log.is_admin && (
-                                <td className="px-4 py-3 text-right">
-                                  <Button
-                                    type="button"
-                                    size="sm"
-                                    variant="outline"
-                                    onClick={() => setActivePaymentId(payment.id)}
-                                    disabled={payment.status === "Closed"}
-                                  >
-                                    <Banknote className="mr-2 h-4 w-4" />
-                                    Log Payment
-                                  </Button>
+                                <td className="px-4 py-3 text-slate-700">{payment.aggregator || "-"}</td>
+                                <td className="px-4 py-3 text-slate-700">{payment.agent_name || "-"}</td>
+                                {log.is_admin && (
+                                  <td className="px-4 py-3 text-right font-medium">
+                                    {formatMoney(payment.expected_net_amount)}
+                                  </td>
+                                )}
+                                <td className="px-4 py-3 text-slate-700">{formatDate(payment.due_date)}</td>
+                                {log.is_admin && (
+                                  <td className="px-4 py-3 text-right">{formatMoney(payment.amount_received)}</td>
+                                )}
+                                {log.is_admin && (
+                                  <td className="px-4 py-3 text-right font-medium">
+                                    {formatMoney(payment.outstanding_amount)}
+                                  </td>
+                                )}
+                                <td className="px-4 py-3">
+                                  <Badge className={statusTone(payment.status)}>{payment.status}</Badge>
                                 </td>
-                              )}
-                            </tr>
-                            {log.is_admin && activePaymentId === payment.id && (
-                              <tr key={`${payment.id}-form`}>
-                                <td colSpan={12} className="bg-slate-50 px-4 py-4">
-                                  <form onSubmit={(event) => submitReceipt(event, payment.id)} className="grid gap-3 md:grid-cols-[1fr_1fr_2fr_auto_auto] md:items-end">
-                                    <div className="space-y-2">
-                                      <Label htmlFor={`amount_${payment.id}`}>Amount received</Label>
-                                      <Input
-                                        id={`amount_${payment.id}`}
-                                        min="0.01"
-                                        step="0.01"
-                                        type="number"
-                                        value={receiptDraft.amount_received}
-                                        onChange={(event) =>
-                                          setReceiptDraft((current) => ({ ...current, amount_received: event.target.value }))
-                                        }
-                                        required
-                                      />
-                                    </div>
-                                    <div className="space-y-2">
-                                      <Label htmlFor={`date_${payment.id}`}>Date received</Label>
-                                      <Input
-                                        id={`date_${payment.id}`}
-                                        type="date"
-                                        value={receiptDraft.date_received}
-                                        onChange={(event) =>
-                                          setReceiptDraft((current) => ({ ...current, date_received: event.target.value }))
-                                        }
-                                      />
-                                    </div>
-                                    <div className="space-y-2">
-                                      <Label htmlFor={`notes_${payment.id}`}>Notes</Label>
-                                      <Input
-                                        id={`notes_${payment.id}`}
-                                        value={receiptDraft.notes}
-                                        onChange={(event) =>
-                                          setReceiptDraft((current) => ({ ...current, notes: event.target.value }))
-                                        }
-                                      />
-                                    </div>
-                                    <Button type="submit" disabled={savingReceipt}>
-                                      {savingReceipt ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                                      Save
+                                <td className="px-4 py-3 text-slate-700">{formatDateTime(payment.last_checked_at)}</td>
+                                {log.is_admin && (
+                                  <td className="px-4 py-3 text-right">
+                                    <Button
+                                      type="button"
+                                      size="sm"
+                                      variant="outline"
+                                      onClick={() => openSheet(payment.id)}
+                                    >
+                                      <Banknote className="mr-2 h-4 w-4" />
+                                      Log Payment
                                     </Button>
-                                    <Button type="button" variant="outline" onClick={resetReceiptDraft}>
-                                      Cancel
-                                    </Button>
-                                  </form>
-                                </td>
+                                  </td>
+                                )}
                               </tr>
-                            )}
-                          </Fragment>
-                        ))}
+                            </Fragment>
+                          );
+                        })}
                       </tbody>
                     </table>
                   </div>
@@ -498,7 +482,6 @@ export default function PaymentHistoryPage() {
                               <Label htmlFor={`edit_amount_${receipt.id}`}>Amount received</Label>
                               <Input
                                 id={`edit_amount_${receipt.id}`}
-                                min="0.01"
                                 step="0.01"
                                 type="number"
                                 value={receiptEditDraft.amount_received}
@@ -617,6 +600,206 @@ export default function PaymentHistoryPage() {
           </>
         )}
       </div>
+
+      <Sheet open={Boolean(sheetPaymentId)} onOpenChange={(open) => !open && closeSheet()}>
+        <SheetContent className="w-full overflow-y-auto p-0 sm:max-w-2xl">
+          <SheetHeader className="border-b px-6 py-5 pr-12">
+            <SheetTitle>Commission Payment</SheetTitle>
+          </SheetHeader>
+
+          {sheetPayment && (
+            <div className="space-y-6 px-6 py-6">
+              <div className="rounded-lg border p-4">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="min-w-0">
+                    <p className="text-lg font-semibold text-slate-950">
+                      {sheetPayment.payment_period_label || `Year ${sheetPayment.instalment_year}`}
+                    </p>
+                    <p className="mt-1 text-sm text-slate-500">
+                      {sheetPayment.supplier_name || "Supplier"} · {sheetPayment.agent_name || "Unassigned"}
+                    </p>
+                  </div>
+                  <Badge className={statusTone(sheetPayment.status)}>{sheetPayment.status}</Badge>
+                </div>
+                <div className="mt-4 grid grid-cols-2 gap-3 text-sm">
+                  <div>
+                    <p className="text-slate-500">MPAN/MPR</p>
+                    <p className="font-mono text-xs font-semibold break-words">
+                      {sheetPayment.mpan_number || sheetPayment.mpan_bottom || "-"}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-slate-500">Aggregator</p>
+                    <p className="font-semibold">{sheetPayment.aggregator || "-"}</p>
+                  </div>
+                  {log.is_admin && (
+                    <>
+                      <div>
+                        <p className="text-slate-500">Expected</p>
+                        <p className="font-semibold">{formatMoney(sheetPayment.expected_net_amount)}</p>
+                      </div>
+                      <div>
+                        <p className="text-slate-500">Outstanding</p>
+                        <p className="font-semibold">{formatMoney(sheetPayment.outstanding_amount)}</p>
+                      </div>
+                      <div>
+                        <p className="text-slate-500">Received</p>
+                        <p className="font-semibold">{formatMoney(sheetPayment.amount_received)}</p>
+                      </div>
+                    </>
+                  )}
+                  <div>
+                    <p className="text-slate-500">Due date</p>
+                    <p className="font-semibold">{formatDate(sheetPayment.due_date)}</p>
+                  </div>
+                  <div>
+                    <p className="text-slate-500">Last checked</p>
+                    <p className="font-semibold">{formatDateTime(sheetPayment.last_checked_at)}</p>
+                  </div>
+                </div>
+              </div>
+
+              {log.is_admin && (
+                <form onSubmit={submitReceiptFromSheet} className="space-y-4 rounded-lg border p-4">
+                  <div className="flex items-center gap-2 text-sm font-semibold">
+                    <Banknote className="h-4 w-4" />
+                    Log Payment
+                  </div>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <div className="space-y-2">
+                      <Label htmlFor="sheet_amount">Amount received</Label>
+                      <Input
+                        id="sheet_amount"
+                        step="0.01"
+                        type="number"
+                        value={receiptDraft.amount_received}
+                        onChange={(e) =>
+                          setReceiptDraft((c) => ({ ...c, amount_received: e.target.value }))
+                        }
+                        required
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="sheet_date">Date received</Label>
+                      <Input
+                        id="sheet_date"
+                        type="date"
+                        value={receiptDraft.date_received}
+                        onChange={(e) =>
+                          setReceiptDraft((c) => ({ ...c, date_received: e.target.value }))
+                        }
+                      />
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="sheet_notes">Notes</Label>
+                    <Textarea
+                      id="sheet_notes"
+                      value={receiptDraft.notes}
+                      onChange={(e) =>
+                        setReceiptDraft((c) => ({ ...c, notes: e.target.value }))
+                      }
+                      rows={3}
+                    />
+                  </div>
+                  <Button type="submit" disabled={savingReceipt}>
+                    {savingReceipt ? (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    ) : (
+                      <Banknote className="mr-2 h-4 w-4" />
+                    )}
+                    Log Payment
+                  </Button>
+                </form>
+              )}
+              <div className="space-y-3">
+                <h3 className="text-sm font-semibold text-slate-950">Payment history</h3>
+                {sheetReceiptsForPayment.length > 0 ? (
+                  sheetReceiptsForPayment.map((receipt) => (
+                    <div key={receipt.id} className="rounded-lg border p-3 text-sm">
+                      {editingReceiptId === receipt.id ? (
+                        <form onSubmit={(e) => submitReceiptEdit(e, receipt)} className="space-y-3">
+                          <div className="grid gap-3 sm:grid-cols-2">
+                            <div className="space-y-2">
+                              <Label htmlFor={`sedit_amount_${receipt.id}`}>Amount received</Label>
+                              <Input
+                                id={`sedit_amount_${receipt.id}`}
+                                step="0.01"
+                                type="number"
+                                value={receiptEditDraft.amount_received}
+                                onChange={(e) =>
+                                  setReceiptEditDraft((c) => ({ ...c, amount_received: e.target.value }))
+                                }
+                                required
+                              />
+                            </div>
+                            <div className="space-y-2">
+                              <Label htmlFor={`sedit_date_${receipt.id}`}>Date received</Label>
+                              <Input
+                                id={`sedit_date_${receipt.id}`}
+                                type="date"
+                                value={receiptEditDraft.date_received}
+                                onChange={(e) =>
+                                  setReceiptEditDraft((c) => ({ ...c, date_received: e.target.value }))
+                                }
+                              />
+                            </div>
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor={`sedit_notes_${receipt.id}`}>Notes</Label>
+                            <Textarea
+                              id={`sedit_notes_${receipt.id}`}
+                              value={receiptEditDraft.notes}
+                              onChange={(e) =>
+                                setReceiptEditDraft((c) => ({ ...c, notes: e.target.value }))
+                              }
+                              rows={2}
+                            />
+                          </div>
+                          <div className="flex flex-wrap gap-2">
+                            <Button type="submit" size="sm" disabled={savingReceipt}>
+                              {savingReceipt ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                              Save Receipt
+                            </Button>
+                            <Button type="button" size="sm" variant="outline" onClick={cancelEditingReceipt}>
+                              Cancel
+                            </Button>
+                          </div>
+                        </form>
+                      ) : (
+                        <>
+                          <div className="flex items-center justify-between gap-3">
+                            <p className="font-semibold">{formatMoney(receipt.amount_received)}</p>
+                            <p className="text-slate-500">{formatDate(receipt.date_received)}</p>
+                          </div>
+                          <p className="mt-1 text-slate-500">
+                            {receipt.logged_by_name || "Logged"} · {formatDateTime(receipt.created_at)}
+                          </p>
+                          {receipt.notes && <p className="mt-2 text-slate-700">{receipt.notes}</p>}
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            className="mt-3"
+                            onClick={() => startEditingReceipt(receipt)}
+                          >
+                            <Edit className="mr-2 h-4 w-4" />
+                            Edit Receipt
+                          </Button>
+                        </>
+                      )}
+                    </div>
+                  ))
+                ) : (
+                  <div className="rounded-lg border border-dashed p-4 text-sm text-slate-500">
+                    No receipts logged for this payment.
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+        </SheetContent>
+      </Sheet>
     </div>
   );
 }

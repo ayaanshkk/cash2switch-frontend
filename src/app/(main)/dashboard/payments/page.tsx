@@ -544,7 +544,6 @@ export default function PaymentCheckerPage() {
           notes: receiptDraft.notes,
         }),
       });
-      updatePaymentInList(data.payment);
       setReceipts((current) => [data.receipt, ...current]);
       setReceiptDraft({
         amount_received: "",
@@ -552,6 +551,14 @@ export default function PaymentCheckerPage() {
         notes: "",
       });
       setSuccessMessage("Payment receipt logged.");
+
+      // Re-fetch payment detail so sheet totals are accurate
+      const refreshed = await fetchWithAuth(`/api/commission/payments/${selectedPayment.id}`);
+      setSelectedPayment(refreshed.payment);
+      updatePaymentInList(refreshed.payment);
+
+      // Reload outer table so group-level totals update
+      await loadPayments(filters, searchTerm, pagination);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to log payment receipt");
     } finally {
@@ -576,10 +583,18 @@ export default function PaymentCheckerPage() {
           notes: receiptEditDraft.notes,
         }),
       });
-      updatePaymentInList(data.payment);
+      // Update receipt list in sheet
       setReceipts((current) => current.map((receipt) => (receipt.id === editingReceiptId ? data.receipt : receipt)));
       cancelEditingReceipt();
       setSuccessMessage("Payment receipt updated.");
+
+      // Re-fetch the full payment detail so sheet totals (received, outstanding) are accurate
+      const refreshed = await fetchWithAuth(`/api/commission/payments/${selectedPayment.id}`);
+      setSelectedPayment(refreshed.payment);
+      updatePaymentInList(refreshed.payment);
+
+      // Reload the outer table so group-level totals update
+      await loadPayments(filters, searchTerm, pagination);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to update payment receipt");
     } finally {
@@ -608,7 +623,6 @@ export default function PaymentCheckerPage() {
     }
   };
 
-  const selectedIsClosed = selectedPayment?.status === "Closed";
   const isColumnVisible = (key: PaymentColumnKey) => visiblePaymentColumns[key];
   const visibleColumnCount = 1 + paymentColumnOptions.filter((column) => isColumnVisible(column.key)).length;
 
@@ -1078,83 +1092,74 @@ export default function PaymentCheckerPage() {
                   </div>
                 </div>
 
-                {selectedIsClosed ? (
-                  <div className="rounded-lg border border-zinc-200 bg-zinc-50 px-4 py-3 text-sm text-zinc-700">
-                    This payment is closed. Receipts and chasing actions are no longer available.
+                <form onSubmit={submitReceipt} className="space-y-4 rounded-lg border p-4">
+                  <div className="flex items-center gap-2 text-sm font-semibold">
+                    <Banknote className="h-4 w-4" />
+                    Log Payment
                   </div>
-                ) : (
-                  <>
-                    <form onSubmit={submitReceipt} className="space-y-4 rounded-lg border p-4">
-                      <div className="flex items-center gap-2 text-sm font-semibold">
-                        <Banknote className="h-4 w-4" />
-                        Log Payment
-                      </div>
-                      <div className="grid gap-3 sm:grid-cols-2">
-                        <div className="space-y-2">
-                          <Label htmlFor="amount_received">Amount received</Label>
-                          <Input
-                            id="amount_received"
-                            min="0.01"
-                            step="0.01"
-                            type="number"
-                            value={receiptDraft.amount_received}
-                            onChange={(event) =>
-                              setReceiptDraft((current) => ({ ...current, amount_received: event.target.value }))
-                            }
-                            required
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <Label htmlFor="date_received">Date received</Label>
-                          <Input
-                            id="date_received"
-                            type="date"
-                            value={receiptDraft.date_received}
-                            onChange={(event) =>
-                              setReceiptDraft((current) => ({ ...current, date_received: event.target.value }))
-                            }
-                          />
-                        </div>
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="notes">Notes</Label>
-                        <Textarea
-                          id="notes"
-                          value={receiptDraft.notes}
-                          onChange={(event) =>
-                            setReceiptDraft((current) => ({ ...current, notes: event.target.value }))
-                          }
-                          rows={3}
-                        />
-                      </div>
-                      <Button type="submit" disabled={saving}>
-                        {saving ? (
-                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        ) : (
-                          <Banknote className="mr-2 h-4 w-4" />
-                        )}
-                        Log Payment
-                      </Button>
-                    </form>
-
-                    <div className="rounded-lg border p-4">
-                      <div className="mb-3 text-sm font-semibold text-slate-950">Actions</div>
-                      <div className="flex flex-wrap gap-2">
-                        <Button variant="outline" onClick={() => patchStatus("Chasing Supplier")} disabled={saving}>
-                          <CalendarCheck className="mr-2 h-4 w-4" />
-                          Mark as Chasing Supplier
-                        </Button>
-                        <Button variant="destructive" onClick={() => patchStatus("Closed")} disabled={saving}>
-                          <XCircle className="mr-2 h-4 w-4" />
-                          Close
-                        </Button>
-                      </div>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <div className="space-y-2">
+                      <Label htmlFor="amount_received">Amount received</Label>
+                      <Input
+                        id="amount_received"
+                        step="0.01"
+                        type="number"
+                        value={receiptDraft.amount_received}
+                        onChange={(event) =>
+                          setReceiptDraft((current) => ({ ...current, amount_received: event.target.value }))
+                        }
+                        required
+                      />
                     </div>
-                  </>
-                )}
+                    <div className="space-y-2">
+                      <Label htmlFor="date_received">Date received</Label>
+                      <Input
+                        id="date_received"
+                        type="date"
+                        value={receiptDraft.date_received}
+                        onChange={(event) =>
+                          setReceiptDraft((current) => ({ ...current, date_received: event.target.value }))
+                        }
+                      />
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="notes">Notes</Label>
+                    <Textarea
+                      id="notes"
+                      value={receiptDraft.notes}
+                      onChange={(event) =>
+                        setReceiptDraft((current) => ({ ...current, notes: event.target.value }))
+                      }
+                      rows={3}
+                    />
+                  </div>
+                  <Button type="submit" disabled={saving}>
+                    {saving ? (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    ) : (
+                      <Banknote className="mr-2 h-4 w-4" />
+                    )}
+                    Log Payment
+                  </Button>
+                </form>
+
+                <div className="rounded-lg border p-4">
+                  <div className="mb-3 text-sm font-semibold text-slate-950">Actions</div>
+                  <div className="flex flex-wrap gap-2">
+                    <Button variant="outline" onClick={() => patchStatus("Chasing Supplier")} disabled={saving}>
+                      <CalendarCheck className="mr-2 h-4 w-4" />
+                      Mark as Chasing Supplier
+                    </Button>
+                    <Button variant="destructive" onClick={() => patchStatus("Closed")} disabled={saving}>
+                      <XCircle className="mr-2 h-4 w-4" />
+                      Close
+                    </Button>
+                  </div>
+                </div>
 
                 <div className="space-y-3">
-                  <h3 className="text-sm font-semibold text-slate-950">Receipt history</h3>
+                  <h3 className="text-sm font-semibold text-slate-950">Payment history</h3>
                   {detailLoading ? (
                     <div className="flex items-center text-sm text-slate-500">
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -1170,7 +1175,6 @@ export default function PaymentCheckerPage() {
                                 <Label htmlFor={`edit_amount_${receipt.id}`}>Amount received</Label>
                                 <Input
                                   id={`edit_amount_${receipt.id}`}
-                                  min="0.01"
                                   step="0.01"
                                   type="number"
                                   value={receiptEditDraft.amount_received}
