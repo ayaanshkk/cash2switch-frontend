@@ -339,6 +339,10 @@ export default function PaymentCheckerPage() {
       });
       if (nextFilters.supplier !== "all") params.set("supplier", nextFilters.supplier);
       if (nextFilters.agent !== "all") params.set("agent", nextFilters.agent);
+      if (nextFilters.status !== "all") params.set("status", nextFilters.status);
+      if (nextFilters.aggregator !== "all") params.set("aggregator", nextFilters.aggregator);
+      if (nextFilters.due_from) params.set("due_from", nextFilters.due_from);
+      if (nextFilters.due_to) params.set("due_to", nextFilters.due_to);
       if (nextSearchTerm.trim()) params.set("search", nextSearchTerm.trim());
 
       const data = await fetchWithAuth(`/api/commission/clients-with-payments?${params.toString()}`);
@@ -661,18 +665,7 @@ export default function PaymentCheckerPage() {
             </CardHeader>
             <CardContent className="text-2xl font-semibold">{formatMoney(totals.expected)}</CardContent>
           </Card>
-          <Card
-            className="cursor-pointer border-slate-200 shadow-sm transition-colors hover:border-emerald-300 hover:bg-emerald-50/40"
-            role="button"
-            tabIndex={0}
-            onClick={() => applyStatusShortcut("Received")}
-            onKeyDown={(event) => {
-              if (event.key === "Enter" || event.key === " ") {
-                event.preventDefault();
-                applyStatusShortcut("Received");
-              }
-            }}
-          >
+          <Card className="border-slate-200 shadow-sm">
             <CardHeader className="pb-2">
               <CardTitle className="flex items-center gap-2 text-sm font-medium text-slate-600">
                 <CheckCircle2 className="h-4 w-4 text-emerald-600" />
