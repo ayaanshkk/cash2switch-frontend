@@ -1134,6 +1134,9 @@ export default function PaymentCheckerPage() {
                       rows={3}
                     />
                   </div>
+                  {error && (
+                    <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>
+                  )}
                   <Button type="submit" disabled={saving}>
                     {saving ? (
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />

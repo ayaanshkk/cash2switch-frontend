@@ -703,6 +703,9 @@ export default function PaymentHistoryPage() {
                       rows={3}
                     />
                   </div>
+                  {error && (
+                    <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>
+                  )}
                   <Button type="submit" disabled={savingReceipt}>
                     {savingReceipt ? (
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -758,6 +761,11 @@ export default function PaymentHistoryPage() {
                             />
                           </div>
                           <div className="flex flex-wrap gap-2">
+                            {error && (
+                              <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+                                {error}
+                              </div>
+                            )}
                             <Button type="submit" size="sm" disabled={savingReceipt}>
                               {savingReceipt ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                               Save Receipt
