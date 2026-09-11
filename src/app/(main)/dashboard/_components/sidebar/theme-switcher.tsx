@@ -1,5 +1,4 @@
 "use client";
-
 import { Moon, Sun } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -24,3 +23,4 @@ export function ThemeSwitcher() {
     </Button>
   );
 }
+
