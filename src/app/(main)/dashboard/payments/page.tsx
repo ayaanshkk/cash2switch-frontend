@@ -269,7 +269,7 @@ export default function PaymentCheckerPage() {
         .filter(Boolean)
         .join(" · ");
 
-      const group = groups.get(key) || {
+      const group: PaymentGroup = groups.get(key) || {
         key,
         title,
         subtitle,
@@ -278,12 +278,12 @@ export default function PaymentCheckerPage() {
         contractStartDate: payment.contract_start_date,
         contractEndDate: payment.contract_end_date,
         serviceTitle: payment.service_title,
-        payments: [],
+        payments: [] as CommissionPayment[],
         expected: 0,
         received: 0,
         outstanding: 0,
         nextDue: null,
-        statuses: [],
+        statuses: [] as PaymentStatus[],
         isArchived: payment.is_archived ?? false,
         isDeleted: payment.is_deleted ?? false,
         needsChasing: (payment as any).needs_chasing ?? false,
