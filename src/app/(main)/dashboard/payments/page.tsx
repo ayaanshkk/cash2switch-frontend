@@ -107,6 +107,7 @@ type PaymentGroup = {
   statuses: PaymentStatus[];
   isArchived: boolean;
   isDeleted: boolean;
+  needsChasing: boolean;
 };
 
 type PaymentColumnKey =
@@ -211,6 +212,8 @@ export default function PaymentCheckerPage() {
   const [detailLoading, setDetailLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [notesDraft, setNotesDraft] = useState("");
+  const [savingNote, setSavingNote] = useState(false);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [visiblePaymentColumns, setVisiblePaymentColumns] = useState<Record<PaymentColumnKey, boolean>>(
     () =>
@@ -283,24 +286,42 @@ export default function PaymentCheckerPage() {
         statuses: [],
         isArchived: payment.is_archived ?? false,
         isDeleted: payment.is_deleted ?? false,
+        needsChasing: (payment as any).needs_chasing ?? false,
       };
 
       group.payments.push(payment);
-      group.expected += Number(payment.expected_net_amount || 0);
-      group.received += Number(payment.amount_received || 0);
+      group.expected    += Number(payment.expected_net_amount || 0);
+      group.received    += Number(payment.amount_received || 0);
       group.outstanding += Number(payment.outstanding_amount || 0);
       group.statuses = Array.from(new Set([...group.statuses, payment.status]));
+
       if (payment.due_date && (!group.nextDue || payment.due_date < group.nextDue)) {
         group.nextDue = payment.due_date;
+      }
+
+      // Mark as needs chasing if any instalment is overdue with outstanding balance
+      if (
+        Number(payment.outstanding_amount || 0) > 0 &&
+        payment.due_date &&
+        new Date(payment.due_date) < new Date() &&
+        !['Received', 'Closed'].includes(payment.status)
+      ) {
+        group.needsChasing = true;
       }
 
       groups.set(key, group);
     });
 
     return Array.from(groups.values()).sort((a, b) => {
+      // Needs chasing always first
+      if (a.needsChasing && !b.needsChasing) return -1;
+      if (!a.needsChasing && b.needsChasing) return 1;
+
+      // Then by next due date
       if (a.nextDue && b.nextDue) return a.nextDue.localeCompare(b.nextDue);
       if (a.nextDue) return -1;
       if (b.nextDue) return 1;
+
       return a.title.localeCompare(b.title);
     });
   }, [filteredPayments]);
@@ -545,7 +566,6 @@ export default function PaymentCheckerPage() {
         body: JSON.stringify({
           amount_received: Number(receiptDraft.amount_received),
           date_received: receiptDraft.date_received,
-          notes: receiptDraft.notes,
         }),
       });
       setReceipts((current) => [data.receipt, ...current]);
@@ -601,6 +621,63 @@ export default function PaymentCheckerPage() {
       await loadPayments(filters, searchTerm, pagination);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to update payment receipt");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const submitNote = async () => {
+    if (!selectedPayment || !notesDraft.trim()) return;
+    setSavingNote(true);
+    setError(null);
+    setSuccessMessage(null);
+    try {
+      const data = await fetchWithAuth(
+        `/api/commission/payments/${selectedPayment.id}/receipts`,
+        {
+          method: "POST",
+          body: JSON.stringify({ notes: notesDraft.trim() }),
+        }
+      );
+      setReceipts((current) => [data.receipt, ...current]);
+      setNotesDraft("");
+      setSuccessMessage("Note saved.");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to save note");
+    } finally {
+      setSavingNote(false);
+    }
+  };
+
+  const deleteReceipt = async (receiptId: string) => {
+    if (!selectedPayment) return;
+    if (!window.confirm("Delete this entry? This cannot be undone.")) return;
+
+    setSaving(true);
+    setError(null);
+    setSuccessMessage(null);
+    try {
+      await fetchWithAuth(
+        `/api/commission/payments/${selectedPayment.id}/receipts/${receiptId}`,
+        { method: "DELETE" }
+      );
+
+      // Remove from local receipts list immediately
+      setReceipts((current) => current.filter((r) => r.id !== receiptId));
+      setSuccessMessage("Entry deleted.");
+
+      // Always re-fetch the payment to get correct totals and status
+      const refreshed = await fetchWithAuth(
+        `/api/commission/payments/${selectedPayment.id}`
+      );
+      setSelectedPayment(refreshed.payment);
+      updatePaymentInList(refreshed.payment);
+
+      // Reload the outer table so group-level totals update
+      await loadPayments(filters, searchTerm, pagination);
+
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to delete entry");
     } finally {
       setSaving(false);
     }
@@ -877,7 +954,9 @@ export default function PaymentCheckerPage() {
                           <React.Fragment key={group.key}>
                             <tr
                               className={`cursor-pointer transition-colors hover:bg-slate-50 ${
-                                group.isDeleted
+                                group.needsChasing
+                                  ? "bg-amber-50 border-l-4 border-l-amber-400"
+                                  : group.isDeleted
                                   ? "bg-red-50/40"
                                   : group.isArchived
                                   ? "bg-amber-50/40"
@@ -905,9 +984,11 @@ export default function PaymentCheckerPage() {
                                       {group.title}
                                     </button>
                                     <div className="flex gap-1 mt-0.5 flex-wrap">
-                                      <Badge className="bg-slate-900 text-white hover:bg-slate-900 text-xs">
-                                        {group.payments.length} instalment{group.payments.length === 1 ? "" : "s"}
-                                      </Badge>
+                                      {group.needsChasing && (
+                                        <Badge className="bg-amber-500 text-white hover:bg-amber-500 text-xs animate-pulse">
+                                          Needs Chasing
+                                        </Badge>
+                                      )}
                                       {group.isArchived && <Badge className="bg-amber-100 text-amber-700 hover:bg-amber-100 text-xs">Archived</Badge>}
                                       {group.isDeleted && <Badge className="bg-red-100 text-red-700 hover:bg-red-100 text-xs">Deleted</Badge>}
                                     </div>
@@ -1020,7 +1101,15 @@ export default function PaymentCheckerPage() {
           </CardContent>
         </Card>
 
-        <Sheet open={Boolean(selectedPayment)} onOpenChange={(open) => !open && setSelectedPayment(null)}>
+        <Sheet
+          open={Boolean(selectedPayment)}
+          onOpenChange={(open) => {
+            if (!open) {
+              setSelectedPayment(null);
+              setNotesDraft("");
+            }
+          }}
+        >
           <SheetContent className="w-full overflow-y-auto p-0 sm:max-w-2xl">
             <SheetHeader className="border-b px-6 py-5 pr-12">
               <SheetTitle>Commission Payment</SheetTitle>
@@ -1028,6 +1117,7 @@ export default function PaymentCheckerPage() {
 
             {selectedPayment && (
               <div className="space-y-6 px-6 py-6">
+                {/* Payment Summary */}
                 <div className="rounded-lg border p-4">
                   <div className="flex items-start justify-between gap-4">
                     <div className="min-w-0">
@@ -1085,6 +1175,7 @@ export default function PaymentCheckerPage() {
                   </div>
                 </div>
 
+                {/* Log Payment — amount + date only, no notes */}
                 <form onSubmit={submitReceipt} className="space-y-4 rounded-lg border p-4">
                   <div className="flex items-center gap-2 text-sm font-semibold">
                     <Banknote className="h-4 w-4" />
@@ -1116,17 +1207,6 @@ export default function PaymentCheckerPage() {
                       />
                     </div>
                   </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="notes">Notes</Label>
-                    <Textarea
-                      id="notes"
-                      value={receiptDraft.notes}
-                      onChange={(event) =>
-                        setReceiptDraft((current) => ({ ...current, notes: event.target.value }))
-                      }
-                      rows={3}
-                    />
-                  </div>
                   {error && (
                     <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>
                   )}
@@ -1140,6 +1220,32 @@ export default function PaymentCheckerPage() {
                   </Button>
                 </form>
 
+                {/* Notes — standalone, not part of log payment */}
+                <div className="rounded-lg border p-4 space-y-3">
+                  <div className="flex items-center gap-2 text-sm font-semibold">
+                    <ReceiptText className="h-4 w-4" />
+                    Notes
+                  </div>
+                  <Textarea
+                    placeholder="Add any notes about this payment, follow-up actions, or supplier communications..."
+                    value={notesDraft}
+                    onChange={(e) => setNotesDraft(e.target.value)}
+                    rows={4}
+                    className="resize-none"
+                  />
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    disabled={savingNote || !notesDraft.trim()}
+                    onClick={submitNote}
+                  >
+                    {savingNote ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ReceiptText className="mr-2 h-4 w-4" />}
+                    Save Note
+                  </Button>
+                </div>
+
+                {/* Actions */}
                 <div className="rounded-lg border p-4">
                   <div className="mb-3 text-sm font-semibold text-slate-950">Actions</div>
                   <div className="flex flex-wrap gap-2">
@@ -1154,6 +1260,7 @@ export default function PaymentCheckerPage() {
                   </div>
                 </div>
 
+                {/* Payment History */}
                 <div className="space-y-3">
                   <h3 className="text-sm font-semibold text-slate-950">Payment history</h3>
                   {detailLoading ? (
@@ -1209,7 +1316,7 @@ export default function PaymentCheckerPage() {
                             <div className="flex flex-wrap gap-2">
                               <Button type="submit" size="sm" disabled={saving}>
                                 {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                                Save Receipt
+                                Save
                               </Button>
                               <Button type="button" size="sm" variant="outline" onClick={cancelEditingReceipt}>
                                 Cancel
@@ -1218,26 +1325,81 @@ export default function PaymentCheckerPage() {
                           </form>
                         ) : (
                           <>
-                        <div className="flex items-center justify-between gap-3">
-                          <p className="font-semibold">{formatMoney(receipt.amount_received)}</p>
-                          <p className="text-slate-500">{formatDate(receipt.date_received)}</p>
-                        </div>
-                        <p className="mt-1 text-slate-500">
-                          {receipt.logged_by_name || "Logged"} · {formatDateTime(receipt.created_at)}
-                        </p>
-                        {receipt.notes && <p className="mt-2 text-slate-700">{receipt.notes}</p>}
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="outline"
-                          className="mt-3"
-                          onClick={() => startEditingReceipt(receipt)}
-                        >
-                          <Edit className="mr-2 h-4 w-4" />
-                          Edit Receipt
-                        </Button>
-                      </>
-                    )}
+                            {Number(receipt.amount_received || 0) === 0 && receipt.notes ? (
+                              /* ── Note-only entry ── */
+                              <div className="flex items-start gap-2">
+                                <ReceiptText className="h-4 w-4 text-slate-400 mt-0.5 shrink-0" />
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-slate-700 whitespace-pre-wrap break-words">{receipt.notes}</p>
+                                  <p className="mt-1 text-xs text-slate-400">
+                                    {receipt.logged_by_name || "Note"} · {formatDateTime(receipt.created_at)}
+                                  </p>
+                                  <div className="flex gap-2 mt-2">
+                                    <Button
+                                      type="button"
+                                      size="sm"
+                                      variant="outline"
+                                      onClick={() => startEditingReceipt(receipt)}
+                                    >
+                                      <Edit className="mr-2 h-3 w-3" />
+                                      Edit Note
+                                    </Button>
+                                    <Button
+                                      type="button"
+                                      size="sm"
+                                      variant="outline"
+                                      className="text-red-600 border-red-200 hover:bg-red-50 hover:border-red-300"
+                                      disabled={saving}
+                                      onClick={() => deleteReceipt(receipt.id)}
+                                    >
+                                      <XCircle className="mr-2 h-3 w-3" />
+                                      Delete
+                                    </Button>
+                                  </div>
+                                </div>
+                              </div>
+                            ) : (
+                              /* ── Payment receipt entry ── */
+                              <>
+                                <div className="flex items-center justify-between gap-3">
+                                  <div className="flex items-center gap-2">
+                                    <Banknote className="h-4 w-4 text-emerald-600 shrink-0" />
+                                    <p className="font-semibold text-emerald-700">{formatMoney(receipt.amount_received)}</p>
+                                  </div>
+                                  <p className="text-slate-500 text-xs">{formatDate(receipt.date_received)}</p>
+                                </div>
+                                <p className="mt-1 text-xs text-slate-400">
+                                  {receipt.logged_by_name || "Logged"} · {formatDateTime(receipt.created_at)}
+                                </p>
+                                {receipt.notes && (
+                                  <p className="mt-2 text-slate-600 text-xs border-t pt-2">{receipt.notes}</p>
+                                )}
+                                <div className="flex gap-2 mt-3">
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => startEditingReceipt(receipt)}
+                                  >
+                                    <Edit className="mr-2 h-3 w-3" />
+                                    Edit Receipt
+                                  </Button>
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    variant="outline"
+                                    className="text-red-600 border-red-200 hover:bg-red-50 hover:border-red-300"
+                                    disabled={saving}
+                                    onClick={() => deleteReceipt(receipt.id)}
+                                  >
+                                    <XCircle className="mr-2 h-3 w-3" />
+                                    Delete
+                                  </Button>
+                                </div>
+                              </>
+                            )}
+                          </>
+                        )}
                       </div>
                     ))
                   ) : (

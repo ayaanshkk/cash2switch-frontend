@@ -1,10 +1,10 @@
 "use client";
 
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect } from "react";
 import {
   Search, Plus, Trash2, ChevronDown, Filter, AlertCircle,
   ChevronRight, ChevronLeft, ChevronLast, ChevronFirst,
-  Upload, Users, UserCheck, Info, Loader2, Download,
+  Upload, Users, UserCheck, Loader2, Download,
   TrendingUp, TrendingDown, AlertTriangle, CheckCircle2, Calendar, X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -16,7 +16,6 @@ import {
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
-import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import { fetchWithAuth } from "@/lib/api";
 import { Badge } from "@/components/ui/badge";
@@ -30,11 +29,7 @@ const CUSTOMERS_PER_PAGE = 25;
 const API_BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
 const CRM_PROXY = `${API_BASE_URL}/api/crm`;
 const BACKEND_PROXY = API_BASE_URL;
-const LEADS_CACHE_PREFIX = "cash2switch_leads_cache";
 const LEADS_PERFORMANCE_CACHE_PREFIX = "cash2switch_leads_performance_cache";
-const MAX_CACHED_LEADS = 1200;
-
-// ✅ Use the same base URL pattern as renewals import
 
 const STATUS_OPTIONS = [
   { value: "Not Called",         label: "Not Called" },
@@ -56,7 +51,7 @@ const STATUS_OPTIONS = [
   { value: "End Date Changed",   label: "End Date Changed" },
   { value: "Complaint",          label: "Complaint" },
   { value: "Email Only",         label: "Email Only" },
-  { value: "Duplicate", label: "Duplicate" },
+  { value: "Duplicate",          label: "Duplicate" },
 ];
 
 const statusConfig: Record<string, {
@@ -64,26 +59,26 @@ const statusConfig: Record<string, {
   requiresNotes: boolean; requiresNewEndDate: boolean;
   requiresSupplierChange: boolean; requiresAddressChange: boolean;
 }> = {
-  "Callback":          { requiresDate: true,  requiresSold: false, deletesRecord: false, requiresNotes: false, requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
-  "Not Answered":      { requiresDate: true,  requiresSold: false, deletesRecord: false, requiresNotes: false, requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
-  "Priced":            { requiresDate: false, requiresSold: true,  deletesRecord: false, requiresNotes: false, requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
-  "Sold":              { requiresDate: true,  requiresSold: false, deletesRecord: false, requiresNotes: false, requiresNewEndDate: true,  requiresSupplierChange: true,  requiresAddressChange: true  },
-  "Lost":              { requiresDate: true,  requiresSold: false, deletesRecord: true,  requiresNotes: true,  requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
-  "Lost COT":          { requiresDate: false, requiresSold: false, deletesRecord: true,  requiresNotes: true,  requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
-  "Already Renewed":   { requiresDate: true,  requiresSold: false, deletesRecord: false, requiresNotes: false, requiresNewEndDate: true,  requiresSupplierChange: true,  requiresAddressChange: true  },
-  "Invalid Number":    { requiresDate: false, requiresSold: false, deletesRecord: true,  requiresNotes: false, requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
-  "Meter De-energised":{ requiresDate: false, requiresSold: false, deletesRecord: true,  requiresNotes: false, requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
-  "Broker in Place":   { requiresDate: true,  requiresSold: false, deletesRecord: false, requiresNotes: false, requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
-  "End Date Changed":  { requiresDate: true,  requiresSold: false, deletesRecord: false, requiresNotes: false, requiresNewEndDate: true,  requiresSupplierChange: false, requiresAddressChange: false },
-  "Complaint":         { requiresDate: true,  requiresSold: false, deletesRecord: false, requiresNotes: true,  requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
-  "Email Only":        { requiresDate: true,  requiresSold: false, deletesRecord: false, requiresNotes: false, requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
-  "Renewed Directly":  { requiresDate: true,  requiresSold: false, deletesRecord: false, requiresNotes: true,  requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
-  "Incorrect Supplier":{ requiresDate: false, requiresSold: false, deletesRecord: false, requiresNotes: true,  requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
-  "Won":               { requiresDate: false, requiresSold: false, deletesRecord: false, requiresNotes: false, requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
-  "Converted":         { requiresDate: false, requiresSold: false, deletesRecord: false, requiresNotes: false, requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
-  "Not Called": { requiresDate: false, requiresSold: false, deletesRecord: false, requiresNotes: false, requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
-  "Dead":       { requiresDate: false, requiresSold: false, deletesRecord: false, requiresNotes: false, requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
-  "Duplicate": { requiresDate: false, requiresSold: false, deletesRecord: true, requiresNotes: false, requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
+  "Callback":           { requiresDate: true,  requiresSold: false, deletesRecord: false, requiresNotes: false, requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
+  "Not Answered":       { requiresDate: true,  requiresSold: false, deletesRecord: false, requiresNotes: false, requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
+  "Priced":             { requiresDate: false, requiresSold: true,  deletesRecord: false, requiresNotes: false, requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
+  "Sold":               { requiresDate: true,  requiresSold: false, deletesRecord: false, requiresNotes: false, requiresNewEndDate: true,  requiresSupplierChange: true,  requiresAddressChange: true  },
+  "Lost":               { requiresDate: true,  requiresSold: false, deletesRecord: true,  requiresNotes: true,  requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
+  "Lost COT":           { requiresDate: false, requiresSold: false, deletesRecord: true,  requiresNotes: true,  requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
+  "Already Renewed":    { requiresDate: true,  requiresSold: false, deletesRecord: false, requiresNotes: false, requiresNewEndDate: true,  requiresSupplierChange: true,  requiresAddressChange: true  },
+  "Invalid Number":     { requiresDate: false, requiresSold: false, deletesRecord: true,  requiresNotes: false, requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
+  "Meter De-energised": { requiresDate: false, requiresSold: false, deletesRecord: true,  requiresNotes: false, requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
+  "Broker in Place":    { requiresDate: true,  requiresSold: false, deletesRecord: false, requiresNotes: false, requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
+  "End Date Changed":   { requiresDate: true,  requiresSold: false, deletesRecord: false, requiresNotes: false, requiresNewEndDate: true,  requiresSupplierChange: false, requiresAddressChange: false },
+  "Complaint":          { requiresDate: true,  requiresSold: false, deletesRecord: false, requiresNotes: true,  requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
+  "Email Only":         { requiresDate: true,  requiresSold: false, deletesRecord: false, requiresNotes: false, requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
+  "Renewed Directly":   { requiresDate: true,  requiresSold: false, deletesRecord: false, requiresNotes: true,  requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
+  "Incorrect Supplier": { requiresDate: false, requiresSold: false, deletesRecord: false, requiresNotes: true,  requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
+  "Won":                { requiresDate: false, requiresSold: false, deletesRecord: false, requiresNotes: false, requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
+  "Converted":          { requiresDate: false, requiresSold: false, deletesRecord: false, requiresNotes: false, requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
+  "Not Called":         { requiresDate: false, requiresSold: false, deletesRecord: false, requiresNotes: false, requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
+  "Dead":               { requiresDate: false, requiresSold: false, deletesRecord: false, requiresNotes: false, requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
+  "Duplicate":          { requiresDate: false, requiresSold: false, deletesRecord: true,  requiresNotes: false, requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
 };
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -136,7 +131,6 @@ const formatUsage = (u: number | null | undefined) => u ? `${u.toLocaleString()}
 const getStatusColor = (s?: string | null) => {
   if (!s) return "bg-gray-100 text-gray-800";
   const l = s.toLowerCase();
-  // Treat "lead" as "not called"
   if (l === "lead" || l === "not called") return "bg-gray-100 text-gray-500";
   if (["callback", "priced", "called", "converted", "won"].includes(l)) return "bg-green-100 text-green-800";
   if (l === "not answered") return "bg-yellow-100 text-yellow-800";
@@ -147,7 +141,6 @@ const getStatusColor = (s?: string | null) => {
 
 const getStatusLabel = (s?: string | null) => {
   if (!s) return "—";
-  // Treat raw "Lead" stage (default import stage) as "Not Called"
   if (s.toLowerCase() === "lead") return "Not Called";
   return STATUS_OPTIONS.find(o => o.value === s)?.label ||
     STATUS_OPTIONS.find(o => o.value.toLowerCase() === s.toLowerCase())?.label || s;
@@ -163,7 +156,6 @@ const getStageIdFromStatus = (status: string, stagesList?: Stage[]): number | nu
 
 // ─── Component ────────────────────────────────────────────────────────────────
 export default function LeadsPage() {
-  const router = useRouter();
   const { user } = useAuth();
   const isAdmin = user?.role === "Platform Admin" || user?.role === "Tenant Super Admin";
 
@@ -172,16 +164,17 @@ export default function LeadsPage() {
   const [suppliers, setSuppliers]         = useState<Supplier[]>([]);
   const [employees, setEmployees]         = useState<Employee[]>([]);
   const [stages, setStages]               = useState<Stage[]>([]);
-  const [searchResults, setSearchResults] = useState<LeadCustomer[]>([]);
   const [employeeStats, setEmployeeStats] = useState<TeamStat[]>([]);
 
-  // ── Loading / error ────────────────────────────────────────────────────────
-  const [isLoading, setIsLoading]     = useState(true);
-  const [isSearching, setIsSearching] = useState(false);
-  const [error, setError]             = useState<string | null>(null);
-
-  // ── Filters / pagination ───────────────────────────────────────────────────
+  // ── Server-side pagination ─────────────────────────────────────────────────
   const [currentPage, setCurrentPage] = useState(1);
+  const [serverTotal, setServerTotal] = useState(0);
+
+  // ── Loading / error ────────────────────────────────────────────────────────
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError]         = useState<string | null>(null);
+
+  // ── Filters ────────────────────────────────────────────────────────────────
   const [service, setService] = useState(() => sessionStorage.getItem('leads_service') || "utilities");
   const [searchTerm, setSearchTerm] = useState(() => sessionStorage.getItem('leads_search') || "");
   const [supplierFilter, setSupplierFilter] = useState<number | "All">(() => {
@@ -191,6 +184,10 @@ export default function LeadsPage() {
   const [statusFilter, setStatusFilter] = useState<string | "All">(() => sessionStorage.getItem('leads_status') || "All");
   const [endDateFilter, setEndDateFilter] = useState<"all" | "expired" | "30" | "60" | "90" | "90+">(() => (sessionStorage.getItem('leads_end_date') as any) || "all");
   const [usageSort, setUsageSort] = useState<"none" | "low-high" | "high-low">(() => (sessionStorage.getItem('leads_usage_sort') as any) || "none");
+  const [salespersonFilter, setSalespersonFilter] = useState<number | "All">(() => {
+    const saved = sessionStorage.getItem('leads_salesperson');
+    return saved && saved !== "All" ? parseInt(saved) : "All";
+  });
 
   // ── Selection ──────────────────────────────────────────────────────────────
   const [selectedLeads, setSelectedLeads]           = useState<number[]>([]);
@@ -200,7 +197,6 @@ export default function LeadsPage() {
   const [showImportModal, setShowImportModal]   = useState(false);
   const [bulkImportFile, setBulkImportFile]     = useState<File | null>(null);
   const [bulkImporting, setBulkImporting]       = useState(false);
-  // ✅ Default assignToEmployee to null — backend will auto-assign to the importing user
   const [assignToEmployee, setAssignToEmployee] = useState<number | null>(null);
   const [bulkImportResult, setBulkImportResult] = useState<{
     success: boolean; successful: number; duplicates?: number; errors: string[]; assigned_to?: string;
@@ -209,18 +205,18 @@ export default function LeadsPage() {
   const [bulkAssignCount, setBulkAssignCount] = useState<number | "">("");
 
   // ── Callback modal ─────────────────────────────────────────────────────────
-  const [showCallbackModal, setShowCallbackModal]               = useState(false);
-  const [selectedLeadForCallback, setSelectedLeadForCallback]   = useState<number | null>(null);
-  const [callbackStatus, setCallbackStatus]                     = useState("");
-  const [callbackDate, setCallbackDate]                         = useState("");
-  const [callbackNotes, setCallbackNotes]                       = useState("");
-  const [newStartDate, setNewStartDate]                         = useState("");
-  const [newEndDate, setNewEndDate]                             = useState("");
-  const [isSold, setIsSold]                                     = useState("");
-  const [isSubmittingCallback, setIsSubmittingCallback]         = useState(false);
-  const [callbackError, setCallbackError]                       = useState("");
-  const [newSupplier, setNewSupplier]                           = useState("");
-  const [newAddress, setNewAddress]                             = useState("");
+  const [showCallbackModal, setShowCallbackModal]             = useState(false);
+  const [selectedLeadForCallback, setSelectedLeadForCallback] = useState<number | null>(null);
+  const [callbackStatus, setCallbackStatus]                   = useState("");
+  const [callbackDate, setCallbackDate]                       = useState("");
+  const [callbackNotes, setCallbackNotes]                     = useState("");
+  const [newStartDate, setNewStartDate]                       = useState("");
+  const [newEndDate, setNewEndDate]                           = useState("");
+  const [isSold, setIsSold]                                   = useState("");
+  const [isSubmittingCallback, setIsSubmittingCallback]       = useState(false);
+  const [callbackError, setCallbackError]                     = useState("");
+  const [newSupplier, setNewSupplier]                         = useState("");
+  const [newAddress, setNewAddress]                           = useState("");
   const [calledDate, setCalledDate] = useState(() => new Date().toISOString().split("T")[0]);
   const [renewedBy, setRenewedBy]   = useState<"customer" | "supplier" | "agent" | "">("");
 
@@ -232,12 +228,11 @@ export default function LeadsPage() {
   const [isAssigning, setIsAssigning]               = useState(false);
 
   // ── Bulk assign modal ──────────────────────────────────────────────────────
-  const [showBulkAssignModal, setShowBulkAssignModal]       = useState(false);
-  const [bulkAssignEmployeeId, setBulkAssignEmployeeId]     = useState<number | null>(null);
+  const [showBulkAssignModal, setShowBulkAssignModal]   = useState(false);
+  const [bulkAssignEmployeeId, setBulkAssignEmployeeId] = useState<number | null>(null);
   const [bulkAssignEmployeeName, setBulkAssignEmployeeName] = useState("");
-  const [bulkAssignmentNotes, setBulkAssignmentNotes]       = useState("");
-  const [isBulkAssigning, setIsBulkAssigning]               = useState(false);
-  
+  const [bulkAssignmentNotes, setBulkAssignmentNotes]   = useState("");
+  const [isBulkAssigning, setIsBulkAssigning]           = useState(false);
 
   // ── Performance ────────────────────────────────────────────────────────────
   const [performanceStats, setPerformanceStats] = useState({
@@ -247,106 +242,85 @@ export default function LeadsPage() {
   const [showPerformanceModal, setShowPerformanceModal]         = useState(false);
   const [performanceFilter, setPerformanceFilter]               = useState<string | null>(null);
   const [performanceFilteredLeads, setPerformanceFilteredLeads] = useState<LeadCustomer[]>([]);
-  const [showFilterSidebar, setShowFilterSidebar] = useState(false);
-  const [showAddLeadModal, setShowAddLeadModal] = useState(false);
-  const [salespersonFilter, setSalespersonFilter] = useState<number | "All">(() => {
-    const saved = sessionStorage.getItem('leads_salesperson');
-    return saved && saved !== "All" ? parseInt(saved) : "All";
-  });
-  const [performanceModalLoading, setPerformanceModalLoading] = useState(false);
+  const [showFilterSidebar, setShowFilterSidebar]               = useState(false);
+  const [showAddLeadModal, setShowAddLeadModal]                 = useState(false);
+  const [performanceModalLoading, setPerformanceModalLoading]   = useState(false);
   const [performancePeriod, setPerformancePeriod] = useState<'daily' | 'weekly' | 'monthly' | 'alltime'>('alltime');
 
-  // Reset page when filters change
-  useEffect(() => { setCurrentPage(1); }, [searchTerm, supplierFilter, statusFilter, usageSort, endDateFilter, salespersonFilter]);
-
-  const leadsCacheKey = `${LEADS_CACHE_PREFIX}_${service}`;
   const performanceCacheKey = `${LEADS_PERFORMANCE_CACHE_PREFIX}_${service}`;
 
-  const saveLeadsCache = (leads: LeadCustomer[], teamStats: TeamStat[]) => {
-    // Avoid quota errors from very large tenants; cache only a bounded snapshot.
-    if (leads.length > MAX_CACHED_LEADS) return;
-    try {
-      sessionStorage.setItem(leadsCacheKey, JSON.stringify({ leads, teamStats }));
-    } catch (e) {
-      console.warn("Leads cache skipped (storage quota/availability):", e);
-    }
-  };
+  // ─── Derived ───────────────────────────────────────────────────────────────
+  const totalPages     = Math.ceil(serverTotal / CUSTOMERS_PER_PAGE);
+  const paginatedLeads = allLeads; // server already returns the right page
+  const filteredLeads  = allLeads; // alias kept for bulk-select / CSV compat
 
-  const savePerformanceCache = (stats: typeof performanceStats) => {
-    try {
-      sessionStorage.setItem(performanceCacheKey, JSON.stringify(stats));
-    } catch (e) {
-      console.warn("Performance cache skipped (storage quota/availability):", e);
-    }
+  const getSupplierName = (id?: number | null) =>
+    suppliers.find(s => s.supplier_id === id)?.supplier_name || "—";
+
+  const isDateRequired = () => {
+    if (!callbackStatus) return false;
+    const cfg = statusConfig[callbackStatus];
+    if (!cfg) return false;
+    if (cfg.requiresSold) return isSold === "yes";
+    return cfg.requiresDate;
   };
 
   // ─── Fetch helpers ──────────────────────────────────────────────────────────
-  const fetchLeads = async () => {
+  const fetchLeads = async (page = 1) => {
     setIsLoading(true);
     setError(null);
     try {
+      const params = new URLSearchParams({
+        service:       service,
+        exclude_stage: 'Lost',
+        page:          String(page),
+        page_size:     String(CUSTOMERS_PER_PAGE),
+      });
+      if (searchTerm.trim().length >= 2) params.set('search',          searchTerm.trim());
+      if (supplierFilter !== "All")       params.set('supplier_id',     String(supplierFilter));
+      if (statusFilter !== "All")         params.set('status',          statusFilter);
+      if (endDateFilter !== "all")        params.set('end_date_filter', endDateFilter);
+      if (salespersonFilter !== "All")    params.set('employee_id',     String(salespersonFilter));
+
       const [leadsResult, suppResult, empResult, stagesResult] = await Promise.allSettled([
-        fetchWithAuth(`${CRM_PROXY}/leads?exclude_stage=Lost&service=${encodeURIComponent(service)}`),
-        fetchWithAuth(`${BACKEND_PROXY}/suppliers`),
-        fetchWithAuth(`${BACKEND_PROXY}/employees`),
-        fetchWithAuth(`${CRM_PROXY}/stages`),
+        fetchWithAuth(`${CRM_PROXY}/leads?${params.toString()}`),
+        page === 1 ? fetchWithAuth(`${BACKEND_PROXY}/suppliers`) : Promise.resolve(null),
+        page === 1 ? fetchWithAuth(`${BACKEND_PROXY}/employees`) : Promise.resolve(null),
+        page === 1 ? fetchWithAuth(`${CRM_PROXY}/stages`)        : Promise.resolve(null),
       ]);
 
-      if (leadsResult.status === "rejected") {
-        throw leadsResult.reason;
-      }
+      if (leadsResult.status === "rejected") throw leadsResult.reason;
 
-      const leadsResp = leadsResult.value;
-      const suppResp = suppResult.status === "fulfilled" ? suppResult.value : null;
-      const empResp = empResult.status === "fulfilled" ? empResult.value : null;
+      const leadsResp  = leadsResult.value;
+      const suppResp   = suppResult.status   === "fulfilled" ? suppResult.value   : null;
+      const empResp    = empResult.status    === "fulfilled" ? empResult.value    : null;
       const stagesResp = stagesResult.status === "fulfilled" ? stagesResult.value : null;
 
-      // ✅ Backend already scopes to the current user's employee_id (non-admin)
-      // or all tenant leads (admin). team_stats comes back in the same response.
-      const active: LeadCustomer[] = Array.isArray(leadsResp)
+      const incoming: LeadCustomer[] = Array.isArray(leadsResp)
         ? leadsResp
         : (leadsResp?.data || []);
 
-      setAllLeads(active);
-      setSuppliers(Array.isArray(suppResp) ? suppResp : (suppResp?.data || []));
-      const empList = Array.isArray(empResp?.data) ? empResp.data : (Array.isArray(empResp) ? empResp : []);
-      setEmployees(empList);
-      setStages(Array.isArray(stagesResp) ? stagesResp : (stagesResp?.data || []));
+      setAllLeads(incoming);
+      setServerTotal(leadsResp?.total ?? incoming.length);
+      setCurrentPage(page);
 
-      // ✅ Extract team_stats from the backend response (same shape as renewals)
+      if (page === 1) {
+        if (suppResp)   setSuppliers(Array.isArray(suppResp) ? suppResp : (suppResp?.data || []));
+        if (empResp)    setEmployees(Array.isArray(empResp?.data) ? empResp.data : (Array.isArray(empResp) ? empResp : []));
+        if (stagesResp) setStages(Array.isArray(stagesResp) ? stagesResp : (stagesResp?.data || []));
+      }
+
       if (leadsResp?.team_stats && Array.isArray(leadsResp.team_stats)) {
-        const stats: TeamStat[] = leadsResp.team_stats.map((s: any) => ({
-          employee_id:   s.employee_id,
-          employee_name: s.employee_name,
-          count:         s.lead_count || s.count || 0,
-        }));
-        const visibleStats = stats.filter(s => (s.count ?? 0) > 0);
-        setEmployeeStats(visibleStats);
-        saveLeadsCache(active, visibleStats);
-      } else {
-        setEmployeeStats([]);
-        saveLeadsCache(active, []);
+        setEmployeeStats(
+          leadsResp.team_stats
+            .map((s: any) => ({ employee_id: s.employee_id, employee_name: s.employee_name, count: s.count || 0 }))
+            .filter((s: TeamStat) => (s.count ?? 0) > 0)
+        );
       }
     } catch (err: any) {
       console.error("❌ fetchLeads error:", err);
-      const cached = sessionStorage.getItem(leadsCacheKey);
-      if (cached) {
-        try {
-          const parsed = JSON.parse(cached);
-          setAllLeads(Array.isArray(parsed.leads) ? parsed.leads : []);
-          setEmployeeStats(Array.isArray(parsed.teamStats) ? parsed.teamStats : []);
-          setError(null);
-        } catch {
-          sessionStorage.removeItem(leadsCacheKey);
-          setError(err?.message || "Failed to load leads");
-          setAllLeads([]);
-          setEmployeeStats([]);
-        }
-      } else {
-        setError(err?.message || "Failed to load leads");
-        setAllLeads([]);
-        setEmployeeStats([]);
-      }
+      setError(err?.message || "Failed to load leads");
+      setAllLeads([]);
     } finally {
       setIsLoading(false);
     }
@@ -370,10 +344,9 @@ export default function LeadsPage() {
           priced:           resp.priced_count           || 0,
         };
         setPerformanceStats(nextStats);
-        savePerformanceCache(nextStats);
+        try { sessionStorage.setItem(performanceCacheKey, JSON.stringify(nextStats)); } catch {}
       }
-    } catch (err) {
-      console.error("Error fetching lead performance stats:", err);
+    } catch {
       const cached = sessionStorage.getItem(performanceCacheKey);
       if (cached) {
         try { setPerformanceStats(JSON.parse(cached)); }
@@ -382,9 +355,19 @@ export default function LeadsPage() {
     }
   };
 
+  // ── Effects ────────────────────────────────────────────────────────────────
+
+  // Reload page 1 when filters change (debounced for search)
   useEffect(() => {
-    fetchPerformanceStats(performancePeriod);
-  }, [performancePeriod, service]);
+    const tid = setTimeout(() => fetchLeads(1), searchTerm ? 400 : 0);
+    return () => clearTimeout(tid);
+  }, [service, searchTerm, supplierFilter, statusFilter, endDateFilter, salespersonFilter]);
+
+  // Performance stats — staggered so it doesn't race with leads
+  useEffect(() => {
+    const tid = setTimeout(() => fetchPerformanceStats(performancePeriod), 600);
+    return () => clearTimeout(tid);
+  }, [service, performancePeriod]);
 
   useEffect(() => {
     const handleFocus = () => fetchPerformanceStats(performancePeriod);
@@ -392,229 +375,77 @@ export default function LeadsPage() {
     return () => window.removeEventListener('focus', handleFocus);
   }, [performancePeriod, service]);
 
-  useEffect(() => {
-    Promise.all([
-      fetchLeads(),
-      fetchPerformanceStats(),
-    ]);
-  }, [service]);
-
-  useEffect(() => {
-    sessionStorage.setItem('leads_search', searchTerm);
-  }, [searchTerm]);
-
-  useEffect(() => {
-    sessionStorage.setItem('leads_supplier', supplierFilter.toString());
-  }, [supplierFilter]);
-
-  useEffect(() => {
-    sessionStorage.setItem('leads_status', statusFilter.toString());
-  }, [statusFilter]);
-
-  useEffect(() => {
-    sessionStorage.setItem('leads_service', service);
-  }, [service]);
-
-  useEffect(() => {
-    sessionStorage.setItem('leads_usage_sort', usageSort);
-  }, [usageSort]);
-
-  useEffect(() => {
-    sessionStorage.setItem('leads_end_date', endDateFilter);
-  }, [endDateFilter]);
-
-  useEffect(() => {
-    sessionStorage.setItem('leads_salesperson', salespersonFilter.toString());
-  }, [salespersonFilter]);
-
-  // ── Cross-team text search (debounced) ─────────────────────────────────────
-  useEffect(() => {
-    if (!searchTerm || searchTerm.length < 2) { setSearchResults([]); return; }
-    const tid = setTimeout(async () => {
-      setIsSearching(true);
-      try {
-        const resp = await fetchWithAuth(
-          `${CRM_PROXY}/leads/search-all?q=${encodeURIComponent(searchTerm)}&service=${encodeURIComponent(service)}`
-        );
-        setSearchResults(Array.isArray(resp) ? resp : (resp?.data || []));
-      } catch { setSearchResults([]); }
-      finally { setIsSearching(false); }
-    }, 300);
-    return () => clearTimeout(tid);
-  }, [searchTerm, service]);
-
-  // ── Derived lists ──────────────────────────────────────────────────────────
-  const sortedLeads = useMemo(() => {
-      const leadsToShow = searchTerm.trim() 
-        ? allLeads  
-        : allLeads.filter(l => !l.is_archived && !l.is_allocated);
-      
-      if (searchTerm && searchResults.length > 0) {
-        const assignedIds = new Set(leadsToShow.map(l => l.opportunity_id));
-        const uniqueSearchResults = searchResults.filter(l => !assignedIds.has(l.opportunity_id));
-        return [...leadsToShow, ...uniqueSearchResults].sort((a, b) => {
-          // Sort by created_at DESC as primary, display_order as tiebreaker
-          const dateA = new Date(a.created_at || 0).getTime();
-          const dateB = new Date(b.created_at || 0).getTime();
-          if (dateB !== dateA) return dateB - dateA;
-          return (a.display_order ?? 9999) - (b.display_order ?? 9999);
-        });
-      }
-      
-      return [...leadsToShow].sort((a, b) => {
-        const dateA = new Date(a.created_at || 0).getTime();
-        const dateB = new Date(b.created_at || 0).getTime();
-        if (dateB !== dateA) return dateB - dateA;
-        return (a.display_order ?? 9999) - (b.display_order ?? 9999);
-      });
-    }, [allLeads, searchResults, searchTerm]);
-
-  const filteredLeads = useMemo(() => {
-    let list = sortedLeads.filter(l => {
-      const term = searchTerm.toLowerCase();
-      const matchSearch =
-        (l.business_name  || "").toLowerCase().includes(term) ||
-        (l.contact_person || "").toLowerCase().includes(term) ||
-        (l.email          || "").toLowerCase().includes(term) ||
-        (l.tel_number     || "").toLowerCase().includes(term) ||
-        (l.mpan_mpr       || "").toLowerCase().includes(term);
-      const matchSupplier = supplierFilter === "All" || l.supplier_id === supplierFilter;
-      const normaliseStage = (s: string | null | undefined) => {
-        if (!s || s.toLowerCase() === 'lead') return 'Not Called';
-        return s;
-      };
-      const matchStatus = statusFilter === "All" || normaliseStage(l.stage_name) === statusFilter;
-      let matchEndDate = true;
-      if (endDateFilter !== "all" && l.end_date) {
-        const today = new Date();
-        const end   = new Date(l.end_date);
-        const days  = Math.ceil((end.getTime() - today.getTime()) / 86400000);
-        if      (endDateFilter === "expired") matchEndDate = days < 0;
-        else if (endDateFilter === "30")      matchEndDate = days >= 0 && days <= 30;
-        else if (endDateFilter === "60")      matchEndDate = days > 30 && days <= 60;
-        else if (endDateFilter === "90")      matchEndDate = days > 60 && days <= 90;
-        else if (endDateFilter === "90+")     matchEndDate = days > 90 && days <= 365;
-      }
-      const matchSalesperson = !isAdmin || salespersonFilter === "All" ||
-        Number(l.opportunity_owner_employee_id) === Number(salespersonFilter);
-
-      return matchSearch && matchSupplier && matchStatus && matchEndDate && matchSalesperson;
-    });
-    if (usageSort !== "none") {
-      list = [...list].sort((a, b) => {
-        const au = a.annual_usage || 0, bu = b.annual_usage || 0;
-        return usageSort === "low-high" ? au - bu : bu - au;
-      });
-    }
-    return list;
-  }, [sortedLeads, searchTerm, supplierFilter, statusFilter, endDateFilter, usageSort, salespersonFilter]);
-
-  const totalPages    = Math.ceil(filteredLeads.length / CUSTOMERS_PER_PAGE);
-  const paginatedLeads = useMemo(() => {
-    const s = (currentPage - 1) * CUSTOMERS_PER_PAGE;
-    return filteredLeads.slice(s, s + CUSTOMERS_PER_PAGE);
-  }, [filteredLeads, currentPage]);
-
-  // A lead is "from search" when it's in search results but not in the user's own list
-  const isFromSearch = (lead: LeadCustomer) => {
-    if (isAdmin) return false;
-    return lead.opportunity_owner_employee_id !== user?.employee_id;
-  };
-
-  const getSupplierName = (id?: number | null) =>
-    suppliers.find(s => s.supplier_id === id)?.supplier_name || "—";
-
-  const isDateRequired = () => {
-    if (!callbackStatus) return false;
-    const cfg = statusConfig[callbackStatus];
-    if (!cfg) return false;
-    if (cfg.requiresSold) return isSold === "yes";
-    return cfg.requiresDate;
-  };
+  // Persist filters
+  useEffect(() => { sessionStorage.setItem('leads_search',      searchTerm); },                  [searchTerm]);
+  useEffect(() => { sessionStorage.setItem('leads_supplier',    supplierFilter.toString()); },    [supplierFilter]);
+  useEffect(() => { sessionStorage.setItem('leads_status',      statusFilter.toString()); },      [statusFilter]);
+  useEffect(() => { sessionStorage.setItem('leads_service',     service); },                      [service]);
+  useEffect(() => { sessionStorage.setItem('leads_usage_sort',  usageSort); },                    [usageSort]);
+  useEffect(() => { sessionStorage.setItem('leads_end_date',    endDateFilter); },                [endDateFilter]);
+  useEffect(() => { sessionStorage.setItem('leads_salesperson', salespersonFilter.toString()); }, [salespersonFilter]);
 
   // ── Status / callback ──────────────────────────────────────────────────────
   const updateLeadStatus = (leadId: number, newStatus: string) => {
-    // Handle clearing status
     if (!newStatus || newStatus === "CLEAR_STATUS") {
       fetchWithAuth(`${CRM_PROXY}/leads/${leadId}/status`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ stage_id: null }),
       })
-      .then(() => {
+      .then((response) => {
         setAllLeads(prev => prev.map(l =>
-          l.opportunity_id === leadId 
-            ? { 
-                ...l, 
-                stage_name: null,
-                stage_id: null 
-              } 
+          l.opportunity_id === leadId
+            ? {
+                ...l,
+                stage_name: response.stage_name || 'Not Called',
+                stage_id:   response.stage_id   || null,
+              }
             : l
         ));
-        toast.success("✅ Status cleared");
+        toast.success("✅ Status reset to Not Called");
       })
       .catch((e: any) => {
         toast.error(`Failed to clear status: ${e?.message || "Unknown error"}`);
       });
       return;
     }
-
-    // For all other statuses, open the callback modal
     setSelectedLeadForCallback(leadId);
     setCallbackStatus(newStatus);
-    setCallbackDate("");
-    setCallbackNotes("");
-    setIsSold("");
-    setNewStartDate("");
-    setNewEndDate("");
-    setNewSupplier("");
-    setNewAddress("");
+    setCallbackDate(""); setCallbackNotes(""); setIsSold("");
+    setNewStartDate(""); setNewEndDate(""); setNewSupplier(""); setNewAddress("");
     setCalledDate(new Date().toISOString().split("T")[0]);
-    setCallbackError("");
-    setRenewedBy("");
-    setAssignToEmployeeId("");
+    setCallbackError(""); setRenewedBy(""); setAssignToEmployeeId("");
     setShowCallbackModal(true);
   };
 
   const handleSubmitCallback = async () => {
     setCallbackError("");
-    if (!callbackStatus || !selectedLeadForCallback) { 
-      setCallbackError("Please select a status"); 
-      return; 
+    if (!callbackStatus || !selectedLeadForCallback) {
+      setCallbackError("Please select a status"); return;
     }
-    
     const cfg = statusConfig[callbackStatus];
-    if (cfg?.requiresSold && !isSold) { 
-      setCallbackError("Please select if the contract was sold"); 
-      return; 
+    if (cfg?.requiresSold && !isSold) {
+      setCallbackError("Please select if the contract was sold"); return;
     }
-    if (cfg?.requiresNotes && !callbackNotes.trim()) { 
-      setCallbackError("Please enter the reason for this status"); 
-      return; 
+    if (cfg?.requiresNotes && !callbackNotes.trim()) {
+      setCallbackError("Please enter the reason for this status"); return;
     }
     const isRenewalOrSoldAction = callbackStatus === "Already Renewed" || callbackStatus === "Sold";
-    if (isRenewalOrSoldAction && !renewedBy) { 
-      setCallbackError(callbackStatus === "Sold" ? "Please select if sold by supplier or agent" : "Please select if renewed by customer or agent"); 
-      return; 
+    if (isRenewalOrSoldAction && !renewedBy) {
+      setCallbackError(callbackStatus === "Sold" ? "Please select if sold by supplier or agent" : "Please select if renewed by customer or agent"); return;
     }
     if (isRenewalOrSoldAction && renewedBy === "agent" && !newStartDate) {
-      setCallbackError("Please enter the contract start date");
-      return;
+      setCallbackError("Please enter the contract start date"); return;
     }
-    if (callbackStatus === "End Date Changed" && !newEndDate) { 
-      setCallbackError("Please enter the new contract end date"); 
-      return; 
+    if (callbackStatus === "End Date Changed" && !newEndDate) {
+      setCallbackError("Please enter the new contract end date"); return;
     }
 
     setIsSubmittingCallback(true);
     try {
       const stageId = getStageIdFromStatus(callbackStatus, stages.length ? stages : undefined);
-      const payload: any = {
-        status: callbackStatus,
-        notes: callbackNotes,
-      };
+      const payload: any = { status: callbackStatus, notes: callbackNotes };
       if (stageId) payload.stage_id = stageId;
-      
       if (calledDate) payload.called_date = calledDate;
       if (isDateRequired() && callbackDate) payload.callback_date = callbackDate;
       if (cfg?.requiresSold) payload.is_sold = isSold === "yes";
@@ -629,34 +460,21 @@ export default function LeadsPage() {
 
       const response = await fetchWithAuth(
         `${CRM_PROXY}/leads/${selectedLeadForCallback}/callback`,
-        { 
-          method: "POST", 
-          headers: { "Content-Type": "application/json" }, 
-          body: JSON.stringify(payload) 
-        }
+        { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) }
       );
 
-      // ✅ ADD THIS DEBUG LOGGING
-      console.log("📥 Callback API Response:", response);
-      console.log("📥 response.lead:", response.lead);
-      console.log("📥 response.lead.stage_name:", response.lead?.stage_name);
-
-      if (!response || response.error) {
-        throw new Error(response?.error || "Failed to save");
-      }
+      if (!response || response.error) throw new Error(response?.error || "Failed to save");
 
       if (response.display_only || callbackStatus === "Dead") {
-        await fetchLeads();
+        await fetchLeads(currentPage);
         await fetchPerformanceStats();
         toast.success(`Status set to ${callbackStatus}`);
         setShowCallbackModal(false);
         setSelectedLeadForCallback(null);
-        setCallbackStatus("");
-        setCallbackNotes("");
+        setCallbackStatus(""); setCallbackNotes("");
         return;
       }
 
-      // ✅ CRITICAL: Update state with the ACTUAL response from backend
       if (response.moved_to_cleansing) {
         setAllLeads(prev => prev.filter(l => l.opportunity_id !== selectedLeadForCallback));
         setSelectedLeads(prev => prev.filter(id => id !== selectedLeadForCallback));
@@ -674,37 +492,20 @@ export default function LeadsPage() {
         setSelectedLeads(prev => prev.filter(id => id !== selectedLeadForCallback));
         toast.success("✅ Lead converted and assigned");
       } else {
-        // ✅ KEY FIX: Use response.lead.stage_name from backend, NOT the local callbackStatus
         setAllLeads(prev =>
           prev.map(l =>
             l.opportunity_id === selectedLeadForCallback
-              ? { 
-                  ...l,
-                  // ✅ Use the ACTUAL stage_name returned from backend
-                  stage_name: response.lead?.stage_name || callbackStatus,
-                  stage_id: response.lead?.stage_id || stageId || l.stage_id,
-                  // ✅ Update any other fields the backend returns
-                  ...(response.lead || {}),
-                }
+              ? { ...l, stage_name: response.lead?.stage_name || callbackStatus, stage_id: response.lead?.stage_id || stageId || l.stage_id, ...(response.lead || {}) }
               : l
           )
         );
         toast.success("✅ Callback saved");
       }
 
-      setShowCallbackModal(false);
-      setSelectedLeadForCallback(null);
-      setCallbackStatus("");
-      setCallbackDate("");
-      setCallbackNotes("");
-      setIsSold("");
-      setNewStartDate("");
-      setNewEndDate("");
-      setNewSupplier("");
-      setNewAddress("");
-      setRenewedBy("");
-      setAssignToEmployeeId("");
-      
+      setShowCallbackModal(false); setSelectedLeadForCallback(null);
+      setCallbackStatus(""); setCallbackDate(""); setCallbackNotes("");
+      setIsSold(""); setNewStartDate(""); setNewEndDate("");
+      setNewSupplier(""); setNewAddress(""); setRenewedBy(""); setAssignToEmployeeId("");
     } catch (err: any) {
       setCallbackError(err.message || "Failed to save callback");
     } finally {
@@ -720,16 +521,11 @@ export default function LeadsPage() {
       const empId = assignToEmployeeId === "0" ? null : parseInt(assignToEmployeeId);
       const payload: any = { employee_id: empId, lead_ids: [assigningLeadId] };
       if (assignmentNotes.trim()) payload.assignment_notes = assignmentNotes.trim();
-
       await fetchWithAuth(`${CRM_PROXY}/leads/assign`, {
-        method: "PATCH", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
+        method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload),
       });
-
-      // ✅ When ANY user assigns away, the lead becomes allocated and disappears from their view
       setAllLeads(prev => prev.filter(l => l.opportunity_id !== assigningLeadId));
       setSelectedLeads(prev => prev.filter(id => id !== assigningLeadId));
-
       toast.success("✅ Salesperson assigned successfully");
       setShowAssignModal(false);
       setAssignToEmployeeId(""); setAssignmentNotes(""); setAssigningLeadId(null);
@@ -743,45 +539,26 @@ export default function LeadsPage() {
     }
     setIsBulkAssigning(true);
     try {
-      const leadsToAssign = bulkAssignCount
-        ? selectedLeads.slice(0, bulkAssignCount)
-        : selectedLeads;
-
+      const leadsToAssign = bulkAssignCount ? selectedLeads.slice(0, bulkAssignCount) : selectedLeads;
       const payload: any = { lead_ids: leadsToAssign, employee_id: bulkAssignEmployeeId };
       if (bulkAssignmentNotes.trim()) payload.assignment_notes = bulkAssignmentNotes.trim();
-
       let response: any = null;
       try {
         response = await fetchWithAuth(`${CRM_PROXY}/leads/assign`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload),
+          method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload),
         });
       } catch (fetchErr: any) {
-        // Network/timeout error but DB may have succeeded — treat as soft success
         console.warn("Assign fetch error (may have succeeded in DB):", fetchErr);
       }
-
-      // ✅ If response explicitly says error, throw — otherwise treat as success
-      if (response && response.error && !response.success) {
-        throw new Error(response.error);
-      }
-
-      // ✅ Update UI regardless — DB succeeded even if response was lossy
+      if (response && response.error && !response.success) throw new Error(response.error);
       setAllLeads(prev => prev.filter(l => !leadsToAssign.includes(l.opportunity_id)));
-      const remaining = selectedLeads.filter(id => !leadsToAssign.includes(id));
-      setSelectedLeads(remaining);
+      setSelectedLeads(selectedLeads.filter(id => !leadsToAssign.includes(id)));
       setIsSelectAllChecked(false);
-      setShowBulkAssignModal(false);
-      setBulkAssignmentNotes("");
-      setBulkAssignCount("");
+      setShowBulkAssignModal(false); setBulkAssignmentNotes(""); setBulkAssignCount("");
       toast.success(`✅ ${leadsToAssign.length} leads assigned to ${bulkAssignEmployeeName}`);
-
     } catch (err: any) {
       toast.error(`❌ Error assigning leads: ${err.message || "Unknown error"}`);
-    } finally {
-      setIsBulkAssigning(false);
-    }
+    } finally { setIsBulkAssigning(false); }
   };
 
   // ── Delete ─────────────────────────────────────────────────────────────────
@@ -796,34 +573,18 @@ export default function LeadsPage() {
   };
 
   const bulkDeleteLeads = async () => {
-    if (!selectedLeads.length) { 
-      alert("Please select leads to delete"); 
-      return; 
-    }
+    if (!selectedLeads.length) { alert("Please select leads to delete"); return; }
     if (!window.confirm(`Delete ${selectedLeads.length} lead(s)? This cannot be undone.`)) return;
-    
     try {
-      // ✅ SIMPLIFIED: Send opportunity_ids directly (no conversion needed)
       const response = await fetchWithAuth(`${CRM_PROXY}/leads/bulk-delete`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ opportunity_ids: selectedLeads })  // ✅ Send as-is
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ opportunity_ids: selectedLeads }),
       });
-
-      if (!response || response.error) {
-        throw new Error(response?.error || 'Failed to delete leads');
-      }
-
-      // Remove deleted leads from state
+      if (!response || response.error) throw new Error(response?.error || 'Failed to delete leads');
       setAllLeads(prev => prev.filter(l => !selectedLeads.includes(l.opportunity_id)));
-      setSelectedLeads([]); 
-      setIsSelectAllChecked(false);
-      
-      const deleted = response.deleted || selectedLeads.length;
-      toast.success(`✅ Deleted ${deleted} lead(s)`);
-      
+      setSelectedLeads([]); setIsSelectAllChecked(false);
+      toast.success(`✅ Deleted ${response.deleted || selectedLeads.length} lead(s)`);
     } catch (error: any) {
-      console.error('Bulk delete error:', error);
       toast.error(`❌ Error deleting leads: ${error.message}`);
     }
   };
@@ -831,23 +592,19 @@ export default function LeadsPage() {
   // ── Selection ──────────────────────────────────────────────────────────────
   const handleSelectAll = () => {
     if (isSelectAllChecked) { setSelectedLeads([]); setIsSelectAllChecked(false); }
-    else {
-      setSelectedLeads(filteredLeads.map(l => l.opportunity_id));
-      setIsSelectAllChecked(true);
-    }
+    else { setSelectedLeads(paginatedLeads.map(l => l.opportunity_id)); setIsSelectAllChecked(true); }
   };
   const handleSelectLead = (id: number) => {
     setSelectedLeads(prev => {
       const n = prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id];
-      setIsSelectAllChecked(n.length === filteredLeads.length);
+      setIsSelectAllChecked(n.length === paginatedLeads.length);
       return n;
     });
   };
 
   // ── Import ─────────────────────────────────────────────────────────────────
-  // ✅ Download template from /import/leads/template — same pattern as renewals
   const downloadTemplate = async () => {
-    const token    = localStorage.getItem("auth_token");
+    const token = localStorage.getItem("auth_token");
     const tenantId = localStorage.getItem("tenant_id") || "";
     try {
       const res = await fetch(`${BACKEND_PROXY}/import/leads/template`, {
@@ -862,9 +619,6 @@ export default function LeadsPage() {
     } catch (e) { alert(e instanceof Error ? e.message : "Failed"); }
   };
 
-  // ✅ KEY FIX: Use /import/leads (same backend as renewals uses /import/energy-customers)
-  // This endpoint in import_routes.py auto-assigns to the importing user when no
-  // assigned_employee_id is provided — exactly what we want.
   const handleBulkImport = async () => {
     if (!bulkImportFile) { alert("Please select a file"); return; }
     setBulkImporting(true); setBulkImportResult(null);
@@ -873,34 +627,22 @@ export default function LeadsPage() {
       const tenantId = localStorage.getItem("tenant_id") || "";
       const fd = new FormData();
       fd.append("file", bulkImportFile);
-      if (assignToEmployee) {
-        fd.append("assigned_employee_id", assignToEmployee.toString());
-      }
+      if (assignToEmployee) fd.append("assigned_employee_id", assignToEmployee.toString());
 
       const res = await fetch(
         `${BACKEND_PROXY}/import/leads?service=${encodeURIComponent(service)}`,
-        {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "X-Tenant-ID": tenantId,
-          },
-          body: fd,
-        }
+        { method: "POST", headers: { Authorization: `Bearer ${token}`, "X-Tenant-ID": tenantId }, body: fd }
       );
       const data = await res.json();
 
       if (!res.ok) {
         setBulkImportResult({ success: false, successful: 0, errors: [data.error || "Import failed"] });
-        toast.error(data.error || "Import failed");
-        return;
+        toast.error(data.error || "Import failed"); return;
       }
 
-      // ── Async job: poll /import/status/<job_id> ─────────────────────────
       if (data.job_id) {
         const jobId = data.job_id;
         toast.success("⏳ Import started, processing in background...");
-
         const poll = async (): Promise<void> => {
           await new Promise(r => setTimeout(r, 2000));
           try {
@@ -908,176 +650,117 @@ export default function LeadsPage() {
               headers: { Authorization: `Bearer ${token}`, "X-Tenant-ID": tenantId },
             });
             const statusData = await statusRes.json();
-
             if (statusData.status === "done") {
               const successful = statusData.successful || 0;
-              const duplicates = statusData.duplicates || 0;
-              const errors: string[] = statusData.errors || [];
-
               setBulkImportResult({
-                success: successful > 0,
-                successful,
-                duplicates,
-                errors,
-                assigned_to: assignToEmployee
-                  ? employees.find(e => e.employee_id === assignToEmployee)?.employee_name
-                  : "You",
+                success: successful > 0, successful, duplicates: statusData.duplicates || 0,
+                errors: statusData.errors || [],
+                assigned_to: assignToEmployee ? employees.find(e => e.employee_id === assignToEmployee)?.employee_name : "You",
               });
-
               if (successful > 0) {
                 toast.success(`✅ Imported ${successful} leads!`);
-                await fetchLeads();
-                setBulkImportFile(null);
-                setAssignToEmployee(null);
-              } else {
-                toast.error("Import completed but no leads were inserted.");
-              }
+                await fetchLeads(1); setBulkImportFile(null); setAssignToEmployee(null);
+              } else { toast.error("Import completed but no leads were inserted."); }
               return;
             }
-
             if (statusData.status === "failed") {
-              const errors: string[] = statusData.errors || ["Import failed"];
-              setBulkImportResult({ success: false, successful: 0, errors });
-              toast.error("Import failed");
-              return;
+              setBulkImportResult({ success: false, successful: 0, errors: statusData.errors || ["Import failed"] });
+              toast.error("Import failed"); return;
             }
-
-            // Still running — keep polling
             return poll();
           } catch {
             setBulkImportResult({ success: false, successful: 0, errors: ["Network error while polling"] });
             toast.error("Network error");
           }
         };
-
-        await poll();
-        return;
+        await poll(); return;
       }
 
-      // ── Fallback: synchronous response (shouldn't happen but handle anyway) ──
       if (res.ok && data.success) {
-        setBulkImportResult({
-          success: true,
-          successful: data.successful,
-          duplicates: data.duplicates,
-          errors: data.errors || [],
-          assigned_to: data.assigned_to,
-          duplicate_report: data.duplicate_report,
-        });
+        setBulkImportResult({ success: true, successful: data.successful, duplicates: data.duplicates, errors: data.errors || [], assigned_to: data.assigned_to, duplicate_report: data.duplicate_report });
         toast.success(`✅ Imported ${data.successful} leads!`);
-        await fetchLeads();
-        setBulkImportFile(null);
-        setAssignToEmployee(null);
+        await fetchLeads(1); setBulkImportFile(null); setAssignToEmployee(null);
       } else {
-        setBulkImportResult({
-          success: false,
-          successful: data.successful || 0,
-          errors: data.errors || [data.error || "Import failed"],
-        });
+        setBulkImportResult({ success: false, successful: data.successful || 0, errors: data.errors || [data.error || "Import failed"] });
         toast.error(data.error || "Import failed");
       }
     } catch {
       toast.error("Network error");
       setBulkImportResult({ success: false, successful: 0, errors: ["Network error"] });
-    } finally {
-      setBulkImporting(false);
-    }
+    } finally { setBulkImporting(false); }
   };
 
   // ── Performance modal ──────────────────────────────────────────────────────
   const handlePerformanceClick = async (type: string) => {
-    setPerformanceFilter(type);
-    setShowPerformanceModal(true);
-    setPerformanceFilteredLeads([]);
-    setPerformanceModalLoading(true);
-
+    setPerformanceFilter(type); setShowPerformanceModal(true);
+    setPerformanceFilteredLeads([]); setPerformanceModalLoading(true);
     try {
       const resp = await fetchWithAuth(
         `${CRM_PROXY}/leads/performance?service=${encodeURIComponent(service)}&return_records=true&stage_filter=${encodeURIComponent(type)}`
       );
       setPerformanceFilteredLeads(resp?.records || []);
-    } catch {
-      toast.error("Failed to load leads");
-      setPerformanceFilteredLeads([]);
-    } finally {
-      setPerformanceModalLoading(false);
-    }
+    } catch { toast.error("Failed to load leads"); setPerformanceFilteredLeads([]); }
+    finally { setPerformanceModalLoading(false); }
   };
 
   const getPerformanceLabel = (type: string) => ({
-    converted: "Converted",
-    renewed: "Renewed",
-    in_progress: "In Progress",
-    not_contacted: "Not Contacted",
-    lost: "Lost",
-    renewed_directly: "Renewed Directly",
-    end_date_changed: "End Date Changed",
-    priced: "Priced",
+    converted: "Converted", renewed: "Renewed", in_progress: "In Progress",
+    not_contacted: "Not Contacted", lost: "Lost", renewed_directly: "Renewed Directly",
+    end_date_changed: "End Date Changed", priced: "Priced",
   }[type] || "");
 
-  // ── Pagination ─────────────────────────────────────────────────────────────
+  // ── CSV export ─────────────────────────────────────────────────────────────
+  const downloadLeadsCsv = async () => {
+    try {
+      const params = new URLSearchParams({ service, exclude_stage: 'Lost', page: '1', page_size: '5000' });
+      if (searchTerm.trim().length >= 2) params.set('search',          searchTerm.trim());
+      if (supplierFilter !== "All")       params.set('supplier_id',     String(supplierFilter));
+      if (statusFilter !== "All")         params.set('status',          statusFilter);
+      if (endDateFilter !== "all")        params.set('end_date_filter', endDateFilter);
+      if (salespersonFilter !== "All")    params.set('employee_id',     String(salespersonFilter));
+
+      const resp = await fetchWithAuth(`${CRM_PROXY}/leads?${params.toString()}`);
+      const allData: LeadCustomer[] = Array.isArray(resp) ? resp : (resp?.data || []);
+      const escapeCsv = (value: unknown) => `"${String(value ?? "").replace(/"/g, '""')}"`;
+      const headers = ["ID","Client Name","Trading Name","Phone","Mobile","Email","MPAN/MPR","Supplier","Annual Usage","Start Date","End Date","Status","Assigned To"];
+      const rows = allData.map(lead => [
+        lead.tenant_lead_id ?? lead.opportunity_id, lead.contact_person, lead.business_name,
+        lead.tel_number, lead.mobile_no, lead.email, lead.mpan_mpr,
+        lead.supplier_name || getSupplierName(lead.supplier_id), lead.annual_usage,
+        formatDate(lead.start_date), formatDate(lead.end_date),
+        getStatusLabel(lead.stage_name || undefined), lead.assigned_to_name,
+      ]);
+      const csv  = [headers, ...rows].map(row => row.map(escapeCsv).join(",")).join("\r\n");
+      const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+      const url  = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url; link.download = `leads-${service}-${new Date().toISOString().slice(0,10)}.csv`;
+      document.body.appendChild(link); link.click();
+      document.body.removeChild(link); URL.revokeObjectURL(url);
+    } catch { toast.error("Failed to export CSV"); }
+  };
+
+  // ── Pagination controls ────────────────────────────────────────────────────
   const PaginationControls = () => {
     if (totalPages <= 1) return null;
+    const start = (currentPage - 1) * CUSTOMERS_PER_PAGE + 1;
+    const end   = Math.min(currentPage * CUSTOMERS_PER_PAGE, serverTotal);
     return (
       <div className="flex items-center justify-between py-3 px-4 bg-gray-50 border-t">
         <div className="text-sm text-gray-700">
-          Showing <span className="font-medium">{(currentPage - 1) * CUSTOMERS_PER_PAGE + 1}</span> to{" "}
-          <span className="font-medium">{Math.min(currentPage * CUSTOMERS_PER_PAGE, filteredLeads.length)}</span>{" "}
-          of <span className="font-medium">{filteredLeads.length}</span> leads
+          Showing <span className="font-medium">{start}</span> to{" "}
+          <span className="font-medium">{end}</span> of{" "}
+          <span className="font-medium">{serverTotal.toLocaleString()}</span> leads
         </div>
         <div className="flex space-x-1">
-          <Button variant="outline" size="icon" onClick={() => setCurrentPage(1)} disabled={currentPage === 1}><ChevronFirst className="h-4 w-4" /></Button>
-          <Button variant="outline" size="icon" onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1}><ChevronLeft className="h-4 w-4" /></Button>
+          <Button variant="outline" size="icon" onClick={() => fetchLeads(1)} disabled={currentPage === 1 || isLoading}><ChevronFirst className="h-4 w-4" /></Button>
+          <Button variant="outline" size="icon" onClick={() => fetchLeads(currentPage - 1)} disabled={currentPage === 1 || isLoading}><ChevronLeft className="h-4 w-4" /></Button>
           <div className="flex items-center px-3 text-sm text-gray-700">Page {currentPage} of {totalPages}</div>
-          <Button variant="outline" size="icon" onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages}><ChevronRight className="h-4 w-4" /></Button>
-          <Button variant="outline" size="icon" onClick={() => setCurrentPage(totalPages)} disabled={currentPage === totalPages}><ChevronLast className="h-4 w-4" /></Button>
+          <Button variant="outline" size="icon" onClick={() => fetchLeads(currentPage + 1)} disabled={currentPage === totalPages || isLoading}><ChevronRight className="h-4 w-4" /></Button>
+          <Button variant="outline" size="icon" onClick={() => fetchLeads(totalPages)} disabled={currentPage === totalPages || isLoading}><ChevronLast className="h-4 w-4" /></Button>
         </div>
       </div>
     );
-  };
-
-  const downloadLeadsCsv = () => {
-    const escapeCsv = (value: unknown) => `"${String(value ?? "").replace(/"/g, '""')}"`;
-    const headers = [
-      "ID",
-      "Client Name",
-      "Trading Name",
-      "Phone",
-      "Mobile",
-      "Email",
-      "MPAN/MPR",
-      "Supplier",
-      "Annual Usage",
-      "Start Date",
-      "End Date",
-      "Status",
-      "Assigned To",
-    ];
-    const rows = filteredLeads.map((lead) => [
-      lead.tenant_lead_id ?? lead.opportunity_id,
-      lead.contact_person,
-      lead.business_name,
-      lead.tel_number,
-      lead.mobile_no,
-      lead.email,
-      lead.mpan_mpr,
-      lead.supplier_name || getSupplierName(lead.supplier_id),
-      lead.annual_usage,
-      formatDate(lead.start_date),
-      formatDate(lead.end_date),
-      getStatusLabel(lead.stage_name || undefined),
-      lead.assigned_to_name,
-    ]);
-    const csv = [headers, ...rows].map((row) => row.map(escapeCsv).join(",")).join("\r\n");
-    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = `leads-${service}-${new Date().toISOString().slice(0, 10)}.csv`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
   };
 
   // ─── Render ─────────────────────────────────────────────────────────────────
@@ -1127,7 +810,7 @@ export default function LeadsPage() {
               <div className="bg-blue-600 p-2 rounded-lg"><Users className="h-5 w-5 text-white" /></div>
               <div>
                 <p className="text-sm text-gray-600">Your Leads</p>
-                <p className="text-2xl font-bold text-gray-900">{allLeads.length}</p>
+                <p className="text-2xl font-bold text-gray-900">{serverTotal.toLocaleString()}</p>
               </div>
             </div>
           </div>
@@ -1140,7 +823,7 @@ export default function LeadsPage() {
           <div className="flex-1">
             <h3 className="text-sm font-medium text-red-800">Error Loading Leads</h3>
             <p className="mt-1 text-sm text-red-700">{error}</p>
-            <Button onClick={() => { fetchLeads(); fetchPerformanceStats(); }} variant="outline" size="sm" className="mt-3">Try Again</Button>
+            <Button onClick={() => fetchLeads(1)} variant="outline" size="sm" className="mt-3">Try Again</Button>
           </div>
         </div>
       )}
@@ -1176,28 +859,17 @@ export default function LeadsPage() {
             <h2 className="text-xl font-semibold text-gray-900">Lead Performance</h2>
             <p className="text-sm text-gray-600">{isAdmin ? "Overall lead success metrics" : "Your lead success metrics"}</p>
           </div>
-
-          {/* Period selector */}
           <div className="flex items-center gap-2 mb-4">
             <span className="text-xs font-medium text-gray-500">Period:</span>
             <div className="flex items-center gap-1 rounded-xl border border-gray-200 bg-gray-50 p-1">
               {(['daily', 'weekly', 'monthly', 'alltime'] as const).map((p) => (
-                <button
-                  key={p}
-                  type="button"
-                  onClick={() => setPerformancePeriod(p)}
-                  className={`rounded-lg px-3 py-1 text-xs font-medium capitalize transition-all duration-150 ${
-                    performancePeriod === p
-                      ? 'bg-white text-gray-900 shadow-sm'
-                      : 'text-gray-500 hover:text-gray-700'
-                  }`}
-                >
+                <button key={p} type="button" onClick={() => setPerformancePeriod(p)}
+                  className={`rounded-lg px-3 py-1 text-xs font-medium capitalize transition-all duration-150 ${performancePeriod === p ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
                   {p === 'alltime' ? 'All Time' : p}
                 </button>
               ))}
             </div>
           </div>
-          
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
             {[
               { key: "converted",        label: "Converted",        color: "emerald", icon: <CheckCircle2 className="h-6 w-6 text-emerald-600 mx-auto" />, val: performanceStats.converted },
@@ -1209,8 +881,7 @@ export default function LeadsPage() {
               { key: "not_contacted",    label: "Not Contacted",    color: "orange",  icon: <AlertTriangle className="h-6 w-6 text-orange-600 mx-auto" />, val: performanceStats.not_contacted },
               { key: "lost",             label: "Lost",             color: "red",     icon: <TrendingDown className="h-6 w-6 text-red-600 mx-auto" />,     val: performanceStats.lost },
             ].map(({ key, label, color, icon, val }) => (
-              <div key={key}
-                className={`text-center p-6 border rounded-lg bg-${color}-50 cursor-pointer hover:shadow-md transition-shadow`}
+              <div key={key} className={`text-center p-6 border rounded-lg bg-${color}-50 cursor-pointer hover:shadow-md transition-shadow`}
                 onClick={() => handlePerformanceClick(key)}>
                 <div className={`text-4xl font-bold text-${color}-700`}>{val}</div>
                 <div className={`text-sm text-${color}-600 mt-2 font-medium`}>{label}</div>
@@ -1236,13 +907,10 @@ export default function LeadsPage() {
           <div className="flex-1 overflow-y-auto pr-2">
             {performanceModalLoading ? (
               <div className="flex min-h-64 items-center justify-center text-slate-500">
-                <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                Loading leads...
+                <Loader2 className="mr-2 h-5 w-5 animate-spin" />Loading leads...
               </div>
             ) : performanceFilteredLeads.length === 0 ? (
-              <div className="text-center py-16 text-gray-500">
-                <p className="text-lg">No leads in this category</p>
-              </div>
+              <div className="text-center py-16 text-gray-500"><p className="text-lg">No leads in this category</p></div>
             ) : (
               <div className="space-y-3 py-4">
                 {performanceFilteredLeads.map(l => (
@@ -1291,11 +959,6 @@ export default function LeadsPage() {
           <div className="relative min-w-0 sm:col-span-2 xl:col-span-1">
             <Search className="text-muted-foreground absolute top-2.5 left-2 h-4 w-4" />
             <Input placeholder="Search leads..." className="pl-8" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
-            {isSearching && (
-              <div className="absolute right-2 top-2.5">
-                <div className="animate-spin h-4 w-4 border-2 border-primary border-t-transparent rounded-full" />
-              </div>
-            )}
           </div>
 
           <DropdownMenu>
@@ -1348,8 +1011,7 @@ export default function LeadsPage() {
           </Select>
 
           <Button variant="outline" onClick={() => setShowFilterSidebar(true)} className="relative min-w-0">
-            <Filter className="mr-2 h-4 w-4" />
-            All Filters
+            <Filter className="mr-2 h-4 w-4" />All Filters
             {(isAdmin && salespersonFilter !== "All") && (
               <span className="absolute -top-1 -right-1 h-2.5 w-2.5 rounded-full bg-black" />
             )}
@@ -1358,7 +1020,7 @@ export default function LeadsPage() {
 
         <div className="flex flex-wrap items-center gap-2 xl:justify-end">
           {isAdmin && (
-            <Button onClick={downloadLeadsCsv} variant="outline" disabled={filteredLeads.length === 0}>
+            <Button onClick={downloadLeadsCsv} variant="outline" disabled={serverTotal === 0}>
               <Download className="mr-2 h-4 w-4" />Download Leads
             </Button>
           )}
@@ -1377,80 +1039,51 @@ export default function LeadsPage() {
       </div>
 
       {/* Filter Sidebar */}
-      <div
-        className={`fixed inset-0 z-50 flex transition-opacity duration-300 ${showFilterSidebar ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"}`}
-      >
+      <div className={`fixed inset-0 z-50 flex transition-opacity duration-300 ${showFilterSidebar ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"}`}>
         <div className="flex-1 bg-black/30" onClick={() => setShowFilterSidebar(false)} />
-        <div
-          className={`w-80 bg-white h-full shadow-2xl flex flex-col transition-transform duration-300 ease-in-out ${showFilterSidebar ? "translate-x-0" : "translate-x-full"}`}
-          style={{ willChange: "transform" }}
-        >
+        <div className={`w-80 bg-white h-full shadow-2xl flex flex-col transition-transform duration-300 ease-in-out ${showFilterSidebar ? "translate-x-0" : "translate-x-full"}`} style={{ willChange: "transform" }}>
           <div className="flex items-center justify-between px-6 py-4 border-b flex-shrink-0">
             <h2 className="text-lg font-semibold text-gray-900">All Filters</h2>
             <button onClick={() => setShowFilterSidebar(false)} className="p-1 rounded hover:bg-gray-100">
               <X className="h-5 w-5 text-gray-500" />
             </button>
           </div>
-
           <div className="flex-1 overflow-y-auto px-6 py-6 space-y-6 min-h-0">
-
-            {/* Salesperson — admin only */}
             {isAdmin && (
               <div>
                 <label className="block text-sm font-semibold text-gray-800 mb-2">Salesperson</label>
-                <Select
-                  value={salespersonFilter.toString()}
-                  onValueChange={v => setSalespersonFilter(v === "All" ? "All" : parseInt(v))}
-                >
-                  <SelectTrigger className="w-full">
-                    <SelectValue placeholder="All Salespersons" />
-                  </SelectTrigger>
+                <Select value={salespersonFilter.toString()} onValueChange={v => setSalespersonFilter(v === "All" ? "All" : parseInt(v))}>
+                  <SelectTrigger className="w-full"><SelectValue placeholder="All Salespersons" /></SelectTrigger>
                   <SelectContent position="popper" side="bottom" sideOffset={4} className="w-72 z-[60]">
                     <SelectItem value="All">All Salespersons</SelectItem>
-                    {employees.map(e => (
-                      <SelectItem key={e.employee_id} value={e.employee_id.toString()}>{e.employee_name}</SelectItem>
-                    ))}
+                    {employees.map(e => <SelectItem key={e.employee_id} value={e.employee_id.toString()}>{e.employee_name}</SelectItem>)}
                   </SelectContent>
                 </Select>
               </div>
             )}
-
             <div className="border-t pt-6">
               <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-4">Quick Filters</p>
             </div>
-
-            {/* Supplier */}
             <div>
               <label className="block text-sm font-semibold text-gray-800 mb-2">Supplier</label>
-              <Select
-                value={supplierFilter.toString()}
-                onValueChange={v => setSupplierFilter(v === "All" ? "All" : parseInt(v))}
-              >
+              <Select value={supplierFilter.toString()} onValueChange={v => setSupplierFilter(v === "All" ? "All" : parseInt(v))}>
                 <SelectTrigger className="w-full"><SelectValue placeholder="All Suppliers" /></SelectTrigger>
                 <SelectContent position="popper" side="bottom" sideOffset={4} className="w-72 z-[60]">
                   <SelectItem value="All">All Suppliers</SelectItem>
-                  {suppliers.map(s => (
-                    <SelectItem key={s.supplier_id} value={s.supplier_id.toString()}>{s.supplier_name}</SelectItem>
-                  ))}
+                  {suppliers.map(s => <SelectItem key={s.supplier_id} value={s.supplier_id.toString()}>{s.supplier_name}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
-
-            {/* Status */}
             <div>
               <label className="block text-sm font-semibold text-gray-800 mb-2">Status</label>
               <Select value={statusFilter.toString()} onValueChange={v => setStatusFilter(v)}>
                 <SelectTrigger className="w-full"><SelectValue placeholder="All Status" /></SelectTrigger>
                 <SelectContent position="popper" side="bottom" sideOffset={4} className="w-72 z-[60]">
                   <SelectItem value="All">All Status</SelectItem>
-                  {STATUS_OPTIONS.map(o => (
-                    <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
-                  ))}
+                  {STATUS_OPTIONS.map(o => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
-
-            {/* Contract End Date */}
             <div>
               <label className="block text-sm font-semibold text-gray-800 mb-2">Contract End Date</label>
               <Select value={endDateFilter} onValueChange={(v: any) => setEndDateFilter(v)}>
@@ -1465,8 +1098,6 @@ export default function LeadsPage() {
                 </SelectContent>
               </Select>
             </div>
-
-            {/* Usage Sort */}
             <div>
               <label className="block text-sm font-semibold text-gray-800 mb-2">Annual Usage Sort</label>
               <Select value={usageSort} onValueChange={(v: any) => setUsageSort(v)}>
@@ -1479,27 +1110,12 @@ export default function LeadsPage() {
               </Select>
             </div>
           </div>
-
           <div className="px-6 py-4 border-t flex-shrink-0 flex gap-2">
-            <Button
-              variant="outline"
-              className="flex-1"
-              onClick={() => {
-                setSupplierFilter("All");
-                setStatusFilter("All");
-                setEndDateFilter("all");
-                setUsageSort("none");
-                setSalespersonFilter("All");
-              }}
-            >
+            <Button variant="outline" className="flex-1"
+              onClick={() => { setSupplierFilter("All"); setStatusFilter("All"); setEndDateFilter("all"); setUsageSort("none"); setSalespersonFilter("All"); }}>
               Clear All
             </Button>
-            <Button
-              className="flex-1 bg-black hover:bg-gray-800"
-              onClick={() => setShowFilterSidebar(false)}
-            >
-              Done
-            </Button>
+            <Button className="flex-1 bg-black hover:bg-gray-800" onClick={() => setShowFilterSidebar(false)}>Done</Button>
           </div>
         </div>
       </div>
@@ -1511,49 +1127,22 @@ export default function LeadsPage() {
             <thead className="bg-gray-50">
               <tr>
                 <th className="px-3 py-3 text-left w-8">
-                  <input
-                    type="checkbox"
-                    className="rounded border-gray-300"
+                  <input type="checkbox" className="rounded border-gray-300"
                     checked={selectedLeads.length === paginatedLeads.length && paginatedLeads.length > 0}
-                    onChange={handleSelectAll}
-                  />
+                    onChange={handleSelectAll} />
                 </th>
-                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase w-20 border-r-2 border-gray-300">
-                  ID
-                </th>
-                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase w-[9%]">
-                  Client Name
-                </th>
-                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase w-[11%]">
-                  Trading Name
-                </th>
-                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase w-[8%] overflow-hidden">
-                  Tel No
-                </th>
-                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase w-[8%] overflow-hidden">
-                  Mobile No
-                </th>
-                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase w-[10%]">
-                  MPAN Top
-                </th>
-                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase w-[9%]">
-                  Supplier
-                </th>
-                <th className="px-3 py-3 text-right text-xs font-medium tracking-wider text-gray-500 uppercase w-[9%] whitespace-nowrap">
-                  Annual Usage
-                </th>
-                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase w-[9%] whitespace-nowrap">
-                  Start Date
-                </th>
-                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase w-[9%] whitespace-nowrap">
-                  Contract End
-                </th>
-                <th className="px-3 py-3 text-center text-xs font-medium tracking-wider text-gray-500 uppercase w-[12%]">
-                  Status
-                </th>
-                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase w-[9%]">
-                  Assigned To
-                </th>
+                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase w-20 border-r-2 border-gray-300">ID</th>
+                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase w-[9%]">Client Name</th>
+                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase w-[11%]">Trading Name</th>
+                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase w-[8%] overflow-hidden">Tel No</th>
+                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase w-[8%] overflow-hidden">Mobile No</th>
+                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase w-[10%]">MPAN Top</th>
+                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase w-[9%]">Supplier</th>
+                <th className="px-3 py-3 text-right text-xs font-medium tracking-wider text-gray-500 uppercase w-[9%] whitespace-nowrap">Annual Usage</th>
+                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase w-[9%] whitespace-nowrap">Start Date</th>
+                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase w-[9%] whitespace-nowrap">Contract End</th>
+                <th className="px-3 py-3 text-center text-xs font-medium tracking-wider text-gray-500 uppercase w-[12%]">Status</th>
+                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase w-[9%]">Assigned To</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200 bg-white">
@@ -1576,11 +1165,10 @@ export default function LeadsPage() {
                 </td></tr>
               ) : paginatedLeads.map(lead => {
                 const isSelected = selectedLeads.includes(lead.opportunity_id);
-                const fromSearch = isFromSearch(lead);
-                const displayId = lead.display_order ?? lead.tenant_lead_id ?? lead.opportunity_id;
+                const displayId  = lead.display_order ?? lead.tenant_lead_id ?? lead.opportunity_id;
                 return (
                   <tr key={lead.opportunity_id}
-                    className={`hover:bg-gray-50 transition-colors cursor-pointer ${isSelected ? "bg-blue-50" : fromSearch ? "bg-amber-50" : ""}`}
+                    className={`hover:bg-gray-50 transition-colors cursor-pointer ${isSelected ? "bg-blue-50" : ""}`}
                     onClick={() => window.open(`/dashboard/leads/${lead.opportunity_id}`, "_blank")}
                     onContextMenu={e => {
                       e.preventDefault();
@@ -1590,131 +1178,82 @@ export default function LeadsPage() {
                       const del = document.createElement("button");
                       del.className = "w-full px-4 py-2 text-left text-sm hover:bg-red-50 text-red-600 flex items-center gap-2";
                       del.innerHTML = `<svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg> Delete`;
-                        del.onclick = () => { 
-                          // ✅ Send tenant_lead_id (the display ID) instead of opportunity_id
-                          deleteLead(lead.opportunity_id);  
-                          document.body.removeChild(menu); 
-                        };
+                      del.onclick = () => { deleteLead(lead.opportunity_id); document.body.removeChild(menu); };
                       menu.appendChild(del); document.body.appendChild(menu);
                       const close = (ev: MouseEvent) => { if (!menu.contains(ev.target as Node)) { try { document.body.removeChild(menu); } catch {} document.removeEventListener("click", close); } };
                       setTimeout(() => document.addEventListener("click", close), 0);
                     }}>
 
-                    {/* Checkbox */}
                     <td className="px-3 py-3 align-top" onClick={e => e.stopPropagation()}>
                       <input type="checkbox" className="rounded border-gray-300 mt-1"
-                        checked={isSelected}
-                        onChange={() => handleSelectLead(lead.opportunity_id)}
-                        disabled={fromSearch} />
+                        checked={isSelected} onChange={() => handleSelectLead(lead.opportunity_id)} />
                     </td>
 
-                    {/* ID */}
                     <td className="px-3 py-3 text-sm font-medium text-gray-900 border-r-2 border-gray-300 align-top">
-                      <div className="flex items-center gap-1 whitespace-nowrap">
-                        {displayId}
-                        {fromSearch && <span title="From team search" className="inline-flex"><Info className="h-3 w-3 text-amber-600" /></span>}
-                      </div>
+                      <div className="whitespace-nowrap">{displayId}</div>
                     </td>
 
-                    {/* Client Name */}
                     <td className="px-3 py-3 text-sm text-gray-700 align-top overflow-hidden">
-                      <div className="leading-tight">
-                        <div className="whitespace-normal break-words">{lead.contact_person || "—"}</div>
-                        {fromSearch && (
-                          <Badge variant="outline" className="mt-1 text-xs bg-amber-100 text-amber-800 border-amber-300">
-                            {lead.assigned_to_name || "Other team"}
-                          </Badge>
-                        )}
-                      </div>
+                      <div className="whitespace-normal break-words">{lead.contact_person || "—"}</div>
                     </td>
 
-                    {/* Trading Name */}
                     <td className="px-3 py-3 text-sm text-gray-900 align-top overflow-hidden">
                       <div className="leading-tight">
                         <div className="whitespace-normal break-words">{lead.business_name || "—"}</div>
                         {lead.is_cleansed && (
-                          <Badge 
-                            variant="outline" 
+                          <Badge variant="outline"
                             className="mt-1 text-xs bg-green-100 text-green-800 border-green-300 whitespace-nowrap animate-pulse cursor-pointer hover:animate-none"
                             onClick={async (e) => {
                               e.stopPropagation();
                               try {
                                 await fetchWithAuth(`${CRM_PROXY}/leads/${lead.opportunity_id}`, {
-                                  method: "PATCH",
-                                  headers: { "Content-Type": "application/json" },
+                                  method: "PATCH", headers: { "Content-Type": "application/json" },
                                   body: JSON.stringify({ is_cleansed: false }),
                                 });
-                                setAllLeads(prev =>
-                                  prev.map(l => l.opportunity_id === lead.opportunity_id ? { ...l, is_cleansed: false } : l)
-                                );
+                                setAllLeads(prev => prev.map(l => l.opportunity_id === lead.opportunity_id ? { ...l, is_cleansed: false } : l));
                                 toast.success("✅ Cleansed tag removed");
-                              } catch {
-                                toast.error("Failed to remove tag");
-                              }
-                            }}
-                          >
+                              } catch { toast.error("Failed to remove tag"); }
+                            }}>
                             CLEANSED
                           </Badge>
                         )}
                       </div>
                     </td>
 
-                    {/* Tel No */}
                     <td className="px-3 py-3 text-sm text-gray-900 align-top overflow-hidden">
-                      <div className="truncate max-w-[100px]" title={lead.tel_number ? String(lead.tel_number).replace(/\.0$/, "") : ""}>
-                        {lead.tel_number ? String(lead.tel_number).replace(/\.0$/, "") : "—"}
-                      </div>
+                      <div className="truncate max-w-[100px]">{lead.tel_number ? String(lead.tel_number).replace(/\.0$/, "") : "—"}</div>
                     </td>
 
-                    {/* Mobile No */}
                     <td className="px-3 py-3 text-sm text-gray-900 align-top overflow-hidden">
-                      <div className="truncate max-w-[100px]" title={lead.mobile_no ? String(lead.mobile_no).replace(/\.0$/, "") : ""}>
-                        {lead.mobile_no ? String(lead.mobile_no).replace(/\.0$/, "") : "—"}
-                      </div>
+                      <div className="truncate max-w-[100px]">{lead.mobile_no ? String(lead.mobile_no).replace(/\.0$/, "") : "—"}</div>
                     </td>
 
-                    {/* MPAN Top */}
                     <td className="px-3 py-3 text-sm text-gray-900 align-top overflow-hidden">
-                      <div className="truncate" title={lead.mpan_mpr || ""}>{lead.mpan_mpr || "—"}</div>
+                      <div className="truncate">{lead.mpan_mpr || "—"}</div>
                     </td>
 
-                    {/* Supplier */}
                     <td className="px-3 py-3 text-sm text-gray-900 align-top overflow-hidden">
-                      <div className="truncate" title={lead.supplier_name || ""}>
-                        {lead.supplier_name || getSupplierName(lead.supplier_id)}
-                      </div>
+                      <div className="truncate">{lead.supplier_name || getSupplierName(lead.supplier_id)}</div>
                     </td>
 
-                    {/* Annual Usage */}
                     <td className="px-3 py-3 text-sm text-gray-900 text-right align-top">
                       <div className="whitespace-nowrap">{lead.annual_usage ? lead.annual_usage.toLocaleString() : "—"}</div>
                     </td>
 
-                    {/* Start Date */}
                     <td className="px-3 py-3 text-sm text-gray-900 align-top">
                       <div className="whitespace-nowrap">{formatDate(lead.start_date)}</div>
                     </td>
 
-                    {/* Contract End */}
                     <td className="px-3 py-3 text-sm text-gray-900 align-top">
                       <div className="whitespace-nowrap">{formatDate(lead.end_date)}</div>
                     </td>
 
-                    {/* Status */}
-                    <td className="px-3 py-3 align-top" onClick={(e) => e.stopPropagation()}>
-                      <Select
-                        value={lead.stage_name || ""}  // ✅ Use stage_name, not status
-                        onValueChange={(value) => {
-                          if (value === "CLEAR_STATUS") {
-                            updateLeadStatus(lead.opportunity_id, "");
-                          } else {
-                            updateLeadStatus(lead.opportunity_id, value);
-                          }
-                        }}
-                      >
+                    <td className="px-3 py-3 align-top" onClick={e => e.stopPropagation()}>
+                      <Select value={lead.stage_name || ""}
+                        onValueChange={value => updateLeadStatus(lead.opportunity_id, value === "CLEAR_STATUS" ? "" : value)}>
                         <SelectTrigger className="h-7 text-xs w-full max-w-[150px]">
                           <SelectValue placeholder="Set status">
-                            {lead.stage_name ? (  // ✅ Use stage_name here too
+                            {lead.stage_name ? (
                               <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-semibold ${getStatusColor(lead.stage_name)}`}>
                                 {getStatusLabel(lead.stage_name)}
                               </span>
@@ -1724,23 +1263,17 @@ export default function LeadsPage() {
                           </SelectValue>
                         </SelectTrigger>
                         <SelectContent>
-                          {STATUS_OPTIONS.map((option) => (
-                            <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
-                          ))}
-                          {lead.stage_name && (  // ✅ Check stage_name
-                            <>
-                              <div className="border-t my-1"></div>
-                              <SelectItem value="CLEAR_STATUS" className="text-red-600 font-medium">✕ Clear Status</SelectItem>
-                            </>
+                          {STATUS_OPTIONS.map(option => <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>)}
+                          {lead.stage_name && (
+                            <><div className="border-t my-1"></div>
+                            <SelectItem value="CLEAR_STATUS" className="text-red-600 font-medium">✕ Clear Status</SelectItem></>
                           )}
                         </SelectContent>
                       </Select>
                     </td>
 
-                    {/* Assigned To */}
                     <td className="px-3 py-3 align-top" onClick={e => e.stopPropagation()}>
-                      <Select
-                        value={lead.opportunity_owner_employee_id?.toString() || "0"}
+                      <Select value={lead.opportunity_owner_employee_id?.toString() || "0"}
                         onValueChange={v => { setAssigningLeadId(lead.opportunity_id); setAssignToEmployeeId(v); setShowAssignModal(true); }}>
                         <SelectTrigger className="h-7 text-xs w-full max-w-[150px]">
                           <SelectValue placeholder="Assign">{lead.assigned_to_name || "Unassigned"}</SelectValue>
@@ -1757,36 +1290,24 @@ export default function LeadsPage() {
             </tbody>
           </table>
         </div>
-        {!isLoading && !error && filteredLeads.length > 0 && <PaginationControls />}
+        {!isLoading && !error && serverTotal > 0 && <PaginationControls />}
       </div>
 
-      {/* ── Bulk Import Modal ─────────────────────────────────────────────────── */}
-      {/*
-        ✅ This now mirrors the renewals import modal exactly:
-        - Uses /import/leads endpoint (import_routes.py)
-        - When "Assign To" is left blank, the backend auto-assigns to the importing user
-        - Shows duplicate report just like renewals
-      */}
+      {/* Bulk Import Modal */}
       <Dialog open={showImportModal} onOpenChange={setShowImportModal}>
         <DialogContent className="max-w-2xl">
           <DialogHeader>
             <DialogTitle>Bulk Import Leads</DialogTitle>
-            <DialogDescription>
-              Upload an Excel or CSV file. Leads will be assigned to <strong>you</strong> by default unless you select someone else below.
-            </DialogDescription>
+            <DialogDescription>Upload an Excel or CSV file. Leads will be assigned to <strong>you</strong> by default unless you select someone else below.</DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <div>
               <label className="block text-sm font-medium mb-2">Select File (.xlsx, .xls, .csv)</label>
               <input type="file" accept=".xlsx,.xls,.csv" onChange={e => setBulkImportFile(e.target.files?.[0] || null)} className="block w-full text-sm border rounded-md p-2" />
             </div>
-
-            {/* ✅ "Assign To" — admin can pick someone; leaving blank = self-assign */}
             {isAdmin && (
               <div>
-                <label className="block text-sm font-medium mb-2">
-                  Assign To <span className="text-gray-400 font-normal">(optional — defaults to your account)</span>
-                </label>
+                <label className="block text-sm font-medium mb-2">Assign To <span className="text-gray-400 font-normal">(optional — defaults to your account)</span></label>
                 <Select value={assignToEmployee?.toString() || "0"} onValueChange={v => setAssignToEmployee(v === "0" ? null : Number(v))}>
                   <SelectTrigger className="w-full"><SelectValue placeholder="Assign to myself (default)" /></SelectTrigger>
                   <SelectContent>
@@ -1796,23 +1317,17 @@ export default function LeadsPage() {
                 </Select>
               </div>
             )}
-
             <div className="bg-blue-50 border border-blue-200 rounded-md p-4">
               <h4 className="font-medium text-sm mb-2">📥 Download Template</h4>
               <p className="text-xs text-blue-700 mb-2">Same format as the Renewals import template.</p>
               <Button variant="outline" size="sm" onClick={downloadTemplate}>Download Template</Button>
             </div>
-
             {bulkImportResult && (
               <div className={`rounded-md p-4 ${bulkImportResult.success ? "bg-green-50 border border-green-200" : "bg-red-50 border border-red-200"}`}>
                 <h4 className="font-medium text-sm mb-2">{bulkImportResult.success ? "✅ Import Successful" : "❌ Import Failed"}</h4>
                 <p className="text-sm">Imported: <strong>{bulkImportResult.successful}</strong> leads</p>
-                {bulkImportResult.duplicates != null && bulkImportResult.duplicates > 0 && (
-                  <p className="text-sm text-orange-700 mt-1">⚠️ Duplicates skipped: <strong>{bulkImportResult.duplicates}</strong></p>
-                )}
-                {bulkImportResult.assigned_to && (
-                  <p className="text-sm text-green-700 mt-1">✅ Assigned to: <strong>{bulkImportResult.assigned_to}</strong></p>
-                )}
+                {(bulkImportResult.duplicates ?? 0) > 0 && <p className="text-sm text-orange-700 mt-1">⚠️ Duplicates skipped: <strong>{bulkImportResult.duplicates}</strong></p>}
+                {bulkImportResult.assigned_to && <p className="text-sm text-green-700 mt-1">✅ Assigned to: <strong>{bulkImportResult.assigned_to}</strong></p>}
                 {bulkImportResult.duplicate_report && bulkImportResult.duplicate_report.length > 0 && (
                   <details className="mt-2">
                     <summary className="text-xs cursor-pointer text-orange-700 font-medium">View duplicate report</summary>
@@ -1831,29 +1346,10 @@ export default function LeadsPage() {
                 )}
               </div>
             )}
-
             <div className="flex justify-end gap-2 pt-4">
-              <Button
-                variant="outline"
-                onClick={() => {
-                  setShowImportModal(false);
-                  setBulkImportFile(null);
-                  setAssignToEmployee(null);
-                  setBulkImportResult(null);
-                }}
-                disabled={bulkImporting}
-              >
-                Cancel
-              </Button>
+              <Button variant="outline" onClick={() => { setShowImportModal(false); setBulkImportFile(null); setAssignToEmployee(null); setBulkImportResult(null); }} disabled={bulkImporting}>Cancel</Button>
               <Button onClick={handleBulkImport} disabled={!bulkImportFile || bulkImporting}>
-                {bulkImporting ? (
-                  <>
-                    <div className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
-                    Importing... (processing in background)
-                  </>
-                ) : (
-                  "Import Leads"
-                )}
+                {bulkImporting ? <><div className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />Importing...</> : "Import Leads"}
               </Button>
             </div>
           </div>
@@ -1893,17 +1389,13 @@ export default function LeadsPage() {
             )}
             {isDateRequired() && (
               <div className="space-y-2">
-                <label className="text-sm font-medium">
-                  {callbackStatus === "Already Renewed" || callbackStatus === "Sold" ? "Action Date" : "Callback Date"}
-                </label>
+                <label className="text-sm font-medium">{callbackStatus === "Already Renewed" || callbackStatus === "Sold" ? "Action Date" : "Callback Date"}</label>
                 <Input type="date" value={callbackDate} onChange={e => setCallbackDate(e.target.value)} />
               </div>
             )}
             {(callbackStatus === "Already Renewed" || callbackStatus === "Sold") && renewedBy === "agent" && (
               <div className="space-y-2">
-                <label className="text-sm font-medium">
-                  Contract Start Date <span className="text-red-500">*</span>
-                </label>
+                <label className="text-sm font-medium">Contract Start Date <span className="text-red-500">*</span></label>
                 <Input type="date" value={newStartDate} onChange={e => setNewStartDate(e.target.value)} />
               </div>
             )}
@@ -1916,20 +1408,14 @@ export default function LeadsPage() {
             )}
             {(callbackStatus === "Already Renewed" || callbackStatus === "Sold") && (
               <div className="space-y-2">
-                <label className="text-sm font-medium">
-                  {callbackStatus === "Sold" ? "Sold By" : "Renewed By"} <span className="text-red-500">*</span>
-                </label>
+                <label className="text-sm font-medium">{callbackStatus === "Sold" ? "Sold By" : "Renewed By"} <span className="text-red-500">*</span></label>
                 <div className="flex flex-col gap-2 p-3 border rounded-lg bg-gray-50">
                   {(callbackStatus === "Sold" ? (["supplier", "agent"] as const) : (["customer", "agent"] as const)).map(v => (
                     <label key={v} className="flex items-center gap-3 cursor-pointer">
                       <input type="radio" name="renewedBy" value={v} checked={renewedBy === v} onChange={() => setRenewedBy(v)} className="w-4 h-4 accent-black" />
                       <div>
-                        <span className="text-sm font-medium text-gray-900">
-                          {callbackStatus === "Sold" ? `Sold by ${v.charAt(0).toUpperCase() + v.slice(1)}` : `Renewed by ${v.charAt(0).toUpperCase() + v.slice(1)}`}
-                        </span>
-                        <p className="text-xs text-gray-500">
-                          {v === "agent" ? "Counts for agent commission" : callbackStatus === "Sold" ? "Sold directly by supplier" : "Customer renewed directly without agent"}
-                        </p>
+                        <span className="text-sm font-medium text-gray-900">{callbackStatus === "Sold" ? `Sold by ${v.charAt(0).toUpperCase() + v.slice(1)}` : `Renewed by ${v.charAt(0).toUpperCase() + v.slice(1)}`}</span>
+                        <p className="text-xs text-gray-500">{v === "agent" ? "Counts for agent commission" : callbackStatus === "Sold" ? "Sold directly by supplier" : "Customer renewed directly without agent"}</p>
                       </div>
                     </label>
                   ))}
@@ -1948,31 +1434,17 @@ export default function LeadsPage() {
                 <Textarea placeholder="Enter new address if changed" value={newAddress} onChange={e => setNewAddress(e.target.value)} rows={2} />
               </div>
             )}
-
             {callbackStatus === "Converted" && (
               <div className="space-y-2">
-                <label className="text-sm font-medium">
-                  Assign To <span className="text-gray-500">(Optional)</span>
-                </label>
-                <Select 
-                  value={assignToEmployeeId || "0"} 
-                  onValueChange={setAssignToEmployeeId}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Keep current assignment" />
-                  </SelectTrigger>
+                <label className="text-sm font-medium">Assign To <span className="text-gray-500">(Optional)</span></label>
+                <Select value={assignToEmployeeId || "0"} onValueChange={setAssignToEmployeeId}>
+                  <SelectTrigger><SelectValue placeholder="Keep current assignment" /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="0">Keep current assignment</SelectItem>
-                    {employees.map(e => (
-                      <SelectItem key={e.employee_id} value={e.employee_id.toString()}>
-                        {e.employee_name}
-                      </SelectItem>
-                    ))}
+                    {employees.map(e => <SelectItem key={e.employee_id} value={e.employee_id.toString()}>{e.employee_name}</SelectItem>)}
                   </SelectContent>
                 </Select>
-                <p className="text-xs text-gray-500">
-                  Optionally reassign this converted lead to another team member
-                </p>
+                <p className="text-xs text-gray-500">Optionally reassign this converted lead to another team member</p>
               </div>
             )}
             {statusConfig[callbackStatus]?.deletesRecord && (
@@ -2025,10 +1497,7 @@ export default function LeadsPage() {
       <AddLeadModal
         isOpen={showAddLeadModal}
         onClose={() => setShowAddLeadModal(false)}
-        onLeadCreated={() => {
-          setShowAddLeadModal(false);
-          fetchLeads();
-        }}
+        onLeadCreated={() => { setShowAddLeadModal(false); fetchLeads(1); }}
         service={service}
         suppliers={suppliers}
         employees={employees}
@@ -2039,87 +1508,37 @@ export default function LeadsPage() {
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle>Bulk Assign Leads</DialogTitle>
-            <DialogDescription>
-              Assign leads from your selection to {bulkAssignEmployeeName}
-            </DialogDescription>
+            <DialogDescription>Assign leads from your selection to {bulkAssignEmployeeName}</DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
               <div className="flex items-center gap-2 mb-2">
                 <UserCheck className="h-4 w-4 text-blue-600" />
-                <span className="text-sm font-medium text-blue-900">
-                  {selectedLeads.length} lead{selectedLeads.length !== 1 ? "s" : ""} selected
-                </span>
+                <span className="text-sm font-medium text-blue-900">{selectedLeads.length} lead{selectedLeads.length !== 1 ? "s" : ""} selected</span>
               </div>
-              <div className="text-sm text-blue-700">
-                Assigning to: <strong>{bulkAssignEmployeeName}</strong>
-              </div>
+              <div className="text-sm text-blue-700">Assigning to: <strong>{bulkAssignEmployeeName}</strong></div>
             </div>
-
             <div>
-              <label className="text-sm font-medium text-gray-700">
-                Number of Leads to Assign{" "}
-                <span className="text-gray-400 font-normal">
-                  (max {selectedLeads.length})
-                </span>
-              </label>
-              <Input
-                type="number"
-                min={1}
-                max={selectedLeads.length}
-                className="mt-1"
+              <label className="text-sm font-medium text-gray-700">Number of Leads to Assign <span className="text-gray-400 font-normal">(max {selectedLeads.length})</span></label>
+              <Input type="number" min={1} max={selectedLeads.length} className="mt-1"
                 placeholder={`Enter a number (default: all ${selectedLeads.length})`}
                 value={bulkAssignCount}
                 onChange={e => {
                   const val = parseInt(e.target.value);
-                  if (e.target.value === "") {
-                    setBulkAssignCount("");
-                  } else if (!isNaN(val) && val >= 1 && val <= selectedLeads.length) {
-                    setBulkAssignCount(val);
-                  }
-                }}
-              />
-              <p className="text-xs text-gray-500 mt-1">
-                Leave blank to assign all selected leads.
-              </p>
+                  if (e.target.value === "") setBulkAssignCount("");
+                  else if (!isNaN(val) && val >= 1 && val <= selectedLeads.length) setBulkAssignCount(val);
+                }} />
+              <p className="text-xs text-gray-500 mt-1">Leave blank to assign all selected leads.</p>
             </div>
-
             <div>
-              <label className="text-sm font-medium text-gray-700">
-                Assignment Notes (Optional)
-              </label>
-              <Textarea
-                className="mt-1"
-                placeholder="Why are these being assigned?"
-                value={bulkAssignmentNotes}
-                onChange={e => setBulkAssignmentNotes(e.target.value)}
-                rows={3}
-              />
+              <label className="text-sm font-medium text-gray-700">Assignment Notes (Optional)</label>
+              <Textarea className="mt-1" placeholder="Why are these being assigned?" value={bulkAssignmentNotes} onChange={e => setBulkAssignmentNotes(e.target.value)} rows={3} />
             </div>
           </div>
           <div className="flex justify-end gap-2 mt-4">
-            <Button
-              variant="outline"
-              onClick={() => {
-                setShowBulkAssignModal(false);
-                setBulkAssignmentNotes("");
-                setBulkAssignEmployeeId(null);
-                setBulkAssignEmployeeName("");
-                setBulkAssignCount("");
-              }}
-              disabled={isBulkAssigning}
-            >
-              Cancel
-            </Button>
+            <Button variant="outline" onClick={() => { setShowBulkAssignModal(false); setBulkAssignmentNotes(""); setBulkAssignEmployeeId(null); setBulkAssignEmployeeName(""); setBulkAssignCount(""); }} disabled={isBulkAssigning}>Cancel</Button>
             <Button onClick={handleBulkAssignWithNotes} disabled={isBulkAssigning}>
-              {isBulkAssigning ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Assigning...
-                </>
-              ) : (
-                `Assign ${bulkAssignCount || selectedLeads.length} Lead${(bulkAssignCount || selectedLeads.length) !== 1 ? "s" : ""}`
-              )}
+              {isBulkAssigning ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Assigning...</> : `Assign ${bulkAssignCount || selectedLeads.length} Lead${(bulkAssignCount || selectedLeads.length) !== 1 ? "s" : ""}`}
             </Button>
           </div>
         </DialogContent>
@@ -2127,5 +1546,3 @@ export default function LeadsPage() {
     </div>
   );
 }
-
-
