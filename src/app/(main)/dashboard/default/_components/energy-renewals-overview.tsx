@@ -349,24 +349,24 @@ export function EnergyRenewalsOverview({ userRole, employeeId }: EnergyRenewalsO
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7">
         {/* 30-60 Days */}
         <Card 
-          className="border-orange-300 bg-orange-50/30 cursor-pointer hover:shadow-lg transition-shadow overflow-hidden"
+          className="border-orange-300 bg-orange-50/30 dark:border-orange-900/50 dark:bg-orange-950/20 cursor-pointer hover:shadow-lg transition-shadow overflow-hidden"
           onClick={() => fetchPeriodBreakdown('30-60')}
         >
           <CardHeader className="pb-2 px-4 pt-4">
-            <CardDescription className="text-sm">Renewals Due (30-60 Days)</CardDescription>
-            <CardTitle className="text-3xl font-semibold tabular-nums text-orange-900">
+            <CardDescription className="text-sm dark:text-orange-300/80">Renewals Due (30-60 Days)</CardDescription>
+            <CardTitle className="text-3xl font-semibold tabular-nums text-orange-900 dark:text-orange-200">
               {stats?.total_renewals_30_60_days || 0}
             </CardTitle>
           </CardHeader>
           <CardFooter className="flex-col items-start gap-1.5 text-sm px-4 pb-4 pt-2">
-            <Badge variant="outline" className="bg-orange-100 text-orange-700 border-orange-300 whitespace-nowrap">
+            <Badge variant="outline" className="bg-orange-100 text-orange-700 border-orange-300 dark:bg-orange-950/60 dark:text-orange-300 dark:border-orange-800 whitespace-nowrap">
               <AlertTriangle className="h-3 w-3" />
               Urgent
             </Badge>
-            <div className="line-clamp-1 font-medium text-orange-800">
+            <div className="line-clamp-1 font-medium text-orange-800 dark:text-orange-300/90">
               Immediate action required
             </div>
-            <div className="text-orange-600 flex items-center gap-1">
+            <div className="text-orange-600 dark:text-orange-400 flex items-center gap-1">
               Click for details <ChevronRight className="h-3 w-3" />
             </div>
           </CardFooter>
@@ -374,24 +374,24 @@ export function EnergyRenewalsOverview({ userRole, employeeId }: EnergyRenewalsO
 
         {/* 61-90 Days */}
         <Card 
-          className="border-yellow-300 bg-yellow-50/30 cursor-pointer hover:shadow-lg transition-shadow overflow-hidden"
+          className="border-yellow-300 bg-yellow-50/30 dark:border-yellow-900/50 dark:bg-yellow-950/20 cursor-pointer hover:shadow-lg transition-shadow overflow-hidden"
           onClick={() => fetchPeriodBreakdown('61-90')}
         >
           <CardHeader className="pb-2 px-4 pt-4">
-            <CardDescription className="text-sm">Renewals Due (61-90 Days)</CardDescription>
-            <CardTitle className="text-3xl font-semibold tabular-nums text-yellow-900">
+            <CardDescription className="text-sm dark:text-yellow-300/80">Renewals Due (61-90 Days)</CardDescription>
+            <CardTitle className="text-3xl font-semibold tabular-nums text-yellow-900 dark:text-yellow-200">
               {stats?.total_renewals_61_90_days || 0}
             </CardTitle>
           </CardHeader>
           <CardFooter className="flex-col items-start gap-1.5 text-sm px-4 pb-4 pt-2">
-            <Badge variant="outline" className="bg-yellow-100 text-yellow-700 border-yellow-300 whitespace-nowrap">
+            <Badge variant="outline" className="bg-yellow-100 text-yellow-700 border-yellow-300 dark:bg-yellow-950/60 dark:text-yellow-300 dark:border-yellow-800 whitespace-nowrap">
               <TrendingUp className="h-3 w-3" />
               Plan Ahead
             </Badge>
-            <div className="line-clamp-1 font-medium text-yellow-800">
+            <div className="line-clamp-1 font-medium text-yellow-800 dark:text-yellow-300/90">
               Start engagement process
             </div>
-            <div className="text-yellow-600 flex items-center gap-1">
+            <div className="text-yellow-600 dark:text-yellow-400 flex items-center gap-1">
               Click for details <ChevronRight className="h-3 w-3" />
             </div>
           </CardFooter>
@@ -399,24 +399,24 @@ export function EnergyRenewalsOverview({ userRole, employeeId }: EnergyRenewalsO
 
         {/* 91-180 Days */}
         <Card 
-          className="border-blue-300 bg-blue-50/30 cursor-pointer hover:shadow-lg transition-shadow overflow-hidden"
+          className="border-blue-300 bg-blue-50/30 dark:border-blue-900/50 dark:bg-blue-950/20 cursor-pointer hover:shadow-lg transition-shadow overflow-hidden"
           onClick={() => fetchPeriodBreakdown('91-180')}
         >
           <CardHeader className="pb-2 px-4 pt-4">
-            <CardDescription className="text-sm">Renewals Due (91-180 Days)</CardDescription>
-            <CardTitle className="text-3xl font-semibold tabular-nums text-blue-900">
+            <CardDescription className="text-sm dark:text-blue-300/80">Renewals Due (91-180 Days)</CardDescription>
+            <CardTitle className="text-3xl font-semibold tabular-nums text-blue-900 dark:text-blue-200">
               {stats?.total_renewals_90_plus_days || 0}
             </CardTitle>
           </CardHeader>
           <CardFooter className="flex-col items-start gap-1.5 text-sm px-4 pb-4 pt-2">
-            <Badge variant="outline" className="bg-blue-100 text-blue-700 border-blue-300 whitespace-nowrap">
+            <Badge variant="outline" className="bg-blue-100 text-blue-700 border-blue-300 dark:bg-blue-950/60 dark:text-blue-300 dark:border-blue-800 whitespace-nowrap">
               <TrendingUp className="h-3 w-3" />
               Monitor
             </Badge>
-            <div className="line-clamp-1 font-medium text-blue-800">
+            <div className="line-clamp-1 font-medium text-blue-800 dark:text-blue-300/90">
               Early pipeline building
             </div>
-            <div className="text-blue-600 flex items-center gap-1">
+            <div className="text-blue-600 dark:text-blue-400 flex items-center gap-1">
               Click for details <ChevronRight className="h-3 w-3" />
             </div>
           </CardFooter>
@@ -424,24 +424,24 @@ export function EnergyRenewalsOverview({ userRole, employeeId }: EnergyRenewalsO
 
         {/* Expired Contracts */}
         <Card 
-          className="border-gray-400 bg-gray-50/50 cursor-pointer hover:shadow-lg transition-shadow overflow-hidden"
+          className="border-gray-400 bg-gray-50/50 dark:border-slate-700 dark:bg-slate-900/40 cursor-pointer hover:shadow-lg transition-shadow overflow-hidden"
           onClick={() => fetchPeriodBreakdown('expired')}
         >
           <CardHeader className="pb-2 px-4 pt-4">
-            <CardDescription className="text-sm">Expired Contracts</CardDescription>
-            <CardTitle className="text-3xl font-semibold tabular-nums text-gray-900">
+            <CardDescription className="text-sm dark:text-slate-400">Expired Contracts</CardDescription>
+            <CardTitle className="text-3xl font-semibold tabular-nums text-gray-900 dark:text-slate-100">
               {stats?.expired_contracts || 0}
             </CardTitle>
           </CardHeader>
           <CardFooter className="flex-col items-start gap-1.5 text-sm px-4 pb-4 pt-2">
-            <Badge variant="outline" className="bg-gray-200 text-gray-700 border-gray-400 whitespace-nowrap">
+            <Badge variant="outline" className="bg-gray-200 text-gray-700 border-gray-400 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700 whitespace-nowrap">
               <AlertCircle className="h-3 w-3" />
               Overdue
             </Badge>
-            <div className="line-clamp-1 font-medium text-gray-800">
+            <div className="line-clamp-1 font-medium text-gray-800 dark:text-slate-300">
               Contracts already expired
             </div>
-            <div className="text-gray-600 flex items-center gap-1">
+            <div className="text-gray-600 dark:text-slate-400 flex items-center gap-1">
               Click for details <ChevronRight className="h-3 w-3" />
             </div>
           </CardFooter>
@@ -449,24 +449,24 @@ export function EnergyRenewalsOverview({ userRole, employeeId }: EnergyRenewalsO
 
         {/* Not Due Contracts */}
         <Card 
-          className="border-teal-300 bg-teal-50/30 cursor-pointer hover:shadow-lg transition-shadow overflow-hidden"
+          className="border-teal-300 bg-teal-50/30 dark:border-teal-900/50 dark:bg-teal-950/20 cursor-pointer hover:shadow-lg transition-shadow overflow-hidden"
           onClick={() => fetchPeriodBreakdown('not-due')}
         >
           <CardHeader className="pb-2 px-4 pt-4">
-            <CardDescription className="text-sm">Not Due (365+ Days)</CardDescription>
-            <CardTitle className="text-3xl font-semibold tabular-nums text-teal-900">
+            <CardDescription className="text-sm dark:text-teal-300/80">Not Due (365+ Days)</CardDescription>
+            <CardTitle className="text-3xl font-semibold tabular-nums text-teal-900 dark:text-teal-200">
               {stats?.not_due_contracts || 0}
             </CardTitle>
           </CardHeader>
           <CardFooter className="flex-col items-start gap-1.5 text-sm px-4 pb-4 pt-2">
-            <Badge variant="outline" className="bg-teal-100 text-teal-700 border-teal-300 whitespace-nowrap">
+            <Badge variant="outline" className="bg-teal-100 text-teal-700 border-teal-300 dark:bg-teal-950/60 dark:text-teal-300 dark:border-teal-800 whitespace-nowrap">
               <CheckCircle2 className="h-3 w-3" />
               Long Term
             </Badge>
-            <div className="line-clamp-1 font-medium text-teal-800">
+            <div className="line-clamp-1 font-medium text-teal-800 dark:text-teal-300/90">
               Contracts not due soon
             </div>
-            <div className="text-teal-600 flex items-center gap-1">
+            <div className="text-teal-600 dark:text-teal-400 flex items-center gap-1">
               Click for details <ChevronRight className="h-3 w-3" />
             </div>
           </CardFooter>
@@ -474,7 +474,7 @@ export function EnergyRenewalsOverview({ userRole, employeeId }: EnergyRenewalsO
 
         {/* Total AQ */}
         <Card 
-          className={`border-purple-300 bg-purple-50/30 overflow-hidden ${isAdmin ? 'cursor-pointer hover:shadow-lg transition-shadow' : ''}`}
+          className={`border-purple-300 bg-purple-50/30 dark:border-purple-900/50 dark:bg-purple-950/20 overflow-hidden ${isAdmin ? 'cursor-pointer hover:shadow-lg transition-shadow' : ''}`}
           onClick={() => {
             if (isAdmin) {
               fetchAQBreakdown();
@@ -482,47 +482,47 @@ export function EnergyRenewalsOverview({ userRole, employeeId }: EnergyRenewalsO
           }}
         >
           <CardHeader className="pb-2 px-4 pt-4">
-            <CardDescription className="text-sm">
+            <CardDescription className="text-sm dark:text-purple-300/80">
               {isAdmin ? "Total AQ" : "Your Total AQ"}
             </CardDescription>
-            <CardTitle className="text-3xl font-semibold tabular-nums text-purple-900">
+            <CardTitle className="text-3xl font-semibold tabular-nums text-purple-900 dark:text-purple-200">
               {formatAQ(stats?.total_aq || 0)} kWh
             </CardTitle>
           </CardHeader>
           <CardFooter className="flex-col items-start gap-1.5 text-sm px-4 pb-4 pt-2">
-            <Badge variant="outline" className="bg-purple-100 text-purple-700 border-purple-300 whitespace-nowrap">
+            <Badge variant="outline" className="bg-purple-100 text-purple-700 border-purple-300 dark:bg-purple-950/60 dark:text-purple-300 dark:border-purple-800 whitespace-nowrap">
               <Zap className="h-3 w-3" />
               Energy
             </Badge>
-            <div className="line-clamp-1 font-medium text-purple-800">
+            <div className="line-clamp-1 font-medium text-purple-800 dark:text-purple-300/90">
               {isAdmin ? "Total consumption at risk" : "Your consumption at risk"}
             </div>
             {isAdmin ? (
-              <div className="text-purple-600 flex items-center gap-1">
+              <div className="text-purple-600 dark:text-purple-400 flex items-center gap-1">
                 Click for breakdown <ChevronRight className="h-3 w-3" />
               </div>
             ) : (
-              <div className="text-purple-600">Annual energy usage</div>
+              <div className="text-purple-600 dark:text-purple-400">Annual energy usage</div>
             )}
           </CardFooter>
         </Card>
 
         {/* Revenue at Risk */}
-        <Card className="border-red-300 bg-red-50/30 overflow-hidden">
+        <Card className="border-red-300 bg-red-50/30 dark:border-red-900/50 dark:bg-red-950/20 overflow-hidden">
           <CardHeader className="pb-2 px-4 pt-4">
-            <CardDescription className="text-sm">
+            <CardDescription className="text-sm dark:text-red-300/80">
               {isAdmin ? "Total Revenue at Risk" : "Your Revenue at Risk"}
             </CardDescription>
-            <CardTitle className="text-xl font-semibold tabular-nums text-red-900 break-all leading-tight">
+            <CardTitle className="text-xl font-semibold tabular-nums text-red-900 dark:text-red-200 break-all leading-tight">
               {formatCurrency(stats?.total_revenue_at_risk || 0)}
             </CardTitle>
           </CardHeader>
           <CardFooter className="flex-col items-start gap-1.5 text-sm px-4 pb-4 pt-2">
-            <Badge variant="outline" className="bg-red-100 text-red-700 border-red-300 whitespace-nowrap">
+            <Badge variant="outline" className="bg-red-100 text-red-700 border-red-300 dark:bg-red-950/60 dark:text-red-300 dark:border-red-800 whitespace-nowrap">
               <AlertTriangle className="h-3 w-3 mr-1" />
               High Priority
             </Badge>
-            <div className="line-clamp-2 font-medium text-red-800">
+            <div className="line-clamp-2 font-medium text-red-800 dark:text-red-300/90">
               {isAdmin ? "Total contract value expiring" : "Your contract value expiring"}
             </div>
           </CardFooter>
@@ -532,10 +532,10 @@ export function EnergyRenewalsOverview({ userRole, employeeId }: EnergyRenewalsO
       {/* Charts Row */}
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         {/* Renewals by Period */}
-        <Card>
+        <Card className="dark:bg-slate-900 dark:border-slate-800">
           <CardHeader>
-            <CardTitle>Renewals by Period</CardTitle>
-            <CardDescription>
+            <CardTitle className="dark:text-slate-100">Renewals by Period</CardTitle>
+            <CardDescription className="dark:text-slate-400">
               {isAdmin ? "Upcoming contract expirations" : "Your upcoming expirations"}
             </CardDescription>
           </CardHeader>
@@ -556,10 +556,10 @@ export function EnergyRenewalsOverview({ userRole, employeeId }: EnergyRenewalsO
         </Card>
 
         {/* Contact Status */}
-        <Card>
+        <Card className="dark:bg-slate-900 dark:border-slate-800">
           <CardHeader>
-            <CardTitle>Contact Status</CardTitle>
-            <CardDescription>
+            <CardTitle className="dark:text-slate-100">Contact Status</CardTitle>
+            <CardDescription className="dark:text-slate-400">
               {isAdmin ? "Customer engagement progress" : "Your engagement progress"}
             </CardDescription>
           </CardHeader>
@@ -589,11 +589,11 @@ export function EnergyRenewalsOverview({ userRole, employeeId }: EnergyRenewalsO
             </ChartContainer>
           </CardContent>
           <CardFooter className="flex justify-around text-sm">
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 dark:text-slate-300">
               <div className="h-3 w-3 rounded-full bg-[var(--chart-2)]"></div>
               <span>Contacted: {stats?.contacted_count || 0}</span>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 dark:text-slate-300">
               <div className="h-3 w-3 rounded-full bg-[var(--chart-3)]"></div>
               <span>Pending: {stats?.not_contacted_count || 0}</span>
             </div>
@@ -601,10 +601,10 @@ export function EnergyRenewalsOverview({ userRole, employeeId }: EnergyRenewalsO
         </Card>
 
         {/* Supplier Breakdown */}
-        <Card>
+        <Card className="dark:bg-slate-900 dark:border-slate-800">
           <CardHeader>
-            <CardTitle>Top Suppliers</CardTitle>
-            <CardDescription>
+            <CardTitle className="dark:text-slate-100">Top Suppliers</CardTitle>
+            <CardDescription className="dark:text-slate-400">
               {isAdmin ? "Contracts expiring by supplier" : "Your contracts by supplier"}
             </CardDescription>
           </CardHeader>
@@ -618,16 +618,16 @@ export function EnergyRenewalsOverview({ userRole, employeeId }: EnergyRenewalsO
                         className="h-3 w-3 rounded-full"
                         style={{ backgroundColor: supplierColors[index % supplierColors.length] }}
                       />
-                      <span className="font-medium truncate max-w-[150px]">
+                      <span className="font-medium truncate max-w-[150px] dark:text-slate-200">
                         {supplier.supplier_name}
                       </span>
                     </div>
                     <div className="flex items-center gap-3">
-                      <span className="text-muted-foreground">{supplier.renewal_count} contracts</span>
-                      <span className="font-semibold">{formatCurrency(supplier.total_value)}</span>
+                      <span className="text-muted-foreground dark:text-slate-400">{supplier.renewal_count} contracts</span>
+                      <span className="font-semibold dark:text-slate-100">{formatCurrency(supplier.total_value)}</span>
                     </div>
                   </div>
-                  <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                  <div className="h-2 bg-gray-100 dark:bg-slate-800 rounded-full overflow-hidden">
                     <div
                       className="h-full rounded-full"
                       style={{
@@ -644,40 +644,40 @@ export function EnergyRenewalsOverview({ userRole, employeeId }: EnergyRenewalsO
       </div>
 
       {/* Performance Summary */}
-      <Card>
+      <Card className="dark:bg-slate-900 dark:border-slate-800">
         <CardHeader>
-          <CardTitle>Renewal Performance</CardTitle>
-          <CardDescription>
+          <CardTitle className="dark:text-slate-100">Renewal Performance</CardTitle>
+          <CardDescription className="dark:text-slate-400">
             {isAdmin ? "Overall renewal success metrics" : "Your renewal success metrics"}
           </CardDescription>
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
-            <div className="text-center p-4 border rounded-lg bg-green-50">
-              <div className="text-3xl font-bold text-green-700">{stats?.renewed_count || 0}</div>
-              <div className="text-sm text-green-600 mt-1">Renewed</div>
-              <CheckCircle2 className="h-5 w-5 text-green-600 mx-auto mt-2" />
+            <div className="text-center p-4 border rounded-lg bg-green-50 dark:bg-green-950/20 dark:border-green-900/50">
+              <div className="text-3xl font-bold text-green-700 dark:text-green-400">{stats?.renewed_count || 0}</div>
+              <div className="text-sm text-green-600 dark:text-green-300 mt-1">Renewed</div>
+              <CheckCircle2 className="h-5 w-5 text-green-600 dark:text-green-400 mx-auto mt-2" />
             </div>
-            <div className="text-center p-4 border rounded-lg bg-blue-50">
-              <div className="text-3xl font-bold text-blue-700">{stats?.contacted_count || 0}</div>
-              <div className="text-sm text-blue-600 mt-1">In Progress</div>
-              <TrendingUp className="h-5 w-5 text-blue-600 mx-auto mt-2" />
+            <div className="text-center p-4 border rounded-lg bg-blue-50 dark:bg-blue-950/20 dark:border-blue-900/50">
+              <div className="text-3xl font-bold text-blue-700 dark:text-blue-400">{stats?.contacted_count || 0}</div>
+              <div className="text-sm text-blue-600 dark:text-blue-300 mt-1">In Progress</div>
+              <TrendingUp className="h-5 w-5 text-blue-600 dark:text-blue-400 mx-auto mt-2" />
             </div>
-            <div className="text-center p-4 border rounded-lg bg-orange-50">
-              <div className="text-3xl font-bold text-orange-700">{stats?.not_contacted_count || 0}</div>
-              <div className="text-sm text-orange-600 mt-1">Not Contacted</div>
-              <AlertTriangle className="h-5 w-5 text-orange-600 mx-auto mt-2" />
+            <div className="text-center p-4 border rounded-lg bg-orange-50 dark:bg-orange-950/20 dark:border-orange-900/50">
+              <div className="text-3xl font-bold text-orange-700 dark:text-orange-400">{stats?.not_contacted_count || 0}</div>
+              <div className="text-sm text-orange-600 dark:text-orange-300 mt-1">Not Contacted</div>
+              <AlertTriangle className="h-5 w-5 text-orange-600 dark:text-orange-400 mx-auto mt-2" />
             </div>
-            <div className="text-center p-4 border rounded-lg bg-red-50">
-              <div className="text-3xl font-bold text-red-700">{stats?.lost_count || 0}</div>
-              <div className="text-sm text-red-600 mt-1">Lost</div>
-              <TrendingDown className="h-5 w-5 text-red-600 mx-auto mt-2" />
+            <div className="text-center p-4 border rounded-lg bg-red-50 dark:bg-red-950/20 dark:border-red-900/50">
+              <div className="text-3xl font-bold text-red-700 dark:text-red-400">{stats?.lost_count || 0}</div>
+              <div className="text-sm text-red-600 dark:text-red-300 mt-1">Lost</div>
+              <TrendingDown className="h-5 w-5 text-red-600 dark:text-red-400 mx-auto mt-2" />
             </div>
           </div>
         </CardContent>
         <CardFooter>
-          <div className="w-full text-center text-sm text-muted-foreground">
-            Renewal success rate: <span className="font-semibold text-foreground">{renewalPercentage}%</span>
+          <div className="w-full text-center text-sm text-muted-foreground dark:text-slate-400">
+            Renewal success rate: <span className="font-semibold text-foreground dark:text-slate-200">{renewalPercentage}%</span>
           </div>
         </CardFooter>
       </Card>
@@ -689,18 +689,18 @@ export function EnergyRenewalsOverview({ userRole, employeeId }: EnergyRenewalsO
           setModalEmployeeFilter(undefined);
         }
       }}>
-        <DialogContent className="max-w-[98vw] w-[98vw] max-h-[90vh] overflow-hidden flex flex-col">
-          <DialogHeader className="pb-4 border-b flex-shrink-0">
+        <DialogContent className="max-w-[98vw] w-[98vw] max-h-[90vh] overflow-hidden flex flex-col dark:bg-slate-900 dark:border-slate-800 dark:text-slate-100">
+          <DialogHeader className="pb-4 border-b dark:border-slate-800 flex-shrink-0">
             <div className="flex items-start justify-between gap-6">
               <div className="flex-1 min-w-0">
-                <DialogTitle className="text-2xl font-bold mb-2">
+                <DialogTitle className="text-2xl font-bold mb-2 dark:text-slate-100">
                   {selectedPeriod === 'expired' ? 'Expired Contracts' :
                   selectedPeriod === 'not-due' ? 'Not Due Contracts (365+ Days)' :
                   selectedPeriod === '30-60' ? 'Renewals Due: 30-60 Days' : 
                   selectedPeriod === '61-90' ? 'Renewals Due: 61-90 Days' : 
                   'Renewals Due: 91-180 Days'}
                 </DialogTitle>
-                <DialogDescription className="text-sm">
+                <DialogDescription className="text-sm dark:text-slate-400">
                   Showing {periodBreakdown.length} customer{periodBreakdown.length !== 1 ? 's' : ''} in this period
                 </DialogDescription>
               </div>
@@ -714,10 +714,10 @@ export function EnergyRenewalsOverview({ userRole, employeeId }: EnergyRenewalsO
                     fetchPeriodBreakdown(selectedPeriod, newEmployeeId);
                   }}
                 >
-                  <SelectTrigger className="w-[220px] flex-shrink-0">
+                  <SelectTrigger className="w-[220px] flex-shrink-0 dark:bg-slate-950 dark:border-slate-800 dark:text-slate-200">
                     <SelectValue placeholder="All Salespeople" />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className="dark:bg-slate-900 dark:border-slate-800 dark:text-slate-200">
                     <SelectItem value="all">All Salespeople</SelectItem>
                     {employees.map((emp) => (
                       <SelectItem key={emp.employee_id} value={emp.employee_id.toString()}>
@@ -736,7 +736,7 @@ export function EnergyRenewalsOverview({ userRole, employeeId }: EnergyRenewalsO
                 <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
               </div>
             ) : periodBreakdown.length === 0 ? (
-              <div className="text-center py-16 text-gray-500">
+              <div className="text-center py-16 text-gray-500 dark:text-slate-400">
                 <p className="text-lg">No renewals found for this period</p>
               </div>
             ) : (
@@ -744,27 +744,27 @@ export function EnergyRenewalsOverview({ userRole, employeeId }: EnergyRenewalsO
                 {periodBreakdown.map((renewal) => (
                   <div
                     key={renewal.client_id}
-                    className="p-5 border rounded-xl hover:bg-gray-50 hover:shadow-sm cursor-pointer transition-all"
+                    className="p-5 border rounded-xl hover:bg-gray-50 dark:hover:bg-slate-800/60 dark:border-slate-800 hover:shadow-sm cursor-pointer transition-all"
                     onClick={() => window.open(`/dashboard/renewals/${renewal.client_id}`, "_blank", "noopener,noreferrer")}
                   >
                     <div className="flex items-start justify-between gap-4 mb-4">
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 mb-2">
-                          <h3 className="text-lg font-bold text-gray-900 truncate">{renewal.business_name}</h3>
-                          <Badge variant="outline" className="text-xs flex-shrink-0">
+                          <h3 className="text-lg font-bold text-gray-900 dark:text-slate-100 truncate">{renewal.business_name}</h3>
+                          <Badge variant="outline" className="text-xs flex-shrink-0 dark:border-slate-700 dark:text-slate-300">
                             {renewal.status}
                           </Badge>
                         </div>
-                        <p className="text-sm text-gray-600 truncate">
+                        <p className="text-sm text-gray-600 dark:text-slate-400 truncate">
                           {renewal.contact_person} · {renewal.phone}
                         </p>
                       </div>
                       
                       <div className="text-right flex-shrink-0">
-                        <p className="text-xl font-bold text-blue-700 whitespace-nowrap">
+                        <p className="text-xl font-bold text-blue-700 dark:text-blue-400 whitespace-nowrap">
                           {renewal.annual_usage?.toLocaleString() || 0} kWh
                         </p>
-                        <p className="text-xs text-gray-600 mt-1 whitespace-nowrap">
+                        <p className="text-xs text-gray-600 dark:text-slate-400 mt-1 whitespace-nowrap">
                           {selectedPeriod === 'expired' 
                             ? `${Math.abs(renewal.days_until_expiry)} days overdue`
                             : selectedPeriod === 'not-due'
@@ -775,37 +775,22 @@ export function EnergyRenewalsOverview({ userRole, employeeId }: EnergyRenewalsO
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-5 gap-4 pt-3 border-t border-gray-100">
+                    <div className="grid grid-cols-5 gap-4 pt-3 border-t border-gray-100 dark:border-slate-800">
                       <div className="min-w-0">
-                        <p className="text-xs text-gray-500 uppercase mb-1">Supplier</p>
-                        <p className="font-semibold text-sm text-gray-900 truncate">{renewal.supplier_name}</p>
+                        <p className="text-xs text-gray-500 dark:text-slate-400 uppercase mb-1">Supplier</p>
+                        <p className="font-semibold text-sm text-gray-900 dark:text-slate-200 truncate">{renewal.supplier_name}</p>
                       </div>
                       
                       <div className="min-w-0">
-                        <p className="text-xs text-gray-500 uppercase mb-1">MPR</p>
-                        <p className="font-semibold text-sm text-gray-900 font-mono truncate">
+                        <p className="text-xs text-gray-500 dark:text-slate-400 uppercase mb-1">MPR</p>
+                        <p className="font-semibold text-sm text-gray-900 dark:text-slate-200 font-mono truncate">
                           {renewal.mpan_mpr || renewal.mpan_number || "N/A"}
                         </p>
                       </div>
                       
                       <div className="min-w-0">
-                        <p className="text-xs text-gray-500 uppercase mb-1">Annual Usage</p>
-                        <p className="font-semibold text-sm text-gray-900 truncate">{renewal.annual_usage?.toLocaleString() || 0} kWh</p>
-                      </div>
-                      
-                      <div className="min-w-0">
-                        <p className="text-xs text-gray-500 uppercase mb-1">Contract End</p>
-                        <p className="font-semibold text-sm text-gray-900 truncate">
-                          {renewal.contract_end_date ? new Date(renewal.contract_end_date).toLocaleDateString('en-GB') : 'N/A'}
-                        </p>
-                      </div>
-                      
-                      <div className="min-w-0">
-                        <p className="text-xs text-gray-500 uppercase mb-1">Assigned To</p>
-                        <p className="font-semibold text-sm text-purple-700 flex items-center gap-1 truncate">
-                          <Users className="h-3 w-3 flex-shrink-0" />
-                          <span className="truncate">{renewal.assigned_to}</span>
-                        </p>
+                        <p className="text-xs text-gray-500 dark:text-slate-400 uppercase mb-1">Annual Usage</p>
+                        <p className="font-semibold text-sm text-gray-900 dark:text-slate-200 truncate">{renewal.annual_usage?.toLocaleString() || 0} kWh</p>
                       </div>
                     </div>
                   </div>
@@ -815,139 +800,6 @@ export function EnergyRenewalsOverview({ userRole, employeeId }: EnergyRenewalsO
           </div>
         </DialogContent>
       </Dialog>
-
-      {/* AQ Breakdown Modal */}
-      <Dialog open={showAQModal} onOpenChange={setShowAQModal}>
-        <DialogContent className="max-w-[1400px] w-[95vw] max-h-[90vh] overflow-y-auto">
-          <DialogHeader className="pb-4 border-b">
-            <DialogTitle className="text-2xl font-bold">
-              {isAdmin ? "AQ Breakdown by Salesperson" : "Your AQ Breakdown"}
-            </DialogTitle>
-            <DialogDescription className="text-base">
-              {isAdmin 
-                ? "Total annual quantity (AQ) split across sales team"
-                : "Your total annual quantity (AQ)"}
-            </DialogDescription>
-          </DialogHeader>
-
-          {aqModalLoading ? (
-            <div className="flex items-center justify-center py-12">
-              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
-            </div>
-          ) : aqBreakdown ? (
-            <div className="space-y-6 py-4">
-              {/* Summary Cards */}
-              <div className="grid grid-cols-4 gap-6">
-                <Card className="bg-purple-50">
-                  <CardHeader className="pb-3">
-                    <CardDescription className="text-sm">Total AQ</CardDescription>
-                    <CardTitle className="text-3xl text-purple-900">
-                      {formatAQ(aqBreakdown.total_aq)} kWh
-                    </CardTitle>
-                  </CardHeader>
-                </Card>
-                <Card className="bg-green-50">
-                  <CardHeader className="pb-3">
-                    <CardDescription className="text-sm">Total Revenue</CardDescription>
-                    <CardTitle className="text-3xl text-green-900">
-                      {formatCurrency(aqBreakdown.total_revenue)}
-                    </CardTitle>
-                  </CardHeader>
-                </Card>
-                <Card className="bg-blue-50">
-                  <CardHeader className="pb-3">
-                    <CardDescription className="text-sm">Total Customers</CardDescription>
-                    <CardTitle className="text-3xl text-blue-900">
-                      {aqBreakdown.total_customers}
-                    </CardTitle>
-                  </CardHeader>
-                </Card>
-                <Card className="bg-orange-50">
-                  <CardHeader className="pb-3">
-                    <CardDescription className="text-sm">
-                      {isAdmin ? "Salespeople" : "Your Portfolio"}
-                    </CardDescription>
-                    <CardTitle className="text-3xl text-orange-900">
-                      {isAdmin ? aqBreakdown.salesperson_count : "Active"}
-                    </CardTitle>
-                  </CardHeader>
-                </Card>
-              </div>
-
-              {/* Salesperson Table */}
-              {isAdmin && (
-                <div className="rounded-lg border bg-white">
-                  <table className="w-full">
-                    <thead className="bg-gray-50 border-b">
-                      <tr>
-                        <th className="px-6 py-4 text-left text-sm font-semibold w-[20%]">
-                          Salesperson
-                        </th>
-                        <th className="px-6 py-4 text-right text-sm font-semibold w-[12%]">
-                          Customers
-                        </th>
-                        <th className="px-6 py-4 text-right text-sm font-semibold w-[15%]">
-                          Total AQ (kWh)
-                        </th>
-                        <th className="px-6 py-4 text-right text-sm font-semibold w-[15%]">
-                          Avg AQ/Customer
-                        </th>
-                        <th className="px-6 py-4 text-right text-sm font-semibold w-[13%]">
-                          Revenue
-                        </th>
-                        <th className="px-6 py-4 text-right text-sm font-semibold w-[25%]">
-                          % of Total AQ
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y">
-                      {aqBreakdown.breakdown.map((sales) => {
-                        const aqPercentage = ((sales.total_aq / aqBreakdown.total_aq) * 100).toFixed(1);
-                        
-                        return (
-                          <tr key={sales.employee_id} className="hover:bg-gray-50">
-                            <td className="px-6 py-5">
-                              <div className="flex items-center gap-3">
-                                <Users className="h-5 w-5 text-purple-600 flex-shrink-0" />
-                                <span className="font-medium text-base">{sales.employee_name}</span>
-                              </div>
-                            </td>
-                            <td className="px-6 py-5 text-right text-base">
-                              {sales.customer_count}
-                            </td>
-                            <td className="px-6 py-5 text-right font-semibold text-lg text-purple-900">
-                              {formatAQ(sales.total_aq)}
-                            </td>
-                            <td className="px-6 py-5 text-right text-base text-gray-700">
-                              {formatAQ(sales.average_aq_per_customer)}
-                            </td>
-                            <td className="px-6 py-5 text-right font-semibold text-base text-green-700">
-                              {formatCurrency(sales.total_revenue)}
-                            </td>
-                            <td className="px-6 py-5 text-right">
-                              <div className="flex items-center justify-end gap-4">
-                                <div className="w-48 h-4 bg-gray-200 rounded-full overflow-hidden">
-                                  <div
-                                    className="h-full bg-purple-600 rounded-full transition-all"
-                                    style={{ width: `${aqPercentage}%` }}
-                                  />
-                                </div>
-                                <span className="text-base font-semibold w-16 text-right">{aqPercentage}%</span>
-                              </div>
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </div>
-          ) : (
-            <p className="text-center py-8 text-gray-500">No data available</p>
-          )}
-        </DialogContent>
-      </Dialog>
-    </div>  
+    </div>
   );
 }

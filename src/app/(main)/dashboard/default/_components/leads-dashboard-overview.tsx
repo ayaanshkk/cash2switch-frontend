@@ -342,30 +342,30 @@ export function LeadsOverview({ userRole, employeeId }: LeadsOverviewProps = {})
   };
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 text-slate-900 dark:text-slate-100">
       
     {/* Top Stats Cards */}
     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6">
       {/* 30-60 Days */}
       <Card 
-        className="border-orange-300 bg-orange-50/30 cursor-pointer hover:shadow-lg transition-shadow overflow-hidden"
+        className="border-orange-300 bg-orange-50/30 dark:border-orange-900/50 dark:bg-orange-950/20 cursor-pointer hover:shadow-lg transition-shadow overflow-hidden"
         onClick={() => fetchPeriodLeads('30-60')}
       >
         <CardHeader className="pb-2 px-4 pt-4">
-          <CardDescription className="text-sm">Leads Due (30-60 Days)</CardDescription>
-          <CardTitle className="text-3xl font-semibold tabular-nums text-orange-900">
+          <CardDescription className="text-sm dark:text-orange-300/70">Leads Due (30-60 Days)</CardDescription>
+          <CardTitle className="text-3xl font-semibold tabular-nums text-orange-900 dark:text-orange-400">
             {stats?.leads_30_60_days || 0}
           </CardTitle>
         </CardHeader>
         <CardFooter className="flex-col items-start gap-1.5 text-sm px-4 pb-4 pt-2">
-          <Badge variant="outline" className="bg-orange-100 text-orange-700 border-orange-300 whitespace-nowrap">
-            <AlertTriangle className="h-3 w-3" />
+          <Badge variant="outline" className="bg-orange-100 text-orange-700 border-orange-300 dark:bg-orange-950/60 dark:text-orange-300 dark:border-orange-800 whitespace-nowrap">
+            <AlertTriangle className="h-3 w-3 mr-1" />
             Urgent
           </Badge>
-          <div className="line-clamp-1 font-medium text-orange-800">
+          <div className="line-clamp-1 font-medium text-orange-800 dark:text-orange-300">
             Immediate action required
           </div>
-          <div className="text-orange-600 flex items-center gap-1">
+          <div className="text-orange-600 dark:text-orange-400 flex items-center gap-1">
             Click for details <ChevronRight className="h-3 w-3" />
           </div>
         </CardFooter>
@@ -373,24 +373,24 @@ export function LeadsOverview({ userRole, employeeId }: LeadsOverviewProps = {})
 
       {/* 61-90 Days */}
       <Card 
-        className="border-yellow-300 bg-yellow-50/30 cursor-pointer hover:shadow-lg transition-shadow overflow-hidden"
+        className="border-yellow-300 bg-yellow-50/30 dark:border-yellow-900/50 dark:bg-yellow-950/20 cursor-pointer hover:shadow-lg transition-shadow overflow-hidden"
         onClick={() => fetchPeriodLeads('61-90')}
       >
         <CardHeader className="pb-2 px-4 pt-4">
-          <CardDescription className="text-sm">Leads Due (61-90 Days)</CardDescription>
-          <CardTitle className="text-3xl font-semibold tabular-nums text-yellow-900">
+          <CardDescription className="text-sm dark:text-yellow-300/70">Leads Due (61-90 Days)</CardDescription>
+          <CardTitle className="text-3xl font-semibold tabular-nums text-yellow-900 dark:text-yellow-400">
             {stats?.leads_61_90_days || 0}
           </CardTitle>
         </CardHeader>
         <CardFooter className="flex-col items-start gap-1.5 text-sm px-4 pb-4 pt-2">
-          <Badge variant="outline" className="bg-yellow-100 text-yellow-700 border-yellow-300 whitespace-nowrap">
-            <TrendingUp className="h-3 w-3" />
+          <Badge variant="outline" className="bg-yellow-100 text-yellow-700 border-yellow-300 dark:bg-yellow-950/60 dark:text-yellow-300 dark:border-yellow-800 whitespace-nowrap">
+            <TrendingUp className="h-3 w-3 mr-1" />
             Plan Ahead
           </Badge>
-          <div className="line-clamp-1 font-medium text-yellow-800">
+          <div className="line-clamp-1 font-medium text-yellow-800 dark:text-yellow-300">
             Start engagement process
           </div>
-          <div className="text-yellow-600 flex items-center gap-1">
+          <div className="text-yellow-600 dark:text-yellow-400 flex items-center gap-1">
             Click for details <ChevronRight className="h-3 w-3" />
           </div>
         </CardFooter>
@@ -398,24 +398,24 @@ export function LeadsOverview({ userRole, employeeId }: LeadsOverviewProps = {})
 
       {/* 91-180 Days */}
       <Card 
-        className="border-blue-300 bg-blue-50/30 cursor-pointer hover:shadow-lg transition-shadow overflow-hidden"
+        className="border-blue-300 bg-blue-50/30 dark:border-blue-900/50 dark:bg-blue-950/20 cursor-pointer hover:shadow-lg transition-shadow overflow-hidden"
         onClick={() => fetchPeriodLeads('91-180')}
       >
         <CardHeader className="pb-2 px-4 pt-4">
-          <CardDescription className="text-sm">Leads Due (91-180 Days)</CardDescription>
-          <CardTitle className="text-3xl font-semibold tabular-nums text-blue-900">
+          <CardDescription className="text-sm dark:text-blue-300/70">Leads Due (91-180 Days)</CardDescription>
+          <CardTitle className="text-3xl font-semibold tabular-nums text-blue-900 dark:text-blue-400">
             {stats?.leads_91_180_days || 0}
           </CardTitle>
         </CardHeader>
         <CardFooter className="flex-col items-start gap-1.5 text-sm px-4 pb-4 pt-2">
-          <Badge variant="outline" className="bg-blue-100 text-blue-700 border-blue-300 whitespace-nowrap">
-            <TrendingUp className="h-3 w-3" />
+          <Badge variant="outline" className="bg-blue-100 text-blue-700 border-blue-300 dark:bg-blue-950/60 dark:text-blue-300 dark:border-blue-800 whitespace-nowrap">
+            <TrendingUp className="h-3 w-3 mr-1" />
             Monitor
           </Badge>
-          <div className="line-clamp-1 font-medium text-blue-800">
+          <div className="line-clamp-1 font-medium text-blue-800 dark:text-blue-300">
             Early pipeline building
           </div>
-          <div className="text-blue-600 flex items-center gap-1">
+          <div className="text-blue-600 dark:text-blue-400 flex items-center gap-1">
             Click for details <ChevronRight className="h-3 w-3" />
           </div>
         </CardFooter>
@@ -423,24 +423,24 @@ export function LeadsOverview({ userRole, employeeId }: LeadsOverviewProps = {})
 
       {/* Not Due (365+ Days) */}
       <Card 
-        className="border-teal-300 bg-teal-50/30 cursor-pointer hover:shadow-lg transition-shadow overflow-hidden"
+        className="border-teal-300 bg-teal-50/30 dark:border-teal-900/50 dark:bg-teal-950/20 cursor-pointer hover:shadow-lg transition-shadow overflow-hidden"
         onClick={() => fetchPeriodLeads('not-due')}
       >
         <CardHeader className="pb-2 px-4 pt-4">
-          <CardDescription className="text-sm">Not Due (365+ Days)</CardDescription>
-          <CardTitle className="text-3xl font-semibold tabular-nums text-teal-900">
+          <CardDescription className="text-sm dark:text-teal-300/70">Not Due (365+ Days)</CardDescription>
+          <CardTitle className="text-3xl font-semibold tabular-nums text-teal-900 dark:text-teal-400">
             {stats?.not_due_leads || 0}
           </CardTitle>
         </CardHeader>
         <CardFooter className="flex-col items-start gap-1.5 text-sm px-4 pb-4 pt-2">
-          <Badge variant="outline" className="bg-teal-100 text-teal-700 border-teal-300 whitespace-nowrap">
-            <CheckCircle2 className="h-3 w-3" />
+          <Badge variant="outline" className="bg-teal-100 text-teal-700 border-teal-300 dark:bg-teal-950/60 dark:text-teal-300 dark:border-teal-800 whitespace-nowrap">
+            <CheckCircle2 className="h-3 w-3 mr-1" />
             Long Term
           </Badge>
-          <div className="line-clamp-1 font-medium text-teal-800">
+          <div className="line-clamp-1 font-medium text-teal-800 dark:text-teal-300">
             Leads not due soon
           </div>
-          <div className="text-teal-600 flex items-center gap-1">
+          <div className="text-teal-600 dark:text-teal-400 flex items-center gap-1">
             Click for details <ChevronRight className="h-3 w-3" />
           </div>
         </CardFooter>
@@ -448,24 +448,24 @@ export function LeadsOverview({ userRole, employeeId }: LeadsOverviewProps = {})
 
       {/* In Progress */}
       <Card 
-        className="border-purple-300 bg-purple-50/30 cursor-pointer hover:shadow-lg transition-shadow overflow-hidden"
+        className="border-purple-300 bg-purple-50/30 dark:border-purple-900/50 dark:bg-purple-950/20 cursor-pointer hover:shadow-lg transition-shadow overflow-hidden"
         onClick={() => fetchStageLeads('in_progress')}
       >
         <CardHeader className="pb-2 px-4 pt-4">
-          <CardDescription className="text-sm">In Progress</CardDescription>
-          <CardTitle className="text-3xl font-semibold tabular-nums text-purple-900">
+          <CardDescription className="text-sm dark:text-purple-300/70">In Progress</CardDescription>
+          <CardTitle className="text-3xl font-semibold tabular-nums text-purple-900 dark:text-purple-400">
             {stats?.in_progress || 0}
           </CardTitle>
         </CardHeader>
         <CardFooter className="flex-col items-start gap-1.5 text-sm px-4 pb-4 pt-2">
-          <Badge variant="outline" className="bg-purple-100 text-purple-700 border-purple-300 whitespace-nowrap">
-            <Clock className="h-3 w-3" />
+          <Badge variant="outline" className="bg-purple-100 text-purple-700 border-purple-300 dark:bg-purple-950/60 dark:text-purple-300 dark:border-purple-800 whitespace-nowrap">
+            <Clock className="h-3 w-3 mr-1" />
             Active
           </Badge>
-          <div className="line-clamp-1 font-medium text-purple-800">
+          <div className="line-clamp-1 font-medium text-purple-800 dark:text-purple-300">
             Being worked on
           </div>
-          <div className="text-purple-600 flex items-center gap-1">
+          <div className="text-purple-600 dark:text-purple-400 flex items-center gap-1">
             Click for details <ChevronRight className="h-3 w-3" />
           </div>
         </CardFooter>
@@ -473,24 +473,24 @@ export function LeadsOverview({ userRole, employeeId }: LeadsOverviewProps = {})
 
       {/* Lost */}
       <Card 
-        className="border-red-300 bg-red-50/30 cursor-pointer hover:shadow-lg transition-shadow overflow-hidden"
+        className="border-red-300 bg-red-50/30 dark:border-red-900/50 dark:bg-red-950/20 cursor-pointer hover:shadow-lg transition-shadow overflow-hidden"
         onClick={() => fetchStageLeads('lost')}
       >
         <CardHeader className="pb-2 px-4 pt-4">
-          <CardDescription className="text-sm">Lost Leads</CardDescription>
-          <CardTitle className="text-3xl font-semibold tabular-nums text-red-900">
+          <CardDescription className="text-sm dark:text-red-300/70">Lost Leads</CardDescription>
+          <CardTitle className="text-3xl font-semibold tabular-nums text-red-900 dark:text-red-400">
             {stats?.lost_leads || 0}
           </CardTitle>
         </CardHeader>
         <CardFooter className="flex-col items-start gap-1.5 text-sm px-4 pb-4 pt-2">
-          <Badge variant="outline" className="bg-red-100 text-red-700 border-red-300 whitespace-nowrap">
-            <TrendingDown className="h-3 w-3" />
+          <Badge variant="outline" className="bg-red-100 text-red-700 border-red-300 dark:bg-red-950/60 dark:text-red-300 dark:border-red-800 whitespace-nowrap">
+            <TrendingDown className="h-3 w-3 mr-1" />
             Lost
           </Badge>
-          <div className="line-clamp-1 font-medium text-red-800">
+          <div className="line-clamp-1 font-medium text-red-800 dark:text-red-300">
             Lost opportunities
           </div>
-          <div className="text-red-600 flex items-center gap-1">
+          <div className="text-red-600 dark:text-red-400 flex items-center gap-1">
             Click for details <ChevronRight className="h-3 w-3" />
           </div>
         </CardFooter>
@@ -500,10 +500,10 @@ export function LeadsOverview({ userRole, employeeId }: LeadsOverviewProps = {})
       {/* Charts Row */}
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         {/* Leads by Stage */}
-        <Card>
+        <Card className="dark:border-slate-800 dark:bg-slate-900">
           <CardHeader>
-            <CardTitle>Leads by Stage</CardTitle>
-            <CardDescription>
+            <CardTitle className="dark:text-slate-50">Leads by Stage</CardTitle>
+            <CardDescription className="dark:text-slate-400">
               {isAdmin ? "Pipeline distribution" : "Your pipeline stages"}
             </CardDescription>
           </CardHeader>
@@ -530,10 +530,10 @@ export function LeadsOverview({ userRole, employeeId }: LeadsOverviewProps = {})
         </Card>
 
         {/* Contact Status */}
-        <Card>
+        <Card className="dark:border-slate-800 dark:bg-slate-900">
           <CardHeader>
-            <CardTitle>Contact Status</CardTitle>
-            <CardDescription>
+            <CardTitle className="dark:text-slate-50">Contact Status</CardTitle>
+            <CardDescription className="dark:text-slate-400">
               {isAdmin ? "Customer engagement progress" : "Your engagement progress"}
             </CardDescription>
           </CardHeader>
@@ -562,7 +562,7 @@ export function LeadsOverview({ userRole, employeeId }: LeadsOverviewProps = {})
               </PieChart>
             </ChartContainer>
           </CardContent>
-          <CardFooter className="flex justify-around text-sm">
+          <CardFooter className="flex justify-around text-sm dark:text-slate-300">
             <div className="flex items-center gap-2">
               <div className="h-3 w-3 rounded-full bg-[var(--chart-2)]"></div>
               <span>Contacted: {stats?.in_progress || 0}</span>
@@ -575,10 +575,10 @@ export function LeadsOverview({ userRole, employeeId }: LeadsOverviewProps = {})
         </Card>
 
         {/* Top Suppliers Breakdown */}
-        <Card>
+        <Card className="dark:border-slate-800 dark:bg-slate-900">
           <CardHeader>
-            <CardTitle>Top Suppliers</CardTitle>
-            <CardDescription>
+            <CardTitle className="dark:text-slate-50">Top Suppliers</CardTitle>
+            <CardDescription className="dark:text-slate-400">
               {isAdmin ? "Leads by current supplier" : "Your leads by supplier"}
             </CardDescription>
           </CardHeader>
@@ -592,16 +592,16 @@ export function LeadsOverview({ userRole, employeeId }: LeadsOverviewProps = {})
                         className="h-3 w-3 rounded-full"
                         style={{ backgroundColor: supplierColors[index % supplierColors.length] }}
                       />
-                      <span className="font-medium truncate max-w-[150px]">
+                      <span className="font-medium truncate max-w-[150px] dark:text-slate-200">
                         {supplier.supplier_name}
                       </span>
                     </div>
                     <div className="flex items-center gap-3">
-                      <span className="text-muted-foreground">{supplier.lead_count} leads</span>
-                      <span className="font-semibold">{formatCurrency(supplier.total_value)}</span>
+                      <span className="text-muted-foreground dark:text-slate-400">{supplier.lead_count} leads</span>
+                      <span className="font-semibold dark:text-slate-100">{formatCurrency(supplier.total_value)}</span>
                     </div>
                   </div>
-                  <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                  <div className="h-2 bg-gray-100 dark:bg-slate-800 rounded-full overflow-hidden">
                     <div
                       className="h-full rounded-full"
                       style={{
@@ -618,40 +618,40 @@ export function LeadsOverview({ userRole, employeeId }: LeadsOverviewProps = {})
       </div>
 
       {/* Performance Summary */}
-      <Card>
+      <Card className="dark:border-slate-800 dark:bg-slate-900">
         <CardHeader>
-          <CardTitle>Lead Performance</CardTitle>
-          <CardDescription>
+          <CardTitle className="dark:text-slate-50">Lead Performance</CardTitle>
+          <CardDescription className="dark:text-slate-400">
             {isAdmin ? "Overall lead success metrics" : "Your lead success metrics"}
           </CardDescription>
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
-            <div className="text-center p-4 border rounded-lg bg-green-50">
-              <div className="text-3xl font-bold text-green-700">{stats?.converted_leads || 0}</div>
-              <div className="text-sm text-green-600 mt-1">Converted</div>
-              <CheckCircle2 className="h-5 w-5 text-green-600 mx-auto mt-2" />
+            <div className="text-center p-4 border rounded-lg bg-green-50 dark:bg-green-950/20 dark:border-green-900/40">
+              <div className="text-3xl font-bold text-green-700 dark:text-green-400">{stats?.converted_leads || 0}</div>
+              <div className="text-sm text-green-600 dark:text-green-300 mt-1">Converted</div>
+              <CheckCircle2 className="h-5 w-5 text-green-600 dark:text-green-400 mx-auto mt-2" />
             </div>
-            <div className="text-center p-4 border rounded-lg bg-blue-50">
-              <div className="text-3xl font-bold text-blue-700">{stats?.in_progress || 0}</div>
-              <div className="text-sm text-blue-600 mt-1">In Progress</div>
-              <TrendingUp className="h-5 w-5 text-blue-600 mx-auto mt-2" />
+            <div className="text-center p-4 border rounded-lg bg-blue-50 dark:bg-blue-950/20 dark:border-blue-900/40">
+              <div className="text-3xl font-bold text-blue-700 dark:text-blue-400">{stats?.in_progress || 0}</div>
+              <div className="text-sm text-blue-600 dark:text-blue-300 mt-1">In Progress</div>
+              <TrendingUp className="h-5 w-5 text-blue-600 dark:text-blue-400 mx-auto mt-2" />
             </div>
-            <div className="text-center p-4 border rounded-lg bg-orange-50">
-              <div className="text-3xl font-bold text-orange-700">{stats?.new_leads || 0}</div>
-              <div className="text-sm text-orange-600 mt-1">Not Contacted</div>
-              <AlertTriangle className="h-5 w-5 text-orange-600 mx-auto mt-2" />
+            <div className="text-center p-4 border rounded-lg bg-orange-50 dark:bg-orange-950/20 dark:border-orange-900/40">
+              <div className="text-3xl font-bold text-orange-700 dark:text-orange-400">{stats?.new_leads || 0}</div>
+              <div className="text-sm text-orange-600 dark:text-orange-300 mt-1">Not Contacted</div>
+              <AlertTriangle className="h-5 w-5 text-orange-600 dark:text-orange-400 mx-auto mt-2" />
             </div>
-            <div className="text-center p-4 border rounded-lg bg-red-50">
-              <div className="text-3xl font-bold text-red-700">{stats?.lost_leads || 0}</div>
-              <div className="text-sm text-red-600 mt-1">Lost</div>
-              <TrendingDown className="h-5 w-5 text-red-600 mx-auto mt-2" />
+            <div className="text-center p-4 border rounded-lg bg-red-50 dark:bg-red-950/20 dark:border-red-900/40">
+              <div className="text-3xl font-bold text-red-700 dark:text-red-400">{stats?.lost_leads || 0}</div>
+              <div className="text-sm text-red-600 dark:text-red-300 mt-1">Lost</div>
+              <TrendingDown className="h-5 w-5 text-red-600 dark:text-red-400 mx-auto mt-2" />
             </div>
           </div>
         </CardContent>
         <CardFooter>
-          <div className="w-full text-center text-sm text-muted-foreground">
-            Conversion rate: <span className="font-semibold text-foreground">{conversionPercentage}%</span>
+          <div className="w-full text-center text-sm text-muted-foreground dark:text-slate-400">
+            Conversion rate: <span className="font-semibold text-foreground dark:text-slate-200">{conversionPercentage}%</span>
           </div>
         </CardFooter>
       </Card>
@@ -663,18 +663,18 @@ export function LeadsOverview({ userRole, employeeId }: LeadsOverviewProps = {})
           setModalEmployeeFilter(undefined);
         }
       }}>
-        <DialogContent className="max-w-[98vw] w-[98vw] max-h-[90vh] overflow-hidden flex flex-col">
-          <DialogHeader className="pb-4 border-b flex-shrink-0">
+        <DialogContent className="max-w-[98vw] w-[98vw] max-h-[90vh] overflow-hidden flex flex-col dark:border-slate-800 dark:bg-slate-950">
+          <DialogHeader className="pb-4 border-b border-gray-200 dark:border-slate-800 flex-shrink-0">
             <div className="flex items-start justify-between gap-6">
               <div className="flex-1 min-w-0">
-                <DialogTitle className="text-2xl font-bold mb-2">
+                <DialogTitle className="text-2xl font-bold mb-2 text-slate-950 dark:text-slate-50">
                   {selectedPeriod === 'not-due' ? 'Not Due Leads (365+ Days)' :
                   selectedPeriod === '30-60' ? 'Leads Due: 30-60 Days' : 
                   selectedPeriod === '61-90' ? 'Leads Due: 61-90 Days' : 
                   selectedPeriod === '91-180' ? 'Leads Due: 91-180 Days' :
                   'Leads in Progress'}
                 </DialogTitle>
-                <DialogDescription className="text-sm">
+                <DialogDescription className="text-sm dark:text-slate-400">
                   Showing {periodLeads.length} lead{periodLeads.length !== 1 ? 's' : ''} in this period
                 </DialogDescription>
               </div>
@@ -688,13 +688,13 @@ export function LeadsOverview({ userRole, employeeId }: LeadsOverviewProps = {})
                     fetchPeriodLeads(selectedPeriod, newEmployeeId);
                   }}
                 >
-                  <SelectTrigger className="w-[220px] flex-shrink-0">
+                  <SelectTrigger className="w-[220px] flex-shrink-0 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100">
                     <SelectValue placeholder="All Salespeople" />
                   </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Salespeople</SelectItem>
+                  <SelectContent className="dark:border-slate-800 dark:bg-slate-900">
+                    <SelectItem value="all" className="dark:hover:bg-slate-800">All Salespeople</SelectItem>
                     {employees.map((emp) => (
-                      <SelectItem key={emp.employee_id} value={emp.employee_id.toString()}>
+                      <SelectItem key={emp.employee_id} value={emp.employee_id.toString()} className="dark:hover:bg-slate-800">
                         {emp.employee_name}
                       </SelectItem>
                     ))}
@@ -710,7 +710,7 @@ export function LeadsOverview({ userRole, employeeId }: LeadsOverviewProps = {})
                 <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
               </div>
             ) : periodLeads.length === 0 ? (
-              <div className="text-center py-16 text-gray-500">
+              <div className="text-center py-16 text-gray-500 dark:text-slate-400">
                 <p className="text-lg">No leads found for this period</p>
               </div>
             ) : (
@@ -718,27 +718,27 @@ export function LeadsOverview({ userRole, employeeId }: LeadsOverviewProps = {})
                 {periodLeads.map((lead) => (
                   <div
                     key={lead.opportunity_id}
-                    className="p-5 border rounded-xl hover:bg-gray-50 hover:shadow-sm cursor-pointer transition-all"
+                    className="p-5 border border-gray-200 dark:border-slate-800 dark:bg-slate-900 rounded-xl hover:bg-gray-50 dark:hover:bg-slate-800/60 hover:shadow-sm cursor-pointer transition-all"
                     onClick={() => window.open(`/dashboard/leads/${lead.opportunity_id}`, '_blank')}
                   >
                     <div className="flex items-start justify-between gap-4 mb-4">
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 mb-2">
-                          <h3 className="text-lg font-bold text-gray-900 truncate">{lead.business_name}</h3>
-                          <Badge variant="outline" className="text-xs flex-shrink-0">
+                          <h3 className="text-lg font-bold text-gray-900 dark:text-slate-100 truncate">{lead.business_name}</h3>
+                          <Badge variant="outline" className="text-xs flex-shrink-0 dark:border-slate-700 dark:text-slate-300">
                             {lead.stage_name}
                           </Badge>
                         </div>
-                        <p className="text-sm text-gray-600 truncate">
+                        <p className="text-sm text-gray-600 dark:text-slate-400 truncate">
                           {lead.contact_person} · {lead.tel_number}
                         </p>
                       </div>
                       
                       <div className="text-right flex-shrink-0">
-                        <p className="text-xl font-bold text-blue-700 whitespace-nowrap">
+                        <p className="text-xl font-bold text-blue-700 dark:text-blue-400 whitespace-nowrap">
                           {lead.annual_usage?.toLocaleString() || 0} kWh
                         </p>
-                        <p className="text-xs text-gray-600 mt-1 whitespace-nowrap">
+                        <p className="text-xs text-gray-600 dark:text-slate-400 mt-1 whitespace-nowrap">
                           {lead.days_until_due 
                             ? `In ${lead.days_until_due} days`
                             : 'Date TBD'}
@@ -746,36 +746,36 @@ export function LeadsOverview({ userRole, employeeId }: LeadsOverviewProps = {})
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-5 gap-4 pt-3 border-t border-gray-100">
+                    <div className="grid grid-cols-5 gap-4 pt-3 border-t border-gray-100 dark:border-slate-800">
                       <div className="min-w-0">
-                        <p className="text-xs text-gray-500 uppercase mb-1">Email</p>
-                        <p className="font-semibold text-sm text-gray-900 truncate">{lead.email || 'N/A'}</p>
+                        <p className="text-xs text-gray-500 dark:text-slate-400 uppercase mb-1">Email</p>
+                        <p className="font-semibold text-sm text-gray-900 dark:text-slate-100 truncate">{lead.email || 'N/A'}</p>
                       </div>
                       
                       <div className="min-w-0">
-                        <p className="text-xs text-gray-500 uppercase mb-1">Annual Usage</p>
-                        <p className="font-semibold text-sm text-gray-900 truncate">
+                        <p className="text-xs text-gray-500 dark:text-slate-400 uppercase mb-1">Annual Usage</p>
+                        <p className="font-semibold text-sm text-gray-900 dark:text-slate-100 truncate font-mono">
                           {lead.annual_usage ? `${lead.annual_usage.toLocaleString()} kWh` : 'N/A'}
                         </p>
                       </div>
                       
                       <div className="min-w-0">
-                        <p className="text-xs text-gray-500 uppercase mb-1">Value</p>
-                        <p className="font-semibold text-sm text-gray-900 truncate">
+                        <p className="text-xs text-gray-500 dark:text-slate-400 uppercase mb-1">Value</p>
+                        <p className="font-semibold text-sm text-gray-900 dark:text-slate-100 truncate font-mono">
                           £{(lead.opportunity_value || 0).toLocaleString()}
                         </p>
                       </div>
                       
                       <div className="min-w-0">
-                        <p className="text-xs text-gray-500 uppercase mb-1">Created</p>
-                        <p className="font-semibold text-sm text-gray-900 truncate">
+                        <p className="text-xs text-gray-500 dark:text-slate-400 uppercase mb-1">Created</p>
+                        <p className="font-semibold text-sm text-gray-900 dark:text-slate-100 truncate">
                           {lead.created_at ? new Date(lead.created_at).toLocaleDateString('en-GB') : 'N/A'}
                         </p>
                       </div>
                       
                       <div className="min-w-0">
-                        <p className="text-xs text-gray-500 uppercase mb-1">Assigned To</p>
-                        <p className="font-semibold text-sm text-purple-700 flex items-center gap-1 truncate">
+                        <p className="text-xs text-gray-500 dark:text-slate-400 uppercase mb-1">Assigned To</p>
+                        <p className="font-semibold text-sm text-purple-700 dark:text-purple-400 flex items-center gap-1 truncate">
                           <Users className="h-3 w-3 flex-shrink-0" />
                           <span className="truncate">{lead.assigned_to_name || 'Unassigned'}</span>
                         </p>
@@ -791,12 +791,12 @@ export function LeadsOverview({ userRole, employeeId }: LeadsOverviewProps = {})
 
       {/* Value Breakdown Modal */}
       <Dialog open={showVolumeModal} onOpenChange={setShowVolumeModal}>
-        <DialogContent className="max-w-[98vw] w-[98vw] max-h-[90vh] overflow-y-auto p-6">
+        <DialogContent className="max-w-[98vw] w-[98vw] max-h-[90vh] overflow-y-auto p-6 dark:border-slate-800 dark:bg-slate-950">
           <DialogHeader className="pb-4">
-            <DialogTitle className="text-2xl">
+            <DialogTitle className="text-2xl dark:text-slate-50">
               {isAdmin ? "Pipeline Value by Salesperson" : "Your Pipeline Value"}
             </DialogTitle>
-            <DialogDescription className="text-base">
+            <DialogDescription className="text-base dark:text-slate-400">
               {isAdmin 
                 ? "Total opportunity value split across sales team"
                 : "Your total opportunity value"}
@@ -806,74 +806,74 @@ export function LeadsOverview({ userRole, employeeId }: LeadsOverviewProps = {})
           {isAdmin ? (
             <div className="space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <Card className="bg-purple-50">
+                <Card className="bg-purple-50 border-purple-200 dark:bg-purple-950/20 dark:border-purple-900/40">
                   <CardHeader className="pb-3">
-                    <CardDescription className="text-sm">Total Pipeline Value</CardDescription>
-                    <CardTitle className="text-3xl text-purple-900">
+                    <CardDescription className="text-sm dark:text-purple-300/70">Total Pipeline Value</CardDescription>
+                    <CardTitle className="text-3xl text-purple-900 dark:text-purple-300">
                       {formatCurrency(stats?.total_value || 0)}
                     </CardTitle>
                   </CardHeader>
                 </Card>
-                <Card className="bg-green-50">
+                <Card className="bg-green-50 border-green-200 dark:bg-green-950/20 dark:border-green-900/40">
                   <CardHeader className="pb-3">
-                    <CardDescription className="text-sm">Total Leads</CardDescription>
-                    <CardTitle className="text-3xl text-green-900">
+                    <CardDescription className="text-sm dark:text-green-300/70">Total Leads</CardDescription>
+                    <CardTitle className="text-3xl text-green-900 dark:text-green-300">
                       {stats?.total_leads || 0}
                     </CardTitle>
                   </CardHeader>
                 </Card>
-                <Card className="bg-blue-50">
+                <Card className="bg-blue-50 border-blue-200 dark:bg-blue-950/20 dark:border-blue-900/40">
                   <CardHeader className="pb-3">
-                    <CardDescription className="text-sm">Avg Value/Lead</CardDescription>
-                    <CardTitle className="text-3xl text-blue-900">
+                    <CardDescription className="text-sm dark:text-blue-300/70">Avg Value/Lead</CardDescription>
+                    <CardTitle className="text-3xl text-blue-900 dark:text-blue-300">
                       £{stats?.total_leads ? Math.round((stats.total_value || 0) / stats.total_leads) : 0}
                     </CardTitle>
                   </CardHeader>
                 </Card>
               </div>
 
-              <div className="rounded-lg border bg-white">
+              <div className="rounded-lg border border-gray-200 dark:border-slate-800 bg-white dark:bg-slate-900">
                 <div className="overflow-x-auto">
                   <table className="w-full">
-                    <thead className="bg-gray-50 border-b">
+                    <thead className="bg-gray-50 dark:bg-slate-800/60 border-b border-gray-200 dark:border-slate-800">
                       <tr>
-                        <th className="px-6 py-4 text-left text-sm font-semibold whitespace-nowrap">Salesperson</th>
-                        <th className="px-6 py-4 text-right text-sm font-semibold whitespace-nowrap">Total Leads</th>
-                        <th className="px-6 py-4 text-right text-sm font-semibold whitespace-nowrap">Total Value (£)</th>
-                        <th className="px-6 py-4 text-right text-sm font-semibold whitespace-nowrap">Conversion Rate</th>
-                        <th className="px-6 py-4 text-right text-sm font-semibold whitespace-nowrap">% of Total Value</th>
+                        <th className="px-6 py-4 text-left text-sm font-semibold whitespace-nowrap dark:text-slate-300">Salesperson</th>
+                        <th className="px-6 py-4 text-right text-sm font-semibold whitespace-nowrap dark:text-slate-300">Total Leads</th>
+                        <th className="px-6 py-4 text-right text-sm font-semibold whitespace-nowrap dark:text-slate-300">Total Value (£)</th>
+                        <th className="px-6 py-4 text-right text-sm font-semibold whitespace-nowrap dark:text-slate-300">Conversion Rate</th>
+                        <th className="px-6 py-4 text-right text-sm font-semibold whitespace-nowrap dark:text-slate-300">% of Total Value</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y">
+                    <tbody className="divide-y divide-gray-200 dark:divide-slate-800">
                       {salesData.map((sales) => {
                         const valuePercentage = ((sales.total_value / (stats?.total_value || 1)) * 100).toFixed(1);
                         
                         return (
-                          <tr key={sales.employee_id} className="hover:bg-gray-50">
+                          <tr key={sales.employee_id} className="hover:bg-gray-50 dark:hover:bg-slate-800/50">
                             <td className="px-6 py-5 whitespace-nowrap">
                               <div className="flex items-center gap-3">
-                                <Users className="h-5 w-5 text-purple-600 flex-shrink-0" />
-                                <span className="font-medium text-base">{sales.employee_name}</span>
+                                <Users className="h-5 w-5 text-purple-600 dark:text-purple-400 flex-shrink-0" />
+                                <span className="font-medium text-base text-slate-900 dark:text-slate-100">{sales.employee_name}</span>
                               </div>
                             </td>
-                            <td className="px-6 py-5 text-right text-base whitespace-nowrap">
+                            <td className="px-6 py-5 text-right text-base whitespace-nowrap text-slate-900 dark:text-slate-200">
                               {sales.total_leads}
                             </td>
-                            <td className="px-6 py-5 text-right font-semibold text-lg text-purple-900 whitespace-nowrap">
+                            <td className="px-6 py-5 text-right font-semibold text-lg text-purple-900 dark:text-purple-300 whitespace-nowrap font-mono">
                               {formatCurrency(sales.total_value)}
                             </td>
-                            <td className="px-6 py-5 text-right text-base text-gray-700 whitespace-nowrap">
+                            <td className="px-6 py-5 text-right text-base text-gray-700 dark:text-slate-300 whitespace-nowrap">
                               {sales.conversion_rate}%
                             </td>
                             <td className="px-6 py-5 text-right whitespace-nowrap">
                               <div className="flex items-center justify-end gap-4">
-                                <div className="w-40 h-4 bg-gray-200 rounded-full overflow-hidden flex-shrink-0">
+                                <div className="w-40 h-4 bg-gray-200 dark:bg-slate-800 rounded-full overflow-hidden flex-shrink-0">
                                   <div
-                                    className="h-full bg-purple-600 rounded-full transition-all"
+                                    className="h-full bg-purple-600 dark:bg-purple-500 rounded-full transition-all"
                                     style={{ width: `${valuePercentage}%` }}
                                   />
                                 </div>
-                                <span className="text-base font-semibold w-16 text-right">{valuePercentage}%</span>
+                                <span className="text-base font-semibold w-16 text-right text-slate-900 dark:text-slate-100">{valuePercentage}%</span>
                               </div>
                             </td>
                           </tr>
@@ -886,10 +886,10 @@ export function LeadsOverview({ userRole, employeeId }: LeadsOverviewProps = {})
             </div>
           ) : (
             <div className="text-center py-8">
-              <p className="text-4xl font-bold text-purple-900">
+              <p className="text-4xl font-bold text-purple-900 dark:text-purple-300 font-mono">
                 £{(stats?.total_value || 0).toLocaleString()}
               </p>
-              <p className="text-gray-600 mt-2">Your total pipeline value</p>
+              <p className="text-gray-600 dark:text-slate-400 mt-2">Your total pipeline value</p>
             </div>
           )}
         </DialogContent>

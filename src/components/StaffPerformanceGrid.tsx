@@ -60,28 +60,28 @@ function conversionBarGradient(rate: number): string {
 /* Muted but distinct outcome tiles — not a full rainbow; 4 related hues */
 const OUTCOME_STYLES = {
   renewed_count: {
-    card: "border-emerald-200 bg-emerald-50",
-    icon: "text-emerald-600",
-    num: "text-emerald-950",
-    label: "text-emerald-800",
+    card: "border-emerald-200 bg-emerald-50 dark:border-emerald-900/60 dark:bg-emerald-950/30",
+    icon: "text-emerald-600 dark:text-emerald-400",
+    num: "text-emerald-950 dark:text-emerald-100",
+    label: "text-emerald-800 dark:text-emerald-300",
   },
   in_progress_count: {
-    card: "border-sky-200 bg-sky-50",
-    icon: "text-sky-600",
-    num: "text-sky-950",
-    label: "text-sky-800",
+    card: "border-sky-200 bg-sky-50 dark:border-sky-900/60 dark:bg-sky-950/30",
+    icon: "text-sky-600 dark:text-sky-400",
+    num: "text-sky-950 dark:text-sky-100",
+    label: "text-sky-800 dark:text-sky-300",
   },
   not_contacted_count: {
-    card: "border-amber-200 bg-amber-50",
-    icon: "text-amber-600",
-    num: "text-amber-950",
-    label: "text-amber-900",
+    card: "border-amber-200 bg-amber-50 dark:border-amber-900/60 dark:bg-amber-950/30",
+    icon: "text-amber-600 dark:text-amber-400",
+    num: "text-amber-950 dark:text-amber-100",
+    label: "text-amber-900 dark:text-amber-300",
   },
   lost_count: {
-    card: "border-rose-200 bg-rose-50",
-    icon: "text-rose-600",
-    num: "text-rose-950",
-    label: "text-rose-900",
+    card: "border-rose-200 bg-rose-50 dark:border-rose-900/60 dark:bg-rose-950/30",
+    icon: "text-rose-600 dark:text-rose-400",
+    num: "text-rose-950 dark:text-rose-100",
+    label: "text-rose-900 dark:text-rose-300",
   },
 } as const;
 
@@ -145,7 +145,15 @@ export function ProgressRing({
 
   return (
     <svg width={size} height={size} className="drop-shadow-sm" style={{ transform: "rotate(-90deg)" }}>
-      <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="rgb(226 232 240 / 0.95)" strokeWidth={sw} />
+      <circle
+        cx={size / 2}
+        cy={size / 2}
+        r={r}
+        fill="none"
+        stroke="currentColor"
+        strokeWidth={sw}
+        className="text-slate-200 dark:text-slate-700"
+      />
       <circle
         cx={size / 2}
         cy={size / 2}
@@ -176,13 +184,13 @@ function StripCard({ stat, onClick, delay }: { stat: StaffStat; onClick: () => v
       <div className="relative flex-shrink-0 transition-transform duration-300 ease-out group-hover:scale-[1.04] group-active:scale-[0.98]">
         <ProgressRing rate={stat.conversion_rate} size={TEAM_STRIP_RING_SIZE} />
         <div className="absolute inset-0 flex items-center justify-center">
-          <div className="flex h-12 w-12 select-none items-center justify-center rounded-2xl bg-gradient-to-br from-stone-800 to-black text-xs font-bold text-white shadow-inner ring-2 ring-white/90 transition-shadow duration-300 group-hover:shadow-md">
+          <div className="flex h-12 w-12 select-none items-center justify-center rounded-2xl bg-gradient-to-br from-stone-800 to-black dark:from-slate-800 dark:to-slate-950 text-xs font-bold text-white shadow-inner ring-2 ring-white/90 dark:ring-slate-800 transition-shadow duration-300 group-hover:shadow-md">
             {getInitials(stat.employee_name)}
           </div>
         </div>
       </div>
       <div className="text-center">
-        <p className="text-xs font-semibold leading-tight text-stone-800 transition-colors group-hover:text-stone-950">
+        <p className="text-xs font-semibold leading-tight text-stone-800 dark:text-slate-200 transition-colors group-hover:text-stone-950 dark:group-hover:text-white">
           {firstName(stat.employee_name)}
         </p>
         <p className="text-[11px] font-bold tabular-nums" style={{ color: stroke }}>
@@ -204,33 +212,33 @@ function DetailCard({
   outcomeMeta: readonly { key: string; label: string; icon: any }[];
 }) {
   const rate = useCountUp(stat.conversion_rate, 1000); 
-  const stroke = rateColor(stat.conversion_rate);       
+  const stroke = rateColor(stat.conversion_rate);      
 
   return (
     <div
-      className="group flex flex-col gap-5 rounded-2xl border border-stone-200 bg-white p-6 shadow-sm transition-all duration-300 ease-out hover:-translate-y-0.5 hover:border-stone-300 hover:shadow-md"
+      className="group flex flex-col gap-5 rounded-2xl border border-stone-200 bg-white p-6 shadow-sm transition-all duration-300 ease-out hover:-translate-y-0.5 hover:border-stone-300 hover:shadow-md dark:border-slate-800 dark:bg-slate-900 dark:hover:border-slate-700"
       style={{ animation: `cp-stagger-up 0.45s ${delay}ms cubic-bezier(0.22,1,0.36,1) both` }}
     >
       <div className="flex items-center gap-4">
         <div className="relative flex-shrink-0">
           <ProgressRing rate={stat.conversion_rate} size={TEAM_STRIP_RING_SIZE} />
           <div className="absolute inset-0 flex items-center justify-center">
-            <div className="flex h-12 w-12 select-none items-center justify-center rounded-2xl bg-gradient-to-br from-stone-800 to-black text-xs font-bold text-white shadow-sm ring-2 ring-white">
+            <div className="flex h-12 w-12 select-none items-center justify-center rounded-2xl bg-gradient-to-br from-stone-800 to-black dark:from-slate-800 dark:to-slate-950 text-xs font-bold text-white shadow-sm ring-2 ring-white dark:ring-slate-900">
               {getInitials(stat.employee_name)}
             </div>
           </div>
         </div>
 
         <div className="min-w-0 flex-1">
-          <p className="truncate text-base font-bold leading-tight text-stone-900">{stat.employee_name}</p>
-          <p className="mt-0.5 text-sm text-stone-500">{stat.total_contacts} contacts</p>
+          <p className="truncate text-base font-bold leading-tight text-stone-900 dark:text-slate-100">{stat.employee_name}</p>
+          <p className="mt-0.5 text-sm text-stone-500 dark:text-slate-400">{stat.total_contacts} contacts</p>
         </div>
 
         <div className="flex-shrink-0 text-right">
           <p className="text-2xl font-extrabold tabular-nums leading-none" style={{ color: stroke }}>
             {rate}%
           </p>
-          <p className="mt-1 text-[10px] font-medium uppercase tracking-wider text-stone-400">conversion</p>
+          <p className="mt-1 text-[10px] font-medium uppercase tracking-wider text-stone-400 dark:text-slate-500">conversion</p>
         </div>
       </div>
 
@@ -282,23 +290,24 @@ function MemberSpotlight({
 
   return (
     <div
-      className="cp-performance-modal-surface relative overflow-hidden rounded-2xl border border-stone-200 bg-white p-8 shadow-md"
+      className="cp-performance-modal-surface relative overflow-hidden rounded-2xl border border-stone-200 bg-white dark:border-slate-800 dark:bg-slate-900 p-8 shadow-md"
       style={{ animationDelay: `${delay}ms` }}
     >
       <div className="relative z-[1] flex flex-col gap-8 md:flex-row md:items-start md:gap-10">
         <div className="flex flex-col items-center gap-4 md:items-start">
           <div
-            className="relative flex h-24 w-24 items-center justify-center rounded-3xl bg-gradient-to-br from-stone-800 to-black text-2xl font-bold tracking-tight text-white shadow-lg ring-4 ring-white/90"
+            className="relative flex h-24 w-24 items-center justify-center rounded-3xl bg-gradient-to-br from-stone-800 to-black dark:from-slate-800 dark:to-slate-950 text-2xl font-bold tracking-tight text-white shadow-lg ring-4 ring-white/90 dark:ring-slate-800"
             style={{ animation: `cp-stagger-up 0.5s ${delay + 40}ms cubic-bezier(0.22,1,0.36,1) both` }}
           >
             {getInitials(stat.employee_name)}
-            <span className="absolute -bottom-1 -right-1 flex h-7 w-7 items-center justify-center rounded-full bg-white shadow-md ring-2 ring-stone-200/80">
-              <Sparkles className="h-3.5 w-3.5 text-stone-700" />
+            <span className="absolute -bottom-1 -right-1 flex h-7 w-7 items-center justify-center rounded-full bg-white dark:bg-slate-800 shadow-md ring-2 ring-stone-200/80 dark:ring-slate-700">
+              <Sparkles className="h-3.5 w-3.5 text-stone-700 dark:text-slate-200" />
             </span>
+
           </div>
           <div className="text-center md:text-left">
-            <h3 className="text-xl font-bold tracking-tight text-stone-900">{stat.employee_name}</h3>
-            <p className="mt-1 text-sm text-stone-500">Performance snapshot · {stat.total_contacts} contacts</p>
+            <h3 className="text-xl font-bold tracking-tight text-stone-900 dark:text-slate-100">{stat.employee_name}</h3>
+            <p className="mt-1 text-sm text-stone-500 dark:text-slate-400">Performance snapshot · {stat.total_contacts} contacts</p>
           </div>
         </div>
 
@@ -308,12 +317,12 @@ function MemberSpotlight({
             style={{ animation: `cp-stagger-up 0.5s ${delay + 80}ms cubic-bezier(0.22,1,0.36,1) both` }}
           >
             <div className="flex items-end justify-between gap-4">
-              <span className="text-xs font-semibold uppercase tracking-[0.14em] text-stone-500">Conversion</span>
-              <span className="text-3xl font-extrabold tabular-nums text-stone-900" style={{ color: stroke }}>
+              <span className="text-xs font-semibold uppercase tracking-[0.14em] text-stone-500 dark:text-slate-400">Conversion</span>
+              <span className="text-3xl font-extrabold tabular-nums text-stone-900 dark:text-slate-100" style={{ color: stroke }}>
                 {rate}%
               </span>
             </div>
-            <div className="h-3 w-full overflow-hidden rounded-full border border-stone-200/80 bg-stone-100">
+            <div className="h-3 w-full overflow-hidden rounded-full border border-stone-200/80 bg-stone-100 dark:border-slate-800 dark:bg-slate-800">
               <div
                 className="cp-conversion-bar-inner h-full rounded-full shadow-[inset_0_1px_0_rgba(255,255,255,0.25)]"
                 style={{
@@ -359,7 +368,7 @@ type Period = "daily" | "weekly" | "monthly" | "alltime";
 
 function PeriodSelector({ period, onChange }: { period: Period; onChange: (p: Period) => void }) {
   return (
-    <div className="flex items-center gap-1 rounded-xl border border-stone-200 bg-stone-50 p-1">
+    <div className="flex items-center gap-1 rounded-xl border border-stone-200 bg-stone-50 dark:border-slate-800 dark:bg-slate-800 p-1">
       {(["daily", "weekly", "monthly", "alltime"] as const).map((p) => (
         <button
           key={p}
@@ -368,8 +377,8 @@ function PeriodSelector({ period, onChange }: { period: Period; onChange: (p: Pe
           className={cn(
             "rounded-lg px-3 py-1 text-xs font-medium capitalize transition-all duration-150",
             period === p
-              ? "bg-white text-stone-900 shadow-sm"
-              : "text-stone-500 hover:text-stone-700"
+              ? "bg-white dark:bg-slate-700 text-stone-900 dark:text-slate-100 shadow-sm"
+              : "text-stone-500 dark:text-slate-400 hover:text-stone-700 dark:hover:text-slate-200"
           )}
         >
           {p === "alltime" ? "All time" : p}
@@ -519,11 +528,11 @@ export function StaffPerformanceGrid({ employeeId, isLeadsDashboard = false }: S
         {Array.from({ length: employeeId ? 1 : 6 }).map((_, i) => (
           <div key={i} className="flex min-w-[108px] flex-col items-center gap-2 animate-pulse">
             <div
-              className="rounded-full bg-stone-200/80"
+              className="rounded-full bg-stone-200/80 dark:bg-slate-800"
               style={{ width: TEAM_STRIP_RING_SIZE, height: TEAM_STRIP_RING_SIZE }}
             />
-            <div className="h-2.5 w-14 rounded bg-stone-200/70" />
-            <div className="h-2 w-8 rounded bg-stone-200/60" />
+            <div className="h-2.5 w-14 rounded bg-stone-200/70 dark:bg-slate-800" />
+            <div className="h-2 w-8 rounded bg-stone-200/60 dark:bg-slate-800" />
           </div>
         ))}
       </div>
@@ -533,14 +542,14 @@ export function StaffPerformanceGrid({ employeeId, isLeadsDashboard = false }: S
     <>
       <div className="crm-panel rounded-[28px] px-5 pb-5 pt-4">
         <div className="mb-4 flex flex-wrap items-center gap-3">
-          <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-black text-white shadow-sm">
+          <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-black dark:bg-slate-800 text-white shadow-sm">
             <Users className="h-4 w-4" />
           </div>
           <div>
-            <p className="text-sm font-semibold text-stone-900">
+            <p className="text-sm font-semibold text-stone-900 dark:text-slate-100">
               {employeeId ? "My Performance" : "Team Performance"}
             </p>
-            <p className="text-xs text-stone-500">{subtitle}</p>
+            <p className="text-xs text-stone-500 dark:text-slate-400">{subtitle}</p>
           </div>
 
           <div className="ml-auto flex items-center gap-2">
@@ -551,7 +560,7 @@ export function StaffPerformanceGrid({ employeeId, isLeadsDashboard = false }: S
                 setSelectedEmployeeId(null);
                 setOpen(true);
               }}
-              className="group inline-flex items-center gap-1.5 rounded-xl border border-stone-200/90 bg-white px-3 py-1.5 text-xs font-medium text-stone-700 shadow-sm transition hover:border-stone-300 hover:bg-stone-50 hover:text-stone-900 active:scale-[0.98]"
+              className="group inline-flex items-center gap-1.5 rounded-xl border border-stone-200/90 bg-white dark:border-slate-800 dark:bg-slate-900 px-3 py-1.5 text-xs font-medium text-stone-700 dark:text-slate-300 shadow-sm transition hover:border-stone-300 hover:bg-stone-50 hover:text-stone-900 dark:hover:bg-slate-800 dark:hover:text-white active:scale-[0.98]"
             >
               View all
               <ArrowRight className="h-3 w-3 transition-transform duration-200 group-hover:translate-x-0.5" />
@@ -560,7 +569,7 @@ export function StaffPerformanceGrid({ employeeId, isLeadsDashboard = false }: S
         </div>
 
         {strip.length === 0 ? (
-          <p className="py-4 text-center text-sm text-stone-400">No data found.</p>
+          <p className="py-4 text-center text-sm text-stone-400 dark:text-slate-500">No data found.</p>
         ) : (
           <div ref={stripContainerRef} className="flex gap-6 pb-2">
             {strip.map((s, i) => (
@@ -577,8 +586,8 @@ export function StaffPerformanceGrid({ employeeId, isLeadsDashboard = false }: S
           </div>
         )}
 
-        <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-stone-200/80 pt-3 text-[11px] text-stone-500">
-          <span className="font-medium text-stone-600">Conversion bands</span>
+        <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-stone-200/80 dark:border-slate-800 pt-3 text-[11px] text-stone-500 dark:text-slate-400">
+          <span className="font-medium text-stone-600 dark:text-slate-300">Conversion bands</span>
           <span className="flex items-center gap-1.5">
             <span className="inline-block h-2 w-2 rounded-full" style={{ background: "#16a34a" }} />
             ≥ 60% great
@@ -591,6 +600,7 @@ export function StaffPerformanceGrid({ employeeId, isLeadsDashboard = false }: S
             <span className="inline-block h-2 w-2 rounded-full" style={{ background: "#dc2626" }} />
             {"< 35%"} focus
           </span>
+
         </div>
       </div>
 
@@ -599,26 +609,26 @@ export function StaffPerformanceGrid({ employeeId, isLeadsDashboard = false }: S
           showCloseButton
           style={{ width: "min(1280px, 94vw)", maxWidth: "min(1280px, 94vw)" }}
           className={cn(
-            "max-h-[92vh] overflow-hidden border-0 bg-white p-0 shadow-xl",
+            "max-h-[92vh] overflow-hidden border-0 bg-white dark:bg-slate-950 p-0 shadow-xl",
             "data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-[0.99] data-[state=open]:duration-300",
           )}
         >
-          <div className="cp-performance-modal-surface flex max-h-[92vh] flex-col overflow-hidden rounded-2xl border border-stone-200 bg-white shadow-xl">
-            <div className="relative z-[1] border-b border-stone-200 bg-stone-50 px-6 py-6 md:px-8">
+          <div className="cp-performance-modal-surface flex max-h-[92vh] flex-col overflow-hidden rounded-2xl border border-stone-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xl">
+            <div className="relative z-[1] border-b border-stone-200 dark:border-slate-800 bg-stone-50 dark:bg-slate-900/50 px-6 py-6 md:px-8">
               <DialogHeader className="relative space-y-4">
                 <div className="flex flex-wrap items-center gap-3">
                   {selectedStat && !employeeId && (
                     <button
                       type="button"
                       onClick={() => setSelectedEmployeeId(null)}
-                      className="inline-flex items-center gap-1 rounded-full border border-stone-200 bg-white px-3 py-1.5 text-xs font-medium text-stone-700 shadow-sm transition hover:border-stone-300 hover:bg-stone-50 hover:text-stone-900"
+                      className="inline-flex items-center gap-1 rounded-full border border-stone-200 bg-white dark:border-slate-700 dark:bg-slate-800 px-3 py-1.5 text-xs font-medium text-stone-700 dark:text-slate-200 shadow-sm transition hover:border-stone-300 hover:bg-stone-50 hover:text-stone-900 dark:hover:bg-slate-700"
                     >
                       <ChevronLeft className="h-3.5 w-3.5" />
                       All team
                     </button>
                   )}
-                  <DialogTitle className="flex flex-wrap items-center gap-3 text-xl font-bold tracking-tight text-stone-900">
-                    <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-black text-white shadow-md">
+                  <DialogTitle className="flex flex-wrap items-center gap-3 text-xl font-bold tracking-tight text-stone-900 dark:text-slate-100">
+                    <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-black dark:bg-slate-800 text-white shadow-md">
                       <Users className="h-5 w-5" />
                     </span>
                     {selectedStat
@@ -628,7 +638,7 @@ export function StaffPerformanceGrid({ employeeId, isLeadsDashboard = false }: S
                         : "Team Performance Hub"}
                   </DialogTitle>
                 </div>
-                <p className="text-sm text-stone-500">
+                <p className="text-sm text-stone-500 dark:text-slate-400">
                   {selectedStat
                     ? "Detailed outcomes and conversion for this teammate."
                     : employeeId
@@ -638,28 +648,28 @@ export function StaffPerformanceGrid({ employeeId, isLeadsDashboard = false }: S
 
                 {/* ✅ Period selector inside modal — leads dashboard only */}
                 <div className="flex items-center gap-2">
-                  <span className="text-xs font-medium text-stone-500">Period:</span>
+                  <span className="text-xs font-medium text-stone-500 dark:text-slate-400">Period:</span>
                   <PeriodSelector period={period} onChange={setPeriod} />
                 </div>
 
                 {!selectedStat && (
                   <div className="grid grid-cols-2 gap-3 pt-2 sm:grid-cols-4">
                     {[
-                      { label: "Members", val: stats.length, accent: "border-l-4 border-l-green-600 bg-green-50" },
-                      { label: "Avg conversion", val: `${avgRate}%`, accent: "border-l-4 border-l-indigo-600 bg-indigo-50" },
-                      { label: "Renewed (total)", val: totalConverted, accent: "border-l-4 border-l-emerald-600 bg-emerald-50" },
-                      { label: "Contacts (total)", val: totalContacts, accent: "border-l-4 border-l-sky-600 bg-sky-50" },
+                      { label: "Members", val: stats.length, accent: "border-l-4 border-l-green-600 bg-green-50 dark:bg-green-950/20" },
+                      { label: "Avg conversion", val: `${avgRate}%`, accent: "border-l-4 border-l-indigo-600 bg-indigo-50 dark:bg-indigo-950/20" },
+                      { label: "Renewed (total)", val: totalConverted, accent: "border-l-4 border-l-emerald-600 bg-emerald-50 dark:bg-emerald-950/20" },
+                      { label: "Contacts (total)", val: totalContacts, accent: "border-l-4 border-l-sky-600 bg-sky-50 dark:bg-sky-950/20" },
                     ].map(({ label, val, accent }, i) => (
                       <div
                         key={label}
                         className={cn(
-                          "rounded-xl border border-stone-200 bg-white px-4 py-3 shadow-sm transition hover:shadow-md",
+                          "rounded-xl border border-stone-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-4 py-3 shadow-sm transition hover:shadow-md",
                           accent,
                         )}
                         style={{ animation: `cp-stagger-up 0.4s ${80 + i * 50}ms cubic-bezier(0.22,1,0.36,1) both` }}
                       >
-                        <p className="text-2xl font-bold tabular-nums text-stone-900">{val}</p>
-                        <p className="mt-1 text-[11px] font-medium uppercase tracking-wide text-stone-600">{label}</p>
+                        <p className="text-2xl font-bold tabular-nums text-stone-900 dark:text-slate-100">{val}</p>
+                        <p className="mt-1 text-[11px] font-medium uppercase tracking-wide text-stone-600 dark:text-slate-400">{label}</p>
                       </div>
                     ))}
                   </div>
@@ -667,12 +677,12 @@ export function StaffPerformanceGrid({ employeeId, isLeadsDashboard = false }: S
               </DialogHeader>
             </div>
 
-            <div className="max-h-[calc(92vh-200px)] min-h-0 flex-1 overflow-y-auto bg-stone-50 px-6 py-6 md:px-8">
+            <div className="max-h-[calc(92vh-200px)] min-h-0 flex-1 overflow-y-auto bg-stone-50 dark:bg-slate-950 px-6 py-6 md:px-8">
               <div className="space-y-6">
                 {!selectedEmployeeId && !employeeId && (
                   <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                     <div className="flex flex-wrap items-center gap-2">
-                      <span className="text-sm font-medium text-stone-500">Sort</span>
+                      <span className="text-sm font-medium text-stone-500 dark:text-slate-400">Sort</span>
                       {(["highest", "lowest"] as const).map((s) => (
                         <button
                           key={s}
@@ -681,8 +691,8 @@ export function StaffPerformanceGrid({ employeeId, isLeadsDashboard = false }: S
                           className={cn(
                             "rounded-full px-4 py-2 text-sm font-medium transition-all duration-200",
                             sortBy === s
-                              ? "scale-[1.02] bg-stone-900 text-white shadow-md"
-                              : "border border-stone-200 bg-white text-stone-600 shadow-sm hover:border-stone-300 hover:bg-stone-100",
+                              ? "scale-[1.02] bg-stone-900 dark:bg-slate-100 text-white dark:text-slate-900 shadow-md"
+                              : "border border-stone-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-stone-600 dark:text-slate-300 shadow-sm hover:border-stone-300 hover:bg-stone-100 dark:hover:bg-slate-800",
                           )}
                         >
                           {s === "highest" ? "Highest %" : "Lowest %"}
@@ -696,7 +706,7 @@ export function StaffPerformanceGrid({ employeeId, isLeadsDashboard = false }: S
                         placeholder="Search by name…"
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
-                        className="w-full rounded-full border border-stone-200/90 bg-white py-2 pl-10 pr-4 text-sm text-stone-900 shadow-sm transition placeholder:text-stone-400 focus:border-stone-400 focus:outline-none focus:ring-2 focus:ring-stone-400/25"
+                        className="w-full rounded-full border border-stone-200/90 dark:border-slate-800 bg-white dark:bg-slate-900 py-2 pl-10 pr-4 text-sm text-stone-900 dark:text-slate-100 shadow-sm transition placeholder:text-stone-400 focus:border-stone-400 focus:outline-none focus:ring-2 focus:ring-stone-400/25"
                       />
                     </div>
                   </div>
@@ -714,7 +724,7 @@ export function StaffPerformanceGrid({ employeeId, isLeadsDashboard = false }: S
 
                 {!selectedEmployeeId && sorted.length === 0 && searchQuery && (
                   <div className="py-16 text-center">
-                    <p className="text-sm text-stone-500">No team members match &ldquo;{searchQuery}&rdquo;</p>
+                    <p className="text-sm text-stone-500 dark:text-slate-400">No team members match &ldquo;{searchQuery}&rdquo;</p>
                   </div>
                 )}
               </div>

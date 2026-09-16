@@ -88,7 +88,7 @@ function parseAnnualUsage(value: number | string | null | undefined): number | n
 function ImportProgressBar({ progress }: { progress: ImportProgress }) {
   return (
     <div className="mt-3 space-y-1">
-      <div className="flex justify-between text-xs text-gray-500">
+      <div className="flex justify-between text-xs text-gray-500 dark:text-slate-400">
         <span>
           {progress.status === "done"
             ? `Complete — ${progress.successful.toLocaleString()} imported`
@@ -98,10 +98,10 @@ function ImportProgressBar({ progress }: { progress: ImportProgress }) {
         </span>
         <span>{progress.pct}%</span>
       </div>
-      <div className="w-full rounded-full bg-gray-200 h-2.5">
+      <div className="w-full rounded-full bg-gray-200 dark:bg-slate-800 h-2.5">
         <div
           className={`h-2.5 rounded-full transition-all duration-500 ${
-            progress.status === "failed" ? "bg-red-500" : "bg-blue-600"
+            progress.status === "failed" ? "bg-red-500" : "bg-blue-600 dark:bg-blue-500"
           }`}
           style={{ width: `${progress.pct}%` }}
         />
@@ -115,31 +115,29 @@ function ImportProgressBar({ progress }: { progress: ImportProgress }) {
 // ---------------------------------------------------------------------------
 
 export default function DraftsPage() {
-  const [leads, setLeads]         = useState<DraftLead[]>([]);
-  const [employees, setEmployees] = useState<Employee[]>([]);
-  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
-  const [loading, setLoading]     = useState(true);
-  const [importOpen, setImportOpen] = useState(false);
-  const [importFile, setImportFile] = useState<File | null>(null);
-  const [importing, setImporting]   = useState(false);
+  const [leads, setLeads]                 = useState<DraftLead[]>([]);
+  const [employees, setEmployees]         = useState<Employee[]>([]);
+  const [suppliers, setSuppliers]         = useState<Supplier[]>([]);
+  const [loading, setLoading]             = useState(true);
+  const [importOpen, setImportOpen]       = useState(false);
+  const [importFile, setImportFile]       = useState<File | null>(null);
+  const [importing, setImporting]         = useState(false);
   const [importProgress, setImportProgress] = useState<ImportProgress | null>(null);
-  const [assigning, setAssigning]   = useState(false);
-  const [deleting, setDeleting]     = useState(false);
-  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [assigning, setAssigning]         = useState(false);
+  const [deleting, setDeleting]           = useState(false);
+  const [deleteOpen, setDeleteOpen]       = useState(false);
   const [selectedLeadIds, setSelectedLeadIds]       = useState<number[]>([]);
   const [currentLeadsPage, setCurrentLeadsPage]     = useState(1);
-  const [searchTerm, setSearchTerm]         = useState("");
-  const [selectedSupplier, setSelectedSupplier] = useState<string>("all");
+  const [searchTerm, setSearchTerm]                 = useState("");
+  const [selectedSupplier, setSelectedSupplier]     = useState<string>("all");
   const [showBulkAssignModal, setShowBulkAssignModal]       = useState(false);
   const [bulkAssignEmployeeId, setBulkAssignEmployeeId]     = useState("");
   const [bulkAssignEmployeeName, setBulkAssignEmployeeName] = useState("");
   const [isBulkAssigning, setIsBulkAssigning]               = useState(false);
   const [endDateFilter, setEndDateFilter] = useState<"all" | "365" | "30" | "60" | "90" | "90+">("all");
-  const [usageSort, setUsageSort] = useState<"none" | "low-high" | "high-low">("none");
-  const [bulkAssignQuantity, setBulkAssignQuantity] = useState<string>("");
+  const [usageSort, setUsageSort]         = useState<"none" | "low-high" | "high-low">("none");
+  const [bulkAssignQuantity, setBulkAssignQuantity] = useState<string>("" );
 
-
-  // keep a ref so the polling loop can be cancelled when the dialog closes
   const pollAbortRef = useRef<AbortController | null>(null);
 
   // ── Data loading ──────────────────────────────────────────────────────────
@@ -232,10 +230,6 @@ export default function DraftsPage() {
 
   // ── Import + polling ──────────────────────────────────────────────────────
 
-  /**
-   * Poll GET /import/status/<job_id> until done or failed.
-   * Cancellable via AbortController stored in pollAbortRef.
-   */
   const pollJob = useCallback(async (jobId: string): Promise<void> => {
     const ctrl = new AbortController();
     pollAbortRef.current = ctrl;
@@ -259,11 +253,11 @@ export default function DraftsPage() {
         const data = await res.json();
 
         setImportProgress({
-          pct:       data.progress_pct ?? 0,
-          processed: data.processed    ?? 0,
-          total:     data.total        ?? 0,
-          successful: data.successful  ?? 0,
-          status:    data.status,
+          pct:        data.progress_pct ?? 0,
+          processed:  data.processed    ?? 0,
+          total:      data.total        ?? 0,
+          successful: data.successful   ?? 0,
+          status:     data.status,
         });
 
         if (data.status === "done") {
@@ -299,7 +293,6 @@ export default function DraftsPage() {
       const token    = localStorage.getItem("auth_token") ?? "";
       const tenantId = localStorage.getItem("tenant_id")  ?? "2";
 
-      // Both endpoints now return { job_id, total_rows } with HTTP 202
       const endpoint = `${API_BASE_URL}/import/leads?service=utilities`;
 
       const res = await fetch(endpoint, {
@@ -320,7 +313,6 @@ export default function DraftsPage() {
         `File uploaded (${(total_rows ?? 0).toLocaleString()} rows). Processing in background…`,
       );
 
-      // Poll until the job finishes
       await pollJob(job_id);
 
     } catch (err) {
@@ -329,7 +321,6 @@ export default function DraftsPage() {
       }
     } finally {
       setImporting(false);
-      // Keep the dialog open briefly so the user sees "Complete", then close
       setTimeout(async () => {
         setImportProgress(null);
         setImportOpen(false);
@@ -339,7 +330,6 @@ export default function DraftsPage() {
     }
   }, [importFile, pollJob, loadData]);
 
-  // Cancel poll when the dialog is force-closed
   const handleImportDialogClose = useCallback((open: boolean) => {
     if (!open) {
       pollAbortRef.current?.abort();
@@ -380,7 +370,7 @@ export default function DraftsPage() {
 
   // ── Selection helpers ─────────────────────────────────────────────────────
 
-  const toggleLead    = (id: number) =>
+  const toggleLead = (id: number) =>
     setSelectedLeadIds((p) => (p.includes(id) ? p.filter((x) => x !== id) : [...p, id]));
 
   const toggleAllLeads = () => {
@@ -422,9 +412,6 @@ export default function DraftsPage() {
       const employeeId = Number(bulkAssignEmployeeId);
       const emp = employees.find((e) => e.employee_id === employeeId);
 
-      // Determine which lead IDs to assign:
-      // If quantity is entered, take that many from the full unassigned list (ignoring selection).
-      // Otherwise use the selected IDs.
       let idsToAssign: number[];
       const qty = parseInt(bulkAssignQuantity, 10);
       if (!isNaN(qty) && qty > 0) {
@@ -470,20 +457,52 @@ export default function DraftsPage() {
       const start = (currentPage - 1) * DRAFTS_PER_PAGE + 1;
       const end   = Math.min(currentPage * DRAFTS_PER_PAGE, totalItems);
       return (
-        <div className="flex items-center justify-between py-3 px-4 bg-gray-50 border-t">
-          <div className="text-sm text-gray-700">
-            Showing <span className="font-medium">{start}</span> to{" "}
-            <span className="font-medium">{end}</span> of{" "}
-            <span className="font-medium">{totalItems}</span> leads
+        <div className="flex items-center justify-between py-3 px-4 bg-gray-50 border-t border-gray-200 dark:border-slate-800 dark:bg-slate-900">
+          <div className="text-sm text-gray-700 dark:text-slate-300">
+            Showing <span className="font-medium text-gray-900 dark:text-white">{start}</span> to{" "}
+            <span className="font-medium text-gray-900 dark:text-white">{end}</span> of{" "}
+            <span className="font-medium text-gray-900 dark:text-white">{totalItems}</span> leads
           </div>
           <div className="flex space-x-1">
-            <Button variant="outline" size="icon" onClick={() => onPageChange(1)}                disabled={currentPage === 1}><ChevronFirst className="h-4 w-4" /></Button>
-            <Button variant="outline" size="icon" onClick={() => onPageChange(currentPage - 1)} disabled={currentPage === 1}><ChevronLeft  className="h-4 w-4" /></Button>
-            <div className="flex items-center px-3 text-sm text-gray-700">
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={() => onPageChange(1)}
+              disabled={currentPage === 1}
+              className="dark:border-slate-700 dark:hover:bg-slate-800"
+            >
+              <ChevronFirst className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={() => onPageChange(currentPage - 1)}
+              disabled={currentPage === 1}
+              className="dark:border-slate-700 dark:hover:bg-slate-800"
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </Button>
+            <div className="flex items-center px-3 text-sm text-gray-700 dark:text-slate-300">
               Page {currentPage} of {totalPages}
             </div>
-            <Button variant="outline" size="icon" onClick={() => onPageChange(currentPage + 1)} disabled={currentPage === totalPages}><ChevronRight className="h-4 w-4" /></Button>
-            <Button variant="outline" size="icon" onClick={() => onPageChange(totalPages)}      disabled={currentPage === totalPages}><ChevronLast  className="h-4 w-4" /></Button>
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={() => onPageChange(currentPage + 1)}
+              disabled={currentPage === totalPages}
+              className="dark:border-slate-700 dark:hover:bg-slate-800"
+            >
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={() => onPageChange(totalPages)}
+              disabled={currentPage === totalPages}
+              className="dark:border-slate-700 dark:hover:bg-slate-800"
+            >
+              <ChevronLast className="h-4 w-4" />
+            </Button>
           </div>
         </div>
       );
@@ -492,17 +511,17 @@ export default function DraftsPage() {
   // ── Render ────────────────────────────────────────────────────────────────
 
   return (
-    <div className="min-h-screen bg-gray-50 p-6">
+    <div className="min-h-screen bg-gray-50 p-6 text-slate-900 dark:bg-slate-950 dark:text-slate-100">
       <Toaster position="top-right" />
 
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-semibold text-gray-900">Drafts</h1>
-          <p className="text-sm text-gray-600">
+          <h1 className="text-2xl font-semibold text-gray-900 dark:text-slate-50">Drafts</h1>
+          <p className="text-sm text-gray-600 dark:text-slate-400">
             Import draft leads and renewals, then assign them when ready.
           </p>
         </div>
-        <Button variant="outline" onClick={loadData} disabled={loading}>
+        <Button variant="outline" onClick={loadData} disabled={loading} className="dark:border-slate-800 dark:bg-slate-900 dark:hover:bg-slate-800">
           <RefreshCw className="mr-2 h-4 w-4" />
           Refresh
         </Button>
@@ -511,59 +530,64 @@ export default function DraftsPage() {
       {/* Inline filters */}
       <div className="mb-4 grid grid-cols-[repeat(auto-fit,minmax(160px,1fr))] gap-3">
         <div className="relative min-w-0 sm:col-span-2 xl:col-span-1">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400 dark:text-slate-500" />
           <Input
             placeholder="Search clients…"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="pl-9"
+            className="pl-9 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100 dark:placeholder:text-slate-500"
           />
         </div>
         <Select value={selectedSupplier} onValueChange={setSelectedSupplier}>
-          <SelectTrigger className="w-full min-w-0">
+          <SelectTrigger className="w-full min-w-0 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100">
             <SelectValue placeholder="All Suppliers" />
           </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Suppliers</SelectItem>
+          <SelectContent className="dark:border-slate-800 dark:bg-slate-900">
+            <SelectItem value="all" className="dark:hover:bg-slate-800">All Suppliers</SelectItem>
             {suppliers.map((s) => (
-              <SelectItem key={s.supplier_id} value={s.supplier_id.toString()}>
+              <SelectItem key={s.supplier_id} value={s.supplier_id.toString()} className="dark:hover:bg-slate-800">
                 {s.supplier_name}
               </SelectItem>
             ))}
           </SelectContent>
         </Select>
         <Select value={endDateFilter} onValueChange={(v) => setEndDateFilter(v as typeof endDateFilter)}>
-          <SelectTrigger className="w-full min-w-0">
+          <SelectTrigger className="w-full min-w-0 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100">
             <SelectValue placeholder="Contract End" />
           </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Contracts</SelectItem>
-            <SelectItem value="365">Ending in 0-365 days</SelectItem>
-            <SelectItem value="30">Ending in 30 days</SelectItem>
-            <SelectItem value="60">Ending in 31–60 days</SelectItem>
-            <SelectItem value="90">Ending in 61–90 days</SelectItem>
-            <SelectItem value="90+">Ending in 90+ days</SelectItem>
+          <SelectContent className="dark:border-slate-800 dark:bg-slate-900">
+            <SelectItem value="all" className="dark:hover:bg-slate-800">All Contracts</SelectItem>
+            <SelectItem value="365" className="dark:hover:bg-slate-800">Ending in 0-365 days</SelectItem>
+            <SelectItem value="30" className="dark:hover:bg-slate-800">Ending in 30 days</SelectItem>
+            <SelectItem value="60" className="dark:hover:bg-slate-800">Ending in 31–60 days</SelectItem>
+            <SelectItem value="90" className="dark:hover:bg-slate-800">Ending in 61–90 days</SelectItem>
+            <SelectItem value="90+" className="dark:hover:bg-slate-800">Ending in 90+ days</SelectItem>
           </SelectContent>
         </Select>
         <Select value={usageSort} onValueChange={(v) => setUsageSort(v as typeof usageSort)}>
-          <SelectTrigger className="w-full min-w-0">
+          <SelectTrigger className="w-full min-w-0 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100">
             <SelectValue placeholder="Usage Sort" />
           </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="none">Usage: Default</SelectItem>
-            <SelectItem value="low-high">Usage: Low to High</SelectItem>
-            <SelectItem value="high-low">Usage: High to Low</SelectItem>
+          <SelectContent className="dark:border-slate-800 dark:bg-slate-900">
+            <SelectItem value="none" className="dark:hover:bg-slate-800">Usage: Default</SelectItem>
+            <SelectItem value="low-high" className="dark:hover:bg-slate-800">Usage: Low to High</SelectItem>
+            <SelectItem value="high-low" className="dark:hover:bg-slate-800">Usage: High to Low</SelectItem>
           </SelectContent>
         </Select>
       </div>
 
       <div>
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-          <h2 className="text-sm font-medium text-gray-700">
+          <h2 className="text-sm font-medium text-gray-700 dark:text-slate-300">
             Leads {draftLeads.length > 0 && `(${draftLeads.length.toLocaleString()})`}
           </h2>
           <div className="flex flex-wrap items-center gap-2">
-            <Button variant="default" onClick={() => setShowBulkAssignModal(true)} disabled={selectedIds.length === 0}>
+            <Button
+              variant="default"
+              onClick={() => setShowBulkAssignModal(true)}
+              disabled={selectedIds.length === 0}
+              className="dark:bg-slate-100 dark:text-slate-950 dark:hover:bg-slate-200"
+            >
               <Users className="mr-2 h-4 w-4" />
               Assign Selected ({selectedIds.length})
             </Button>
@@ -571,7 +595,7 @@ export default function DraftsPage() {
               <Trash2 className="mr-2 h-4 w-4" />
               Delete Selected
             </Button>
-            <Button onClick={() => setImportOpen(true)}>
+            <Button onClick={() => setImportOpen(true)} className="dark:bg-slate-100 dark:text-slate-950 dark:hover:bg-slate-200">
               <Upload className="mr-2 h-4 w-4" />
               Import Leads
             </Button>
@@ -605,10 +629,10 @@ export default function DraftsPage() {
         setShowBulkAssignModal(open);
         if (!open) { setBulkAssignQuantity(""); setBulkAssignEmployeeId(""); setBulkAssignEmployeeName(""); }
       }}>
-        <DialogContent>
+        <DialogContent className="dark:border-slate-800 dark:bg-slate-950">
           <DialogHeader>
-            <DialogTitle>Bulk Assign Leads</DialogTitle>
-            <DialogDescription>
+            <DialogTitle className="dark:text-slate-50">Bulk Assign Leads</DialogTitle>
+            <DialogDescription className="dark:text-slate-400">
               {bulkAssignQuantity && !isNaN(parseInt(bulkAssignQuantity, 10))
                 ? `Will assign the first ${parseInt(bulkAssignQuantity, 10)} leads from the current list.`
                 : selectedIds.length > 0
@@ -619,17 +643,17 @@ export default function DraftsPage() {
 
           <div className="space-y-4">
             <div>
-              <label className="text-sm font-medium text-gray-700 mb-1 block">Salesperson</label>
+              <label className="text-sm font-medium text-gray-700 dark:text-slate-300 mb-1 block">Salesperson</label>
               <Select value={bulkAssignEmployeeId} onValueChange={(v) => {
                 setBulkAssignEmployeeId(v);
                 setBulkAssignEmployeeName(employees.find(e => e.employee_id === Number(v))?.employee_name || "");
               }}>
-                <SelectTrigger>
+                <SelectTrigger className="dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100">
                   <SelectValue placeholder="Select salesperson" />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="dark:border-slate-800 dark:bg-slate-900">
                   {employees.map((emp) => (
-                    <SelectItem key={emp.employee_id} value={emp.employee_id.toString()}>
+                    <SelectItem key={emp.employee_id} value={emp.employee_id.toString()} className="dark:hover:bg-slate-800">
                       {emp.employee_name}
                     </SelectItem>
                   ))}
@@ -638,8 +662,8 @@ export default function DraftsPage() {
             </div>
 
             <div>
-              <label className="text-sm font-medium text-gray-700 mb-1 block">
-                Quantity <span className="text-gray-400 font-normal">(optional — overrides selection)</span>
+              <label className="text-sm font-medium text-gray-700 dark:text-slate-300 mb-1 block">
+                Quantity <span className="text-gray-400 dark:text-slate-500 font-normal">(optional — overrides selection)</span>
               </label>
               <Input
                 type="number"
@@ -648,9 +672,10 @@ export default function DraftsPage() {
                 placeholder={`e.g. 100 (max ${draftLeads.length.toLocaleString()})`}
                 value={bulkAssignQuantity}
                 onChange={(e) => setBulkAssignQuantity(e.target.value)}
+                className="dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100 dark:placeholder:text-slate-500"
               />
               {bulkAssignQuantity && !isNaN(parseInt(bulkAssignQuantity, 10)) && (
-                <p className="text-xs text-blue-600 mt-1">
+                <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">
                   Will assign the first {Math.min(parseInt(bulkAssignQuantity, 10), draftLeads.length).toLocaleString()} leads from the current filtered list.
                 </p>
               )}
@@ -658,10 +683,19 @@ export default function DraftsPage() {
           </div>
 
           <div className="flex justify-end gap-2 pt-2">
-            <Button variant="outline" onClick={() => setShowBulkAssignModal(false)} disabled={isBulkAssigning}>
+            <Button
+              variant="outline"
+              onClick={() => setShowBulkAssignModal(false)}
+              disabled={isBulkAssigning}
+              className="dark:border-slate-700 dark:hover:bg-slate-800"
+            >
               Cancel
             </Button>
-            <Button onClick={handleBulkAssign} disabled={!bulkAssignEmployeeId || isBulkAssigning}>
+            <Button
+              onClick={handleBulkAssign}
+              disabled={!bulkAssignEmployeeId || isBulkAssigning}
+              className="dark:bg-slate-100 dark:text-slate-950 dark:hover:bg-slate-200"
+            >
               {isBulkAssigning && <span className="mr-2">⏳</span>}
               {bulkAssignQuantity && !isNaN(parseInt(bulkAssignQuantity, 10))
                 ? `Assign ${Math.min(parseInt(bulkAssignQuantity, 10), draftLeads.length).toLocaleString()} Leads`
@@ -673,12 +707,12 @@ export default function DraftsPage() {
 
       {/* ── Import dialog ── */}
       <Dialog open={importOpen} onOpenChange={handleImportDialogClose}>
-        <DialogContent>
+        <DialogContent className="dark:border-slate-800 dark:bg-slate-950">
           <DialogHeader>
-            <DialogTitle>
+            <DialogTitle className="dark:text-slate-50">
               Import Lead Drafts
             </DialogTitle>
-            <DialogDescription>
+            <DialogDescription className="dark:text-slate-400">
               Large files are processed in the background — you can track progress below.
               Imported records stay in drafts until assigned.
             </DialogDescription>
@@ -689,6 +723,7 @@ export default function DraftsPage() {
             accept=".xlsx,.xls,.csv"
             disabled={importing}
             onChange={(e) => setImportFile(e.target.files?.[0] ?? null)}
+            className="dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100"
           />
 
           {importProgress && <ImportProgressBar progress={importProgress} />}
@@ -698,10 +733,15 @@ export default function DraftsPage() {
               variant="outline"
               onClick={() => handleImportDialogClose(false)}
               disabled={importing && importProgress?.status === "running"}
+              className="dark:border-slate-700 dark:hover:bg-slate-800"
             >
               {importing ? "Running in background…" : "Cancel"}
             </Button>
-            <Button onClick={handleImport} disabled={!importFile || importing}>
+            <Button
+              onClick={handleImport}
+              disabled={!importFile || importing}
+              className="dark:bg-slate-100 dark:text-slate-950 dark:hover:bg-slate-200"
+            >
               {importing
                 ? <><span className="mr-2">⏳</span>Importing…</>
                 : "Import"
@@ -713,16 +753,21 @@ export default function DraftsPage() {
 
       {/* ── Delete dialog ── */}
       <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
-        <DialogContent>
+        <DialogContent className="dark:border-slate-800 dark:bg-slate-950">
           <DialogHeader>
-            <DialogTitle>Delete selected drafts?</DialogTitle>
-            <DialogDescription>
+            <DialogTitle className="dark:text-slate-50">Delete selected drafts?</DialogTitle>
+            <DialogDescription className="dark:text-slate-400">
               This will permanently delete {selectedIds.length} draft{" "}
               leads from the database.
             </DialogDescription>
           </DialogHeader>
           <div className="flex justify-end gap-2">
-            <Button variant="outline" onClick={() => setDeleteOpen(false)} disabled={deleting}>
+            <Button
+              variant="outline"
+              onClick={() => setDeleteOpen(false)}
+              disabled={deleting}
+              className="dark:border-slate-700 dark:hover:bg-slate-800"
+            >
               Cancel
             </Button>
             <Button
@@ -752,73 +797,111 @@ function DraftLeadsTable({
   onAssign: (id: number, empId: string) => void; employees: Employee[]; allSelected: boolean; currentPage: number;
 }) {
   return (
-    <div className="overflow-hidden rounded-lg border border-gray-200 bg-white">
+    <div className="overflow-hidden rounded-lg border border-gray-200 bg-white dark:border-slate-800 dark:bg-slate-900">
       <div className="overflow-x-auto">
-        <table className="w-full divide-y divide-gray-200 table-fixed">
-          <thead className="bg-gray-50">
+        <table className="w-full divide-y divide-gray-200 dark:divide-slate-800 table-fixed">
+          <thead className="bg-gray-50 dark:bg-slate-800/60">
             <tr>
               <th className="px-3 py-3 text-left w-8">
-                <input type="checkbox" className="rounded border-gray-300"
-                  checked={allSelected} onChange={onToggleAll}
-                  disabled={loading || rows.length === 0} />
+                <input
+                  type="checkbox"
+                  className="rounded border-gray-300 dark:border-slate-700 dark:bg-slate-800 dark:checked:bg-primary"
+                  checked={allSelected}
+                  onChange={onToggleAll}
+                  disabled={loading || rows.length === 0}
+                />
               </th>
               {["ID","Client Name","Trading Name","Tel No","Mobile No","MPAN Top","Supplier","Annual Usage","Start Date","Contract End","Assigned To"].map((h, i) => (
-                <th key={h} className={`px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase ${i === 0 ? "w-20 border-r-2 border-gray-300" : "w-[9%]"} ${["Annual Usage","Start Date","Contract End"].includes(h) ? "whitespace-nowrap" : ""} ${h === "Annual Usage" ? "text-right" : ""}`}>{h}</th>
+                <th
+                  key={h}
+                  className={`px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase dark:text-slate-400 ${
+                    i === 0 ? "w-20 border-r-2 border-gray-300 dark:border-slate-700" : "w-[9%]"
+                  } ${["Annual Usage","Start Date","Contract End"].includes(h) ? "whitespace-nowrap" : ""} ${
+                    h === "Annual Usage" ? "text-right" : ""
+                  }`}
+                >
+                  {h}
+                </th>
               ))}
             </tr>
           </thead>
-          <tbody className="divide-y divide-gray-200 bg-white">
+          <tbody className="divide-y divide-gray-200 bg-white dark:divide-slate-800 dark:bg-slate-900">
             {loading ? (
-              <tr><td colSpan={12} className="px-6 py-12 text-center">
-                <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-current border-r-transparent text-gray-600" />
-                <p className="mt-4 text-gray-500">Loading drafts…</p>
-              </td></tr>
+              <tr>
+                <td colSpan={12} className="px-6 py-12 text-center">
+                  <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-current border-r-transparent text-gray-600 dark:text-slate-400" />
+                  <p className="mt-4 text-gray-500 dark:text-slate-400">Loading drafts…</p>
+                </td>
+              </tr>
             ) : rows.length === 0 ? (
-              <tr><td colSpan={12} className="px-6 py-12 text-center text-gray-500">
-                <Zap className="h-12 w-12 text-gray-400 mx-auto mb-3" />
-                <p className="text-lg">{emptyLabel}</p>
-                <p className="mt-2 text-sm">Import drafts to get started!</p>
-              </td></tr>
+              <tr>
+                <td colSpan={12} className="px-6 py-12 text-center text-gray-500 dark:text-slate-400">
+                  <Zap className="h-12 w-12 text-gray-400 dark:text-slate-500 mx-auto mb-3" />
+                  <p className="text-lg">{emptyLabel}</p>
+                  <p className="mt-2 text-sm">Import drafts to get started!</p>
+                </td>
+              </tr>
             ) : rows.map((row, idx) => {
               const isSel = selectedIds.includes(row.opportunity_id);
               return (
-                <tr key={row.opportunity_id} className={`hover:bg-gray-50 transition-colors ${isSel ? "bg-blue-50" : ""}`}>
+                <tr
+                  key={row.opportunity_id}
+                  className={`hover:bg-gray-50 dark:hover:bg-slate-800/50 transition-colors ${
+                    isSel ? "bg-blue-50 dark:bg-blue-950/40" : ""
+                  }`}
+                >
                   <td className="px-3 py-3 align-top" onClick={(e) => e.stopPropagation()}>
-                    <input type="checkbox" className="rounded border-gray-300 mt-1"
-                      checked={isSel} onChange={() => onToggle(row.opportunity_id)} />
+                    <input
+                      type="checkbox"
+                      className="rounded border-gray-300 mt-1 dark:border-slate-700 dark:bg-slate-800 dark:checked:bg-primary"
+                      checked={isSel}
+                      onChange={() => onToggle(row.opportunity_id)}
+                    />
                   </td>
-                  <td className="px-3 py-3 text-sm font-medium text-gray-900 border-r-2 border-gray-300 align-top">
-                    <div className="whitespace-nowrap">{(currentPage - 1) * DRAFTS_PER_PAGE + idx + 1}</div>
+                  <td className="px-3 py-3 text-sm font-medium text-gray-900 border-r-2 border-gray-300 align-top dark:border-slate-700 dark:text-slate-200">
+                    <div className="whitespace-nowrap font-mono text-xs">{(currentPage - 1) * DRAFTS_PER_PAGE + idx + 1}</div>
                   </td>
-                  <td className="px-3 py-3 text-sm text-gray-700 align-top overflow-hidden">
+                  <td className="px-3 py-3 text-sm text-gray-700 align-top overflow-hidden dark:text-slate-300">
                     <div className="leading-tight whitespace-normal break-words">{row.contact_person ?? "—"}</div>
                   </td>
-                  <td className="px-3 py-3 text-sm text-gray-900 align-top overflow-hidden">
+                  <td className="px-3 py-3 text-sm text-gray-900 font-medium align-top overflow-hidden dark:text-slate-200">
                     <div className="leading-tight whitespace-normal break-words">{row.business_name ?? "—"}</div>
                   </td>
-                  <td className="px-3 py-3 text-sm text-gray-900 align-top"><div className="whitespace-nowrap">{formatTel(row.tel_number)}</div></td>
-                  <td className="px-3 py-3 text-sm text-gray-900 align-top"><div className="whitespace-nowrap">{formatTel(row.mobile_no)}</div></td>
-                  <td className="px-3 py-3 text-sm text-gray-900 align-top overflow-hidden">
-                    <div className="truncate" title={row.mpan_mpr ?? ""}>{row.mpan_mpr || "—"}</div>
+                  <td className="px-3 py-3 text-sm text-gray-900 align-top dark:text-slate-300">
+                    <div className="whitespace-nowrap">{formatTel(row.tel_number)}</div>
                   </td>
-                  <td className="px-3 py-3 text-sm text-gray-900 align-top overflow-hidden">
+                  <td className="px-3 py-3 text-sm text-gray-900 align-top dark:text-slate-300">
+                    <div className="whitespace-nowrap">{formatTel(row.mobile_no)}</div>
+                  </td>
+                  <td className="px-3 py-3 text-sm text-gray-900 align-top overflow-hidden dark:text-slate-300">
+                    <div className="truncate font-mono text-xs" title={row.mpan_mpr ?? ""}>{row.mpan_mpr || "—"}</div>
+                  </td>
+                  <td className="px-3 py-3 text-sm text-gray-900 align-top overflow-hidden dark:text-slate-200">
                     <div className="truncate" title={row.supplier_name ?? ""}>{row.supplier_name || "—"}</div>
                   </td>
-                  <td className="px-3 py-3 text-sm text-gray-900 text-right align-top">
-                    <div className="whitespace-nowrap">{parseAnnualUsage(row.annual_usage)?.toLocaleString() || "—"}</div>
+                  <td className="px-3 py-3 text-sm text-gray-900 text-right align-top dark:text-slate-300">
+                    <div className="whitespace-nowrap font-mono">{parseAnnualUsage(row.annual_usage)?.toLocaleString() || "—"}</div>
                   </td>
-                  <td className="px-3 py-3 text-sm text-gray-900 align-top"><div className="whitespace-nowrap">{formatListDate(row.start_date)}</div></td>
-                  <td className="px-3 py-3 text-sm text-gray-900 align-top"><div className="whitespace-nowrap">{formatListDate(row.end_date)}</div></td>
+                  <td className="px-3 py-3 text-sm text-gray-900 align-top dark:text-slate-300">
+                    <div className="whitespace-nowrap">{formatListDate(row.start_date)}</div>
+                  </td>
+                  <td className="px-3 py-3 text-sm text-gray-900 align-top dark:text-slate-300">
+                    <div className="whitespace-nowrap">{formatListDate(row.end_date)}</div>
+                  </td>
                   <td className="px-3 py-3 align-top" onClick={(e) => e.stopPropagation()}>
-                    <Select value={row.opportunity_owner_employee_id?.toString() || "0"}
-                      onValueChange={(v) => onAssign(row.opportunity_id, v)}>
-                      <SelectTrigger className="h-7 text-xs w-full max-w-[150px]">
+                    <Select
+                      value={row.opportunity_owner_employee_id?.toString() || "0"}
+                      onValueChange={(v) => onAssign(row.opportunity_id, v)}
+                    >
+                      <SelectTrigger className="h-7 text-xs w-full max-w-[150px] dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100">
                         <SelectValue placeholder="Assign">{row.assigned_to_name || "Unassigned"}</SelectValue>
                       </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="0">Unassigned</SelectItem>
+                      <SelectContent className="dark:border-slate-800 dark:bg-slate-900">
+                        <SelectItem value="0" className="dark:hover:bg-slate-800">Unassigned</SelectItem>
                         {employees.map((e) => (
-                          <SelectItem key={e.employee_id} value={e.employee_id.toString()}>{e.employee_name}</SelectItem>
+                          <SelectItem key={e.employee_id} value={e.employee_id.toString()} className="dark:hover:bg-slate-800">
+                            {e.employee_name}
+                          </SelectItem>
                         ))}
                       </SelectContent>
                     </Select>

@@ -992,34 +992,34 @@ export default function LeadDetailsPage() {
   const displayLead = isEditing ? editedLead : lead;
 
   // ─────────────────────────────────────────────────────────────────────────
-  return (
-    <div className="min-h-screen bg-gray-50">
+ return (
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-950">
       {/* ── Header ─────────────────────────────────────────────────────────── */}
-      <div className="border-b border-gray-200 bg-white px-6 py-4 pr-[340px]">
+      <div className="border-b border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 px-6 py-4 pr-[400px]">
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-3">
             <button
               onClick={() =>
                 router.push(fromPage === "allocated" ? "/dashboard/allocated-renewals" : "/dashboard/leads")
               }
-              className="rounded-lg p-2 hover:bg-gray-100"
+              className="rounded-lg p-2 hover:bg-gray-100 dark:hover:bg-gray-800"
             >
-              <ArrowLeft className="h-5 w-5 text-gray-600" />
+              <ArrowLeft className="h-5 w-5 text-gray-600 dark:text-gray-300" />
             </button>
             <div>
-              <h1 className="text-2xl font-bold text-gray-900">Lead Details</h1>
-              <p className="text-sm text-gray-500">ID: {lead.tenant_lead_id || lead.opportunity_id}</p>
+              <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Lead Details</h1>
+              <p className="text-sm text-gray-500 dark:text-gray-400">ID: {lead.tenant_lead_id || lead.opportunity_id}</p>
             </div>
           </div>
 
           <div className="flex items-center space-x-3">
             {isEditing ? (
               <>
-                <Button onClick={handleCancel} variant="outline" disabled={isSaving}>
+                <Button onClick={handleCancel} variant="outline" disabled={isSaving} className="dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700">
                   <X className="mr-2 h-4 w-4" />
                   Cancel
                 </Button>
-                <Button onClick={handleSave} disabled={isSaving} className="bg-black hover:bg-gray-800">
+                <Button onClick={handleSave} disabled={isSaving} className="bg-black text-white hover:bg-gray-800 dark:bg-white dark:text-black dark:hover:bg-gray-200">
                   {isSaving ? (
                     <>
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -1034,7 +1034,7 @@ export default function LeadDetailsPage() {
                 </Button>
               </>
             ) : (
-              <Button onClick={() => setIsEditing(true)} variant="outline">
+              <Button onClick={() => setIsEditing(true)} variant="outline" className="dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700">
                 <Edit className="mr-2 h-4 w-4" />
                 Edit
               </Button>
@@ -1043,7 +1043,7 @@ export default function LeadDetailsPage() {
         </div>
 
         {/* Tabs */}
-        <div className="mt-4 flex space-x-1 border-b border-gray-200">
+        <div className="mt-4 flex space-x-1 border-b border-gray-200 dark:border-gray-800">
           {TABS.map((tab) => {
             const Icon = tab.icon;
             return (
@@ -1051,7 +1051,9 @@ export default function LeadDetailsPage() {
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
                 className={`flex items-center space-x-2 px-4 py-3 text-sm font-medium transition-colors ${
-                  activeTab === tab.id ? "border-b-2 border-black text-black" : "text-gray-600 hover:text-gray-900"
+                  activeTab === tab.id 
+                    ? "border-b-2 border-black dark:border-white text-black dark:text-white" 
+                    : "text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200"
                 }`}
               >
                 <Icon className="h-4 w-4" />
@@ -1063,116 +1065,116 @@ export default function LeadDetailsPage() {
       </div>
 
       {/* ── Tab Content ────────────────────────────────────────────────────── */}
-      <div className="p-6 pr-[340px]">
-        <div className="rounded-lg bg-white p-6 shadow-sm">
+      <div className="p-6 pr-[400px]">
+        <div className="rounded-lg bg-white dark:bg-gray-900 p-6 shadow-sm border border-transparent dark:border-gray-800">
           {/* ── Contact ── */}
           {activeTab === "contact" && (
             <div className="space-y-6">
-              <h2 className="text-lg font-semibold text-gray-900">Contact Information</h2>
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Contact Information</h2>
               <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
                 <div>
-                  <label className="text-sm font-medium text-gray-700">ID</label>
+                  <label className="text-sm font-medium text-gray-700 dark:text-gray-300">ID</label>
                   <Input
                     value={lead.tenant_lead_id || lead.opportunity_id || ""}
                     disabled
-                    className="mt-1 bg-gray-50"
+                    className="mt-1 bg-gray-50 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-300"
                   />
                 </div>
 
                 <div>
-                  <label className="text-sm font-medium text-gray-700">Client Name</label>
+                  <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Client Name</label>
                   <Input
                     value={displayLead.contact_person || ""}
                     onChange={(e) => handleUpdateField("contact_person", e.target.value)}
                     disabled={!isEditing}
-                    className="mt-1"
+                    className="mt-1 dark:bg-gray-800 dark:border-gray-700 dark:text-white"
                   />
                 </div>
 
                 <div>
-                  <label className="text-sm font-medium text-gray-700">Trading Name</label>
+                  <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Trading Name</label>
                   <Input
                     value={displayLead.business_name || ""}
                     onChange={(e) => handleUpdateField("business_name", e.target.value)}
                     disabled={!isEditing}
-                    className="mt-1"
+                    className="mt-1 dark:bg-gray-800 dark:border-gray-700 dark:text-white"
                   />
                 </div>
 
                 <div>
-                  <label className="text-sm font-medium text-gray-700">Position</label>
+                  <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Position</label>
                   <Input
                     value={displayLead.position || ""}
                     onChange={(e) => handleUpdateField("position", e.target.value)}
                     disabled={!isEditing}
-                    className="mt-1"
+                    className="mt-1 dark:bg-gray-800 dark:border-gray-700 dark:text-white"
                   />
                 </div>
 
                 <div>
-                  <label className="text-sm font-medium text-gray-700">
+                  <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
                     Tel Number <span className="text-red-500">*</span>
                   </label>
                   <Input
                     value={displayLead.tel_number || ""}
                     onChange={(e) => handleUpdateField("tel_number", e.target.value)}
                     disabled={!isEditing}
-                    className="mt-1"
+                    className="mt-1 dark:bg-gray-800 dark:border-gray-700 dark:text-white"
                   />
                 </div>
 
                 <div>
-                  <label className="text-sm font-medium text-gray-700">Mobile Number</label>
+                  <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Mobile Number</label>
                   <Input
                     value={displayLead.mobile_no || ""}
                     onChange={(e) => handleUpdateField("mobile_no", e.target.value)}
                     disabled={!isEditing}
-                    className="mt-1"
+                    className="mt-1 dark:bg-gray-800 dark:border-gray-700 dark:text-white"
                   />
                 </div>
 
                 <div>
-                  <label className="text-sm font-medium text-gray-700">Email</label>
+                  <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Email</label>
                   <Input
                     value={displayLead.email || ""}
                     onChange={(e) => handleUpdateField("email", e.target.value)}
                     disabled={!isEditing}
-                    className="mt-1"
+                    className="mt-1 dark:bg-gray-800 dark:border-gray-700 dark:text-white"
                   />
                 </div>
 
                 <div>
-                  <label className="text-sm font-medium text-gray-700">Company Number</label>
+                  <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Company Number</label>
                   <Input
                     value={displayLead.company_number || ""}
                     onChange={(e) => handleUpdateField("company_number", e.target.value)}
                     disabled={!isEditing}
-                    className="mt-1"
+                    className="mt-1 dark:bg-gray-800 dark:border-gray-700 dark:text-white"
                   />
                 </div>
 
                 <div>
-                  <label className="text-sm font-medium text-gray-700">Date of Birth</label>
+                  <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Date of Birth</label>
                   <Input
                     type="date"
                     value={displayLead.date_of_birth?.split("T")[0] || ""}
                     onChange={(e) => handleUpdateField("date_of_birth", e.target.value)}
                     disabled={!isEditing}
-                    className="mt-1"
+                    className="mt-1 dark:bg-gray-800 dark:border-gray-700 dark:text-white"
                   />
                 </div>
 
                 <div>
-                  <label className="text-sm font-medium text-gray-700">Agent Allocated</label>
+                  <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Agent Allocated</label>
                   {isEditing ? (
                     <Select
                       value={displayLead.opportunity_owner_employee_id?.toString() || ""}
                       onValueChange={(v) => handleUpdateField("opportunity_owner_employee_id", parseInt(v))}
                     >
-                      <SelectTrigger className="mt-1">
+                      <SelectTrigger className="mt-1 dark:bg-gray-800 dark:border-gray-700 dark:text-white">
                         <SelectValue placeholder="Select agent" />
                       </SelectTrigger>
-                      <SelectContent>
+                      <SelectContent className="dark:bg-gray-800 dark:border-gray-700 dark:text-white">
                         {employees.map((e) => (
                           <SelectItem key={e.employee_id} value={e.employee_id.toString()}>
                             {e.employee_name}
@@ -1181,13 +1183,13 @@ export default function LeadDetailsPage() {
                       </SelectContent>
                     </Select>
                   ) : (
-                    <Input value={displayLead.assigned_to_name || ""} disabled className="mt-1 bg-gray-50" />
+                    <Input value={displayLead.assigned_to_name || ""} disabled className="mt-1 bg-gray-50 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-300" />
                   )}
                 </div>
 
                 <div>
-                  <label className="text-sm font-medium text-gray-700">Agent Sold</label>
-                  <Input disabled className="mt-1 bg-gray-50" placeholder="—" />
+                  <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Agent Sold</label>
+                  <Input disabled className="mt-1 bg-gray-50 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-500" placeholder="—" />
                 </div>
               </div>
             </div>
@@ -1196,19 +1198,19 @@ export default function LeadDetailsPage() {
           {/* ── Contract ── */}
           {activeTab === "contract" && (
             <div className="space-y-6">
-              <h2 className="text-lg font-semibold text-gray-900">Contract & Billing Details</h2>
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Contract & Billing Details</h2>
               <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
                 <div>
-                  <label className="text-sm font-medium text-gray-700">New Supplier</label>
+                  <label className="text-sm font-medium text-gray-700 dark:text-gray-300">New Supplier</label>
                   {isEditing ? (
                     <Select
                       value={displayLead.supplier_id?.toString() || ""}
                       onValueChange={(v) => handleUpdateField("supplier_id", parseInt(v))}
                     >
-                      <SelectTrigger className="mt-1">
+                      <SelectTrigger className="mt-1 dark:bg-gray-800 dark:border-gray-700 dark:text-white">
                         <SelectValue placeholder="Select new supplier" />
                       </SelectTrigger>
-                      <SelectContent>
+                      <SelectContent className="dark:bg-gray-800 dark:border-gray-700 dark:text-white">
                         <SelectItem value="0">— None —</SelectItem>
                         {suppliers.map((s) => (
                           <SelectItem key={s.supplier_id} value={s.supplier_id.toString()}>
@@ -1218,22 +1220,22 @@ export default function LeadDetailsPage() {
                       </SelectContent>
                     </Select>
                   ) : (
-                    <Input value={displayLead.supplier_name || ""} disabled className="mt-1 bg-gray-50" />
+                    <Input value={displayLead.supplier_name || ""} disabled className="mt-1 bg-gray-50 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-300" />
                   )}
                 </div>
 
                 <div>
-                  <label className="text-sm font-medium text-gray-700">Site Name</label>
+                  <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Site Name</label>
                   <Input
                     value={displayLead.site_name || ""}
                     onChange={(e) => handleUpdateField("site_name", e.target.value)}
                     disabled={!isEditing}
-                    className="mt-1"
+                    className="mt-1 dark:bg-gray-800 dark:border-gray-700 dark:text-white"
                   />
                 </div>
 
                 <div>
-                  <label className="text-sm font-medium text-gray-700">Month Sold</label>
+                  <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Month Sold</label>
                   <Input
                     value={
                       displayLead.month_sold
@@ -1247,127 +1249,127 @@ export default function LeadDetailsPage() {
                     }
                     onChange={(e) => handleUpdateField("month_sold", e.target.value)}
                     disabled={!isEditing}
-                    className="mt-1"
+                    className="mt-1 dark:bg-gray-800 dark:border-gray-700 dark:text-white"
                   />
                 </div>
 
                 <div>
-                  <label className="text-sm font-medium text-gray-700">MPAN Top</label>
+                  <label className="text-sm font-medium text-gray-700 dark:text-gray-300">MPAN Top</label>
                   <Input
                     value={displayLead.mpan_mpr || ""}
                     onChange={(e) => handleUpdateField("mpan_mpr", e.target.value)}
                     disabled={!isEditing}
-                    className="mt-1"
+                    className="mt-1 dark:bg-gray-800 dark:border-gray-700 dark:text-white"
                   />
                 </div>
 
                 <div>
-                  <label className="text-sm font-medium text-gray-700">MPAN Bottom</label>
+                  <label className="text-sm font-medium text-gray-700 dark:text-gray-300">MPAN Bottom</label>
                   <Input
                     value={displayLead.mpan_bottom || ""}
                     onChange={(e) => handleUpdateField("mpan_bottom", e.target.value)}
                     disabled={!isEditing}
-                    className="mt-1"
+                    className="mt-1 dark:bg-gray-800 dark:border-gray-700 dark:text-white"
                   />
                 </div>
 
                 <div>
-                  <label className="text-sm font-medium text-gray-700">Data Source</label>
-                  <Input disabled className="mt-1 bg-gray-50" placeholder="—" />
+                  <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Data Source</label>
+                  <Input disabled className="mt-1 bg-gray-50 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-500" placeholder="—" />
                 </div>
 
                 <div>
-                  <label className="text-sm font-medium text-gray-700">Annual Usage (kWh)</label>
+                  <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Annual Usage (kWh)</label>
                   <Input
                     type="number"
                     value={displayLead.annual_usage || ""}
                     onChange={(e) => handleUpdateField("annual_usage", parseFloat(e.target.value))}
                     disabled={!isEditing}
-                    className="mt-1"
+                    className="mt-1 dark:bg-gray-800 dark:border-gray-700 dark:text-white"
                   />
                 </div>
 
                 <div>
-                  <label className="text-sm font-medium text-gray-700">Payment Type</label>
+                  <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Payment Type</label>
                   <Input
                     value={displayLead.payment_type || ""}
                     onChange={(e) => handleUpdateField("payment_type", e.target.value)}
                     disabled={!isEditing}
-                    className="mt-1"
+                    className="mt-1 dark:bg-gray-800 dark:border-gray-700 dark:text-white"
                   />
                 </div>
 
                 <div>
-                  <label className="text-sm font-medium text-gray-700">Start Date</label>
+                  <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Start Date</label>
                   <Input
                     type="date"
                     value={displayLead.start_date?.split("T")[0] || ""}
                     onChange={(e) => handleUpdateField("start_date", e.target.value)}
                     disabled={!isEditing}
-                    className="mt-1"
+                    className="mt-1 dark:bg-gray-800 dark:border-gray-700 dark:text-white"
                   />
                 </div>
 
                 <div>
-                  <label className="text-sm font-medium text-gray-700">Contract End</label>
+                  <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Contract End</label>
                   <Input
                     type="date"
                     value={displayLead.end_date?.split("T")[0] || ""}
                     onChange={(e) => handleUpdateField("end_date", e.target.value)}
                     disabled={!isEditing}
-                    className="mt-1"
+                    className="mt-1 dark:bg-gray-800 dark:border-gray-700 dark:text-white"
                   />
                 </div>
 
                 <div>
-                  <label className="text-sm font-medium text-gray-700">Term Sold (Years)</label>
+                  <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Term Sold (Years)</label>
                   <Input
                     type="number"
                     value={displayLead.term_sold || ""}
                     onChange={(e) => handleUpdateField("term_sold", parseFloat(e.target.value))}
                     disabled={!isEditing}
-                    className="mt-1"
+                    className="mt-1 dark:bg-gray-800 dark:border-gray-700 dark:text-white"
                   />
                 </div>
 
                 <div>
-                  <label className="text-sm font-medium text-gray-700">Net Notch</label>
+                  <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Net Notch</label>
                   <Input
                     type="number"
                     step="0.01"
                     value={displayLead.net_notch || ""}
                     onChange={(e) => handleUpdateField("net_notch", parseFloat(e.target.value))}
                     disabled={!isEditing}
-                    className="mt-1"
+                    className="mt-1 dark:bg-gray-800 dark:border-gray-700 dark:text-white"
                   />
                 </div>
 
                 <div>
-                  <label className="text-sm font-medium text-gray-700">Comms Paid (£)</label>
+                  <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Comms Paid (£)</label>
                   <Input
                     type="number"
                     step="0.01"
                     value={displayLead.comms_paid || ""}
                     onChange={(e) => handleUpdateField("comms_paid", parseFloat(e.target.value))}
                     disabled={!isEditing}
-                    className="mt-1"
+                    className="mt-1 dark:bg-gray-800 dark:border-gray-700 dark:text-white"
                   />
                 </div>
 
                 <div>
-                  <label className="text-sm font-medium text-gray-700">Aggregator</label>
+                  <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Aggregator</label>
                   <Input
                     value={displayLead.aggregator || ""}
                     onChange={(e) => handleUpdateField("aggregator", e.target.value)}
                     disabled={!isEditing}
-                    className="mt-1"
+                    className="mt-1 dark:bg-gray-800 dark:border-gray-700 dark:text-white"
                   />
                 </div>
 
                 {/* Documents */}
-                <div className="mt-6 border-t pt-6 md:col-span-2">
+                <div className="mt-6 border-t dark:border-gray-800 pt-6 md:col-span-2">
                   <div className="mb-4 flex items-center justify-between">
-                    <label className="text-sm font-medium text-gray-700">Documents</label>
+                    <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Documents</label>
                     <div>
                       <input
                         type="file"
@@ -1384,6 +1386,7 @@ export default function LeadDetailsPage() {
                         size="sm"
                         onClick={() => document.getElementById("document-upload")?.click()}
                         disabled={isUploadingDocument}
+                        className="dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
                       >
                         {isUploadingDocument ? (
                           <>
@@ -1404,11 +1407,11 @@ export default function LeadDetailsPage() {
                       {uploadedDocuments.map((doc, i) => (
                         <div
                           key={i}
-                          className="flex items-center justify-between rounded-lg border border-gray-200 bg-gray-50 p-3"
+                          className="flex items-center justify-between rounded-lg border border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-800/50 p-3"
                         >
                           <div className="flex min-w-0 flex-1 items-center space-x-3">
-                            <File className="h-5 w-5 flex-shrink-0 text-gray-400" />
-                            <span className="truncate text-sm text-gray-700">{getFileName(doc)}</span>
+                            <File className="h-5 w-5 flex-shrink-0 text-gray-400 dark:text-gray-500" />
+                            <span className="truncate text-sm text-gray-700 dark:text-gray-300">{getFileName(doc)}</span>
                           </div>
                           <div className="ml-4 flex items-center space-x-2">
                             <Button
@@ -1416,6 +1419,7 @@ export default function LeadDetailsPage() {
                               size="sm"
                               onClick={() => window.open(doc, "_blank")}
                               title="Download"
+                              className="dark:text-gray-300 dark:hover:bg-gray-700"
                             >
                               <Download className="h-4 w-4" />
                             </Button>
@@ -1423,7 +1427,7 @@ export default function LeadDetailsPage() {
                               variant="ghost"
                               size="sm"
                               onClick={() => handleDeleteDocument(i)}
-                              className="text-red-600 hover:bg-red-50 hover:text-red-700"
+                              className="text-red-600 hover:bg-red-50 hover:text-red-700 dark:hover:bg-red-950/50"
                               title="Delete"
                             >
                               <Trash2 className="h-4 w-4" />
@@ -1433,10 +1437,10 @@ export default function LeadDetailsPage() {
                       ))}
                     </div>
                   ) : (
-                    <div className="rounded-lg border-2 border-dashed border-gray-200 bg-gray-50 p-6 text-center">
-                      <File className="mx-auto mb-2 h-8 w-8 text-gray-400" />
-                      <p className="text-sm text-gray-500">No documents uploaded yet</p>
-                      <p className="mt-1 text-xs text-gray-400">Click "Upload Documents" to add files</p>
+                    <div className="rounded-lg border-2 border-dashed border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-800/20 p-6 text-center">
+                      <File className="mx-auto mb-2 h-8 w-8 text-gray-400 dark:text-gray-600" />
+                      <p className="text-sm text-gray-500 dark:text-gray-400">No documents uploaded yet</p>
+                      <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">Click "Upload Documents" to add files</p>
                     </div>
                   )}
                 </div>
@@ -1447,7 +1451,7 @@ export default function LeadDetailsPage() {
           {/* ── Address ── */}
           {activeTab === "address" && (
             <div className="space-y-6">
-              <h2 className="text-lg font-semibold text-gray-900">Address</h2>
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Address</h2>
               <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
                 {(
                   [
@@ -1457,17 +1461,16 @@ export default function LeadDetailsPage() {
                     { label: "Street", field: "address" },
                     { label: "Town", field: "town" },
                     { label: "County", field: "county" },
-                    // Opportunity_Details uses "postcode" not "post_code"
                     { label: "Post Code", field: "postcode" },
                   ] as { label: string; field: keyof Lead }[]
                 ).map(({ label, field }) => (
                   <div key={field}>
-                    <label className="text-sm font-medium text-gray-700">{label}</label>
+                    <label className="text-sm font-medium text-gray-700 dark:text-gray-300">{label}</label>
                     <Input
                       value={(displayLead as any)[field] || ""}
                       onChange={(e) => handleUpdateField(field, e.target.value)}
                       disabled={!isEditing}
-                      className="mt-1"
+                      className="mt-1 dark:bg-gray-800 dark:border-gray-700 dark:text-white"
                     />
                   </div>
                 ))}
@@ -1478,7 +1481,7 @@ export default function LeadDetailsPage() {
           {/* ── Charges ── */}
           {activeTab === "charges" && (
             <div className="space-y-6">
-              <h2 className="text-lg font-semibold text-gray-900">Charges</h2>
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Charges</h2>
               <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
                 {(
                   [
@@ -1494,14 +1497,14 @@ export default function LeadDetailsPage() {
                   ] as { label: string; field: keyof Lead; step: string }[]
                 ).map(({ label, field, step }) => (
                   <div key={field}>
-                    <label className="text-sm font-medium text-gray-700">{label}</label>
+                    <label className="text-sm font-medium text-gray-700 dark:text-gray-300">{label}</label>
                     <Input
                       type="number"
                       step={step}
                       value={(displayLead as any)[field] || ""}
                       onChange={(e) => handleUpdateField(field, parseFloat(e.target.value))}
                       disabled={!isEditing}
-                      className="mt-1"
+                      className="mt-1 dark:bg-gray-800 dark:border-gray-700 dark:text-white"
                     />
                   </div>
                 ))}
@@ -1512,52 +1515,52 @@ export default function LeadDetailsPage() {
           {/* ── Banking ── */}
           {activeTab === "banking" && (
             <div className="space-y-6">
-              <h2 className="text-lg font-semibold text-gray-900">Bank & Trading Account Details</h2>
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Bank & Trading Account Details</h2>
               <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
                 <div>
-                  <label className="text-sm font-medium text-gray-700">Bank Name</label>
+                  <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Bank Name</label>
                   <Input
                     value={displayLead.bank_name || ""}
                     onChange={(e) => handleUpdateField("bank_name", e.target.value)}
                     disabled={!isEditing}
-                    className="mt-1"
+                    className="mt-1 dark:bg-gray-800 dark:border-gray-700 dark:text-white"
                   />
                 </div>
                 <div>
-                  <label className="text-sm font-medium text-gray-700">Account Number</label>
+                  <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Account Number</label>
                   <Input
                     value={displayLead.bank_account_number || ""}
                     onChange={(e) => handleUpdateField("bank_account_number", e.target.value)}
                     disabled={!isEditing}
-                    className="mt-1"
+                    className="mt-1 dark:bg-gray-800 dark:border-gray-700 dark:text-white"
                   />
                 </div>
                 <div>
-                  <label className="text-sm font-medium text-gray-700">Sort Code</label>
+                  <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Sort Code</label>
                   <Input
                     value={displayLead.bank_sort_code || ""}
                     onChange={(e) => handleUpdateField("bank_sort_code", e.target.value)}
                     disabled={!isEditing}
-                    className="mt-1"
+                    className="mt-1 dark:bg-gray-800 dark:border-gray-700 dark:text-white"
                     placeholder="XX-XX-XX"
                   />
                 </div>
                 <div>
-                  <label className="text-sm font-medium text-gray-700">Charity/Ltd Company Number</label>
+                  <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Charity/Ltd Company Number</label>
                   <Input
                     value={displayLead.charity_ltd_company_number || ""}
                     onChange={(e) => handleUpdateField("charity_ltd_company_number", e.target.value)}
                     disabled={!isEditing}
-                    className="mt-1"
+                    className="mt-1 dark:bg-gray-800 dark:border-gray-700 dark:text-white"
                   />
                 </div>
                 <div className="md:col-span-2">
-                  <label className="text-sm font-medium text-gray-700">Partner Details</label>
+                  <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Partner Details</label>
                   <Textarea
                     value={displayLead.partner_details || ""}
                     onChange={(e) => handleUpdateField("partner_details", e.target.value)}
                     disabled={!isEditing}
-                    className="mt-1"
+                    className="mt-1 dark:bg-gray-800 dark:border-gray-700 dark:text-white"
                     rows={3}
                     placeholder="Enter partner details..."
                   />
@@ -1569,35 +1572,35 @@ export default function LeadDetailsPage() {
           {/* ── Others ── */}
           {activeTab === "others" && (
             <div className="space-y-6">
-              <h2 className="text-lg font-semibold text-gray-900">Others</h2>
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Others</h2>
               <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
                 <div>
-                  <label className="text-sm font-medium text-gray-700">Meter Ref</label>
+                  <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Meter Ref</label>
                   <Input
                     value={displayLead.meter_ref || ""}
                     onChange={(e) => handleUpdateField("meter_ref", e.target.value)}
                     disabled={!isEditing}
-                    className="mt-1"
+                    className="mt-1 dark:bg-gray-800 dark:border-gray-700 dark:text-white"
                   />
                 </div>
                 <div>
-                  <label className="text-sm font-medium text-gray-700">Uplift</label>
+                  <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Uplift</label>
                   <Input
                     type="number"
                     step="0.01"
                     value={displayLead.uplift || ""}
                     onChange={(e) => handleUpdateField("uplift", parseFloat(e.target.value))}
                     disabled={!isEditing}
-                    className="mt-1"
+                    className="mt-1 dark:bg-gray-800 dark:border-gray-700 dark:text-white"
                   />
                 </div>
                 <div className="md:col-span-2">
-                  <label className="text-sm font-medium text-gray-700">Comments</label>
+                  <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Comments</label>
                   <Textarea
                     value={displayLead.comments || ""}
                     onChange={(e) => handleUpdateField("comments", e.target.value)}
                     disabled={!isEditing}
-                    className="mt-1"
+                    className="mt-1 dark:bg-gray-800 dark:border-gray-700 dark:text-white"
                     rows={4}
                   />
                 </div>
@@ -1609,19 +1612,19 @@ export default function LeadDetailsPage() {
 
       {/* ── Assign Modal ─────────────────────────────────────────────────────── */}
       <Dialog open={showAssignmentModal} onOpenChange={setShowAssignmentModal}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-md dark:bg-gray-900 dark:border-gray-800 dark:text-white">
           <DialogHeader>
-            <DialogTitle>Assign Salesperson</DialogTitle>
-            <DialogDescription>Add an optional note about this assignment</DialogDescription>
+            <DialogTitle className="dark:text-white">Assign Salesperson</DialogTitle>
+            <DialogDescription className="dark:text-gray-400">Add an optional note about this assignment</DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <div>
-              <label className="text-sm font-medium text-gray-700">Assigned To</label>
+              <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Assigned To</label>
               <Select value={assigningEmployeeId} onValueChange={setAssigningEmployeeId}>
-                <SelectTrigger className="mt-1">
+                <SelectTrigger className="mt-1 dark:bg-gray-800 dark:border-gray-700 dark:text-white">
                   <SelectValue placeholder="Select salesperson" />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="dark:bg-gray-800 dark:border-gray-700 dark:text-white">
                   <SelectItem value="0">Unassigned</SelectItem>
                   {employees.map((e) => (
                     <SelectItem key={e.employee_id} value={e.employee_id.toString()}>
@@ -1632,9 +1635,9 @@ export default function LeadDetailsPage() {
               </Select>
             </div>
             <div>
-              <label className="text-sm font-medium text-gray-700">Assignment Notes (Optional)</label>
+              <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Assignment Notes (Optional)</label>
               <Textarea
-                className="mt-1"
+                className="mt-1 dark:bg-gray-800 dark:border-gray-700 dark:text-white"
                 placeholder="Why is this being assigned? Any specific instructions..."
                 value={assignmentNotes}
                 onChange={(e) => setAssignmentNotes(e.target.value)}
@@ -1651,10 +1654,15 @@ export default function LeadDetailsPage() {
                 setAssignmentNotes("");
               }}
               disabled={isAssigningEmployee}
+              className="dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
             >
               Cancel
             </Button>
-            <Button onClick={handleAssignEmployee} disabled={isAssigningEmployee}>
+            <Button 
+              onClick={handleAssignEmployee} 
+              disabled={isAssigningEmployee}
+              className="dark:bg-white dark:text-black dark:hover:bg-gray-200"
+            >
               {isAssigningEmployee ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -1667,356 +1675,504 @@ export default function LeadDetailsPage() {
           </div>
         </DialogContent>
       </Dialog>
+ {/* ── Action Panel / Interaction Sidebar ─────────────────────────────── */}
+<div className="fixed top-0 right-0 z-30 flex h-screen w-[380px] flex-col gap-3 overflow-y-auto border-l border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-950 p-4 pt-4 text-gray-900 dark:text-gray-100">
 
-      {/* ── Action Panel (fixed right sidebar) ───────────────────────────────── */}
-      <div className="fixed top-0 right-0 h-full w-80 overflow-y-auto border-l border-gray-200 bg-gray-50 p-6 pt-16">
-        <h3 className="mb-4 text-lg font-semibold text-gray-900">Action</h3>
+  {/* ── Log Interaction Card ─────────────────────────────────────────── */}
+  <div className="rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 p-4 shadow-sm">
 
-        <div className="space-y-4">
-          {/* Assign To */}
-          <div>
-            <label className="text-sm font-medium text-gray-700">Assign to:</label>
-            <Select
-              value={lead.opportunity_owner_employee_id?.toString() || "0"}
-              onValueChange={(v) => {
-                setAssigningEmployeeId(v);
-                setAssignmentNotes("");
-                setShowAssignmentModal(true);
-              }}
-            >
-              <SelectTrigger className="mt-1">
-                <SelectValue placeholder="Unassigned">{lead.assigned_to_name || "Unassigned"}</SelectValue>
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="0">Unassigned</SelectItem>
-                {employees.map((e) => (
-                  <SelectItem key={e.employee_id} value={e.employee_id.toString()}>
-                    {e.employee_name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+    <div className="mb-4">
+      <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+        Log Interaction
+      </h3>
+      <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+        Update status and record outcomes
+      </p>
+    </div>
 
-          {/* Status */}
-          <div>
-            <label className="text-sm font-medium text-gray-700">
-              Status: <span className="text-red-500">*</span>
-            </label>
-            <Select
-              value={callbackStatus}
-              onValueChange={(v) => {
-                if (v === "CLEAR_STATUS") {
-                  handleClearStatus();
-                  return;
-                }
-                setCallbackStatus(v);
-                setCallbackNotes("");
-                setIsSold("");
-                setNewStartDate("");
-                setNewEndDate("");
-                setNewSupplier("");
-                setNewAddress("");
-                setCalledDate(new Date().toISOString().split("T")[0]);
-                setRenewedBy("");
-              }}
-            >
-              <SelectTrigger className="mt-1 w-full">
-                <SelectValue placeholder="Set status" />
-              </SelectTrigger>
-              <SelectContent>
-                {STATUS_OPTIONS.map((o) => (
-                  <SelectItem key={o.value} value={o.value}>
-                    {o.label}
-                  </SelectItem>
-                ))}
-                {lead.stage_name && (
-                  <>
-                    <div className="my-1 border-t" />
-                    <SelectItem value="CLEAR_STATUS" className="text-red-600">
-                      ✕ Clear Status
-                    </SelectItem>
-                  </>
-                )}
-              </SelectContent>
-            </Select>
-          </div>
+    <div className="space-y-4">
 
-          {/* Called Date */}
-          {callbackStatus && (
-            <div>
-              <label className="text-sm font-medium text-gray-700">Called Date</label>
-              <Input type="date" className="mt-1" value={calledDate} onChange={(e) => setCalledDate(e.target.value)} />
-            </div>
-          )}
+      {/* Assigned Agent */}
+      <div>
+        <label className="text-xs font-medium text-gray-600 dark:text-gray-400">
+          Assigned Agent
+        </label>
 
-          {/* Was it sold? */}
-          {currentConfig?.requiresSold && (
-            <div>
-              <label className="text-sm font-medium text-gray-700">
-                Was it sold? <span className="text-red-500">*</span>
-              </label>
-              <Select value={isSold} onValueChange={setIsSold}>
-                <SelectTrigger className="mt-1">
-                  <SelectValue placeholder="Select" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="yes">Yes - Sold</SelectItem>
-                  <SelectItem value="no">No - Move to Priced</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          )}
+        <Select
+          value={lead.opportunity_owner_employee_id?.toString() || "0"}
+          onValueChange={(v) => {
+            setAssigningEmployeeId(v);
+            setAssignmentNotes("");
+            setShowAssignmentModal(true);
+          }}
+        >
+          <SelectTrigger className="mt-1 h-9 border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100">
+            <SelectValue placeholder="Unassigned">
+              {lead.assigned_to_name || "Unassigned"}
+            </SelectValue>
+          </SelectTrigger>
 
-          {/* Callback Date */}
-          {callbackStatus && (
-            <div>
-              <label className="text-sm font-medium text-gray-700">
-                {callbackStatus === "Already Renewed" || callbackStatus === "Sold" ? "Callback Date:" : "Callback Date:"}
-              </label>
-              <Input
-                type="date"
-                className="mt-1"
-                value={callbackDate}
-                onChange={(e) => setCallbackDate(e.target.value)}
-              />
-            </div>
-          )}
+          <SelectContent className="border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100">
+            <SelectItem value="0" className="focus:bg-gray-100 dark:focus:bg-gray-800 focus:text-gray-900 dark:focus:text-gray-100">Unassigned</SelectItem>
 
-          {/* New Contract End Date */}
-          {(callbackStatus === "Already Renewed" || callbackStatus === "Sold") && renewedBy === "agent" && (
-            <div>
-              <label className="text-sm font-medium text-gray-700">
-                Contract Start Date: <span className="text-red-500">*</span>
-              </label>
-              <Input type="date" className="mt-1" value={newStartDate} onChange={(e) => setNewStartDate(e.target.value)} />
-            </div>
-          )}
-
-          {currentConfig?.requiresNewEndDate && (
-            <div>
-              <label className="text-sm font-medium text-gray-700">
-                New Contract End Date: <span className="text-red-500">*</span>
-              </label>
-              <Input type="date" className="mt-1" value={newEndDate} onChange={(e) => setNewEndDate(e.target.value)} />
-              <p className="mt-1 text-xs text-gray-500">Contract end date will be updated</p>
-            </div>
-          )}
-
-          {/* Renewed By */}
-          {(callbackStatus === "Already Renewed" || callbackStatus === "Sold") && (
-            <div>
-              <label className="text-sm font-medium text-gray-700">
-                {callbackStatus === "Sold" ? "Sold By" : "Renewed By"} <span className="text-red-500">*</span>
-              </label>
-              <div className="mt-1 flex flex-col gap-2 rounded-lg border bg-white p-3">
-                {(callbackStatus === "Sold" ? (["supplier", "agent"] as const) : (["customer", "agent"] as const)).map((v) => (
-                  <label key={v} className="flex cursor-pointer items-center gap-3">
-                    <input
-                      type="radio"
-                      name="renewedBy_action_panel"
-                      value={v}
-                      checked={renewedBy === v}
-                      onChange={() => setRenewedBy(v)}
-                      className="h-4 w-4 accent-black"
-                    />
-                    <div>
-                      <span className="text-sm font-medium text-gray-900">
-                        {callbackStatus === "Sold" ? `Sold by ${v.charAt(0).toUpperCase() + v.slice(1)}` : `Renewed by ${v.charAt(0).toUpperCase() + v.slice(1)}`}
-                      </span>
-                      <p className="text-xs text-gray-500">
-                        {v === "agent" ? "Counts for agent commission" : callbackStatus === "Sold" ? "Sold directly by supplier" : "Counts as Renewed Directly"}
-                      </p>
-                    </div>
-                  </label>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Deletion Warning */}
-          {currentConfig?.deletesRecord && (
-            <Alert className="mt-2">
-              <AlertCircle className="h-4 w-4" />
-              <AlertDescription>
-                <strong>Warning:</strong> This will permanently delete the record.
-              </AlertDescription>
-            </Alert>
-          )}
-
-          {/* New Supplier */}
-          {(callbackStatus === "Already Renewed" || callbackStatus === "Sold") && (
-            <div>
-              <label className="text-sm font-medium text-gray-700">
-                New Supplier <span className="font-normal text-gray-400">(Optional)</span>
-              </label>
-              <Input
-                type="text"
-                className="mt-1"
-                placeholder="Enter new supplier name"
-                value={newSupplier}
-                onChange={(e) => setNewSupplier(e.target.value)}
-              />
-              <p className="mt-1 text-xs text-gray-500">Leave blank if supplier hasn't changed</p>
-            </div>
-          )}
-
-          {/* New Address */}
-          {(callbackStatus === "Already Renewed" || callbackStatus === "Sold") && (
-            <div>
-              <label className="text-sm font-medium text-gray-700">
-                New Address <span className="font-normal text-gray-400">(Optional)</span>
-              </label>
-              <Textarea
-                className="mt-1"
-                rows={2}
-                placeholder="Enter new address if changed"
-                value={newAddress}
-                onChange={(e) => setNewAddress(e.target.value)}
-              />
-              <p className="mt-1 text-xs text-gray-500">Leave blank if address hasn't changed</p>
-            </div>
-          )}
-
-          {/* Notes */}
-          <div>
-            <label className="text-sm font-medium text-gray-700">
-              Notes: {currentConfig?.requiresNotes && <span className="text-red-500">*</span>}
-            </label>
-            <Textarea
-              className="mt-1"
-              rows={3}
-              placeholder={currentConfig?.requiresNotes ? "Enter reason why it was lost..." : "Add notes..."}
-              value={callbackNotes}
-              onChange={(e) => setCallbackNotes(e.target.value)}
-            />
-            {currentConfig?.requiresNotes && <p className="mt-1 text-xs text-gray-500">Required for Lost/Lost COT</p>}
-          </div>
-
-          {/* Error */}
-          {callbackError && (
-            <Alert variant="destructive">
-              <AlertCircle className="h-4 w-4" />
-              <AlertDescription>{callbackError}</AlertDescription>
-            </Alert>
-          )}
-
-          {/* Save */}
-          <Button
-            className="w-full bg-black hover:bg-gray-800"
-            onClick={handleSubmitCallback}
-            disabled={isSubmittingCallback}
-          >
-            {isSubmittingCallback ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Saving...
-              </>
-            ) : callbackStatus ? (
-              `Save ${callbackStatus}`
-            ) : (
-              "Save Action"
-            )}
-          </Button>
-        </div>
-
-        {/* ── History ─────────────────────────────────────────────────────── */}
-        <div className="mt-8">
-          <h3 className="mb-3 text-lg font-semibold text-gray-900">History</h3>
-
-          {loadingHistory ? (
-            <div className="flex items-center justify-center py-4">
-              <Loader2 className="h-5 w-5 animate-spin text-gray-400" />
-            </div>
-          ) : history.length === 0 ? (
-            <p className="text-sm text-gray-500">No interactions yet</p>
-          ) : (
-            <div className="space-y-3">
-              {history.map((interaction) => {
-                const rawNotes = interaction.notes || "";
-
-                // ✅ Extract just the user-entered note after the last "|"
-                // Format is: "[Status] Status: Old → New | user note here"
-                const pipeIndex = rawNotes.indexOf(" | ");
-                const cleanNotes =
-                  pipeIndex !== -1
-                    ? rawNotes.slice(pipeIndex + 3).trim() // ✅ everything after " | "
-                    : rawNotes
-                        .replace(/^\[.*?\]\s*/, "") // remove [Status] prefix
-                        .replace(/^Status:[^|]*(\|)?/, "") // remove "Status: X → Y" part
-                        .trim();
-                const displayStatus = interaction.interaction_type || "Unknown";
-                const actionOptionLabel = getActionOptionLabelFromNotes(rawNotes);
-
-                // ✅ Check if this is a callback with a reminder date
-                const hasCallback =
-                  interaction.reminder_date &&
-                  [
-                    "Callback",
-                    "Called",
-                    "Not Answered",
-                    "Broker in Place",
-                    "End Date Changed",
-                    "Already Renewed",
-                  ].includes(displayStatus);
-
-                return (
-                  <div
-                    key={interaction.interaction_id}
-                    className="group relative rounded-lg border border-gray-200 bg-white p-3 text-sm"
-                  >
-                    {/* ✅ DELETE BUTTON - Shows on hover */}
-                    <button
-                      onClick={() => handleDeleteInteraction(interaction.interaction_id)}
-                      className="absolute top-2 right-2 rounded p-1 opacity-0 transition-opacity group-hover:opacity-100 hover:bg-red-50"
-                      title="Delete this entry"
-                    >
-                      <Trash2 className="h-4 w-4 text-red-600" />
-                    </button>
-
-                    {/* ✅ Show the actual status */}
-                    <div className="mb-2">
-                      <span className="font-semibold text-gray-900">{displayStatus}</span>
-                    </div>
-
-                    {/* ✅ ALWAYS show notes if they exist */}
-                    {actionOptionLabel && (
-                      <div className="mb-2">
-                        <span className="inline-flex rounded-full bg-slate-100 px-2 py-1 text-xs font-medium text-slate-700">
-                          {actionOptionLabel}
-                        </span>
-                      </div>
-                    )}
-
-                    {cleanNotes && <p className="mb-2 pr-8 text-xs text-gray-600">{cleanNotes}</p>}
-
-                    {/* ✅ Show callback/reminder date with calendar icon - ONLY for callback-type statuses */}
-                    {hasCallback && (
-                      <div className="mb-1 flex items-center gap-1 text-xs text-purple-700">
-                        <Calendar className="h-3 w-3" />
-                        <span>Callback: {formatDate(interaction.reminder_date)}</span>
-                      </div>
-                    )}
-
-                    {/* ✅ Show timestamp for when this was created */}
-                    {interaction.created_at && (
-                      <div className="mt-1 text-xs text-gray-400">
-                        {new Date(interaction.created_at).toLocaleString("en-GB", {
-                          day: "2-digit",
-                          month: "2-digit",
-                          year: "numeric",
-                          hour: "2-digit",
-                          minute: "2-digit",
-                        })}
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
+            {employees.map((e) => (
+              <SelectItem
+                key={e.employee_id}
+                value={e.employee_id.toString()}
+                className="focus:bg-gray-100 dark:focus:bg-gray-800 focus:text-gray-900 dark:focus:text-gray-100"
+              >
+                {e.employee_name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
+
+      {/* Status */}
+      <div>
+        <label className="text-xs font-medium text-gray-600 dark:text-gray-400">
+          Status <span className="text-red-500 dark:text-red-400">*</span>
+        </label>
+
+        <Select
+          value={callbackStatus}
+          onValueChange={(v) => {
+            if (v === "CLEAR_STATUS") {
+              handleClearStatus();
+              return;
+            }
+
+            setCallbackStatus(v);
+            setCallbackNotes("");
+            setIsSold("");
+            setNewStartDate("");
+            setNewEndDate("");
+            setNewSupplier("");
+            setNewAddress("");
+            setCalledDate(new Date().toISOString().split("T")[0]);
+            setRenewedBy("");
+          }}
+        >
+          <SelectTrigger className="mt-1 h-9 w-full border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100">
+            <SelectValue placeholder="Set status" />
+          </SelectTrigger>
+
+          <SelectContent className="border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100">
+            {STATUS_OPTIONS.map((o) => (
+              <SelectItem key={o.value} value={o.value} className="focus:bg-gray-100 dark:focus:bg-gray-800 focus:text-gray-900 dark:focus:text-gray-100">
+                {o.label}
+              </SelectItem>
+            ))}
+
+            {lead.stage_name && (
+              <>
+                <div className="my-1 border-t border-gray-200 dark:border-gray-800" />
+
+                <SelectItem
+                  value="CLEAR_STATUS"
+                  className="text-red-600 dark:text-red-400 focus:bg-gray-100 dark:focus:bg-gray-800 focus:text-red-700 dark:focus:text-red-300"
+                >
+                  ✕ Clear Status
+                </SelectItem>
+              </>
+            )}
+          </SelectContent>
+        </Select>
+      </div>
+
+      {/* Called Date */}
+      {callbackStatus && (
+        <div>
+          <label className="text-xs font-medium text-gray-600 dark:text-gray-400">
+            Contact Date
+          </label>
+
+          <Input
+            type="date"
+            className="mt-1 h-9 border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100"
+            value={calledDate}
+            onChange={(e) => setCalledDate(e.target.value)}
+          />
+        </div>
+      )}
+
+      {/* Was it sold? */}
+      {currentConfig?.requiresSold && (
+        <div>
+          <label className="text-xs font-medium text-gray-600 dark:text-gray-400">
+            Was it sold? <span className="text-red-500 dark:text-red-400">*</span>
+          </label>
+
+          <Select value={isSold} onValueChange={setIsSold}>
+            <SelectTrigger className="mt-1 h-9 border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100">
+              <SelectValue placeholder="Select" />
+            </SelectTrigger>
+
+            <SelectContent className="border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100">
+              <SelectItem value="yes" className="focus:bg-gray-100 dark:focus:bg-gray-800 focus:text-gray-900 dark:focus:text-gray-100">
+                Yes - Sold
+              </SelectItem>
+
+              <SelectItem value="no" className="focus:bg-gray-100 dark:focus:bg-gray-800 focus:text-gray-900 dark:focus:text-gray-100">
+                No - Move to Priced
+              </SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      )}
+
+      {/* Callback Date */}
+      {callbackStatus && (
+        <div>
+          <label className="text-xs font-medium text-gray-600 dark:text-gray-400">
+            Callback Date
+          </label>
+
+          <Input
+            type="date"
+            className="mt-1 h-9 border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100"
+            value={callbackDate}
+            onChange={(e) => setCallbackDate(e.target.value)}
+          />
+        </div>
+      )}
+
+      {/* Contract Start Date */}
+      {(callbackStatus === "Already Renewed" ||
+        callbackStatus === "Sold") &&
+        renewedBy === "agent" && (
+          <div>
+            <label className="text-xs font-medium text-gray-600 dark:text-gray-400">
+              Contract Start Date{" "}
+              <span className="text-red-500 dark:text-red-400">*</span>
+            </label>
+
+            <Input
+              type="date"
+              className="mt-1 h-9 border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100"
+              value={newStartDate}
+              onChange={(e) => setNewStartDate(e.target.value)}
+            />
+          </div>
+        )}
+
+      {/* New Contract End Date */}
+      {currentConfig?.requiresNewEndDate && (
+        <div>
+          <label className="text-xs font-medium text-gray-600 dark:text-gray-400">
+            New Contract End Date{" "}
+            <span className="text-red-500 dark:text-red-400">*</span>
+          </label>
+
+          <Input
+            type="date"
+            className="mt-1 h-9 border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100"
+            value={newEndDate}
+            onChange={(e) => setNewEndDate(e.target.value)}
+          />
+
+          <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+            Contract end date will be updated
+          </p>
+        </div>
+      )}
+
+      {/* Renewed / Sold By */}
+      {(callbackStatus === "Already Renewed" ||
+        callbackStatus === "Sold") && (
+        <div>
+          <label className="text-xs font-medium text-gray-600 dark:text-gray-400">
+            {callbackStatus === "Sold" ? "Sold By" : "Renewed By"}{" "}
+            <span className="text-red-500 dark:text-red-400">*</span>
+          </label>
+
+          <div className="mt-1 flex flex-col gap-2 rounded-lg border border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-900 p-3">
+            {(callbackStatus === "Sold"
+              ? (["supplier", "agent"] as const)
+              : (["customer", "agent"] as const)
+            ).map((v) => (
+              <label
+                key={v}
+                className="flex cursor-pointer items-center gap-3"
+              >
+                <input
+                  type="radio"
+                  name="renewedBy_action_panel"
+                  value={v}
+                  checked={renewedBy === v}
+                  onChange={() => setRenewedBy(v)}
+                  className="h-4 w-4 accent-black dark:accent-white"
+                />
+
+                <div>
+                  <span className="text-sm font-medium text-gray-800 dark:text-gray-200">
+                    {callbackStatus === "Sold"
+                      ? `Sold by ${
+                          v.charAt(0).toUpperCase() + v.slice(1)
+                        }`
+                      : `Renewed by ${
+                          v.charAt(0).toUpperCase() + v.slice(1)
+                        }`}
+                  </span>
+
+                  <p className="text-xs text-gray-500 dark:text-gray-400">
+                    {v === "agent"
+                      ? "Counts for agent commission"
+                      : callbackStatus === "Sold"
+                      ? "Sold directly by supplier"
+                      : "Counts as Renewed Directly"}
+                  </p>
+                </div>
+              </label>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Deletion Warning */}
+      {currentConfig?.deletesRecord && (
+        <Alert className="mt-2 border-red-200 dark:border-red-900 bg-red-50 dark:bg-red-950/40 text-red-800 dark:text-red-300">
+          <AlertCircle className="h-4 w-4 text-red-600 dark:text-red-400" />
+
+          <AlertDescription>
+            <strong>Warning:</strong> This will permanently delete the record.
+          </AlertDescription>
+        </Alert>
+      )}
+
+      {/* New Supplier */}
+      {(callbackStatus === "Already Renewed" ||
+        callbackStatus === "Sold") && (
+        <div>
+          <label className="text-xs font-medium text-gray-600 dark:text-gray-400">
+            New Supplier{" "}
+            <span className="font-normal text-gray-400 dark:text-gray-500">
+              (Optional)
+            </span>
+          </label>
+
+          <Input
+            type="text"
+            className="mt-1 h-9 border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 placeholder:text-gray-400 dark:placeholder:text-gray-500"
+            placeholder="Enter new supplier name"
+            value={newSupplier}
+            onChange={(e) => setNewSupplier(e.target.value)}
+          />
+
+          <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+            Leave blank if supplier hasn't changed
+          </p>
+        </div>
+      )}
+
+      {/* New Address */}
+      {(callbackStatus === "Already Renewed" ||
+        callbackStatus === "Sold") && (
+        <div>
+          <label className="text-xs font-medium text-gray-600 dark:text-gray-400">
+            New Address{" "}
+            <span className="font-normal text-gray-400 dark:text-gray-500">
+              (Optional)
+            </span>
+          </label>
+
+          <Textarea
+            className="mt-1 border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 placeholder:text-gray-400 dark:placeholder:text-gray-500"
+            rows={2}
+            placeholder="Enter new address if changed"
+            value={newAddress}
+            onChange={(e) => setNewAddress(e.target.value)}
+          />
+
+          <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+            Leave blank if address hasn't changed
+          </p>
+        </div>
+      )}
+
+      {/* Interaction Notes */}
+      <div>
+        <label className="text-xs font-medium text-gray-600 dark:text-gray-400">
+          Interaction Notes
+          {currentConfig?.requiresNotes && (
+            <span className="text-red-500 dark:text-red-400"> *</span>
+          )}
+        </label>
+
+        <Textarea
+          className="mt-1 border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 placeholder:text-gray-400 dark:placeholder:text-gray-500"
+          rows={3}
+          placeholder={
+            currentConfig?.requiresNotes
+              ? "Enter reason why it was lost..."
+              : "Log conversation outcomes, price discussion, or schedule..."
+          }
+          value={callbackNotes}
+          onChange={(e) => setCallbackNotes(e.target.value)}
+        />
+
+        {currentConfig?.requiresNotes && (
+          <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+            Required for Lost/Lost COT
+          </p>
+        )}
+      </div>
+
+      {/* Error */}
+      {callbackError && (
+        <Alert variant="destructive" className="border-red-200 dark:border-red-900 bg-red-50 dark:bg-red-950/40 text-red-800 dark:text-red-300">
+          <AlertCircle className="h-4 w-4 text-red-600 dark:text-red-400" />
+          <AlertDescription>
+            {callbackError}
+          </AlertDescription>
+        </Alert>
+      )}
+
+      {/* Save */}
+      <Button
+        className="w-full bg-gray-900 text-white hover:bg-gray-800 dark:bg-white dark:text-gray-950 dark:hover:bg-gray-200"
+        onClick={handleSubmitCallback}
+        disabled={isSubmittingCallback}
+      >
+        {isSubmittingCallback ? (
+          <>
+            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            Saving...
+          </>
+        ) : callbackStatus ? (
+          `Save ${callbackStatus} Action`
+        ) : (
+          "Save Action"
+        )}
+      </Button>
+    </div>
+  </div>
+
+  {/* ── Interaction History Card ─────────────────────────────────────── */}
+  <div className="rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 p-4 shadow-sm">
+
+    <div className="mb-4">
+      <h3 className="text-base font-semibold text-gray-900 dark:text-gray-100">
+        Interaction History
+      </h3>
+
+      <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+        Chronological audit log
+      </p>
+    </div>
+
+    {loadingHistory ? (
+      <div className="flex items-center justify-center py-10">
+        <Loader2 className="h-5 w-5 animate-spin text-gray-400 dark:text-gray-500" />
+      </div>
+    ) : history.length === 0 ? (
+      <div className="flex flex-col items-center justify-center py-10 text-center">
+        <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-full bg-gray-100 dark:bg-gray-800">
+          <Loader2 className="h-5 w-5 text-gray-400 dark:text-gray-500" />
+        </div>
+
+        <p className="text-sm font-medium text-gray-500 dark:text-gray-400">
+          No interactions yet
+        </p>
+      </div>
+    ) : (
+      <div className="space-y-3">
+        {history.map((interaction) => {
+          const rawNotes = interaction.notes || "";
+
+          const pipeIndex = rawNotes.indexOf(" | ");
+
+          const cleanNotes =
+            pipeIndex !== -1
+              ? rawNotes.slice(pipeIndex + 3).trim()
+              : rawNotes
+                  .replace(/^\[.*?\]\s*/, "")
+                  .replace(/^Status:[^|]*(\|)?/, "")
+                  .trim();
+
+          const displayStatus =
+            interaction.interaction_type || "Unknown";
+
+          const actionOptionLabel =
+            getActionOptionLabelFromNotes(rawNotes);
+
+          const hasCallback =
+            interaction.reminder_date &&
+            [
+              "Callback",
+              "Called",
+              "Not Answered",
+              "Broker in Place",
+              "End Date Changed",
+              "Already Renewed",
+            ].includes(displayStatus);
+
+          return (
+            <div
+              key={interaction.interaction_id}
+              className="group relative rounded-lg border border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-950 p-3 text-sm"
+            >
+              <button
+                onClick={() =>
+                  handleDeleteInteraction(
+                    interaction.interaction_id
+                  )
+                }
+                className="absolute right-2 top-2 rounded p-1 opacity-0 transition-opacity group-hover:opacity-100 hover:bg-red-100 dark:hover:bg-red-950/60"
+                title="Delete this entry"
+              >
+                <Trash2 className="h-4 w-4 text-red-600 dark:text-red-400" />
+              </button>
+
+              <div className="mb-2">
+                <span className="font-semibold text-gray-900 dark:text-gray-100">
+                  {displayStatus}
+                </span>
+              </div>
+
+              {actionOptionLabel && (
+                <div className="mb-2">
+                  <span className="inline-flex rounded-full bg-gray-200 dark:bg-gray-800 px-2 py-1 text-xs font-medium text-gray-700 dark:text-gray-300">
+                    {actionOptionLabel}
+                  </span>
+                </div>
+              )}
+
+              {cleanNotes && (
+                <p className="mb-2 pr-8 text-xs text-gray-600 dark:text-gray-400">
+                  {cleanNotes}
+                </p>
+              )}
+
+              {hasCallback && (
+                <div className="mb-1 flex items-center gap-1 text-xs text-purple-600 dark:text-purple-400">
+                  <Calendar className="h-3 w-3" />
+                  <span>
+                    Callback: {formatDate(interaction.reminder_date)}
+                  </span>
+                </div>
+              )}
+
+              {interaction.created_at && (
+                <div className="mt-1 text-xs text-gray-400 dark:text-gray-500">
+                  {new Date(
+                    interaction.created_at
+                  ).toLocaleString("en-GB", {
+                    day: "2-digit",
+                    month: "2-digit",
+                    year: "numeric",
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  })}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    )}
+  </div>
+</div>
     </div>
   );
 }

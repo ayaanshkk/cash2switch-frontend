@@ -105,13 +105,13 @@ const formatMonth = (value: string | null | undefined) => {
 };
 
 const statusTone: Record<string, string> = {
-  Scheduled: "bg-slate-100 text-slate-700 hover:bg-slate-100",
-  Pending: "bg-blue-100 text-blue-700 hover:bg-blue-100",
-  Due: "bg-orange-100 text-orange-800 hover:bg-orange-100",
-  Received: "bg-emerald-100 text-emerald-700 hover:bg-emerald-100",
-  "Partially Paid": "bg-orange-100 text-orange-800 hover:bg-orange-100",
-  "Chasing Supplier": "bg-red-100 text-red-700 hover:bg-red-100",
-  Closed: "bg-zinc-200 text-zinc-700 hover:bg-zinc-200",
+  Scheduled: "bg-slate-100 text-slate-700 hover:bg-slate-100 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-800",
+  Pending: "bg-blue-100 text-blue-700 hover:bg-blue-100 dark:bg-blue-950/60 dark:text-blue-300 dark:hover:bg-blue-950/60",
+  Due: "bg-orange-100 text-orange-800 hover:bg-orange-100 dark:bg-orange-950/60 dark:text-orange-300 dark:hover:bg-orange-950/60",
+  Received: "bg-emerald-100 text-emerald-700 hover:bg-emerald-100 dark:bg-emerald-950/60 dark:text-emerald-300 dark:hover:bg-emerald-950/60",
+  "Partially Paid": "bg-orange-100 text-orange-800 hover:bg-orange-100 dark:bg-orange-950/60 dark:text-orange-300 dark:hover:bg-orange-950/60",
+  "Chasing Supplier": "bg-red-100 text-red-700 hover:bg-red-100 dark:bg-red-950/60 dark:text-red-300 dark:hover:bg-red-950/60",
+  Closed: "bg-zinc-200 text-zinc-700 hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-800",
 };
 
 export default function CommissionReportsPage() {
@@ -220,7 +220,7 @@ export default function CommissionReportsPage() {
 
   if (authLoading || !user) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-slate-50/50 text-slate-500">
+      <div className="flex min-h-screen items-center justify-center bg-slate-50/50 text-slate-500 dark:bg-slate-950 dark:text-slate-400">
         <Loader2 className="mr-2 h-5 w-5 animate-spin" />
         Checking access...
       </div>
@@ -232,75 +232,75 @@ export default function CommissionReportsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50/50 px-4 py-6 sm:px-6 lg:px-8">
+    <div className="min-h-screen bg-transparent px-4 py-6 text-slate-900 dark:bg-transparent dark:text-slate-100 sm:px-6 lg:px-8">
       <div className="mx-auto max-w-7xl space-y-6">
-        <div className="flex flex-col gap-4 rounded-lg border bg-white p-5 shadow-sm md:flex-row md:items-center md:justify-between">
+        <div className="flex flex-col gap-4 rounded-lg border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900 md:flex-row md:items-center md:justify-between">
           <div>
-            <p className="text-sm font-medium text-slate-500">Payments</p>
-            <h1 className="mt-1 text-3xl font-semibold tracking-tight text-slate-950">Commission Reports</h1>
-            <p className="mt-2 max-w-3xl text-sm text-slate-600">
+            <p className="text-sm font-medium text-slate-500 dark:text-slate-400">Payments</p>
+            <h1 className="mt-1 text-3xl font-semibold tracking-tight text-slate-950 dark:text-slate-50">Commission Reports</h1>
+            <p className="mt-2 max-w-3xl text-sm text-slate-600 dark:text-slate-400">
               Management view of supplier receipts, outstanding balances, overdue risk, and agent payout totals.
             </p>
           </div>
-          <Button onClick={loadReports} disabled={loading}>
+          <Button onClick={loadReports} disabled={loading} className="dark:border-slate-700 dark:hover:bg-slate-800">
             {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCcw className="mr-2 h-4 w-4" />}
             Refresh
           </Button>
         </div>
 
         {error && (
-          <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>
+          <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-400">{error}</div>
         )}
 
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-          <Card className="border-slate-200 shadow-sm">
+          <Card className="border-slate-200 shadow-sm dark:border-slate-800 dark:bg-slate-900">
             <CardHeader className="pb-2">
-              <CardTitle className="flex items-center gap-2 text-sm font-medium text-slate-600">
-                <BadgePoundSterling className="h-4 w-4 text-slate-900" />
+              <CardTitle className="flex items-center gap-2 text-sm font-medium text-slate-600 dark:text-slate-400">
+                <BadgePoundSterling className="h-4 w-4 text-slate-900 dark:text-slate-100" />
                 Total Expected
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-semibold">{formatMoney(summary?.total_expected_commission)}</div>
-              <p className="mt-1 text-xs text-slate-500">{summary?.payment_count || 0} payment rows</p>
+              <div className="text-2xl font-semibold text-slate-950 dark:text-slate-50">{formatMoney(summary?.total_expected_commission)}</div>
+              <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">{summary?.payment_count || 0} payment rows</p>
             </CardContent>
           </Card>
-          <Card className="border-slate-200 shadow-sm">
+          <Card className="border-slate-200 shadow-sm dark:border-slate-800 dark:bg-slate-900">
             <CardHeader className="pb-2">
-              <CardTitle className="flex items-center gap-2 text-sm font-medium text-slate-600">
-                <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+              <CardTitle className="flex items-center gap-2 text-sm font-medium text-slate-600 dark:text-slate-400">
+                <CheckCircle2 className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
                 Total Received
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-semibold">{formatMoney(summary?.total_received)}</div>
-              <p className="mt-1 text-xs text-slate-500">Supplier receipts logged</p>
+              <div className="text-2xl font-semibold text-slate-950 dark:text-slate-50">{formatMoney(summary?.total_received)}</div>
+              <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Supplier receipts logged</p>
             </CardContent>
           </Card>
-          <Card className="border-slate-200 shadow-sm">
+          <Card className="border-slate-200 shadow-sm dark:border-slate-800 dark:bg-slate-900">
             <CardHeader className="pb-2">
-              <CardTitle className="flex items-center gap-2 text-sm font-medium text-slate-600">
-                <Clock3 className="h-4 w-4 text-orange-600" />
+              <CardTitle className="flex items-center gap-2 text-sm font-medium text-slate-600 dark:text-slate-400">
+                <Clock3 className="h-4 w-4 text-orange-600 dark:text-orange-400" />
                 Total Outstanding
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-semibold">{formatMoney(summary?.total_outstanding)}</div>
-              <p className="mt-1 text-xs text-slate-500">
+              <div className="text-2xl font-semibold text-slate-950 dark:text-slate-50">{formatMoney(summary?.total_outstanding)}</div>
+              <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
                 {formatMoney(totals.awaitingAgentPayout)} awaiting agent payout
               </p>
             </CardContent>
           </Card>
-          <Card className="border-slate-200 shadow-sm">
+          <Card className="border-slate-200 shadow-sm dark:border-slate-800 dark:bg-slate-900">
             <CardHeader className="pb-2">
-              <CardTitle className="flex items-center gap-2 text-sm font-medium text-slate-600">
-                <AlertTriangle className="h-4 w-4 text-red-600" />
+              <CardTitle className="flex items-center gap-2 text-sm font-medium text-slate-600 dark:text-slate-400">
+                <AlertTriangle className="h-4 w-4 text-red-600 dark:text-red-400" />
                 Overdue / Underpaid
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-semibold">{totals.atRiskCount}</div>
-              <p className="mt-1 text-xs text-slate-500">
+              <div className="text-2xl font-semibold text-slate-950 dark:text-slate-50">{totals.atRiskCount}</div>
+              <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
                 {summary?.overdue_count || 0} overdue, {summary?.underpaid_count || 0} underpaid
               </p>
             </CardContent>
@@ -308,29 +308,29 @@ export default function CommissionReportsPage() {
         </div>
 
         {loading ? (
-          <div className="flex min-h-64 items-center justify-center rounded-lg border bg-white text-slate-500">
+          <div className="flex min-h-64 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-400">
             <Loader2 className="mr-2 h-5 w-5 animate-spin" />
             Loading commission reports...
           </div>
         ) : (
           <Tabs defaultValue="supplier" className="space-y-4">
             <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-              <TabsList className="grid w-full grid-cols-3 bg-white shadow-sm sm:w-fit">
-                <TabsTrigger value="supplier" className="gap-2">
+              <TabsList className="grid w-full grid-cols-3 bg-white shadow-sm dark:border dark:border-slate-800 dark:bg-slate-900 sm:w-fit">
+                <TabsTrigger value="supplier" className="gap-2 dark:data-[state=active]:bg-slate-800 dark:data-[state=active]:text-slate-100">
                   <Building2 className="h-4 w-4" />
                   By Supplier
                 </TabsTrigger>
-                <TabsTrigger value="agent" className="gap-2">
+                <TabsTrigger value="agent" className="gap-2 dark:data-[state=active]:bg-slate-800 dark:data-[state=active]:text-slate-100">
                   <Users className="h-4 w-4" />
                   By Agent
                 </TabsTrigger>
-                <TabsTrigger value="underpaid" className="gap-2">
+                <TabsTrigger value="underpaid" className="gap-2 dark:data-[state=active]:bg-slate-800 dark:data-[state=active]:text-slate-100">
                   <AlertTriangle className="h-4 w-4" />
                   Underpaid
                 </TabsTrigger>
               </TabsList>
               <Input
-                className="max-w-md bg-white"
+                className="max-w-md bg-white dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100 dark:placeholder:text-slate-500"
                 placeholder="Search supplier, agent, customer, month..."
                 value={reportSearch}
                 onChange={(event) => setReportSearch(event.target.value)}
@@ -338,14 +338,14 @@ export default function CommissionReportsPage() {
             </div>
 
             <TabsContent value="supplier">
-              <Card className="border-slate-200 shadow-sm">
+              <Card className="border-slate-200 shadow-sm dark:border-slate-800 dark:bg-slate-900">
                 <CardHeader>
                   <div>
-                    <CardTitle className="flex items-center gap-2">
+                    <CardTitle className="flex items-center gap-2 text-slate-950 dark:text-slate-50">
                       <Building2 className="h-5 w-5" />
                       Supplier Performance
                     </CardTitle>
-                    <p className="mt-1 text-sm text-slate-500">
+                    <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
                       Ordered by outstanding balance so high-risk suppliers stay at the top.
                     </p>
                   </div>
@@ -353,7 +353,7 @@ export default function CommissionReportsPage() {
                 <CardContent className="p-0">
                   <div className="overflow-x-auto">
                     <table className="w-full min-w-[920px] text-sm">
-                      <thead className="border-y bg-slate-50 text-left text-xs font-semibold tracking-wide text-slate-500 uppercase">
+                      <thead className="border-y border-slate-200 bg-slate-50 text-left text-xs font-semibold tracking-wide text-slate-500 uppercase dark:border-slate-800 dark:bg-slate-800/60 dark:text-slate-400">
                         <tr>
                           <th className="px-5 py-3">Supplier</th>
                           <th className="px-5 py-3 text-right">Expected</th>
@@ -364,27 +364,27 @@ export default function CommissionReportsPage() {
                           <th className="px-5 py-3 text-right">Underpaid</th>
                         </tr>
                       </thead>
-                      <tbody className="divide-y bg-white">
+                      <tbody className="divide-y divide-slate-200 bg-white dark:divide-slate-800 dark:bg-slate-900">
                         {filteredSuppliers.map((supplier) => {
                           const atRisk = supplier.overdue_count > 0 || supplier.underpaid_count > 0;
                           return (
                             <tr
                               key={supplier.supplier_id || supplier.supplier_name}
-                              className={atRisk ? "bg-red-50/40" : ""}
+                              className={atRisk ? "bg-red-50/40 dark:bg-red-950/20" : "dark:hover:bg-slate-800/50"}
                             >
-                              <td className="px-5 py-4 font-medium text-slate-950">{supplier.supplier_name}</td>
-                              <td className="px-5 py-4 text-right">{formatMoney(supplier.total_expected)}</td>
-                              <td className="px-5 py-4 text-right">{formatMoney(supplier.total_received)}</td>
-                              <td className="px-5 py-4 text-right font-semibold">
+                              <td className="px-5 py-4 font-medium text-slate-950 dark:text-slate-100">{supplier.supplier_name}</td>
+                              <td className="px-5 py-4 text-right text-slate-700 dark:text-slate-300">{formatMoney(supplier.total_expected)}</td>
+                              <td className="px-5 py-4 text-right text-slate-700 dark:text-slate-300">{formatMoney(supplier.total_received)}</td>
+                              <td className="px-5 py-4 text-right font-semibold text-slate-950 dark:text-slate-100">
                                 {formatMoney(supplier.total_outstanding)}
                               </td>
-                              <td className="px-5 py-4 text-right">{supplier.payment_count}</td>
+                              <td className="px-5 py-4 text-right text-slate-700 dark:text-slate-300">{supplier.payment_count}</td>
                               <td className="px-5 py-4 text-right">
                                 <Badge
                                   className={
                                     supplier.overdue_count
-                                      ? "bg-red-100 text-red-700 hover:bg-red-100"
-                                      : "bg-slate-100 text-slate-700 hover:bg-slate-100"
+                                      ? "bg-red-100 text-red-700 hover:bg-red-100 dark:bg-red-950/60 dark:text-red-300 dark:hover:bg-red-950/60"
+                                      : "bg-slate-100 text-slate-700 hover:bg-slate-100 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-800"
                                   }
                                 >
                                   {supplier.overdue_count}
@@ -394,8 +394,8 @@ export default function CommissionReportsPage() {
                                 <Badge
                                   className={
                                     supplier.underpaid_count
-                                      ? "bg-orange-100 text-orange-800 hover:bg-orange-100"
-                                      : "bg-slate-100 text-slate-700 hover:bg-slate-100"
+                                      ? "bg-orange-100 text-orange-800 hover:bg-orange-100 dark:bg-orange-950/60 dark:text-orange-300 dark:hover:bg-orange-950/60"
+                                      : "bg-slate-100 text-slate-700 hover:bg-slate-100 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-800"
                                   }
                                 >
                                   {supplier.underpaid_count}
@@ -406,7 +406,7 @@ export default function CommissionReportsPage() {
                         })}
                         {filteredSuppliers.length === 0 && (
                           <tr>
-                            <td colSpan={7} className="px-5 py-12 text-center text-slate-500">
+                            <td colSpan={7} className="px-5 py-12 text-center text-slate-500 dark:text-slate-400">
                               No supplier report rows found.
                             </td>
                           </tr>
@@ -419,14 +419,14 @@ export default function CommissionReportsPage() {
             </TabsContent>
 
             <TabsContent value="agent">
-              <Card className="border-slate-200 shadow-sm">
+              <Card className="border-slate-200 shadow-sm dark:border-slate-800 dark:bg-slate-900">
                 <CardHeader>
                   <div>
-                    <CardTitle className="flex items-center gap-2">
+                    <CardTitle className="flex items-center gap-2 text-slate-950 dark:text-slate-50">
                       <TrendingUp className="h-5 w-5" />
                       Monthly Agent Commissions
                     </CardTitle>
-                    <p className="mt-1 text-sm text-slate-500">
+                    <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
                       Grouped by agent and month with paid versus awaiting payout.
                     </p>
                   </div>
@@ -434,7 +434,7 @@ export default function CommissionReportsPage() {
                 <CardContent className="p-0">
                   <div className="overflow-x-auto">
                     <table className="w-full min-w-[860px] text-sm">
-                      <thead className="border-y bg-slate-50 text-left text-xs font-semibold tracking-wide text-slate-500 uppercase">
+                      <thead className="border-y border-slate-200 bg-slate-50 text-left text-xs font-semibold tracking-wide text-slate-500 uppercase dark:border-slate-800 dark:bg-slate-800/60 dark:text-slate-400">
                         <tr>
                           <th className="px-5 py-3">Agent</th>
                           <th className="px-5 py-3">Month</th>
@@ -445,27 +445,27 @@ export default function CommissionReportsPage() {
                           <th className="px-5 py-3 text-right">Items</th>
                         </tr>
                       </thead>
-                      <tbody className="divide-y bg-white">
+                      <tbody className="divide-y divide-slate-200 bg-white dark:divide-slate-800 dark:bg-slate-900">
                         {filteredAgents.map((agent) => (
-                          <tr key={`${agent.employee_id}-${agent.month}`}>
-                            <td className="px-5 py-4 font-medium text-slate-950">{agent.agent_name}</td>
-                            <td className="px-5 py-4 text-slate-700">{formatMonth(agent.month)}</td>
-                            <td className="px-5 py-4 text-right font-semibold">
+                          <tr key={`${agent.employee_id}-${agent.month}`} className="dark:hover:bg-slate-800/50">
+                            <td className="px-5 py-4 font-medium text-slate-950 dark:text-slate-100">{agent.agent_name}</td>
+                            <td className="px-5 py-4 text-slate-700 dark:text-slate-300">{formatMonth(agent.month)}</td>
+                            <td className="px-5 py-4 text-right font-semibold text-slate-950 dark:text-slate-100">
                               {formatMoney(agent.total_commission)}
                             </td>
-                            <td className="px-5 py-4 text-right text-emerald-700">
+                            <td className="px-5 py-4 text-right text-emerald-700 dark:text-emerald-400">
                               {formatMoney(agent.paid_commission)}
                             </td>
-                            <td className="px-5 py-4 text-right text-orange-700">
+                            <td className="px-5 py-4 text-right text-orange-700 dark:text-orange-400">
                               {formatMoney(agent.awaiting_payment)}
                             </td>
-                            <td className="px-5 py-4 text-right">{agent.batch_count}</td>
-                            <td className="px-5 py-4 text-right">{agent.item_count}</td>
+                            <td className="px-5 py-4 text-right text-slate-700 dark:text-slate-300">{agent.batch_count}</td>
+                            <td className="px-5 py-4 text-right text-slate-700 dark:text-slate-300">{agent.item_count}</td>
                           </tr>
                         ))}
                         {filteredAgents.length === 0 && (
                           <tr>
-                            <td colSpan={7} className="px-5 py-12 text-center text-slate-500">
+                            <td colSpan={7} className="px-5 py-12 text-center text-slate-500 dark:text-slate-400">
                               No agent commission batches found yet.
                             </td>
                           </tr>
@@ -478,14 +478,14 @@ export default function CommissionReportsPage() {
             </TabsContent>
 
             <TabsContent value="underpaid">
-              <Card className="border-slate-200 shadow-sm">
+              <Card className="border-slate-200 shadow-sm dark:border-slate-800 dark:bg-slate-900">
                 <CardHeader>
                   <div>
-                    <CardTitle className="flex items-center gap-2">
+                    <CardTitle className="flex items-center gap-2 text-slate-950 dark:text-slate-50">
                       <BarChart3 className="h-5 w-5" />
                       Underpaid & Outstanding
                     </CardTitle>
-                    <p className="mt-1 text-sm text-slate-500">
+                    <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
                       Sorted by largest outstanding amount for chasing priority.
                     </p>
                   </div>
@@ -493,7 +493,7 @@ export default function CommissionReportsPage() {
                 <CardContent className="p-0">
                   <div className="overflow-x-auto">
                     <table className="w-full min-w-[1120px] text-sm">
-                      <thead className="border-y bg-slate-50 text-left text-xs font-semibold tracking-wide text-slate-500 uppercase">
+                      <thead className="border-y border-slate-200 bg-slate-50 text-left text-xs font-semibold tracking-wide text-slate-500 uppercase dark:border-slate-800 dark:bg-slate-800/60 dark:text-slate-400">
                         <tr>
                           <th className="px-5 py-3">Customer</th>
                           <th className="px-5 py-3">Supplier</th>
@@ -506,35 +506,35 @@ export default function CommissionReportsPage() {
                           <th className="px-5 py-3">Next Follow-Up</th>
                         </tr>
                       </thead>
-                      <tbody className="divide-y bg-white">
+                      <tbody className="divide-y divide-slate-200 bg-white dark:divide-slate-800 dark:bg-slate-900">
                         {filteredUnderpaid.map((payment) => (
-                          <tr key={payment.id}>
-                            <td className="px-5 py-4 font-medium text-slate-950">
+                          <tr key={payment.id} className="dark:hover:bg-slate-800/50">
+                            <td className="px-5 py-4 font-medium text-slate-950 dark:text-slate-100">
                               {payment.business_name || payment.customer_name || `Client #${payment.client_id}`}
                             </td>
-                            <td className="px-5 py-4 text-slate-700">{payment.supplier_name || "-"}</td>
-                            <td className="px-5 py-4 text-slate-700">{payment.agent_name || "-"}</td>
-                            <td className="px-5 py-4 text-right">{formatMoney(payment.expected_net_amount)}</td>
-                            <td className="px-5 py-4 text-right">{formatMoney(payment.amount_received)}</td>
-                            <td className="px-5 py-4 text-right font-semibold text-red-700">
+                            <td className="px-5 py-4 text-slate-700 dark:text-slate-300">{payment.supplier_name || "-"}</td>
+                            <td className="px-5 py-4 text-slate-700 dark:text-slate-300">{payment.agent_name || "-"}</td>
+                            <td className="px-5 py-4 text-right text-slate-700 dark:text-slate-300">{formatMoney(payment.expected_net_amount)}</td>
+                            <td className="px-5 py-4 text-right text-slate-700 dark:text-slate-300">{formatMoney(payment.amount_received)}</td>
+                            <td className="px-5 py-4 text-right font-semibold text-red-700 dark:text-red-400">
                               {formatMoney(payment.outstanding_amount)}
                             </td>
-                            <td className="px-5 py-4 text-slate-700">{formatDate(payment.due_date)}</td>
+                            <td className="px-5 py-4 text-slate-700 dark:text-slate-300">{formatDate(payment.due_date)}</td>
                             <td className="px-5 py-4">
                               <Badge
                                 className={
-                                  statusTone[payment.status] || "bg-slate-100 text-slate-700 hover:bg-slate-100"
+                                  statusTone[payment.status] || "bg-slate-100 text-slate-700 hover:bg-slate-100 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-800"
                                 }
                               >
                                 {payment.status}
                               </Badge>
                             </td>
-                            <td className="px-5 py-4 text-slate-700">{formatDate(payment.next_follow_up_date)}</td>
+                            <td className="px-5 py-4 text-slate-700 dark:text-slate-300">{formatDate(payment.next_follow_up_date)}</td>
                           </tr>
                         ))}
                         {filteredUnderpaid.length === 0 && (
                           <tr>
-                            <td colSpan={9} className="px-5 py-12 text-center text-slate-500">
+                            <td colSpan={9} className="px-5 py-12 text-center text-slate-500 dark:text-slate-400">
                               No underpaid or chasing supplier payments found.
                             </td>
                           </tr>

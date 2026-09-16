@@ -59,7 +59,7 @@ export default function DocumentsPage({ category, title }: DocumentsPageProps) {
   // Filter state
   const [searchTerm, setSearchTerm] = useState("");
 
-  // ✅ Check if we're on the New Connections page
+  // Check if we're on the New Connections page
   const isNewConnectionsPage = category === "NEW_CONNECTIONS";
 
   const resetUploadForm = () => {
@@ -67,7 +67,7 @@ export default function DocumentsPage({ category, title }: DocumentsPageProps) {
     setUploadForm({
       document_name: "",
       category: "CONTRACT",
-      isNewConnection: isNewConnectionsPage, // ✅ Auto-set if on New Connections page
+      isNewConnection: isNewConnectionsPage,
     });
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
@@ -146,7 +146,6 @@ export default function DocumentsPage({ category, title }: DocumentsPageProps) {
       formData.append('file', file);
       formData.append('document_name', uploadForm.document_name);
       
-      // ✅ Set category based on checkbox or page context
       const finalCategory = (isNewConnectionsPage || uploadForm.isNewConnection) 
         ? "NEW_CONNECTIONS" 
         : uploadForm.category;
@@ -227,7 +226,7 @@ export default function DocumentsPage({ category, title }: DocumentsPageProps) {
     } else if (type === 'xls' || type === 'xlsx') {
       return <FileText className="h-8 w-8 text-green-500" />;
     }
-    return <File className="h-8 w-8 text-gray-500" />;
+    return <File className="h-8 w-8 text-gray-500 dark:text-slate-400" />;
   };
 
   const formatFileSize = (bytes: number): string => {
@@ -237,9 +236,7 @@ export default function DocumentsPage({ category, title }: DocumentsPageProps) {
     return (bytes / (1024 * 1024)).toFixed(2) + ' MB';
   };
 
-  // ✅ Filter documents by category
   const filteredDocuments = documents.filter(doc => {
-    // Search filter
     if (searchTerm) {
       const term = searchTerm.toLowerCase();
       if (!doc.document_name.toLowerCase().includes(term)) {
@@ -247,7 +244,6 @@ export default function DocumentsPage({ category, title }: DocumentsPageProps) {
       }
     }
     
-    // Category filter logic
     if (category === "ALL") {
       return true;
     } else if (category === "NEW_CONNECTIONS") {
@@ -258,18 +254,18 @@ export default function DocumentsPage({ category, title }: DocumentsPageProps) {
   });
 
   return (
-    <div className="w-full p-6">
+    <div className="w-full p-6 text-slate-900 dark:text-slate-100">
       <div className="flex justify-between items-center mb-6">
         <div>
-          <h1 className="text-3xl font-bold">{title}</h1>
-          <p className="text-muted-foreground mt-1">
+          <h1 className="text-3xl font-bold text-slate-950 dark:text-slate-50">{title}</h1>
+          <p className="text-muted-foreground mt-1 dark:text-slate-400">
             {category === "NEW_CONNECTIONS" 
               ? "Documents specifically for new customer connections"
               : "All document templates - contracts, LOAs, applications, and more"
             }
           </p>
         </div>
-        <Button onClick={() => setUploadModalOpen(true)}>
+        <Button onClick={() => setUploadModalOpen(true)} className="dark:bg-slate-100 dark:text-slate-950 dark:hover:bg-slate-200">
           <Upload className="mr-2 h-4 w-4" />
           Upload Template
         </Button>
@@ -278,10 +274,10 @@ export default function DocumentsPage({ category, title }: DocumentsPageProps) {
       {/* Search */}
       <div className="mb-6">
         <div className="relative w-64">
-          <Search className="text-muted-foreground absolute top-2.5 left-2 h-4 w-4" />
+          <Search className="text-muted-foreground absolute top-2.5 left-2 h-4 w-4 dark:text-slate-500" />
           <Input
             placeholder="Search documents..."
-            className="pl-8"
+            className="pl-8 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100 dark:placeholder:text-slate-500"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
           />
@@ -292,29 +288,29 @@ export default function DocumentsPage({ category, title }: DocumentsPageProps) {
       <div className="grid gap-4">
         {loading ? (
           <div className="text-center py-12">
-            <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-current border-r-transparent text-gray-600"></div>
-            <p className="mt-4 text-gray-500">Loading documents...</p>
+            <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-current border-r-transparent text-gray-600 dark:text-slate-400"></div>
+            <p className="mt-4 text-gray-500 dark:text-slate-400">Loading documents...</p>
           </div>
         ) : error ? (
-          <Card>
+          <Card className="border-slate-200 dark:border-slate-800 dark:bg-slate-900">
             <CardContent className="pt-6">
-              <div className="text-center text-sm text-destructive">{error}</div>
+              <div className="text-center text-sm text-destructive dark:text-red-400">{error}</div>
             </CardContent>
           </Card>
         ) : filteredDocuments.length === 0 ? (
-          <Card>
+          <Card className="border-slate-200 dark:border-slate-800 dark:bg-slate-900">
             <CardContent className="pt-6">
               <div className="text-center py-12">
-                <FileText className="h-12 w-12 text-gray-400 mx-auto mb-3" />
-                <p className="text-lg text-gray-600">No documents found</p>
+                <FileText className="h-12 w-12 text-gray-400 dark:text-slate-500 mx-auto mb-3" />
+                <p className="text-lg text-gray-600 dark:text-slate-300">No documents found</p>
                 {searchTerm ? (
-                  <p className="mt-2 text-sm text-gray-500">Try adjusting your search</p>
+                  <p className="mt-2 text-sm text-gray-500 dark:text-slate-400">Try adjusting your search</p>
                 ) : category === "NEW_CONNECTIONS" ? (
-                  <p className="mt-2 text-sm text-gray-500">
+                  <p className="mt-2 text-sm text-gray-500 dark:text-slate-400">
                     Upload documents to show here
                   </p>
                 ) : (
-                  <p className="mt-2 text-sm text-gray-500">Upload your first document to get started</p>
+                  <p className="mt-2 text-sm text-gray-500 dark:text-slate-400">Upload your first document to get started</p>
                 )}
               </div>
             </CardContent>
@@ -322,20 +318,19 @@ export default function DocumentsPage({ category, title }: DocumentsPageProps) {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {filteredDocuments.map((doc, index) => (
-              // ✅ FIX: Use combination of public_id and index for unique key
-              <Card key={`${doc.public_id}-${index}`} className="hover:shadow-lg transition-shadow">
+              <Card key={`${doc.public_id}-${index}`} className="border-slate-200 transition-shadow hover:shadow-lg dark:border-slate-800 dark:bg-slate-900">
                 <CardHeader>
                   <div className="flex items-start justify-between">
                     <div className="flex items-center gap-3 flex-1 min-w-0">
                       {getFileIcon(doc.format)}
                       <div className="flex-1 min-w-0">
-                        <CardTitle className="text-base truncate">
+                        <CardTitle className="text-base truncate text-slate-950 dark:text-slate-50">
                           {doc.document_name}
                         </CardTitle>
-                        <CardDescription className="text-xs">
+                        <CardDescription className="text-xs dark:text-slate-400">
                           {doc.format?.toUpperCase()} • {formatFileSize(doc.file_size)}
                           {doc.category && (
-                            <span className="ml-2 px-2 py-0.5 bg-blue-100 text-blue-700 rounded text-xs">
+                            <span className="ml-2 px-2 py-0.5 bg-blue-100 text-blue-700 rounded text-xs dark:bg-blue-950/60 dark:text-blue-300">
                               {doc.category === "NEW_CONNECTIONS" ? "New Connection" : doc.category}
                             </span>
                           )}
@@ -345,7 +340,7 @@ export default function DocumentsPage({ category, title }: DocumentsPageProps) {
                   </div>
                 </CardHeader>
                 <CardContent>
-                  <div className="text-xs text-gray-500 mb-4">
+                  <div className="text-xs text-gray-500 dark:text-slate-400 mb-4">
                     Uploaded {format(new Date(doc.created_at), "MMM d, yyyy")}
                   </div>
 
@@ -353,7 +348,7 @@ export default function DocumentsPage({ category, title }: DocumentsPageProps) {
                     <Button
                       variant="outline"
                       size="sm"
-                      className="flex-1"
+                      className="flex-1 dark:border-slate-700 dark:hover:bg-slate-800"
                       onClick={() => handleDownload(doc.download_url || doc.url, doc.document_name, doc.format)}
                     >
                       <Download className="h-4 w-4 mr-1" />
@@ -362,6 +357,7 @@ export default function DocumentsPage({ category, title }: DocumentsPageProps) {
                     <Button
                       variant="outline"
                       size="sm"
+                      className="dark:border-slate-700 dark:hover:bg-slate-800"
                       onClick={() => handleView(doc.url)}
                       title="View in new tab"
                     >
@@ -370,9 +366,10 @@ export default function DocumentsPage({ category, title }: DocumentsPageProps) {
                     <Button
                       variant="outline"
                       size="sm"
+                      className="dark:border-slate-700 dark:hover:bg-slate-800"
                       onClick={() => handleDelete(doc.public_id, doc.document_name)}
                     >
-                      <Trash2 className="h-4 w-4 text-red-500" />
+                      <Trash2 className="h-4 w-4 text-red-500 dark:text-red-400" />
                     </Button>
                   </div>
                 </CardContent>
@@ -387,10 +384,10 @@ export default function DocumentsPage({ category, title }: DocumentsPageProps) {
         setUploadModalOpen(open);
         if (!open) resetUploadForm();
       }}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-md dark:border-slate-800 dark:bg-slate-950">
           <DialogHeader>
-            <DialogTitle>Upload Document Template</DialogTitle>
-            <DialogDescription>
+            <DialogTitle className="text-slate-950 dark:text-slate-50">Upload Document Template</DialogTitle>
+            <DialogDescription className="dark:text-slate-400">
               {isNewConnectionsPage 
                 ? "Upload a document for new customer connections"
                 : "Upload a document template and categorize it"
@@ -400,17 +397,18 @@ export default function DocumentsPage({ category, title }: DocumentsPageProps) {
 
           <div className="space-y-4">
             <div>
-              <Label htmlFor="file">File *</Label>
+              <Label htmlFor="file" className="dark:text-slate-300">File *</Label>
               <Input
                 ref={fileInputRef}
                 id="file"
                 type="file"
                 accept=".pdf,.doc,.docx,.xls,.xlsx"
+                disabled={uploading}
                 onChange={handleFileChange}
-                className="mt-1"
+                className="mt-1 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100"
               />
               {file && (
-                <div className="mt-2 text-sm text-gray-600 flex items-center gap-2">
+                <div className="mt-2 text-sm text-gray-600 dark:text-slate-300 flex items-center gap-2">
                   <FileText className="h-4 w-4" />
                   {file.name} ({formatFileSize(file.size)})
                   <button
@@ -420,44 +418,44 @@ export default function DocumentsPage({ category, title }: DocumentsPageProps) {
                         fileInputRef.current.value = "";
                       }
                     }}
-                    className="text-red-500 hover:text-red-700"
+                    className="text-red-500 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300"
                   >
                     <X className="h-4 w-4" />
                   </button>
                 </div>
               )}
-              <p className="mt-1 text-xs text-gray-500">
+              <p className="mt-1 text-xs text-gray-500 dark:text-slate-400">
                 Accepted: PDF, Word, Excel (max 10MB)
               </p>
             </div>
 
             <div>
-              <Label htmlFor="document_name">Document Name *</Label>
+              <Label htmlFor="document_name" className="dark:text-slate-300">Document Name *</Label>
               <Input
                 id="document_name"
                 value={uploadForm.document_name}
                 onChange={(e) => setUploadForm(prev => ({ ...prev, document_name: e.target.value }))}
                 placeholder="e.g., Business Energy LOA"
-                className="mt-1"
+                className="mt-1 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100 dark:placeholder:text-slate-500"
               />
             </div>
 
-            {/* ✅ Only show category selection on "All Documents" page */}
+            {/* Category selection */}
             {!isNewConnectionsPage && (
               <div className="grid grid-cols-[1fr_auto] gap-3 items-start">
                 <div>
-                  <Label htmlFor="category">Category *</Label>
+                  <Label htmlFor="category" className="dark:text-slate-300">Category *</Label>
                   <Select
                     value={uploadForm.category}
                     onValueChange={(value) => setUploadForm(prev => ({ ...prev, category: value }))}
                     disabled={uploadForm.isNewConnection}
                   >
-                    <SelectTrigger className="mt-1">
+                    <SelectTrigger className="mt-1 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100">
                       <SelectValue />
                     </SelectTrigger>
-                    <SelectContent>
+                    <SelectContent className="dark:border-slate-800 dark:bg-slate-900">
                       {CATEGORIES.map(cat => (
-                        <SelectItem key={cat.value} value={cat.value}>
+                        <SelectItem key={cat.value} value={cat.value} className="dark:hover:bg-slate-800">
                           {cat.label}
                         </SelectItem>
                       ))}
@@ -465,7 +463,7 @@ export default function DocumentsPage({ category, title }: DocumentsPageProps) {
                   </Select>
                 </div>
 
-                {/* ✅ New Connection Checkbox */}
+                {/* New Connection Checkbox */}
                 <div className="pt-7">
                   <div className="flex items-center space-x-2">
                     <Checkbox
@@ -474,10 +472,11 @@ export default function DocumentsPage({ category, title }: DocumentsPageProps) {
                       onCheckedChange={(checked) => 
                         setUploadForm(prev => ({ ...prev, isNewConnection: !!checked }))
                       }
+                      className="dark:border-slate-700 dark:bg-slate-800 dark:checked:bg-primary"
                     />
                     <Label 
                       htmlFor="new_connection" 
-                      className="text-sm font-normal cursor-pointer whitespace-nowrap"
+                      className="text-sm font-normal cursor-pointer whitespace-nowrap dark:text-slate-300"
                     >
                       New Connection
                     </Label>
@@ -486,9 +485,9 @@ export default function DocumentsPage({ category, title }: DocumentsPageProps) {
               </div>
             )}
 
-            {/* ✅ Helper text */}
+            {/* Helper text */}
             {!isNewConnectionsPage && (
-              <p className="text-xs text-gray-500">
+              <p className="text-xs text-gray-500 dark:text-slate-400">
                 {uploadForm.isNewConnection 
                   ? "This document will appear only in 'New Connections' page" 
                   : "This document will appear in 'All Documents' page"
@@ -497,7 +496,7 @@ export default function DocumentsPage({ category, title }: DocumentsPageProps) {
             )}
 
             {isNewConnectionsPage && (
-              <p className="text-xs text-gray-500">
+              <p className="text-xs text-gray-500 dark:text-slate-400">
                 This document will appear in 'New Connections' page
               </p>
             )}
@@ -509,12 +508,14 @@ export default function DocumentsPage({ category, title }: DocumentsPageProps) {
                   setUploadModalOpen(false);
                   resetUploadForm();
                 }}
+                className="dark:border-slate-700 dark:hover:bg-slate-800"
               >
                 Cancel
               </Button>
               <Button
                 onClick={handleUpload}
                 disabled={!file || uploading || !uploadForm.document_name.trim()}
+                className="dark:bg-slate-100 dark:text-slate-950 dark:hover:bg-slate-200"
               >
                 {uploading ? (
                   <>

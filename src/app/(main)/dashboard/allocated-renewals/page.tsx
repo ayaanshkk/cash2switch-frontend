@@ -54,22 +54,22 @@ const statusConfig: Record<string, {
   requiresSupplierChange: boolean;
   requiresAddressChange: boolean;
 }> = {
-  "Callback":          { requiresDate: true,  requiresSold: false, deletesRecord: false, requiresNotes: false, requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
-  "Called":            { requiresDate: true,  requiresSold: false, deletesRecord: false, requiresNotes: false, requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
-  "Not Answered":      { requiresDate: true,  requiresSold: false, deletesRecord: false, requiresNotes: false, requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
-  "Dead":              { requiresDate: false, requiresSold: false, deletesRecord: true,  requiresNotes: true,  requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
-  "Priced":            { requiresDate: false, requiresSold: true,  deletesRecord: false, requiresNotes: false, requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
-  "Lost":              { requiresDate: true,  requiresSold: false, deletesRecord: true,  requiresNotes: true,  requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
-  "Lost COT":          { requiresDate: false, requiresSold: false, deletesRecord: true,  requiresNotes: true,  requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
-  "Already Renewed":   { requiresDate: true,  requiresSold: false, deletesRecord: false, requiresNotes: false, requiresNewEndDate: true,  requiresSupplierChange: true,  requiresAddressChange: true  },
-  "Invalid Number":    { requiresDate: false, requiresSold: false, deletesRecord: true,  requiresNotes: false, requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
-  "Meter De-energised":{ requiresDate: false, requiresSold: false, deletesRecord: true,  requiresNotes: false, requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
-  "Broker in Place":   { requiresDate: true,  requiresSold: false, deletesRecord: false, requiresNotes: false, requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
-  "End Date Changed":  { requiresDate: true,  requiresSold: false, deletesRecord: false, requiresNotes: false, requiresNewEndDate: true,  requiresSupplierChange: false, requiresAddressChange: false },
-  "Complaint":         { requiresDate: true,  requiresSold: false, deletesRecord: false, requiresNotes: true,  requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
-  "Email Only":        { requiresDate: true,  requiresSold: false, deletesRecord: false, requiresNotes: false, requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
-  "Renewed Directly":  { requiresDate: true,  requiresSold: false, deletesRecord: false, requiresNotes: true,  requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
-  "Incorrect Supplier":{ requiresDate: false, requiresSold: false, deletesRecord: false, requiresNotes: true,  requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
+  "Callback":           { requiresDate: true,  requiresSold: false, deletesRecord: false, requiresNotes: false, requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
+  "Called":             { requiresDate: true,  requiresSold: false, deletesRecord: false, requiresNotes: false, requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
+  "Not Answered":       { requiresDate: true,  requiresSold: false, deletesRecord: false, requiresNotes: false, requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
+  "Dead":               { requiresDate: false, requiresSold: false, deletesRecord: true,  requiresNotes: true,  requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
+  "Priced":             { requiresDate: false, requiresSold: true,  deletesRecord: false, requiresNotes: false, requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
+  "Lost":               { requiresDate: true,  requiresSold: false, deletesRecord: true,  requiresNotes: true,  requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
+  "Lost COT":           { requiresDate: false, requiresSold: false, deletesRecord: true,  requiresNotes: true,  requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
+  "Already Renewed":    { requiresDate: true,  requiresSold: false, deletesRecord: false, requiresNotes: false, requiresNewEndDate: true,  requiresSupplierChange: true,  requiresAddressChange: true  },
+  "Invalid Number":     { requiresDate: false, requiresSold: false, deletesRecord: true,  requiresNotes: false, requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
+  "Meter De-energised": { requiresDate: false, requiresSold: false, deletesRecord: true,  requiresNotes: false, requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
+  "Broker in Place":    { requiresDate: true,  requiresSold: false, deletesRecord: false, requiresNotes: false, requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
+  "End Date Changed":   { requiresDate: true,  requiresSold: false, deletesRecord: false, requiresNotes: false, requiresNewEndDate: true,  requiresSupplierChange: false, requiresAddressChange: false },
+  "Complaint":          { requiresDate: true,  requiresSold: false, deletesRecord: false, requiresNotes: true,  requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
+  "Email Only":         { requiresDate: true,  requiresSold: false, deletesRecord: false, requiresNotes: false, requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
+  "Renewed Directly":   { requiresDate: true,  requiresSold: false, deletesRecord: false, requiresNotes: true,  requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
+  "Incorrect Supplier": { requiresDate: false, requiresSold: false, deletesRecord: false, requiresNotes: true,  requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
 };
 
 // ---------------- Types ----------------
@@ -125,12 +125,18 @@ const formatDate = (d?: string) => {
 };
 
 const getStatusColor = (status?: string) => {
-  if (!status) return "bg-gray-100 text-gray-800";
+  if (!status) return "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300";
   const s = status.toLowerCase();
-  if (s === "called" || s === "priced" || s === "callback") return "bg-green-100 text-green-800";
-  if (s === "not answered") return "bg-yellow-100 text-yellow-800";
-  if (s === "lost" || s === "lost cot") return "bg-red-100 text-red-800";
-  return "bg-gray-100 text-gray-800";
+  if (s === "called" || s === "priced" || s === "callback") {
+    return "bg-green-100 text-green-800 dark:bg-green-950/50 dark:text-green-300";
+  }
+  if (s === "not answered") {
+    return "bg-yellow-100 text-yellow-800 dark:bg-yellow-950/50 dark:text-yellow-300";
+  }
+  if (s === "lost" || s === "lost cot") {
+    return "bg-red-100 text-red-800 dark:bg-red-950/50 dark:text-red-300";
+  }
+  return "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300";
 };
 
 const getStatusLabel = (status?: string) => {
@@ -206,7 +212,6 @@ export default function AllocatedContactsPage() {
       const data: EnergyCustomer[] = Array.isArray(response) ? response : (response?.data || []);
       setAllCustomers(data);
 
-      // Derive employee stats from the data itself
       if (isAdmin) {
         const countMap: Record<number, { name: string; count: number }> = {};
         data.forEach(c => {
@@ -388,7 +393,6 @@ export default function AllocatedContactsPage() {
       });
 
       if (response && !response.error) {
-        // Update local state — update assigned_to in place for admin
         setAllCustomers(prev =>
           prev.map(c =>
             c.client_id === assigningCustomerId
@@ -403,7 +407,6 @@ export default function AllocatedContactsPage() {
               : c
           )
         );
-        // Refresh employee stats since counts changed
         fetchAllocatedContacts();
         toast.success("✅ Salesperson reassigned successfully");
         setShowAssignModal(false);
@@ -424,8 +427,8 @@ export default function AllocatedContactsPage() {
   const PaginationControls = () => {
     if (totalPages <= 1) return null;
     return (
-      <div className="flex items-center justify-between py-3 px-4 bg-gray-50 border-t">
-        <div className="text-sm text-gray-700">
+      <div className="flex items-center justify-between py-3 px-4 bg-gray-50 dark:bg-slate-900 border-t border-gray-200 dark:border-slate-800">
+        <div className="text-sm text-gray-700 dark:text-gray-300">
           Showing{" "}
           <span className="font-medium">{(currentPage - 1) * CUSTOMERS_PER_PAGE + 1}</span> to{" "}
           <span className="font-medium">{Math.min(currentPage * CUSTOMERS_PER_PAGE, filteredCustomers.length)}</span>{" "}
@@ -438,7 +441,7 @@ export default function AllocatedContactsPage() {
           <Button variant="outline" size="icon" onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1}>
             <ChevronLeft className="h-4 w-4" />
           </Button>
-          <div className="flex items-center px-3 text-sm text-gray-700">Page {currentPage} of {totalPages}</div>
+          <div className="flex items-center px-3 text-sm text-gray-700 dark:text-gray-300">Page {currentPage} of {totalPages}</div>
           <Button variant="outline" size="icon" onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages}>
             <ChevronRight className="h-4 w-4" />
           </Button>
@@ -457,8 +460,8 @@ export default function AllocatedContactsPage() {
     <div className="w-full max-w-full overflow-x-hidden p-6">
       <Toaster position="top-right" />
 
-      <h1 className="mb-2 text-4xl font-semibold tracking-tight text-slate-900">Allocated Renewals</h1>
-      <p className="mb-6 text-sm text-gray-500">
+      <h1 className="mb-2 text-4xl font-semibold tracking-tight text-slate-900 dark:text-slate-100">Allocated Renewals</h1>
+      <p className="mb-6 text-sm text-gray-500 dark:text-gray-400">
         {isAdmin
           ? "Records that have been reassigned from one salesperson to another."
           : "Records assigned to you by an administrator or reassigned from another salesperson."}
@@ -466,14 +469,16 @@ export default function AllocatedContactsPage() {
 
       {/* Service Tabs */}
       <div className="mb-6 flex justify-center">
-        <div className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white/80 p-1 shadow-sm backdrop-blur">
+        <div className="inline-flex items-center gap-2 rounded-full border border-slate-200 dark:border-slate-800 bg-white/80 dark:bg-slate-900/80 p-1 shadow-sm backdrop-blur">
           {["utilities", "water"].map(s => (
             <button
               key={s}
               type="button"
               onClick={() => setService(s)}
               className={`px-8 py-3 rounded-full text-base font-semibold transition-all ${
-                service === s ? "bg-slate-900 text-white shadow" : "text-slate-700 hover:bg-slate-100"
+                service === s 
+                  ? "bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900 shadow" 
+                  : "text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
               }`}
             >
               {s.charAt(0).toUpperCase() + s.slice(1)}
@@ -485,32 +490,32 @@ export default function AllocatedContactsPage() {
       {/* ── ADMIN: Employee stats grid (clickable to filter) ── */}
       {isAdmin && employeeStats.length > 0 && (
         <div className="mb-6">
-          <h2 className="text-sm font-medium text-gray-700 mb-3">Allocated per Salesperson</h2>
+          <h2 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">Allocated per Salesperson</h2>
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
             {employeeStats.map(stat => (
               <div
                 key={stat.employee_id}
                 onClick={() => setSalespersonFilter(salespersonFilter === stat.employee_id ? "All" : stat.employee_id)}
-                className={`bg-white border rounded-lg p-4 hover:shadow-md transition-shadow cursor-pointer ${
+                className={`bg-white dark:bg-slate-900 border rounded-lg p-4 hover:shadow-md transition-shadow cursor-pointer ${
                   salespersonFilter === stat.employee_id
-                    ? "border-indigo-400 ring-1 ring-indigo-300 bg-indigo-50"
-                    : "border-gray-200"
+                    ? "border-indigo-400 ring-1 ring-indigo-300 dark:ring-indigo-500 bg-indigo-50 dark:bg-indigo-950/40"
+                    : "border-gray-200 dark:border-slate-800"
                 }`}
               >
                 <div className="flex items-center gap-2 mb-2">
-                  <Users className="h-4 w-4 text-indigo-600" />
-                  <span className="text-xs font-medium text-gray-500 truncate">{stat.employee_name}</span>
+                  <Users className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
+                  <span className="text-xs font-medium text-gray-500 dark:text-gray-400 truncate">{stat.employee_name}</span>
                 </div>
                 <div className="flex items-baseline gap-2">
-                  <span className="text-2xl font-bold text-gray-900">{stat.count}</span>
-                  <span className="text-xs text-gray-500">contact{stat.count !== 1 ? "s" : ""}</span>
+                  <span className="text-2xl font-bold text-gray-900 dark:text-slate-100">{stat.count}</span>
+                  <span className="text-xs text-gray-500 dark:text-gray-400">contact{stat.count !== 1 ? "s" : ""}</span>
                 </div>
               </div>
             ))}
           </div>
           {salespersonFilter !== "All" && (
             <button
-              className="mt-2 text-xs text-indigo-600 hover:underline"
+              className="mt-2 text-xs text-indigo-600 dark:text-indigo-400 hover:underline"
               onClick={() => setSalespersonFilter("All")}
             >
               ✕ Clear salesperson filter
@@ -522,14 +527,14 @@ export default function AllocatedContactsPage() {
       {/* ── SALESPERSON: summary card ── */}
       {!isAdmin && (
         <div className="mb-6">
-          <div className="bg-gradient-to-r from-indigo-50 to-blue-50 border border-indigo-200 rounded-lg p-4">
+          <div className="bg-gradient-to-r from-indigo-50 to-blue-50 dark:from-indigo-950/40 dark:to-blue-950/40 border border-indigo-200 dark:border-indigo-800 rounded-lg p-4">
             <div className="flex items-center gap-3">
-              <div className="bg-indigo-600 p-2 rounded-lg">
+              <div className="bg-indigo-600 dark:bg-indigo-500 p-2 rounded-lg">
                 <UserCheck className="h-5 w-5 text-white" />
               </div>
               <div>
-                <p className="text-sm text-gray-600">Allocated to You</p>
-                <p className="text-2xl font-bold text-gray-900">{allCustomers.length}</p>
+                <p className="text-sm text-gray-600 dark:text-gray-400">Allocated to You</p>
+                <p className="text-2xl font-bold text-gray-900 dark:text-slate-100">{allCustomers.length}</p>
               </div>
             </div>
           </div>
@@ -538,11 +543,11 @@ export default function AllocatedContactsPage() {
 
       {/* Error */}
       {error && (
-        <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg flex items-start gap-3">
-          <AlertCircle className="h-5 w-5 text-red-600 flex-shrink-0 mt-0.5" />
+        <div className="mb-6 p-4 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900 rounded-lg flex items-start gap-3">
+          <AlertCircle className="h-5 w-5 text-red-600 dark:text-red-400 flex-shrink-0 mt-0.5" />
           <div className="flex-1">
-            <h3 className="text-sm font-medium text-red-800">Error Loading Contacts</h3>
-            <p className="mt-1 text-sm text-red-700">{error}</p>
+            <h3 className="text-sm font-medium text-red-800 dark:text-red-300">Error Loading Contacts</h3>
+            <p className="mt-1 text-sm text-red-700 dark:text-red-400">{error}</p>
             <Button onClick={fetchAllocatedContacts} variant="outline" size="sm" className="mt-3">Try Again</Button>
           </div>
         </div>
@@ -647,48 +652,48 @@ export default function AllocatedContactsPage() {
       </div>
 
       {/* Table */}
-      <div className="overflow-hidden rounded-lg border border-gray-200 bg-white">
+      <div className="overflow-hidden rounded-lg border border-gray-200 dark:border-slate-800 bg-white dark:bg-slate-900">
         <div className="overflow-x-auto">
-          <table className="w-full divide-y divide-gray-200 table-fixed">
-            <thead className="bg-gray-50">
+          <table className="w-full divide-y divide-gray-200 dark:divide-slate-800 table-fixed">
+            <thead className="bg-gray-50 dark:bg-slate-800/50">
               <tr>
-                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase w-20 border-r-2 border-gray-300">ID</th>
-                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase w-[9%]">Client Name</th>
-                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase w-[11%]">Trading Name</th>
-                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase w-[8%]">Tel No</th>
-                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase w-[8%]">Mobile No</th>
-                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase w-[10%]">MPAN Top</th>
-                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase w-[9%]">Supplier</th>
-                <th className="px-3 py-3 text-right text-xs font-medium tracking-wider text-gray-500 uppercase w-[9%] whitespace-nowrap">Annual Usage</th>
-                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase w-[9%] whitespace-nowrap">Start Date</th>
-                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase w-[9%] whitespace-nowrap">Contract End</th>
-                <th className="px-3 py-3 text-center text-xs font-medium tracking-wider text-gray-500 uppercase w-[12%]">Status</th>
+                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 dark:text-gray-400 uppercase w-20 border-r-2 border-gray-300 dark:border-slate-700">ID</th>
+                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 dark:text-gray-400 uppercase w-[9%]">Client Name</th>
+                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 dark:text-gray-400 uppercase w-[11%]">Trading Name</th>
+                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 dark:text-gray-400 uppercase w-[8%]">Tel No</th>
+                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 dark:text-gray-400 uppercase w-[8%]">Mobile No</th>
+                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 dark:text-gray-400 uppercase w-[10%]">MPAN Top</th>
+                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 dark:text-gray-400 uppercase w-[9%]">Supplier</th>
+                <th className="px-3 py-3 text-right text-xs font-medium tracking-wider text-gray-500 dark:text-gray-400 uppercase w-[9%] whitespace-nowrap">Annual Usage</th>
+                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 dark:text-gray-400 uppercase w-[9%] whitespace-nowrap">Start Date</th>
+                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 dark:text-gray-400 uppercase w-[9%] whitespace-nowrap">Contract End</th>
+                <th className="px-3 py-3 text-center text-xs font-medium tracking-wider text-gray-500 dark:text-gray-400 uppercase w-[12%]">Status</th>
                 {isAdmin && (
-                  <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase w-[9%]">Assigned To</th>
+                  <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 dark:text-gray-400 uppercase w-[9%]">Assigned To</th>
                 )}
               </tr>
             </thead>
 
-            <tbody className="divide-y divide-gray-200 bg-white">
+            <tbody className="divide-y divide-gray-200 dark:divide-slate-800 bg-white dark:bg-slate-900">
               {isLoading ? (
                 <tr>
                   <td colSpan={colSpan} className="px-6 py-12 text-center">
-                    <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-current border-r-transparent text-gray-600" />
-                    <p className="mt-4 text-gray-500">Loading allocated renewals...</p>
+                    <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-current border-r-transparent text-gray-600 dark:text-gray-400" />
+                    <p className="mt-4 text-gray-500 dark:text-gray-400">Loading allocated renewals...</p>
                   </td>
                 </tr>
               ) : error ? (
                 <tr>
                   <td colSpan={colSpan} className="px-6 py-12 text-center">
                     <AlertCircle className="h-12 w-12 text-red-400 mx-auto mb-3" />
-                    <p className="text-lg text-red-600">Failed to load contacts</p>
+                    <p className="text-lg text-red-600 dark:text-red-400">Failed to load contacts</p>
                   </td>
                 </tr>
               ) : paginatedCustomers.length === 0 ? (
                 <tr>
-                  <td colSpan={colSpan} className="px-6 py-12 text-center text-gray-500">
-                    <UserCheck className="h-12 w-12 text-gray-400 mx-auto mb-3" />
-                    <p className="text-lg">No allocated renewals yet.</p>
+                  <td colSpan={colSpan} className="px-6 py-12 text-center text-gray-500 dark:text-gray-400">
+                    <UserCheck className="h-12 w-12 text-gray-400 dark:text-gray-600 mx-auto mb-3" />
+                    <p className="text-lg text-gray-700 dark:text-gray-200 font-medium">No allocated renewals yet.</p>
                     <p className="mt-2 text-sm">
                       {isAdmin
                         ? "Reassigned records will appear here."
@@ -702,48 +707,48 @@ export default function AllocatedContactsPage() {
                   return (
                     <tr
                       key={customer.client_id}
-                      className="hover:bg-gray-50 transition-colors cursor-pointer"
+                      className="hover:bg-gray-50 dark:hover:bg-slate-800/60 transition-colors cursor-pointer"
                       onClick={() => window.open(`/dashboard/renewals/${customer.client_id}?from=allocated`, "_blank")}
                     >
-                      <td className="px-3 py-3 text-sm font-medium text-gray-900 border-r-2 border-gray-300 align-top">
+                      <td className="px-3 py-3 text-sm font-medium text-gray-900 dark:text-slate-100 border-r-2 border-gray-300 dark:border-slate-700 align-top">
                         <div className="whitespace-nowrap">
                           {displayId}
                         </div>
                       </td>
 
-                      <td className="px-3 py-3 text-sm text-gray-700 align-top overflow-hidden">
+                      <td className="px-3 py-3 text-sm text-gray-700 dark:text-gray-300 align-top overflow-hidden">
                         <div className="whitespace-normal break-words leading-tight">{customer.contact_person || "—"}</div>
                       </td>
 
-                      <td className="px-3 py-3 text-sm text-gray-900 align-top overflow-hidden">
+                      <td className="px-3 py-3 text-sm text-gray-900 dark:text-slate-100 align-top overflow-hidden">
                         <div className="whitespace-normal break-words leading-tight">{customer.business_name || "—"}</div>
                       </td>
 
-                      <td className="px-3 py-3 text-sm text-gray-900 align-top">
+                      <td className="px-3 py-3 text-sm text-gray-900 dark:text-slate-200 align-top">
                         <div className="whitespace-nowrap">{customer.phone ? String(customer.phone).replace(/\.0$/, "") : "—"}</div>
                       </td>
 
-                      <td className="px-3 py-3 text-sm text-gray-900 align-top">
+                      <td className="px-3 py-3 text-sm text-gray-900 dark:text-slate-200 align-top">
                         <div className="whitespace-nowrap">{customer.mobile_no ? String(customer.mobile_no).replace(/\.0$/, "") : "—"}</div>
                       </td>
 
-                      <td className="px-3 py-3 text-sm text-gray-900 align-top overflow-hidden">
+                      <td className="px-3 py-3 text-sm text-gray-900 dark:text-slate-200 align-top overflow-hidden">
                         <div className="truncate" title={customer.mpan_top || ""}>{customer.mpan_top || "—"}</div>
                       </td>
 
-                      <td className="px-3 py-3 text-sm text-gray-900 align-top overflow-hidden">
+                      <td className="px-3 py-3 text-sm text-gray-900 dark:text-slate-200 align-top overflow-hidden">
                         <div className="truncate" title={customer.supplier_name || ""}>{customer.supplier_name || "—"}</div>
                       </td>
 
-                      <td className="px-3 py-3 text-sm text-gray-900 text-right align-top">
+                      <td className="px-3 py-3 text-sm text-gray-900 dark:text-slate-200 text-right align-top">
                         <div className="whitespace-nowrap">{customer.annual_usage ? customer.annual_usage.toLocaleString() : "—"}</div>
                       </td>
 
-                      <td className="px-3 py-3 text-sm text-gray-900 align-top">
+                      <td className="px-3 py-3 text-sm text-gray-900 dark:text-slate-200 align-top">
                         <div className="whitespace-nowrap">{formatDate(customer.start_date)}</div>
                       </td>
 
-                      <td className="px-3 py-3 text-sm text-gray-900 align-top">
+                      <td className="px-3 py-3 text-sm text-gray-900 dark:text-slate-200 align-top">
                         <div className="whitespace-nowrap">{formatDate(customer.end_date)}</div>
                       </td>
 
@@ -759,7 +764,7 @@ export default function AllocatedContactsPage() {
                                   {getStatusLabel(customer.status)}
                                 </span>
                               ) : (
-                                <span className="text-gray-500">Set status</span>
+                                <span className="text-gray-500 dark:text-gray-400">Set status</span>
                               )}
                             </SelectValue>
                           </SelectTrigger>
@@ -769,8 +774,8 @@ export default function AllocatedContactsPage() {
                             ))}
                             {customer.status && (
                               <>
-                                <div className="border-t my-1" />
-                                <SelectItem value="CLEAR_STATUS" className="text-red-600 font-medium">✕ Clear Status</SelectItem>
+                                <div className="border-t border-gray-200 dark:border-slate-800 my-1" />
+                                <SelectItem value="CLEAR_STATUS" className="text-red-600 dark:text-red-400 font-medium">✕ Clear Status</SelectItem>
                               </>
                             )}
                           </SelectContent>
@@ -803,7 +808,7 @@ export default function AllocatedContactsPage() {
                             </SelectContent>
                           </Select>
                         ) : (
-                          <span className="text-sm text-gray-700">{customer.assigned_to_name || "—"}</span>
+                          <span className="text-sm text-gray-700 dark:text-gray-300">{customer.assigned_to_name || "—"}</span>
                         )}
                       </td>
                     </tr>
@@ -833,8 +838,8 @@ export default function AllocatedContactsPage() {
             )}
 
             <div className="space-y-2">
-              <label className="text-sm font-medium">Status</label>
-              <div className="p-2 bg-gray-50 rounded border">
+              <label className="text-sm font-medium text-gray-900 dark:text-slate-100">Status</label>
+              <div className="p-2 bg-gray-50 dark:bg-slate-900 rounded border border-gray-200 dark:border-slate-800">
                 <span className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${getStatusColor(callbackStatus)}`}>
                   {getStatusLabel(callbackStatus)}
                 </span>
@@ -842,13 +847,13 @@ export default function AllocatedContactsPage() {
             </div>
 
             <div className="space-y-2">
-              <label className="text-sm font-medium">Called Date</label>
+              <label className="text-sm font-medium text-gray-900 dark:text-slate-100">Called Date</label>
               <Input type="date" value={calledDate} onChange={e => setCalledDate(e.target.value)} />
             </div>
 
             {statusConfig[callbackStatus]?.requiresSold && (
               <div className="space-y-2">
-                <label className="text-sm font-medium">Was it sold? *</label>
+                <label className="text-sm font-medium text-gray-900 dark:text-slate-100">Was it sold? *</label>
                 <Select value={isSold} onValueChange={setIsSold}>
                   <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
                   <SelectContent>
@@ -861,18 +866,18 @@ export default function AllocatedContactsPage() {
 
             {isDateRequired() && (
               <div className="space-y-2">
-                <label className="text-sm font-medium">Callback Date</label>
+                <label className="text-sm font-medium text-gray-900 dark:text-slate-100">Callback Date</label>
                 <Input type="date" value={callbackDate} onChange={e => setCallbackDate(e.target.value)} />
               </div>
             )}
 
             {statusConfig[callbackStatus]?.requiresNewEndDate && (
               <div className="space-y-2">
-                <label className="text-sm font-medium">
+                <label className="text-sm font-medium text-gray-900 dark:text-slate-100">
                   New Contract End Date {callbackStatus === "End Date Changed" ? "*" : ""}
                 </label>
                 <Input type="date" value={newEndDate} onChange={e => setNewEndDate(e.target.value)} />
-                <p className="text-xs text-gray-500">
+                <p className="text-xs text-gray-500 dark:text-gray-400">
                   {callbackStatus === "Already Renewed"
                     ? "Optional: Update if the contract end date has changed"
                     : "The contract end date will be updated to this new date"}
@@ -882,8 +887,8 @@ export default function AllocatedContactsPage() {
 
             {callbackStatus === "Already Renewed" && (
               <div className="space-y-2">
-                <label className="text-sm font-medium">Renewed By <span className="text-red-500">*</span></label>
-                <div className="flex flex-col gap-2 p-3 border rounded-lg bg-gray-50">
+                <label className="text-sm font-medium text-gray-900 dark:text-slate-100">Renewed By <span className="text-red-500">*</span></label>
+                <div className="flex flex-col gap-2 p-3 border border-gray-200 dark:border-slate-800 rounded-lg bg-gray-50 dark:bg-slate-900">
                   {(["customer", "agent"] as const).map(val => (
                     <label key={val} className="flex items-center gap-3 cursor-pointer">
                       <input
@@ -892,13 +897,13 @@ export default function AllocatedContactsPage() {
                         value={val}
                         checked={renewedBy === val}
                         onChange={() => setRenewedBy(val)}
-                        className="w-4 h-4 accent-black"
+                        className="w-4 h-4 accent-black dark:accent-white"
                       />
                       <div>
-                        <span className="text-sm font-medium text-gray-900">
+                        <span className="text-sm font-medium text-gray-900 dark:text-slate-100">
                           {val === "customer" ? "Renewed by Customer" : "Renewed by Agent"}
                         </span>
-                        <p className="text-xs text-gray-500">
+                        <p className="text-xs text-gray-500 dark:text-gray-400">
                           {val === "customer" ? "Customer renewed directly without agent" : "Agent successfully renewed the contract"}
                         </p>
                       </div>
@@ -910,14 +915,14 @@ export default function AllocatedContactsPage() {
 
             {statusConfig[callbackStatus]?.requiresSupplierChange && (
               <div className="space-y-2">
-                <label className="text-sm font-medium">New Supplier (Optional)</label>
+                <label className="text-sm font-medium text-gray-900 dark:text-slate-100">New Supplier (Optional)</label>
                 <Input type="text" placeholder="Enter new supplier name" value={newSupplier} onChange={e => setNewSupplier(e.target.value)} />
               </div>
             )}
 
             {statusConfig[callbackStatus]?.requiresAddressChange && (
               <div className="space-y-2">
-                <label className="text-sm font-medium">New Address (Optional)</label>
+                <label className="text-sm font-medium text-gray-900 dark:text-slate-100">New Address (Optional)</label>
                 <Textarea placeholder="Enter new address if changed" value={newAddress} onChange={e => setNewAddress(e.target.value)} rows={2} />
               </div>
             )}
@@ -930,7 +935,7 @@ export default function AllocatedContactsPage() {
             )}
 
             <div className="space-y-2">
-              <label className="text-sm font-medium">
+              <label className="text-sm font-medium text-gray-900 dark:text-slate-100">
                 Notes {statusConfig[callbackStatus]?.requiresNotes && <span className="text-red-500">*</span>}
               </label>
               <Textarea
@@ -942,7 +947,7 @@ export default function AllocatedContactsPage() {
                 rows={3}
               />
               {statusConfig[callbackStatus]?.requiresNotes && (
-                <p className="text-xs text-gray-500">Required: Please explain the reason for this status</p>
+                <p className="text-xs text-gray-500 dark:text-gray-400">Required: Please explain the reason for this status</p>
               )}
             </div>
           </div>
@@ -972,7 +977,7 @@ export default function AllocatedContactsPage() {
 
           <div className="space-y-4">
             <div>
-              <label className="text-sm font-medium text-gray-700">Assigned To</label>
+              <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Assigned To</label>
               <Select value={assignToEmployeeId} onValueChange={setAssignToEmployeeId}>
                 <SelectTrigger className="mt-1">
                   <SelectValue placeholder="Select salesperson" />
@@ -989,7 +994,7 @@ export default function AllocatedContactsPage() {
             </div>
 
             <div>
-              <label className="text-sm font-medium text-gray-700">
+              <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
                 Assignment Notes (Optional)
               </label>
               <Textarea

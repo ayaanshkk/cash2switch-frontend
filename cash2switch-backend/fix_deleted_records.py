@@ -1,4 +1,4 @@
-"""
+git fetch origin"""
 Migration: Move existing Lost COT, Invalid Number, Incorrect Supplier records to proper flags
 Runs for BOTH Renewals (Client_Master) and Leads (Opportunity_Details)
 """

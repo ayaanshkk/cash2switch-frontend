@@ -34,48 +34,45 @@ interface RenewalCustomer {
   assigned_to_name: string;
 }
 
-// ✅ Add props interface
 interface RenewalsTableProps {
   employeeId?: number;
 }
 
 const getUrgencyColor = (days: number) => {
-  if (days <= 30) return "text-red-600 bg-red-50 border-red-200";
-  if (days <= 60) return "text-orange-600 bg-orange-50 border-orange-200";
-  return "text-yellow-600 bg-yellow-50 border-yellow-200";
+  if (days <= 30) return "text-red-600 bg-red-50 border-red-200 dark:text-red-400 dark:bg-red-950/50 dark:border-red-900";
+  if (days <= 60) return "text-orange-600 bg-orange-50 border-orange-200 dark:text-orange-400 dark:bg-orange-950/50 dark:border-orange-900";
+  return "text-yellow-600 bg-yellow-50 border-yellow-200 dark:text-yellow-400 dark:bg-yellow-950/50 dark:border-yellow-900";
 };
 
 const getStatusColor = (status: string) => {
   switch (status?.toLowerCase()) {
     case "contacted":
     case "called":
-      return "bg-blue-100 text-blue-700";
+      return "bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300";
     case "renewed":
     case "priced":
-      return "bg-green-100 text-green-700";
+      return "bg-green-100 text-green-700 dark:bg-green-950 dark:text-green-300";
     case "lost":
-      return "bg-red-100 text-red-700";
+      return "bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300";
     case "not_answered":
-      return "bg-yellow-100 text-yellow-700";
+      return "bg-yellow-100 text-yellow-700 dark:bg-yellow-950 dark:text-yellow-300";
     default:
-      return "bg-gray-100 text-gray-700";
+      return "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300";
   }
 };
 
-// ✅ Accept employeeId prop
 export function RenewalsTable({ employeeId }: RenewalsTableProps = {}) {
   const [renewals, setRenewals] = useState<RenewalCustomer[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     fetchRenewals();
-  }, [employeeId]); // ✅ Re-fetch when employeeId changes
+  }, [employeeId]);
 
   const fetchRenewals = async () => {
     try {
       setLoading(true);
       const token = localStorage.getItem("auth_token");
-
       const employeeParam = employeeId ? `&employee_id=${employeeId}` : "";
 
       const response = await fetch(
@@ -147,7 +144,7 @@ export function RenewalsTable({ employeeId }: RenewalsTableProps = {}) {
       cell: ({ row }) => (
         <a
           href={`tel:${row.original.phone}`}
-          className="flex items-center gap-1 text-blue-600 hover:text-blue-700"
+          className="flex items-center gap-1 text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
         >
           <Phone className="h-3 w-3" />
           <span className="text-sm">{row.original.phone}</span>
@@ -160,7 +157,7 @@ export function RenewalsTable({ employeeId }: RenewalsTableProps = {}) {
       cell: ({ row }) => (
         <a
           href={`mailto:${row.original.email}`}
-          className="flex items-center gap-1 text-blue-600 hover:text-blue-700 truncate max-w-[180px]"
+          className="flex items-center gap-1 text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 truncate max-w-[180px]"
         >
           <Mail className="h-3 w-3 flex-shrink-0" />
           <span className="text-sm truncate">{row.original.email}</span>
@@ -182,7 +179,7 @@ export function RenewalsTable({ employeeId }: RenewalsTableProps = {}) {
       cell: ({ row }) => {
         const mpan = row.original.mpan_mpr || row.original.mpan_number;
         return (
-          <div className="max-w-[160px] truncate font-mono text-sm text-slate-800" title={mpan || ""}>
+          <div className="max-w-[160px] truncate font-mono text-sm text-slate-800 dark:text-slate-200" title={mpan || ""}>
             {mpan || "—"}
           </div>
         );
@@ -240,7 +237,7 @@ export function RenewalsTable({ employeeId }: RenewalsTableProps = {}) {
         <Button
           variant="outline"
           size="sm"
-          className="border-slate-200 bg-white text-slate-800 hover:bg-slate-50 hover:text-slate-900"
+          className="border-slate-200 bg-white text-slate-800 hover:bg-slate-50 hover:text-slate-900 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-200 dark:hover:bg-slate-900 dark:hover:text-white"
           onClick={() => window.open(`/dashboard/renewals/${row.original.client_id}`, "_blank", "noopener,noreferrer")}
         >
           <Eye className="h-4 w-4" />
@@ -259,7 +256,7 @@ export function RenewalsTable({ employeeId }: RenewalsTableProps = {}) {
 
   if (loading) {
     return (
-      <Card className="rounded-xl border-0 bg-white shadow-md shadow-slate-200/50 ring-1 ring-slate-100">
+      <Card className="rounded-xl border-0 bg-white shadow-md shadow-slate-200/50 ring-1 ring-slate-100 dark:bg-slate-900 dark:shadow-none dark:ring-slate-800">
         <CardContent className="flex h-64 items-center justify-center">
           <div className="h-12 w-12 animate-spin rounded-full border-b-2 border-primary"></div>
         </CardContent>
@@ -268,9 +265,9 @@ export function RenewalsTable({ employeeId }: RenewalsTableProps = {}) {
   }
 
   return (
-    <Card className="rounded-xl border-0 bg-white shadow-md shadow-slate-200/50 ring-1 ring-slate-100">
+    <Card className="rounded-xl border-0 bg-white shadow-md shadow-slate-200/50 ring-1 ring-slate-100 dark:bg-slate-900 dark:shadow-none dark:ring-slate-800">
       <CardHeader>
-        <CardTitle className="text-lg font-bold text-slate-900">
+        <CardTitle className="text-lg font-bold text-slate-900 dark:text-slate-100">
           {employeeId ? "My renewals" : "Upcoming renewals"}
         </CardTitle>
         <CardDescription>
@@ -284,7 +281,7 @@ export function RenewalsTable({ employeeId }: RenewalsTableProps = {}) {
             <Button
               variant="outline"
               size="sm"
-              className="border-slate-200 bg-white text-slate-800 hover:bg-slate-50 hover:text-slate-900"
+              className="border-slate-200 bg-white text-slate-800 hover:bg-slate-50 hover:text-slate-900 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-200 dark:hover:bg-slate-900 dark:hover:text-white"
               onClick={fetchRenewals}
             >
               Refresh
@@ -293,7 +290,7 @@ export function RenewalsTable({ employeeId }: RenewalsTableProps = {}) {
         </CardAction>
       </CardHeader>
       <CardContent className="flex size-full flex-col gap-4">
-        <div className="overflow-hidden rounded-lg border border-slate-200/80 bg-slate-50/30">
+        <div className="overflow-hidden rounded-lg border border-slate-200/80 bg-slate-50/30 dark:border-slate-800 dark:bg-slate-950/30">
           <DataTable table={table} columns={columns} />
         </div>
         <DataTablePagination table={table} />

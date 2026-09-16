@@ -84,7 +84,6 @@ export default function SettingsPage() {
   const [deletingEmployeeId, setDeletingEmployeeId] = useState<number | null>(null);
   const [updatingRoleEmployeeId, setUpdatingRoleEmployeeId] = useState<number | null>(null);
 
-
   // ── Bootstrap ───────────────────────────────────────────────────────────────
 
   useEffect(() => {
@@ -269,267 +268,287 @@ export default function SettingsPage() {
 
   const renderUsersContent = () => {
     if (isLoadingRole) {
-      return <div className="p-4 text-center text-gray-500">Loading permissions...</div>;
+      return <div className="p-4 text-center text-gray-500 dark:text-slate-400">Loading permissions...</div>;
     }
 
     if (!isAdmin) {
       return (
-        <Card>
-          <CardContent className="py-12 text-center text-gray-500">
-            <Shield className="h-10 w-10 mx-auto mb-3 text-gray-300" />
-            <p className="font-medium">Platform Admin access required</p>
+        <Card className="border-slate-200 dark:border-slate-800 dark:bg-slate-900">
+          <CardContent className="py-12 text-center text-gray-500 dark:text-slate-400">
+            <Shield className="h-10 w-10 mx-auto mb-3 text-gray-300 dark:text-slate-600" />
+            <p className="font-medium text-slate-900 dark:text-slate-100">Platform Admin access required</p>
             <p className="text-sm mt-1">Only Platform Admins can manage team members.</p>
           </CardContent>
         </Card>
       );
     }
 
-return (
-  <div className="space-y-6">
-    {/* Invite Card */}
-    <Card>
-      <CardHeader>
-        <div className="flex items-center justify-between">
-          <div>
-            <CardTitle>Invite Team Member</CardTitle>
-            <CardDescription>
-              Create a username for your team member and share the invite link so
-              they can set their password and log in.
-            </CardDescription>
-          </div>
-          {!showInviteForm && (
-            <Button onClick={() => { setShowInviteForm(true); setGeneratedInviteLink(""); }}>
-              <Plus className="mr-2 h-4 w-4" />
-              Invite Member
-            </Button>
-          )}
-        </div>
-      </CardHeader>
-
-      {showInviteForm && (
-        <CardContent className="space-y-4">
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label>Full Name <span className="text-red-500">*</span></Label>
-              <Input
-                placeholder="e.g. Sarah Jones"
-                value={inviteForm.employee_name}
-                onChange={(e) => setInviteForm({ ...inviteForm, employee_name: e.target.value })}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Username <span className="text-red-500">*</span></Label>
-              <Input
-                placeholder="e.g. sarah.jones"
-                value={inviteForm.username}
-                onChange={(e) => setInviteForm({ ...inviteForm, username: e.target.value })}
-              />
-              <p className="text-xs text-gray-500">They will use this to log in</p>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label>Email <span className="text-gray-400 font-normal">(optional)</span></Label>
-              <Input
-                type="email"
-                placeholder="sarah@company.com"
-                value={inviteForm.email}
-                onChange={(e) => setInviteForm({ ...inviteForm, email: e.target.value })}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Phone <span className="text-gray-400 font-normal">(optional)</span></Label>
-              <Input
-                placeholder="07700 000000"
-                value={inviteForm.phone}
-                onChange={(e) => setInviteForm({ ...inviteForm, phone: e.target.value })}
-              />
-            </div>
-          </div>
-
-          <div className="space-y-2 max-w-xs">
-            <Label>Role <span className="text-red-500">*</span></Label>
-            <Select
-              value={inviteForm.role_id}
-              onValueChange={(v) => setInviteForm({ ...inviteForm, role_id: v })}
-            >
-              <SelectTrigger><SelectValue placeholder="Select role" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="2">Platform Admin</SelectItem>
-                <SelectItem value="3">Salesperson</SelectItem>
-                <SelectItem value="5">Leads Offshore</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          {generatedInviteLink && (
-            <div className="rounded-lg bg-green-50 p-4 space-y-3">
-              <div className="flex items-center gap-2 text-green-800 font-medium">
-                <Check className="h-5 w-5" />
-                Invite created! Share this link:
+    return (
+      <div className="space-y-6">
+        {/* Invite Card */}
+        <Card className="border-slate-200 dark:border-slate-800 dark:bg-slate-900">
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle className="text-slate-950 dark:text-slate-50">Invite Team Member</CardTitle>
+                <CardDescription className="dark:text-slate-400">
+                  Create a username for your team member and share the invite link so
+                  they can set their password and log in.
+                </CardDescription>
               </div>
-              <div className="flex gap-2">
-                <Input value={generatedInviteLink} readOnly className="font-mono text-xs" />
-                <Button variant="outline" size="sm" onClick={() => copyInviteLink()}>
-                  <Copy className="h-4 w-4" />
+              {!showInviteForm && (
+                <Button
+                  onClick={() => { setShowInviteForm(true); setGeneratedInviteLink(""); }}
+                  className="dark:bg-slate-100 dark:text-slate-950 dark:hover:bg-slate-200"
+                >
+                  <Plus className="mr-2 h-4 w-4" />
+                  Invite Member
                 </Button>
-              </div>
-              <p className="text-xs text-green-700">
-                They visit this link, set a password, and can log in immediately.
-              </p>
+              )}
             </div>
-          )}
+          </CardHeader>
 
-          <div className="flex gap-2 justify-end">
-            <Button
-              variant="outline"
-              onClick={() => {
-                setShowInviteForm(false);
-                setGeneratedInviteLink("");
-                setInviteForm({ employee_name: "", username: "", email: "", phone: "", role_id: "" });
-              }}
-              disabled={isSubmitting}
-            >
-              Cancel
-            </Button>
-            <Button onClick={handleCreateInvite} disabled={isSubmitting}>
-              <Mail className="mr-2 h-4 w-4" />
-              {isSubmitting ? "Creating..." : "Create Invite"}
-            </Button>
-          </div>
-        </CardContent>
-      )}
-    </Card>
-
-    {/* Team Members List */}
-    <Card>
-      <CardHeader>
-        <CardTitle>All Users</CardTitle>
-        <CardDescription>Manage existing team members and permissions</CardDescription>
-      </CardHeader>
-      <CardContent>
-        {isLoadingMembers ? (
-          <div className="text-center py-8 text-gray-400">Loading members...</div>
-        ) : members.length === 0 ? (
-          <div className="text-center py-8 text-gray-500">
-            No team members yet. Invite your first member above.
-          </div>
-        ) : (
-          <div className="space-y-3">
-            {members.map((member) => (
-              <div key={member.employee_id} className="rounded-lg border p-4">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-6">
-                    <div className="min-w-[200px]">
-                      <div className="font-medium">{member.employee_name}</div>
-                      <div className="text-sm text-gray-600">
-                        {member.username
-                          ? `@${member.username}`
-                          : <span className="italic text-gray-400">No username</span>}
-                        {member.email && <span className="ml-2">· {member.email}</span>}
-                      </div>
-                    </div>
-
-                    <div className="w-44">
-                      <Select
-                        value={member.role_id ? String(member.role_id) : ""}
-                        onValueChange={(roleId) => handleUpdateMemberRole(member, roleId)}
-                        disabled={!member.user_id || updatingRoleEmployeeId === member.employee_id}
-                      >
-                        <SelectTrigger className="h-9">
-                          <SelectValue placeholder={member.role || "Select role"} />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="2">Platform Admin</SelectItem>
-                          <SelectItem value="3">Salesperson</SelectItem>
-                          <SelectItem value="5">Leads Offshore</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    {member.is_invite_pending ? (
-                      <span className="inline-flex rounded-full bg-orange-100 px-3 py-1 text-xs font-semibold text-orange-800">
-                        Pending Registration
-                      </span>
-                    ) : member.user_id ? (
-                      <span className="inline-flex rounded-full bg-green-100 px-3 py-1 text-xs font-semibold text-green-800">
-                        Active
-                      </span>
-                    ) : (
-                      <span className="inline-flex rounded-full bg-gray-100 px-3 py-1 text-xs font-semibold text-gray-500">
-                        No account
-                      </span>
-                    )}
-                  </div>
-
-                  <div className="flex items-center gap-2">
-                    {member.is_invite_pending && member.invite_link && (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => copyInviteLink(member.invite_link!)}
-                        title="Copy invite link"
-                      >
-                        <Copy className="h-4 w-4 mr-1" />
-                        Copy Link
-                      </Button>
-                    )}
-                    {member.is_invite_pending && member.user_id && (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => handleResendInvite(member.user_id!)}
-                        disabled={resendingUserId === member.user_id}
-                        title="Generate new invite link"
-                      >
-                        <LinkIcon className="h-4 w-4 mr-1" />
-                        {resendingUserId === member.user_id ? "..." : "New Link"}
-                      </Button>
-                    )}
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => handleDeleteMember(member.employee_id, member.employee_name)}
-                      disabled={deletingEmployeeId === member.employee_id}
-                      title="Delete team member"
-                      className="text-red-600 border-red-200 hover:bg-red-50"
-                    >
-                      <Trash2 className="h-4 w-4 mr-1" />
-                      {deletingEmployeeId === member.employee_id ? "..." : "Delete"}
-                    </Button>
-                  </div>
+          {showInviteForm && (
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label className="dark:text-slate-300">Full Name <span className="text-red-500">*</span></Label>
+                  <Input
+                    placeholder="e.g. Sarah Jones"
+                    value={inviteForm.employee_name}
+                    onChange={(e) => setInviteForm({ ...inviteForm, employee_name: e.target.value })}
+                    className="dark:border-slate-800 dark:bg-slate-950 dark:text-slate-100 dark:placeholder:text-slate-500"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label className="dark:text-slate-300">Username <span className="text-red-500">*</span></Label>
+                  <Input
+                    placeholder="e.g. sarah.jones"
+                    value={inviteForm.username}
+                    onChange={(e) => setInviteForm({ ...inviteForm, username: e.target.value })}
+                    className="dark:border-slate-800 dark:bg-slate-950 dark:text-slate-100 dark:placeholder:text-slate-500"
+                  />
+                  <p className="text-xs text-gray-500 dark:text-slate-400">They will use this to log in</p>
                 </div>
               </div>
-            ))}
-          </div>
-        )}
-      </CardContent>
-    </Card>
-  </div>
-);
-};
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label className="dark:text-slate-300">Email <span className="text-gray-400 dark:text-slate-500 font-normal">(optional)</span></Label>
+                  <Input
+                    type="email"
+                    placeholder="sarah@company.com"
+                    value={inviteForm.email}
+                    onChange={(e) => setInviteForm({ ...inviteForm, email: e.target.value })}
+                    className="dark:border-slate-800 dark:bg-slate-950 dark:text-slate-100 dark:placeholder:text-slate-500"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label className="dark:text-slate-300">Phone <span className="text-gray-400 dark:text-slate-500 font-normal">(optional)</span></Label>
+                  <Input
+                    placeholder="07700 000000"
+                    value={inviteForm.phone}
+                    onChange={(e) => setInviteForm({ ...inviteForm, phone: e.target.value })}
+                    className="dark:border-slate-800 dark:bg-slate-950 dark:text-slate-100 dark:placeholder:text-slate-500"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-2 max-w-xs">
+                <Label className="dark:text-slate-300">Role <span className="text-red-500">*</span></Label>
+                <Select
+                  value={inviteForm.role_id}
+                  onValueChange={(v) => setInviteForm({ ...inviteForm, role_id: v })}
+                >
+                  <SelectTrigger className="dark:border-slate-800 dark:bg-slate-950 dark:text-slate-100">
+                    <SelectValue placeholder="Select role" />
+                  </SelectTrigger>
+                  <SelectContent className="dark:border-slate-800 dark:bg-slate-900">
+                    <SelectItem value="2" className="dark:hover:bg-slate-800">Platform Admin</SelectItem>
+                    <SelectItem value="3" className="dark:hover:bg-slate-800">Salesperson</SelectItem>
+                    <SelectItem value="5" className="dark:hover:bg-slate-800">Leads Offshore</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {generatedInviteLink && (
+                <div className="rounded-lg bg-green-50 p-4 space-y-3 dark:border dark:border-green-900/50 dark:bg-green-950/30">
+                  <div className="flex items-center gap-2 text-green-800 dark:text-green-300 font-medium">
+                    <Check className="h-5 w-5" />
+                    Invite created! Share this link:
+                  </div>
+                  <div className="flex gap-2">
+                    <Input
+                      value={generatedInviteLink}
+                      readOnly
+                      className="font-mono text-xs dark:border-slate-800 dark:bg-slate-950 dark:text-slate-100"
+                    />
+                    <Button variant="outline" size="sm" onClick={() => copyInviteLink()} className="dark:border-slate-700 dark:hover:bg-slate-800">
+                      <Copy className="h-4 w-4" />
+                    </Button>
+                  </div>
+                  <p className="text-xs text-green-700 dark:text-green-400">
+                    They visit this link, set a password, and can log in immediately.
+                  </p>
+                </div>
+              )}
+
+              <div className="flex gap-2 justify-end">
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setShowInviteForm(false);
+                    setGeneratedInviteLink("");
+                    setInviteForm({ employee_name: "", username: "", email: "", phone: "", role_id: "" });
+                  }}
+                  disabled={isSubmitting}
+                  className="dark:border-slate-700 dark:hover:bg-slate-800"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  onClick={handleCreateInvite}
+                  disabled={isSubmitting}
+                  className="dark:bg-slate-100 dark:text-slate-950 dark:hover:bg-slate-200"
+                >
+                  <Mail className="mr-2 h-4 w-4" />
+                  {isSubmitting ? "Creating..." : "Create Invite"}
+                </Button>
+              </div>
+            </CardContent>
+          )}
+        </Card>
+
+        {/* Team Members List */}
+        <Card className="border-slate-200 dark:border-slate-800 dark:bg-slate-900">
+          <CardHeader>
+            <CardTitle className="text-slate-950 dark:text-slate-50">All Users</CardTitle>
+            <CardDescription className="dark:text-slate-400">Manage existing team members and permissions</CardDescription>
+          </CardHeader>
+          <CardContent>
+            {isLoadingMembers ? (
+              <div className="text-center py-8 text-gray-400 dark:text-slate-500">Loading members...</div>
+            ) : members.length === 0 ? (
+              <div className="text-center py-8 text-gray-500 dark:text-slate-400">
+                No team members yet. Invite your first member above.
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {members.map((member) => (
+                  <div key={member.employee_id} className="rounded-lg border border-slate-200 p-4 dark:border-slate-800 dark:bg-slate-950">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-6">
+                        <div className="min-w-[200px]">
+                          <div className="font-medium text-slate-950 dark:text-slate-50">{member.employee_name}</div>
+                          <div className="text-sm text-gray-600 dark:text-slate-400">
+                            {member.username
+                              ? `@${member.username}`
+                              : <span className="italic text-gray-400 dark:text-slate-500">No username</span>}
+                            {member.email && <span className="ml-2">· {member.email}</span>}
+                          </div>
+                        </div>
+
+                        <div className="w-44">
+                          <Select
+                            value={member.role_id ? String(member.role_id) : ""}
+                            onValueChange={(roleId) => handleUpdateMemberRole(member, roleId)}
+                            disabled={!member.user_id || updatingRoleEmployeeId === member.employee_id}
+                          >
+                            <SelectTrigger className="h-9 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100">
+                              <SelectValue placeholder={member.role || "Select role"} />
+                            </SelectTrigger>
+                            <SelectContent className="dark:border-slate-800 dark:bg-slate-900">
+                              <SelectItem value="2" className="dark:hover:bg-slate-800">Platform Admin</SelectItem>
+                              <SelectItem value="3" className="dark:hover:bg-slate-800">Salesperson</SelectItem>
+                              <SelectItem value="5" className="dark:hover:bg-slate-800">Leads Offshore</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+
+                        {member.is_invite_pending ? (
+                          <span className="inline-flex rounded-full bg-orange-100 px-3 py-1 text-xs font-semibold text-orange-800 dark:bg-orange-950/60 dark:text-orange-300">
+                            Pending Registration
+                          </span>
+                        ) : member.user_id ? (
+                          <span className="inline-flex rounded-full bg-green-100 px-3 py-1 text-xs font-semibold text-green-800 dark:bg-green-950/60 dark:text-green-300">
+                            Active
+                          </span>
+                        ) : (
+                          <span className="inline-flex rounded-full bg-gray-100 px-3 py-1 text-xs font-semibold text-gray-500 dark:bg-slate-800 dark:text-slate-400">
+                            No account
+                          </span>
+                        )}
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        {member.is_invite_pending && member.invite_link && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => copyInviteLink(member.invite_link!)}
+                            title="Copy invite link"
+                            className="dark:border-slate-700 dark:hover:bg-slate-800"
+                          >
+                            <Copy className="h-4 w-4 mr-1" />
+                            Copy Link
+                          </Button>
+                        )}
+                        {member.is_invite_pending && member.user_id && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleResendInvite(member.user_id!)}
+                            disabled={resendingUserId === member.user_id}
+                            title="Generate new invite link"
+                            className="dark:border-slate-700 dark:hover:bg-slate-800"
+                          >
+                            <LinkIcon className="h-4 w-4 mr-1" />
+                            {resendingUserId === member.user_id ? "..." : "New Link"}
+                          </Button>
+                        )}
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleDeleteMember(member.employee_id, member.employee_name)}
+                          disabled={deletingEmployeeId === member.employee_id}
+                          title="Delete team member"
+                          className="text-red-600 border-red-200 hover:bg-red-50 dark:border-red-900/50 dark:hover:bg-red-950/40 dark:text-red-400"
+                        >
+                          <Trash2 className="h-4 w-4 mr-1" />
+                          {deletingEmployeeId === member.employee_id ? "..." : "Delete"}
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+    );
+  };
 
   // ── Main Render ─────────────────────────────────────────────────────────────
 
   return (
-    <div className="w-full p-6">
+    <div className="w-full p-6 text-slate-900 dark:text-slate-100">
       <div className="mb-6 flex items-center gap-3">
-        <Settings className="h-8 w-8" />
-        <h1 className="text-3xl font-bold">Settings</h1>
+        <Settings className="h-8 w-8 text-slate-950 dark:text-slate-50" />
+        <h1 className="text-3xl font-bold text-slate-950 dark:text-slate-50">Settings</h1>
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-        <TabsList className="grid w-full grid-cols-3">
-          <TabsTrigger value="company" className="flex items-center gap-2">
+        <TabsList className="grid w-full grid-cols-3 bg-slate-100 dark:border dark:border-slate-800 dark:bg-slate-900">
+          <TabsTrigger value="company" className="flex items-center gap-2 dark:data-[state=active]:bg-slate-800 dark:data-[state=active]:text-slate-100">
             <Building2 className="h-4 w-4" />
             Company
           </TabsTrigger>
-          <TabsTrigger value="users" className="flex items-center gap-2">
+          <TabsTrigger value="users" className="flex items-center gap-2 dark:data-[state=active]:bg-slate-800 dark:data-[state=active]:text-slate-100">
             <Users className="h-4 w-4" />
             Users
           </TabsTrigger>
-          <TabsTrigger value="system" className="flex items-center gap-2">
+          <TabsTrigger value="system" className="flex items-center gap-2 dark:data-[state=active]:bg-slate-800 dark:data-[state=active]:text-slate-100">
             <Database className="h-4 w-4" />
             System
           </TabsTrigger>
@@ -537,46 +556,67 @@ return (
 
         {/* Company Settings */}
         <TabsContent value="company">
-          <Card>
+          <Card className="border-slate-200 dark:border-slate-800 dark:bg-slate-900">
             <CardHeader>
-              <CardTitle>Company Information</CardTitle>
-              <CardDescription>Update your company details and branding information</CardDescription>
+              <CardTitle className="text-slate-950 dark:text-slate-50">Company Information</CardTitle>
+              <CardDescription className="dark:text-slate-400">Update your company details and branding information</CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
               <div className="grid grid-cols-2 gap-6">
                 <div className="space-y-2">
-                  <Label htmlFor="company-name">Company Name</Label>
-                  <Input id="company-name" value={companySettings.name} readOnly className="bg-gray-100" />
+                  <Label htmlFor="company-name" className="dark:text-slate-300">Company Name</Label>
+                  <Input
+                    id="company-name"
+                    value={companySettings.name}
+                    readOnly
+                    className="bg-gray-100 dark:border-slate-800 dark:bg-slate-950/60 dark:text-slate-400"
+                  />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="company-phone">Phone Number</Label>
-                  <Input id="company-phone" value={companySettings.phone} readOnly className="bg-gray-100" />
+                  <Label htmlFor="company-phone" className="dark:text-slate-300">Phone Number</Label>
+                  <Input
+                    id="company-phone"
+                    value={companySettings.phone}
+                    readOnly
+                    className="bg-gray-100 dark:border-slate-800 dark:bg-slate-950/60 dark:text-slate-400"
+                  />
                 </div>
               </div>
 
               <div className="grid grid-cols-2 gap-6">
                 <div className="space-y-2">
-                  <Label htmlFor="company-website">Website</Label>
-                  <Input id="company-website" value={companySettings.website} readOnly className="bg-gray-100" />
+                  <Label htmlFor="company-website" className="dark:text-slate-300">Website</Label>
+                  <Input
+                    id="company-website"
+                    value={companySettings.website}
+                    readOnly
+                    className="bg-gray-100 dark:border-slate-800 dark:bg-slate-950/60 dark:text-slate-400"
+                  />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="company-postcode">Postcode</Label>
-                  <Input id="company-postcode" value={companySettings.postcode} readOnly className="bg-gray-100" />
+                  <Label htmlFor="company-postcode" className="dark:text-slate-300">Postcode</Label>
+                  <Input
+                    id="company-postcode"
+                    value={companySettings.postcode}
+                    readOnly
+                    className="bg-gray-100 dark:border-slate-800 dark:bg-slate-950/60 dark:text-slate-400"
+                  />
                 </div>
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="company-address">Address</Label>
+                <Label htmlFor="company-address" className="dark:text-slate-300">Address</Label>
                 <Textarea
                   id="company-address"
                   value={companySettings.address}
                   onChange={(e) => setCompanySettings({ ...companySettings, address: e.target.value })}
                   placeholder="Enter company address"
+                  className="dark:border-slate-800 dark:bg-slate-950 dark:text-slate-100 dark:placeholder:text-slate-500"
                 />
               </div>
 
               <div className="flex justify-end">
-                <Button onClick={saveCompanySettings}>
+                <Button onClick={saveCompanySettings} className="dark:bg-slate-100 dark:text-slate-950 dark:hover:bg-slate-200">
                   <Save className="mr-2 h-4 w-4" />
                   Save Address
                 </Button>
@@ -593,28 +633,28 @@ return (
         {/* System Settings */}
         <TabsContent value="system">
           <div className="space-y-6">
-            <Card>
+            <Card className="border-slate-200 dark:border-slate-800 dark:bg-slate-900">
               <CardHeader>
-                <CardTitle>Data Management</CardTitle>
-                <CardDescription>Backup and data management options</CardDescription>
+                <CardTitle className="text-slate-950 dark:text-slate-50">Data Management</CardTitle>
+                <CardDescription className="dark:text-slate-400">Backup and data management options</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="flex items-center justify-between">
                   <div>
-                    <h4 className="font-medium">Database Backup</h4>
-                    <p className="text-sm text-gray-500">Create a backup of all customer and project data</p>
+                    <h4 className="font-medium text-slate-900 dark:text-slate-100">Database Backup</h4>
+                    <p className="text-sm text-gray-500 dark:text-slate-400">Create a backup of all customer and project data</p>
                   </div>
-                  <Button variant="outline">
+                  <Button variant="outline" className="dark:border-slate-700 dark:hover:bg-slate-800">
                     <Database className="mr-2 h-4 w-4" />
                     Create Backup
                   </Button>
                 </div>
                 <div className="flex items-center justify-between">
                   <div>
-                    <h4 className="font-medium">Export Customer Data</h4>
-                    <p className="text-sm text-gray-500">Export customer data as CSV file</p>
+                    <h4 className="font-medium text-slate-900 dark:text-slate-100">Export Customer Data</h4>
+                    <p className="text-sm text-gray-500 dark:text-slate-400">Export customer data as CSV file</p>
                   </div>
-                  <Button variant="outline">
+                  <Button variant="outline" className="dark:border-slate-700 dark:hover:bg-slate-800">
                     <FileText className="mr-2 h-4 w-4" />
                     Export CSV
                   </Button>
@@ -622,39 +662,44 @@ return (
               </CardContent>
             </Card>
 
-            <Card>
+            <Card className="border-slate-200 dark:border-slate-800 dark:bg-slate-900">
               <CardHeader>
-                <CardTitle>Security Settings</CardTitle>
-                <CardDescription>Configure security and access control settings</CardDescription>
+                <CardTitle className="text-slate-950 dark:text-slate-50">Security Settings</CardTitle>
+                <CardDescription className="dark:text-slate-400">Configure security and access control settings</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="flex items-center justify-between">
                   <div className="space-y-0.5">
-                    <Label>Require Two-Factor Authentication</Label>
-                    <p className="text-sm text-gray-500">Require 2FA for all user accounts</p>
+                    <Label className="dark:text-slate-200">Require Two-Factor Authentication</Label>
+                    <p className="text-sm text-gray-500 dark:text-slate-400">Require 2FA for all user accounts</p>
                   </div>
                   <Switch />
                 </div>
                 <div className="flex items-center justify-between">
                   <div className="space-y-0.5">
-                    <Label>Auto-logout after inactivity</Label>
-                    <p className="text-sm text-gray-500">Automatically log out users after 30 minutes</p>
+                    <Label className="dark:text-slate-200">Auto-logout after inactivity</Label>
+                    <p className="text-sm text-gray-500 dark:text-slate-400">Automatically log out users after 30 minutes</p>
                   </div>
                   <Switch defaultChecked />
                 </div>
                 <div className="flex items-center justify-between">
                   <div className="space-y-0.5">
-                    <Label>Password Complexity Requirements</Label>
-                    <p className="text-sm text-gray-500">Enforce strong password policies</p>
+                    <Label className="dark:text-slate-200">Password Complexity Requirements</Label>
+                    <p className="text-sm text-gray-500 dark:text-slate-400">Enforce strong password policies</p>
                   </div>
                   <Switch defaultChecked />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="session-timeout">Session Timeout (minutes)</Label>
-                  <Input id="session-timeout" type="number" defaultValue="30" className="w-32" />
+                  <Label htmlFor="session-timeout" className="dark:text-slate-300">Session Timeout (minutes)</Label>
+                  <Input
+                    id="session-timeout"
+                    type="number"
+                    defaultValue="30"
+                    className="w-32 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-100"
+                  />
                 </div>
                 <div className="flex justify-end">
-                  <Button>
+                  <Button className="dark:bg-slate-100 dark:text-slate-950 dark:hover:bg-slate-200">
                     <Shield className="mr-2 h-4 w-4" />
                     Save Security Settings
                   </Button>

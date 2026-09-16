@@ -76,8 +76,8 @@ const formatDate = (dateString: string | null | undefined): string => {
 
 const getReasonColor = (reason: CleansingReason) =>
   reason === "Invalid Number"
-    ? "bg-amber-100 text-amber-800"
-    : "bg-rose-100 text-rose-800";
+    ? "bg-amber-100 text-amber-800 border-amber-300 dark:bg-amber-950/60 dark:text-amber-300 dark:border-amber-800"
+    : "bg-rose-100 text-rose-800 border-rose-300 dark:bg-rose-950/60 dark:text-rose-300 dark:border-rose-800";
 
 // ================================================================
 // PAGE
@@ -230,7 +230,7 @@ export default function CleansingPage() {
           tel_number: fixPhone.trim() || undefined,
           new_supplier: fixSupplier.trim() || undefined,
           notes: fixNotes.trim() || undefined,
-          is_cleansed: true, // ✅ Mark as cleansed
+          is_cleansed: true,
         }),
       });
 
@@ -304,24 +304,50 @@ export default function CleansingPage() {
   const PaginationControls = () => {
     if (totalPages <= 1) return null;
     return (
-      <div className="flex items-center justify-between py-3 px-4 bg-gray-50 border-t">
-        <div className="text-sm text-gray-700">
-          Showing <span className="font-medium">{(currentPage - 1) * CUSTOMERS_PER_PAGE + 1}</span> to{" "}
-          <span className="font-medium">{Math.min(currentPage * CUSTOMERS_PER_PAGE, filteredRecords.length)}</span>{" "}
-          of <span className="font-medium">{filteredRecords.length}</span> records
+      <div className="flex items-center justify-between py-3 px-4 bg-gray-50 border-t border-gray-200 dark:border-slate-800 dark:bg-slate-900">
+        <div className="text-sm text-gray-700 dark:text-slate-300">
+          Showing <span className="font-medium text-gray-900 dark:text-white">{(currentPage - 1) * CUSTOMERS_PER_PAGE + 1}</span> to{" "}
+          <span className="font-medium text-gray-900 dark:text-white">{Math.min(currentPage * CUSTOMERS_PER_PAGE, filteredRecords.length)}</span>{" "}
+          of <span className="font-medium text-gray-900 dark:text-white">{filteredRecords.length}</span> records
         </div>
         <div className="flex space-x-1">
-          <Button variant="outline" size="icon" onClick={() => setCurrentPage(1)} disabled={currentPage === 1}>
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={() => setCurrentPage(1)}
+            disabled={currentPage === 1}
+            className="dark:border-slate-700 dark:hover:bg-slate-800"
+          >
             <ChevronFirst className="h-4 w-4" />
           </Button>
-          <Button variant="outline" size="icon" onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1}>
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+            disabled={currentPage === 1}
+            className="dark:border-slate-700 dark:hover:bg-slate-800"
+          >
             <ChevronLeft className="h-4 w-4" />
           </Button>
-          <div className="flex items-center px-3 text-sm text-gray-700">Page {currentPage} of {totalPages}</div>
-          <Button variant="outline" size="icon" onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages}>
+          <div className="flex items-center px-3 text-sm text-gray-700 dark:text-slate-300">
+            Page {currentPage} of {totalPages}
+          </div>
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+            disabled={currentPage === totalPages}
+            className="dark:border-slate-700 dark:hover:bg-slate-800"
+          >
             <ChevronRight className="h-4 w-4" />
           </Button>
-          <Button variant="outline" size="icon" onClick={() => setCurrentPage(totalPages)} disabled={currentPage === totalPages}>
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={() => setCurrentPage(totalPages)}
+            disabled={currentPage === totalPages}
+            className="dark:border-slate-700 dark:hover:bg-slate-800"
+          >
             <ChevronLast className="h-4 w-4" />
           </Button>
         </div>
@@ -333,77 +359,83 @@ export default function CleansingPage() {
   // RENDER
   // ================================================================
   return (
-    <div className="w-full max-w-full overflow-x-hidden p-6">
+    <div className="w-full max-w-full overflow-x-hidden p-6 text-slate-900 dark:bg-slate-950 dark:text-slate-100 min-h-screen">
       <Toaster position="top-right" />
-      <h1 className="mb-6 text-4xl font-semibold tracking-tight text-slate-900">Cleansing</h1>
+      <h1 className="mb-6 text-4xl font-semibold tracking-tight text-slate-900 dark:text-slate-50">Cleansing</h1>
 
       {/* Stats — same style as Team Overview in renewals */}
       <div className="mb-6">
-        <h2 className="text-sm font-medium text-gray-700 mb-3">Overview</h2>
+        <h2 className="text-sm font-medium text-gray-700 mb-3 dark:text-slate-300">Overview</h2>
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
-          <div className="bg-white border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow">
+          <div className="bg-white border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow dark:border-slate-800 dark:bg-slate-900">
             <div className="flex items-center gap-2 mb-2">
-              <Zap className="h-4 w-4 text-slate-600" />
-              <span className="text-xs font-medium text-gray-500">Total</span>
+              <Zap className="h-4 w-4 text-slate-600 dark:text-slate-400" />
+              <span className="text-xs font-medium text-gray-500 dark:text-slate-400">Total</span>
             </div>
             <div className="flex items-baseline gap-2">
-              <span className="text-2xl font-bold text-gray-900">{allRecords.length}</span>
-              <span className="text-xs text-gray-500">awaiting cleanse</span>
+              <span className="text-2xl font-bold text-gray-900 dark:text-slate-50">{allRecords.length}</span>
+              <span className="text-xs text-gray-500 dark:text-slate-400">awaiting cleanse</span>
             </div>
           </div>
           <div
-            className="bg-amber-50 border border-amber-200 rounded-lg p-4 hover:shadow-md transition-shadow cursor-pointer"
+            className="bg-amber-50 border border-amber-200 rounded-lg p-4 hover:shadow-md transition-shadow cursor-pointer dark:bg-amber-950/20 dark:border-amber-900/40"
             onClick={() => setReasonFilter(reasonFilter === "Invalid Number" ? "All" : "Invalid Number")}
           >
             <div className="flex items-center gap-2 mb-2">
-              <Users className="h-4 w-4 text-amber-600" />
-              <span className="text-xs font-medium text-amber-600">Invalid Number</span>
+              <Users className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+              <span className="text-xs font-medium text-amber-600 dark:text-amber-400">Invalid Number</span>
             </div>
             <div className="flex items-baseline gap-2">
-              <span className="text-2xl font-bold text-amber-700">{invalidCount}</span>
-              <span className="text-xs text-amber-600">record{invalidCount !== 1 ? "s" : ""}</span>
+              <span className="text-2xl font-bold text-amber-700 dark:text-amber-300">{invalidCount}</span>
+              <span className="text-xs text-amber-600 dark:text-amber-400">record{invalidCount !== 1 ? "s" : ""}</span>
             </div>
           </div>
           <div
-            className="bg-rose-50 border border-rose-200 rounded-lg p-4 hover:shadow-md transition-shadow cursor-pointer"
+            className="bg-rose-50 border border-rose-200 rounded-lg p-4 hover:shadow-md transition-shadow cursor-pointer dark:bg-rose-950/20 dark:border-rose-900/40"
             onClick={() => setReasonFilter(reasonFilter === "Incorrect Supplier" ? "All" : "Incorrect Supplier")}
           >
             <div className="flex items-center gap-2 mb-2">
-              <Users className="h-4 w-4 text-rose-600" />
-              <span className="text-xs font-medium text-rose-600">Incorrect Supplier</span>
+              <Users className="h-4 w-4 text-rose-600 dark:text-rose-400" />
+              <span className="text-xs font-medium text-rose-600 dark:text-rose-400">Incorrect Supplier</span>
             </div>
             <div className="flex items-baseline gap-2">
-              <span className="text-2xl font-bold text-rose-700">{incorrectSupplierCount}</span>
-              <span className="text-xs text-rose-600">record{incorrectSupplierCount !== 1 ? "s" : ""}</span>
+              <span className="text-2xl font-bold text-rose-700 dark:text-rose-300">{incorrectSupplierCount}</span>
+              <span className="text-xs text-rose-600 dark:text-rose-400">record{incorrectSupplierCount !== 1 ? "s" : ""}</span>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Error banner */}
       {error && (
-        <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg flex items-start gap-3">
-          <AlertCircle className="h-5 w-5 text-red-600 flex-shrink-0 mt-0.5" />
+        <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg flex items-start gap-3 dark:border-red-900/50 dark:bg-red-950/30">
+          <AlertCircle className="h-5 w-5 text-red-600 dark:text-red-400 flex-shrink-0 mt-0.5" />
           <div className="flex-1">
-            <h3 className="text-sm font-medium text-red-800">Error Loading Records</h3>
-            <p className="mt-1 text-sm text-red-700">{error}</p>
-            <Button onClick={fetchRecords} variant="outline" size="sm" className="mt-3">Try Again</Button>
+            <h3 className="text-sm font-medium text-red-800 dark:text-red-300">Error Loading Records</h3>
+            <p className="mt-1 text-sm text-red-700 dark:text-red-400">{error}</p>
+            <Button onClick={fetchRecords} variant="outline" size="sm" className="mt-3 dark:border-red-800 dark:hover:bg-red-950/50">
+              Try Again
+            </Button>
           </div>
         </div>
       )}
 
       {/* Bulk selection bar — identical to renewals */}
       {selectedRecords.length > 0 && (
-        <div className="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+        <div className="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-lg dark:border-blue-900/40 dark:bg-blue-950/20">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <UserCheck className="h-5 w-5 text-blue-600" />
+              <UserCheck className="h-5 w-5 text-blue-600 dark:text-blue-400" />
               <div>
-                <h3 className="font-semibold text-blue-900">{selectedRecords.length} record(s) selected</h3>
-                <p className="text-sm text-blue-700">You can bulk delete the selected records</p>
+                <h3 className="font-semibold text-blue-900 dark:text-blue-200">{selectedRecords.length} record(s) selected</h3>
+                <p className="text-sm text-blue-700 dark:text-blue-300">You can bulk delete the selected records</p>
               </div>
             </div>
-            <Button variant="ghost" size="sm" onClick={() => { setSelectedRecords([]); setIsSelectAllChecked(false); }}>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => { setSelectedRecords([]); setIsSelectAllChecked(false); }}
+              className="dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white"
+            >
               Clear Selection
             </Button>
           </div>
@@ -414,10 +446,10 @@ export default function CleansingPage() {
       <div className="mb-6 grid grid-cols-1 gap-3 xl:grid-cols-[minmax(0,1fr)_auto]">
         <div className="grid min-w-0 grid-cols-[repeat(auto-fit,minmax(150px,1fr))] gap-3">
           <div className="relative min-w-0 sm:col-span-2 xl:col-span-1">
-            <Search className="text-muted-foreground absolute top-2.5 left-2 h-4 w-4" />
+            <Search className="text-muted-foreground absolute top-2.5 left-2 h-4 w-4 dark:text-slate-500" />
             <Input
               placeholder="Search records..."
-              className="pl-8"
+              className="pl-8 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100 dark:placeholder:text-slate-500"
               value={searchTerm}
               onChange={e => setSearchTerm(e.target.value)}
             />
@@ -425,23 +457,27 @@ export default function CleansingPage() {
 
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="outline" className="min-w-0 justify-between">
+              <Button variant="outline" className="min-w-0 justify-between dark:border-slate-800 dark:bg-slate-900 dark:hover:bg-slate-800">
                 <Filter className="mr-2 h-4 w-4" />
                 <span className="truncate">{reasonFilter === "All" ? "All Reasons" : reasonFilter}</span>
                 <ChevronDown className="ml-1 h-3 w-3 flex-shrink-0" />
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent>
-              <DropdownMenuItem onClick={() => setReasonFilter("All")}>All Reasons</DropdownMenuItem>
+            <DropdownMenuContent className="dark:border-slate-800 dark:bg-slate-900">
+              <DropdownMenuItem onClick={() => setReasonFilter("All")} className="dark:hover:bg-slate-800">
+                All Reasons
+              </DropdownMenuItem>
               {CLEANSING_REASONS.map(r => (
-                <DropdownMenuItem key={r} onClick={() => setReasonFilter(r)}>{r}</DropdownMenuItem>
+                <DropdownMenuItem key={r} onClick={() => setReasonFilter(r)} className="dark:hover:bg-slate-800">
+                  {r}
+                </DropdownMenuItem>
               ))}
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
 
         <div className="flex flex-wrap items-center gap-2 xl:justify-end">
-          <Button variant="outline" onClick={fetchRecords}>
+          <Button variant="outline" onClick={fetchRecords} className="dark:border-slate-800 dark:bg-slate-900 dark:hover:bg-slate-800">
             <RotateCcw className="mr-2 h-4 w-4" />
             Refresh
           </Button>
@@ -455,86 +491,83 @@ export default function CleansingPage() {
       </div>
 
       {/* Table — exact same structure/classes as renewals */}
-      <div className="overflow-hidden rounded-lg border border-gray-200 bg-white">
+      <div className="overflow-hidden rounded-lg border border-gray-200 bg-white dark:border-slate-800 dark:bg-slate-900">
         <div className="overflow-x-auto">
-          <table className="w-full divide-y divide-gray-200 table-fixed">
-            <thead className="bg-gray-50">
+          <table className="w-full divide-y divide-gray-200 dark:divide-slate-800 table-fixed">
+            <thead className="bg-gray-50 dark:bg-slate-800/60">
               <tr>
                 <th className="px-3 py-3 text-left w-8">
                   <input
                     type="checkbox"
-                    className="rounded border-gray-300"
+                    className="rounded border-gray-300 dark:border-slate-700 dark:bg-slate-800 dark:checked:bg-primary"
                     checked={selectedRecords.length === paginatedRecords.length && paginatedRecords.length > 0}
                     onChange={handleSelectAll}
                   />
                 </th>
                 {/* ID — same border-r-2 as renewals */}
-                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase w-20 border-r-2 border-gray-300">
+                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase w-20 border-r-2 border-gray-300 dark:border-slate-700 dark:text-slate-400">
                   ID
                 </th>
-                {/* Same widths as renewals */}
-                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase w-[9%]">
+                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase w-[9%] dark:text-slate-400">
                   Client Name
                 </th>
-                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase w-[10%]">
+                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase w-[10%] dark:text-slate-400">
                   Trading Name
                 </th>
-                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase w-[8%]">
+                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase w-[8%] dark:text-slate-400">
                   Tel No
                 </th>
-                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase w-[8%]">
+                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase w-[8%] dark:text-slate-400">
                   Mobile No
                 </th>
-                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase w-[10%]">
+                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase w-[10%] dark:text-slate-400">
                   MPAN Top
                 </th>
-                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase w-[9%]">
+                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase w-[9%] dark:text-slate-400">
                   Supplier
                 </th>
-                <th className="px-3 py-3 text-right text-xs font-medium tracking-wider text-gray-500 uppercase w-[9%] whitespace-nowrap">
+                <th className="px-3 py-3 text-right text-xs font-medium tracking-wider text-gray-500 uppercase w-[9%] whitespace-nowrap dark:text-slate-400">
                   Annual Usage
                 </th>
-                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase w-[9%] whitespace-nowrap">
+                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase w-[9%] whitespace-nowrap dark:text-slate-400">
                   Start Date
                 </th>
-                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase w-[9%] whitespace-nowrap">
+                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase w-[9%] whitespace-nowrap dark:text-slate-400">
                   Contract End
                 </th>
-                {/* Reason replaces Status */}
-                <th className="px-3 py-3 text-center text-xs font-medium tracking-wider text-gray-500 uppercase w-[10%]">
+                <th className="px-3 py-3 text-center text-xs font-medium tracking-wider text-gray-500 uppercase w-[10%] dark:text-slate-400">
                   Reason
                 </th>
-                {/* Assigned To — same as renewals */}
-                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase w-[12%]">
+                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase w-[12%] dark:text-slate-400">
                   Assigned To
                 </th>
-                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase w-[9%]">
+                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase w-[9%] dark:text-slate-400">
                   Actions
                 </th>
               </tr>
             </thead>
 
-            <tbody className="divide-y divide-gray-200 bg-white">
+            <tbody className="divide-y divide-gray-200 dark:divide-slate-800 bg-white dark:bg-slate-900">
               {isLoading ? (
                 <tr>
                   <td colSpan={13} className="px-6 py-12 text-center">
-                    <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-current border-r-transparent text-gray-600"></div>
-                    <p className="mt-4 text-gray-500">Loading cleansing records...</p>
+                    <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-current border-r-transparent text-gray-600 dark:text-slate-400"></div>
+                    <p className="mt-4 text-gray-500 dark:text-slate-400">Loading cleansing records...</p>
                   </td>
                 </tr>
               ) : error ? (
                 <tr>
-                  <td colSpan={13} className="px-6 py-12 text-center text-gray-500">
+                  <td colSpan={13} className="px-6 py-12 text-center text-gray-500 dark:text-slate-400">
                     <AlertCircle className="h-12 w-12 text-red-400 mx-auto mb-3" />
-                    <p className="text-lg text-red-600">Failed to load records</p>
+                    <p className="text-lg text-red-600 dark:text-red-400">Failed to load records</p>
                     <p className="mt-2 text-sm">{error}</p>
                   </td>
                 </tr>
               ) : paginatedRecords.length === 0 ? (
                 <tr>
-                  <td colSpan={13} className="px-6 py-12 text-center text-gray-500">
+                  <td colSpan={13} className="px-6 py-12 text-center text-gray-500 dark:text-slate-400">
                     <CheckCircle2 className="h-12 w-12 text-green-400 mx-auto mb-3" />
-                    <p className="text-lg">
+                    <p className="text-lg text-slate-700 dark:text-slate-300">
                       {searchTerm || reasonFilter !== "All" ? "No matching records found" : "All clean!"}
                     </p>
                     <p className="mt-2 text-sm">
@@ -552,22 +585,22 @@ export default function CleansingPage() {
                   return (
                     <tr
                       key={record.client_id}
-                      className={`hover:bg-gray-50 transition-colors cursor-pointer ${isSelected ? "bg-blue-50" : ""}`}
+                      className={`hover:bg-gray-50 dark:hover:bg-slate-800/50 transition-colors cursor-pointer ${isSelected ? "bg-blue-50 dark:bg-blue-950/40" : ""}`}
                       onClick={() => openFixModal(record)}
                       onContextMenu={(e) => {
                         e.preventDefault();
                         const menu = document.createElement("div");
-                        menu.className = "fixed bg-white border border-gray-300 rounded-md shadow-lg z-50 py-1";
+                        menu.className = "fixed bg-white border border-gray-300 dark:bg-slate-900 dark:border-slate-700 dark:text-slate-100 rounded-md shadow-lg z-50 py-1";
                         menu.style.left = `${e.pageX}px`;
                         menu.style.top = `${e.pageY}px`;
 
                         const fixBtn = document.createElement("button");
-                        fixBtn.className = "w-full px-4 py-2 text-left text-sm hover:bg-gray-100 flex items-center gap-2";
+                        fixBtn.className = "w-full px-4 py-2 text-left text-sm hover:bg-gray-100 dark:hover:bg-slate-800 flex items-center gap-2";
                         fixBtn.innerHTML = '<svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg> Fix & Restore';
                         fixBtn.onclick = () => { openFixModal(record); document.body.removeChild(menu); };
 
                         const deleteBtn = document.createElement("button");
-                        deleteBtn.className = "w-full px-4 py-2 text-left text-sm hover:bg-red-50 text-red-600 flex items-center gap-2";
+                        deleteBtn.className = "w-full px-4 py-2 text-left text-sm hover:bg-red-50 text-red-600 dark:hover:bg-red-950/40 dark:text-red-400 flex items-center gap-2";
                         deleteBtn.innerHTML = '<svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg> Delete';
                         deleteBtn.onclick = () => { deleteRecord(record); document.body.removeChild(menu); };
 
@@ -588,76 +621,76 @@ export default function CleansingPage() {
                       <td className="px-3 py-3 align-top" onClick={e => e.stopPropagation()}>
                         <input
                           type="checkbox"
-                          className="rounded border-gray-300 mt-1"
+                          className="rounded border-gray-300 dark:border-slate-700 dark:bg-slate-800 dark:checked:bg-primary mt-1"
                           checked={isSelected}
                           onChange={() => handleSelectRecord(record.client_id)}
                         />
                       </td>
 
-                      {/* ID — same as renewals with border-r-2 */}
-                      <td className="px-3 py-3 text-sm font-medium text-gray-900 border-r-2 border-gray-300 align-top">
+                      {/* ID */}
+                      <td className="px-3 py-3 text-sm font-medium text-gray-900 border-r-2 border-gray-300 align-top dark:border-slate-700 dark:text-slate-200">
                         <div className="flex items-center gap-1 whitespace-nowrap">
                           {displayId}
                           {record.source === "lead" && (
                             <span title="From Leads" className="inline-flex">
-                              <Info className="h-3 w-3 text-blue-500" />
+                              <Info className="h-3 w-3 text-blue-500 dark:text-blue-400" />
                             </span>
                           )}
                         </div>
                       </td>
 
-                      {/* Client Name — same as renewals */}
-                      <td className="px-3 py-3 text-sm text-gray-700 align-top">
+                      {/* Client Name */}
+                      <td className="px-3 py-3 text-sm text-gray-700 align-top dark:text-slate-300">
                         {record.contact_person || "—"}
                       </td>
 
-                      {/* Trading Name — same as renewals */}
-                      <td className="px-3 py-3 text-sm text-gray-900 align-top">
+                      {/* Trading Name */}
+                      <td className="px-3 py-3 text-sm text-gray-900 font-medium align-top dark:text-slate-200">
                         {record.business_name}
                       </td>
 
-                      {/* Tel No — plain gray, same as renewals, no colour */}
-                      <td className="px-3 py-3 text-sm text-gray-900 align-top">
+                      {/* Tel No */}
+                      <td className="px-3 py-3 text-sm text-gray-900 align-top dark:text-slate-300">
                         <div className="whitespace-nowrap">
                           {record.phone ? String(record.phone).replace(/\.0$/, "") : "—"}
                         </div>
                       </td>
 
-                      {/* Mobile No — same as renewals */}
-                      <td className="px-3 py-3 text-sm text-gray-900 align-top">
+                      {/* Mobile No */}
+                      <td className="px-3 py-3 text-sm text-gray-900 align-top dark:text-slate-300">
                         <div className="whitespace-nowrap">
                           {record.mobile_no ? String(record.mobile_no).replace(/\.0$/, "") : "—"}
                         </div>
                       </td>
 
-                      {/* MPAN Top — same as renewals */}
-                      <td className="px-3 py-3 text-sm text-gray-900 align-top overflow-hidden">
-                        <div className="truncate" title={record.mpan_top || ""}>{record.mpan_top || "—"}</div>
+                      {/* MPAN Top */}
+                      <td className="px-3 py-3 text-sm text-gray-900 align-top overflow-hidden dark:text-slate-300">
+                        <div className="truncate font-mono text-xs" title={record.mpan_top || ""}>{record.mpan_top || "—"}</div>
                       </td>
 
-                      {/* Supplier — same as renewals */}
-                      <td className="px-3 py-3 text-sm text-gray-900 align-top overflow-hidden">
+                      {/* Supplier */}
+                      <td className="px-3 py-3 text-sm text-gray-900 align-top overflow-hidden dark:text-slate-200">
                         <div className="truncate" title={record.supplier_name || ""}>{record.supplier_name || "—"}</div>
                       </td>
 
-                      {/* Annual Usage — same as renewals */}
-                      <td className="px-3 py-3 text-sm text-gray-900 text-right align-top">
-                        <div className="whitespace-nowrap">
+                      {/* Annual Usage */}
+                      <td className="px-3 py-3 text-sm text-gray-900 text-right align-top dark:text-slate-300">
+                        <div className="whitespace-nowrap font-mono">
                           {record.annual_usage ? record.annual_usage.toLocaleString() : "—"}
                         </div>
                       </td>
 
-                      {/* Start Date — same as renewals */}
-                      <td className="px-3 py-3 text-sm text-gray-900 align-top">
+                      {/* Start Date */}
+                      <td className="px-3 py-3 text-sm text-gray-900 align-top dark:text-slate-300">
                         <div className="whitespace-nowrap">{formatDate(record.start_date)}</div>
                       </td>
 
-                      {/* Contract End — same as renewals */}
-                      <td className="px-3 py-3 text-sm text-gray-900 align-top">
+                      {/* Contract End */}
+                      <td className="px-3 py-3 text-sm text-gray-900 align-top dark:text-slate-300">
                         <div className="whitespace-nowrap">{formatDate(record.end_date)}</div>
                       </td>
 
-                      {/* Reason badge — replaces Status dropdown */}
+                      {/* Reason badge */}
                       <td className="px-3 py-3 align-top text-center" onClick={e => e.stopPropagation()}>
                         <Badge variant="outline" className={`text-xs ${getReasonColor(record.cleansing_reason)}`}>
                           {record.cleansing_reason}
@@ -669,7 +702,6 @@ export default function CleansingPage() {
                         <Select
                           value={record.assigned_to_id?.toString() || "0"}
                           onValueChange={(value) => {
-                            // optimistic update
                             setAllRecords(prev =>
                               prev.map(r =>
                                 r.client_id === record.client_id
@@ -681,7 +713,6 @@ export default function CleansingPage() {
                                   : r
                               )
                             );
-                            // persist
                             if (record.source === "lead") {
                               const empId = value === "0" ? null : parseInt(value);
                               fetchWithAuth("/api/crm/leads/assign", {
@@ -703,15 +734,15 @@ export default function CleansingPage() {
                             }
                           }}
                         >
-                          <SelectTrigger className="h-7 text-xs w-full max-w-[150px]">
+                          <SelectTrigger className="h-7 text-xs w-full max-w-[150px] dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100">
                             <SelectValue placeholder="Assign">
                               {record.assigned_to_name || "Unassigned"}
                             </SelectValue>
                           </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="0">Unassigned</SelectItem>
+                          <SelectContent className="dark:border-slate-800 dark:bg-slate-900">
+                            <SelectItem value="0" className="dark:hover:bg-slate-800">Unassigned</SelectItem>
                             {employees.map(emp => (
-                              <SelectItem key={emp.employee_id} value={emp.employee_id.toString()}>
+                              <SelectItem key={emp.employee_id} value={emp.employee_id.toString()} className="dark:hover:bg-slate-800">
                                 {emp.employee_name}
                               </SelectItem>
                             ))}
@@ -724,7 +755,7 @@ export default function CleansingPage() {
                         <Button
                           size="sm"
                           variant="outline"
-                          className="h-7 px-2 text-xs"
+                          className="h-7 px-2 text-xs dark:border-slate-700 dark:hover:bg-slate-800"
                           onClick={() => openFixModal(record)}
                         >
                           Fix & Restore
@@ -742,10 +773,10 @@ export default function CleansingPage() {
 
       {/* ────────────── Fix & Restore Modal ────────────── */}
       <Dialog open={showFixModal} onOpenChange={setShowFixModal}>
-        <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto dark:border-slate-800 dark:bg-slate-950">
           <DialogHeader>
-            <DialogTitle>Fix & Restore Record</DialogTitle>
-            <DialogDescription>
+            <DialogTitle className="dark:text-slate-50">Fix & Restore Record</DialogTitle>
+            <DialogDescription className="dark:text-slate-400">
               Correct the information below, then restore it back to {fixingRecord?.source === "lead" ? "Leads" : "Renewals"}.
             </DialogDescription>
           </DialogHeader>
@@ -753,16 +784,16 @@ export default function CleansingPage() {
           {fixingRecord && (
             <div className="space-y-4 py-4">
               {fixError && (
-                <Alert variant="destructive">
-                  <AlertCircle className="h-4 w-4" />
-                  <AlertDescription>{fixError}</AlertDescription>
+                <Alert variant="destructive" className="dark:border-red-900/50 dark:bg-red-950/30">
+                  <AlertCircle className="h-4 w-4 text-red-600 dark:text-red-400" />
+                  <AlertDescription className="text-red-700 dark:text-red-300">{fixError}</AlertDescription>
                 </Alert>
               )}
 
-              <div className="p-3 bg-gray-50 border rounded-lg space-y-1">
-                <p className="text-sm font-semibold text-gray-900">{fixingRecord.business_name}</p>
+              <div className="p-3 bg-gray-50 border border-gray-200 rounded-lg space-y-1 dark:border-slate-800 dark:bg-slate-900">
+                <p className="text-sm font-semibold text-gray-900 dark:text-slate-50">{fixingRecord.business_name}</p>
                 {fixingRecord.contact_person && (
-                  <p className="text-xs text-gray-500">{fixingRecord.contact_person}</p>
+                  <p className="text-xs text-gray-500 dark:text-slate-400">{fixingRecord.contact_person}</p>
                 )}
                 <Badge variant="outline" className={`text-xs mt-1 ${getReasonColor(fixingRecord.cleansing_reason)}`}>
                   {fixingRecord.cleansing_reason}
@@ -771,7 +802,7 @@ export default function CleansingPage() {
 
               {fixingRecord.cleansing_reason === "Invalid Number" && (
                 <div className="space-y-2">
-                  <label className="text-sm font-medium">
+                  <label className="text-sm font-medium dark:text-slate-300">
                     Correct Phone Number <span className="text-red-500">*</span>
                   </label>
                   <Input
@@ -779,25 +810,26 @@ export default function CleansingPage() {
                     placeholder="e.g. 0207 123 4567"
                     value={fixPhone}
                     onChange={e => setFixPhone(e.target.value)}
+                    className="dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100 dark:placeholder:text-slate-500"
                   />
                   {fixingRecord.phone && (
-                    <p className="text-xs text-gray-500">Current value: {fixingRecord.phone}</p>
+                    <p className="text-xs text-gray-500 dark:text-slate-400">Current value: {fixingRecord.phone}</p>
                   )}
                 </div>
               )}
 
               {fixingRecord.cleansing_reason === "Incorrect Supplier" && (
                 <div className="space-y-2">
-                  <label className="text-sm font-medium">
+                  <label className="text-sm font-medium dark:text-slate-300">
                     Correct Supplier <span className="text-red-500">*</span>
                   </label>
                   <Select value={fixSupplier} onValueChange={setFixSupplier}>
-                    <SelectTrigger>
+                    <SelectTrigger className="dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100">
                       <SelectValue placeholder="Select supplier" />
                     </SelectTrigger>
-                    <SelectContent>
+                    <SelectContent className="dark:border-slate-800 dark:bg-slate-900">
                       {suppliers.map(s => (
-                        <SelectItem key={s.supplier_id} value={s.supplier_name}>
+                        <SelectItem key={s.supplier_id} value={s.supplier_name} className="dark:hover:bg-slate-800">
                           {s.supplier_name}
                         </SelectItem>
                       ))}
@@ -808,35 +840,42 @@ export default function CleansingPage() {
                     placeholder="Or type supplier name if not listed above"
                     value={fixSupplier}
                     onChange={e => setFixSupplier(e.target.value)}
+                    className="dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100 dark:placeholder:text-slate-500"
                   />
                   {fixingRecord.supplier_name && (
-                    <p className="text-xs text-gray-500">Current value: {fixingRecord.supplier_name}</p>
+                    <p className="text-xs text-gray-500 dark:text-slate-400">Current value: {fixingRecord.supplier_name}</p>
                   )}
                 </div>
               )}
 
               <div className="space-y-2">
-                <label className="text-sm font-medium">
-                  Notes <span className="text-gray-400 text-xs">(optional)</span>
+                <label className="text-sm font-medium dark:text-slate-300">
+                  Notes <span className="text-gray-400 dark:text-slate-500 text-xs">(optional)</span>
                 </label>
                 <Textarea
                   placeholder="Add any context about this fix..."
                   value={fixNotes}
                   onChange={e => setFixNotes(e.target.value)}
                   rows={3}
+                  className="resize-none dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100 dark:placeholder:text-slate-500"
                 />
               </div>
 
-              <Alert>
-                <RotateCcw className="h-4 w-4" />
-                <AlertDescription>
-                  Once fixed, this record will be restored to <strong>{fixingRecord.source === "lead" ? "Leads" : "Renewals"}</strong> with the corrected information.
+              <Alert className="dark:border-slate-800 dark:bg-slate-900">
+                <RotateCcw className="h-4 w-4 dark:text-slate-400" />
+                <AlertDescription className="dark:text-slate-300">
+                  Once fixed, this record will be restored to <strong className="dark:text-white">{fixingRecord.source === "lead" ? "Leads" : "Renewals"}</strong> with the corrected information.
                 </AlertDescription>
               </Alert>
             </div>
           )}
           <div className="flex justify-end gap-2">
-            <Button variant="outline" onClick={() => setShowFixModal(false)} disabled={isSubmittingFix}>
+            <Button
+              variant="outline"
+              onClick={() => setShowFixModal(false)}
+              disabled={isSubmittingFix}
+              className="dark:border-slate-700 dark:hover:bg-slate-800"
+            >
               Cancel
             </Button>
             <Button onClick={handleSubmitFix} disabled={isSubmittingFix}>

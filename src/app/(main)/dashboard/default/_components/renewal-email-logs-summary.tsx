@@ -77,13 +77,15 @@ export function RenewalEmailLogsSummary() {
   }, []);
 
   return (
-    <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+    <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-widest text-slate-500">
+          <p className="text-xs font-semibold uppercase tracking-widest text-slate-500 dark:text-slate-400">
             Renewal email automation
           </p>
-          <h2 className="mt-1 text-xl font-semibold text-slate-950">Email logs</h2>
+          <h2 className="mt-1 text-xl font-semibold text-slate-950 dark:text-slate-100">
+            Email logs
+          </h2>
         </div>
         <div className="flex gap-2">
           <Button variant="outline" size="sm" onClick={loadSummary} disabled={loading}>
@@ -100,7 +102,7 @@ export function RenewalEmailLogsSummary() {
       </div>
 
       {error ? (
-        <div className="mt-4 flex items-center gap-2 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+        <div className="mt-4 flex items-center gap-2 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-900/60 dark:bg-red-950/30 dark:text-red-300">
           <AlertTriangle className="size-4" />
           {error}
         </div>
@@ -113,38 +115,53 @@ export function RenewalEmailLogsSummary() {
           ["Failed 7 days", summary.failed_last_7_days],
           ["Total sent", summary.total_sent],
         ].map(([label, value]) => (
-          <div key={label} className="rounded-md border border-slate-200 bg-slate-50 px-4 py-3">
-            <p className="text-xs font-medium text-slate-500">{label}</p>
-            <p className="mt-1 text-2xl font-semibold text-slate-950">
+          <div
+            key={label}
+            className="rounded-md border border-slate-200 bg-slate-50 px-4 py-3 dark:border-slate-700 dark:bg-slate-800"
+          >
+            <p className="text-xs font-medium text-slate-500 dark:text-slate-400">
+              {label}
+            </p>
+            <p className="mt-1 text-2xl font-semibold text-slate-950 dark:text-slate-100">
               {loading ? "-" : value}
             </p>
           </div>
         ))}
       </div>
 
-      <div className="mt-5 overflow-hidden rounded-md border border-slate-200">
-        <div className="grid grid-cols-[1.2fr_1fr_0.8fr_0.8fr] bg-slate-50 px-3 py-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+      <div className="mt-5 overflow-hidden rounded-md border border-slate-200 dark:border-slate-700">
+        <div className="grid grid-cols-[1.2fr_1fr_0.8fr_0.8fr] bg-slate-50 px-3 py-2 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:bg-slate-800 dark:text-slate-400">
           <span>Recipient</span>
           <span>Customer</span>
           <span>Status</span>
           <span>Sent</span>
         </div>
+
         {summary.latest.length === 0 ? (
-          <div className="px-3 py-5 text-sm text-slate-500">
+          <div className="px-3 py-5 text-sm text-slate-500 dark:text-slate-400">
             {loading ? "Loading recent emails..." : "No renewal emails logged yet."}
           </div>
         ) : (
           summary.latest.map((log) => (
             <div
               key={log.id}
-              className="grid grid-cols-[1.2fr_1fr_0.8fr_0.8fr] items-center gap-3 border-t border-slate-100 px-3 py-3 text-sm"
+              className="grid grid-cols-[1.2fr_1fr_0.8fr_0.8fr] items-center gap-3 border-t border-slate-100 px-3 py-3 text-sm dark:border-slate-800"
             >
-              <span className="min-w-0 truncate font-medium text-slate-900">{log.recipient_email}</span>
-              <span className="min-w-0 truncate text-slate-600">
+              <span className="min-w-0 truncate font-medium text-slate-900 dark:text-slate-100">
+                {log.recipient_email}
+              </span>
+
+              <span className="min-w-0 truncate text-slate-600 dark:text-slate-300">
                 {log.customer_name || log.business_name || "-"}
               </span>
-              <Badge variant={log.status === "sent" ? "secondary" : "outline"}>{log.status}</Badge>
-              <span className="text-slate-500">{formatDate(log.sent_at)}</span>
+
+              <Badge variant={log.status === "sent" ? "secondary" : "outline"}>
+                {log.status}
+              </Badge>
+
+              <span className="text-slate-500 dark:text-slate-400">
+                {formatDate(log.sent_at)}
+              </span>
             </div>
           ))
         )}

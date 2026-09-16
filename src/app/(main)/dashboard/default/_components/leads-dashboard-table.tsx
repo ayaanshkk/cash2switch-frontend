@@ -86,7 +86,9 @@ export function LeadsDashboardTable({ employeeId }: LeadsDashboardTableProps) {
         accessorKey: "opportunity_id",
         header: ({ column }) => <DataTableColumnHeader column={column} title="ID" />,
         cell: ({ row }) => (
-          <span className="font-mono text-sm font-medium text-slate-800">{row.original.opportunity_id}</span>
+          <span className="font-mono text-sm font-medium text-slate-800 dark:text-slate-200">
+            {row.original.opportunity_id}
+          </span>
         ),
       },
       {
@@ -94,8 +96,10 @@ export function LeadsDashboardTable({ employeeId }: LeadsDashboardTableProps) {
         header: ({ column }) => <DataTableColumnHeader column={column} title="Contact" />,
         cell: ({ row }) => (
           <div>
-            <div className="font-medium text-slate-900">{row.original.contact_person || "—"}</div>
-            <div className="max-w-[160px] truncate text-xs text-muted-foreground">
+            <div className="font-medium text-slate-900 dark:text-slate-100">
+              {row.original.contact_person || "—"}
+            </div>
+            <div className="max-w-[160px] truncate text-xs text-muted-foreground dark:text-slate-400">
               {row.original.business_name || ""}
             </div>
           </div>
@@ -104,13 +108,20 @@ export function LeadsDashboardTable({ employeeId }: LeadsDashboardTableProps) {
       {
         accessorKey: "tel_number",
         header: ({ column }) => <DataTableColumnHeader column={column} title="Phone" />,
-        cell: ({ row }) => <span className="text-sm">{row.original.tel_number || "—"}</span>,
+        cell: ({ row }) => (
+          <span className="text-sm text-slate-900 dark:text-slate-300">
+            {row.original.tel_number || "—"}
+          </span>
+        ),
       },
       {
         accessorKey: "stage_name",
         header: ({ column }) => <DataTableColumnHeader column={column} title="Stage" />,
         cell: ({ row }) => (
-          <Badge variant="outline" className="border-violet-200 bg-violet-50 font-normal text-violet-900">
+          <Badge
+            variant="outline"
+            className="border-violet-200 bg-violet-50 font-normal text-violet-900 dark:border-violet-900/50 dark:bg-violet-950/40 dark:text-violet-300"
+          >
             {row.original.stage_name || "—"}
           </Badge>
         ),
@@ -119,7 +130,10 @@ export function LeadsDashboardTable({ employeeId }: LeadsDashboardTableProps) {
         accessorKey: "mpan_mpr",
         header: ({ column }) => <DataTableColumnHeader column={column} title="MPAN/MPR" />,
         cell: ({ row }) => (
-          <div className="max-w-[160px] truncate font-mono text-sm text-slate-800" title={row.original.mpan_mpr || ""}>
+          <div
+            className="max-w-[160px] truncate font-mono text-sm text-slate-800 dark:text-slate-300"
+            title={row.original.mpan_mpr || ""}
+          >
             {row.original.mpan_mpr || "—"}
           </div>
         ),
@@ -130,7 +144,7 @@ export function LeadsDashboardTable({ employeeId }: LeadsDashboardTableProps) {
         cell: ({ row }) => {
           const d = row.original.end_date;
           return (
-            <span className="text-sm tabular-nums">
+            <span className="text-sm tabular-nums text-slate-700 dark:text-slate-300">
               {d ? format(new Date(d), "dd MMM yyyy") : "—"}
             </span>
           );
@@ -141,17 +155,21 @@ export function LeadsDashboardTable({ employeeId }: LeadsDashboardTableProps) {
         header: ({ column }) => <DataTableColumnHeader column={column} title="Annual usage" />,
         cell: ({ row }) => (
           <div className="text-right">
-            <span className="font-medium tabular-nums">
+            <span className="font-medium tabular-nums text-slate-900 dark:text-slate-200">
               {row.original.annual_usage != null ? row.original.annual_usage.toLocaleString() : "—"}
             </span>
-            <div className="text-xs text-muted-foreground">kWh</div>
+            <div className="text-xs text-muted-foreground dark:text-slate-500">kWh</div>
           </div>
         ),
       },
       {
         accessorKey: "assigned_to_name",
         header: ({ column }) => <DataTableColumnHeader column={column} title="Assigned" />,
-        cell: ({ row }) => <span className="text-sm">{row.original.assigned_to_name || "—"}</span>,
+        cell: ({ row }) => (
+          <span className="text-sm text-slate-700 dark:text-slate-300">
+            {row.original.assigned_to_name || "—"}
+          </span>
+        ),
       },
       {
         id: "actions",
@@ -159,7 +177,7 @@ export function LeadsDashboardTable({ employeeId }: LeadsDashboardTableProps) {
           <Button
             variant="outline"
             size="sm"
-            className="border-slate-200 bg-white text-slate-800 hover:bg-slate-50 hover:text-slate-900"
+            className="border-slate-200 bg-white text-slate-800 hover:bg-slate-50 hover:text-slate-900 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800 dark:hover:text-white"
             onClick={() => window.open(`/dashboard/leads/${row.original.opportunity_id}`, "_blank", "noopener,noreferrer")}
           >
             <Eye className="h-4 w-4" />
@@ -180,21 +198,21 @@ export function LeadsDashboardTable({ employeeId }: LeadsDashboardTableProps) {
 
   if (loading) {
     return (
-      <Card className="rounded-xl border-0 bg-white shadow-md shadow-slate-200/50 ring-1 ring-slate-100">
+      <Card className="rounded-xl border-0 bg-white shadow-md shadow-slate-200/50 ring-1 ring-slate-100 dark:border dark:border-slate-800 dark:bg-slate-900 dark:shadow-none dark:ring-0">
         <CardContent className="flex h-64 items-center justify-center">
-          <div className="h-12 w-12 animate-spin rounded-full border-b-2 border-violet-600" />
+          <div className="h-12 w-12 animate-spin rounded-full border-b-2 border-violet-600 dark:border-violet-400" />
         </CardContent>
       </Card>
     );
   }
 
   return (
-    <Card className="rounded-xl border-0 bg-white shadow-md shadow-slate-200/50 ring-1 ring-slate-100">
+    <Card className="rounded-xl border-0 bg-white shadow-md shadow-slate-200/50 ring-1 ring-slate-100 dark:border dark:border-slate-800 dark:bg-slate-900 dark:shadow-none dark:ring-0">
       <CardHeader>
-        <CardTitle className="text-lg font-bold text-slate-900">
+        <CardTitle className="text-lg font-bold text-slate-900 dark:text-slate-50">
           {employeeId ? "My leads" : "Pipeline leads"}
         </CardTitle>
-        <CardDescription>
+        <CardDescription className="dark:text-slate-400">
           {employeeId
             ? "Your active opportunities (Lost excluded)"
             : "Active tenant pipeline — open a lead for full detail"}
@@ -207,15 +225,15 @@ export function LeadsDashboardTable({ employeeId }: LeadsDashboardTableProps) {
       </CardHeader>
       <CardContent className="flex size-full flex-col gap-4">
         {leads.length === 0 ? (
-          <div className="flex min-h-[200px] flex-col items-center justify-center rounded-lg border border-dashed border-slate-200 bg-slate-50/50 py-16 text-center">
-            <p className="text-sm font-medium text-slate-600">No leads in pipeline</p>
-            <p className="mt-1 max-w-sm text-xs text-slate-500">
+          <div className="flex min-h-[200px] flex-col items-center justify-center rounded-lg border border-dashed border-slate-200 bg-slate-50/50 py-16 text-center dark:border-slate-800 dark:bg-slate-950/50">
+            <p className="text-sm font-medium text-slate-600 dark:text-slate-400">No leads in pipeline</p>
+            <p className="mt-1 max-w-sm text-xs text-slate-500 dark:text-slate-500">
               Import leads from the Leads page or adjust filters when data is available.
             </p>
           </div>
         ) : (
           <>
-            <div className="overflow-hidden rounded-lg border border-slate-200/80 bg-slate-50/30">
+            <div className="overflow-hidden rounded-lg border border-slate-200/80 bg-slate-50/30 dark:border-slate-800 dark:bg-slate-950/40">
               <DataTable table={table} columns={columns} />
             </div>
             <DataTablePagination table={table} />

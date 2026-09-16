@@ -65,24 +65,24 @@ const STATUS_OPTIONS = [
 ];
 
 const getStatusColor = (status: string | undefined): string => {
-  if (!status) return "bg-gray-100 text-gray-800";
+  if (!status) return "bg-gray-100 text-gray-800 dark:bg-slate-800 dark:text-slate-300";
   const statusLower = status.toLowerCase();
   if (statusLower === "called" || statusLower === "priced" || statusLower === "callback") {
-    return "bg-green-100 text-green-800";
+    return "bg-green-100 text-green-800 dark:bg-emerald-950/60 dark:text-emerald-300";
   }
   if (statusLower === "not answered") {
-    return "bg-yellow-100 text-yellow-800";
+    return "bg-yellow-100 text-yellow-800 dark:bg-amber-950/60 dark:text-amber-300";
   }
   if (statusLower === "lost" || statusLower === "lost cot") {
-    return "bg-red-100 text-red-800";
+    return "bg-red-100 text-red-800 dark:bg-rose-950/60 dark:text-rose-300";
   }
   if (statusLower === "not called") {
-    return "bg-gray-100 text-gray-500";
+    return "bg-gray-100 text-gray-500 dark:bg-slate-800 dark:text-slate-400";
   }
   if (statusLower === "dead") {
-    return "bg-red-200 text-red-900";
+    return "bg-red-200 text-red-900 dark:bg-rose-900/60 dark:text-rose-200";
   }
-  return "bg-gray-100 text-gray-800";
+  return "bg-gray-100 text-gray-800 dark:bg-slate-800 dark:text-slate-300";
 };
 
 /** Whitelist fields sent on PUT — avoids oversized/invalid payloads breaking assign & save */
@@ -135,11 +135,9 @@ function buildCustomerUpdatePayload(data: Partial<EnergyCustomer>, extra?: Recor
 
 const getStatusLabel = (status: string | undefined): string => {
   if (!status) return "—";
-  // Direct match first
   const option = STATUS_OPTIONS.find((opt) => opt.value === status);
   if (option) return option.label;
 
-  // Fallback: case-insensitive match
   const optionCaseInsensitive = STATUS_OPTIONS.find((opt) => opt.value.toLowerCase() === status.toLowerCase());
   return optionCaseInsensitive?.label || status;
 };
@@ -335,12 +333,12 @@ const getActionOptionLabelFromNotes = (notes?: string | null) => {
 
 const paymentStatusClass = (status?: string) => {
   const normalized = String(status || "").toLowerCase();
-  if (normalized === "received" || normalized === "commission paid") return "bg-emerald-100 text-emerald-700";
-  if (normalized === "pending") return "bg-blue-100 text-blue-700";
-  if (normalized === "partially paid" || normalized === "awaiting payment") return "bg-orange-100 text-orange-800";
-  if (normalized === "chasing supplier" || normalized === "due") return "bg-red-100 text-red-700";
-  if (normalized === "closed") return "bg-zinc-200 text-zinc-700";
-  return "bg-slate-100 text-slate-700";
+  if (normalized === "received" || normalized === "commission paid") return "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300";
+  if (normalized === "pending") return "bg-blue-100 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300";
+  if (normalized === "partially paid" || normalized === "awaiting payment") return "bg-orange-100 text-orange-800 dark:bg-orange-950/60 dark:text-orange-300";
+  if (normalized === "chasing supplier" || normalized === "due") return "bg-red-100 text-red-700 dark:bg-rose-950/60 dark:text-rose-300";
+  if (normalized === "closed") return "bg-zinc-200 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300";
+  return "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300";
 };
 
 export default function EnergyCustomerDetailsPage() {
@@ -425,13 +423,9 @@ export default function EnergyCustomerDetailsPage() {
       });
       if (!response.ok) throw new Error("Failed to load customer data");
       const data = await response.json();
-      console.log("📥 Customer data loaded:", data);
-      console.log("📥 Status from API:", data.status, "| preserveFormState:", preserveFormState);
       setCustomer(data);
       setEditedCustomer(data);
-      // ✅ Only set callbackStatus and callbackDate on initial load, not after saves
       if (!preserveFormState) {
-        // Only reset the form to DB values on initial load, not after user actions
         setCallbackStatus(data.status || "");
         setCallbackDate(data.callback_date ? String(data.callback_date).slice(0, 10) : "");
       }
@@ -641,7 +635,6 @@ export default function EnergyCustomerDetailsPage() {
       requiresSupplierChange: false,
       requiresAddressChange: false,
     },
-    // "Called": { requiresDate: true, requiresSold: false, deletesRecord: false, requiresNotes: false, requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
     "Not Answered": {
       requiresDate: true,
       requiresSold: false,
@@ -823,11 +816,6 @@ export default function EnergyCustomerDetailsPage() {
   };
 
   const handleSubmitCallback = async () => {
-    console.log("🚀 handleSubmitCallback fired");
-    console.log("📋 callbackStatus:", callbackStatus);
-    console.log("📋 callbackDate:", callbackDate);
-    console.log("📋 clientId:", resolveClientId());
-    console.log("📋 customer?.client_id:", customer?.client_id);
     setCallbackError("");
 
     if (!callbackStatus) {
@@ -877,12 +865,11 @@ export default function EnergyCustomerDetailsPage() {
     try {
       const token = localStorage.getItem("auth_token");
 
-      // ✅ Always include all fields — backend ignores what it doesn't need
       const payload: any = {
         status: callbackStatus,
         notes: callbackNotes,
         called_date: calledDate,
-        callback_date: callbackDate || null, // ✅ always send, even if empty
+        callback_date: callbackDate || null,
       };
 
       if (config?.requiresSold) {
@@ -910,8 +897,6 @@ export default function EnergyCustomerDetailsPage() {
       }
 
       const clientId = resolveClientId();
-      console.log("🚀 SENDING to:", `${API_BASE_URL}/energy-clients/${clientId}/callback`);
-      console.log("🚀 PAYLOAD:", JSON.stringify(payload, null, 2));
 
       const response = await fetch(`${API_BASE_URL}/energy-clients/${clientId}/callback`, {
         method: "POST",
@@ -922,17 +907,14 @@ export default function EnergyCustomerDetailsPage() {
         body: JSON.stringify(payload),
       });
 
-      console.log("📡 Response status:", response.status);
       const data = await response.json();
-      console.log("📡 Response body:", JSON.stringify(data, null, 2));
-      console.log("📡 customer.client_id:", customer?.client_id, "| id param:", id, "| resolved clientId:", clientId);
 
       if (!response.ok) {
         throw new Error(data.error || "Failed to save callback");
       }
 
       if (data.display_only || callbackStatus === "Dead") {
-        await loadCustomerData(true);  // ✅ preserve form state
+        await loadCustomerData(true);
         setCallbackStatus(callbackStatus);
         alert(`✅ Status set to ${callbackStatus}`);
         setCallbackNotes("");
@@ -940,7 +922,6 @@ export default function EnergyCustomerDetailsPage() {
         return;
       }
 
-      // Second call — main success path:
       await loadCustomerData(true);
 
       if (data.moved_to_cleansing) {
@@ -959,7 +940,6 @@ export default function EnergyCustomerDetailsPage() {
         return;
       }
 
-      // ✅ Reload history FIRST before resetting state
       await loadHistory();
 
       const confirmedStatus = data.customer?.status ?? data.status ?? callbackStatus;
@@ -974,7 +954,6 @@ export default function EnergyCustomerDetailsPage() {
         setEditedCustomer((prev) => ({ ...prev, ...data.customer }));
       }
 
-      // ✅ Always sync callbackStatus and callbackDate from confirmed server response
       setCallbackStatus(confirmedStatus);
       setCallbackDate(confirmedCallbackDate);
 
@@ -984,7 +963,6 @@ export default function EnergyCustomerDetailsPage() {
       else if (callbackStatus === "Converted") alert("✅ Lead marked as Converted");
       else alert("✅ Action saved successfully");
 
-      // Reset form fields only (not status/date)
       setCallbackNotes("");
       setIsSold("");
       setNewStartDate("");
@@ -992,8 +970,6 @@ export default function EnergyCustomerDetailsPage() {
       setNewSupplier("");
       setNewAddress("");
       setCalledDate(new Date().toISOString().split("T")[0]);
-      // ✅ Don't reset callbackStatus, callbackDate, or renewedBy
-      // so the panel reflects the current saved state
       setCallbackError("");
 
       try {
@@ -1003,7 +979,7 @@ export default function EnergyCustomerDetailsPage() {
         /* non-blocking */
       }
     } catch (err: any) {
-      console.error("❌ Callback error:", err);
+      console.error("Callback error:", err);
       setCallbackError(err.message || "Failed to save callback");
     } finally {
       setIsSubmittingCallback(false);
@@ -1031,12 +1007,8 @@ export default function EnergyCustomerDetailsPage() {
         throw new Error("Failed to clear status");
       }
 
-      // Reload customer data to get fresh state
       await loadCustomerData();
-
-      // Reset the status dropdown
       setCallbackStatus("");
-
       alert("✅ Status cleared successfully");
     } catch (error) {
       console.error("Error clearing status:", error);
@@ -1063,7 +1035,6 @@ export default function EnergyCustomerDetailsPage() {
         throw new Error("Failed to delete interaction");
       }
 
-      // Success - refresh history
       alert("✅ History entry deleted successfully");
       loadHistory();
     } catch (error) {
@@ -1093,11 +1064,11 @@ export default function EnergyCustomerDetailsPage() {
         const data = await response.json();
         const updated = data.customer || data;
 
-      if (data.date_change && data.new_client_id) {
-        alert("✅ Contract dates updated — previous record archived, new record created.");
-        router.push(`/dashboard/renewals/${data.new_client_id}?from=${fromPage}`);
-        return;
-      }
+        if (data.date_change && data.new_client_id) {
+          alert("✅ Contract dates updated — previous record archived, new record created.");
+          router.push(`/dashboard/renewals/${data.new_client_id}?from=${fromPage}`);
+          return;
+        }
         setCustomer(updated);
         setEditedCustomer(updated);
         setIsEditing(false);
@@ -1210,7 +1181,6 @@ export default function EnergyCustomerDetailsPage() {
 
       formData.append("client_id", id);
 
-      // ✅ UPDATED ENDPOINT URL
       const response = await fetch(`${API_BASE_URL}/api/crm/documents/upload-customer-documents`, {
         method: "POST",
         headers: {
@@ -1241,7 +1211,6 @@ export default function EnergyCustomerDetailsPage() {
       const updatedDocuments = [...uploadedDocuments, ...newDocuments];
       setUploadedDocuments(updatedDocuments);
 
-      // ✅ This will update the database with new document URLs
       await updateDocumentDetails(updatedDocuments);
 
       alert(`✅ ${newDocuments.length} document(s) uploaded successfully!`);
@@ -1292,10 +1261,10 @@ export default function EnergyCustomerDetailsPage() {
 
   if (loading) {
     return (
-      <div className="flex h-screen items-center justify-center bg-gray-50">
+      <div className="flex h-screen items-center justify-center bg-gray-50 dark:bg-slate-950">
         <div className="text-center">
-          <Loader2 className="mx-auto h-12 w-12 animate-spin text-gray-600" />
-          <p className="mt-4 text-gray-600">Loading customer details...</p>
+          <Loader2 className="mx-auto h-12 w-12 animate-spin text-gray-600 dark:text-slate-400" />
+          <p className="mt-4 text-gray-600 dark:text-slate-400">Loading customer details...</p>
         </div>
       </div>
     );
@@ -1303,10 +1272,10 @@ export default function EnergyCustomerDetailsPage() {
 
   if (error || !customer) {
     return (
-      <div className="flex h-screen items-center justify-center bg-gray-50">
+      <div className="flex h-screen items-center justify-center bg-gray-50 dark:bg-slate-950">
         <div className="text-center">
           <AlertCircle className="mx-auto h-12 w-12 text-red-500" />
-          <h3 className="mt-4 text-lg font-medium text-red-900">{error || "Customer not found"}</h3>
+          <h3 className="mt-4 text-lg font-medium text-red-900 dark:text-red-400">{error || "Customer not found"}</h3>
           <Button onClick={() => router.push("/dashboard/renewals")} className="mt-4">
             Back to Customers
           </Button>
@@ -1325,9 +1294,9 @@ export default function EnergyCustomerDetailsPage() {
   const agentOptionHelp = callbackStatus === "Sold" ? "Sold by an agent" : "Counts as Renewed";
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100">
       {/* Header */}
-      <div className="border-b border-gray-200 bg-white px-6 py-4 pr-[340px]">
+      <div className="border-b border-gray-200 bg-white px-6 py-4 pr-[440px] dark:border-slate-800 dark:bg-slate-950">
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-3">
             <button
@@ -1340,13 +1309,13 @@ export default function EnergyCustomerDetailsPage() {
                       : "/dashboard/renewals",
                 )
               }
-              className="rounded-lg p-2 hover:bg-gray-100"
+              className="rounded-lg p-2 hover:bg-gray-100 dark:hover:bg-slate-800"
             >
-              <ArrowLeft className="h-5 w-5 text-gray-600" />
+              <ArrowLeft className="h-5 w-5 text-gray-600 dark:text-slate-400" />
             </button>
             <div>
-              <h1 className="text-2xl font-bold text-gray-900">Consumer Details</h1>
-              <p className="text-sm text-gray-500">
+              <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">Consumer Details</h1>
+              <p className="text-sm text-gray-500 dark:text-slate-400">
                 ID: {(customer as any).display_order || (customer as any).display_id || customer.client_id}
               </p>
             </div>
@@ -1355,14 +1324,14 @@ export default function EnergyCustomerDetailsPage() {
           <div className="flex items-center space-x-3">
             {isEditing ? (
               <>
-                <Button onClick={handleCancel} variant="outline" disabled={isSaving}>
+                <Button onClick={handleCancel} variant="outline" disabled={isSaving} className="dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700">
                   <X className="mr-2 h-4 w-4" />
                   Cancel
                 </Button>
               </>
             ) : (
               <>
-                <Button onClick={() => setIsEditing(true)} variant="outline">
+                <Button onClick={() => setIsEditing(true)} variant="outline" className="dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700">
                   <Edit className="mr-2 h-4 w-4" />
                   Edit
                 </Button>
@@ -1372,15 +1341,17 @@ export default function EnergyCustomerDetailsPage() {
         </div>
 
         {/* Tabs */}
-        <div className="mt-4 flex space-x-1 border-b border-gray-200">
+        <div className="mt-4 flex w-full items-end space-x-1 overflow-x-auto border-b border-gray-200 pb-0 dark:border-slate-800">
           {TABS.filter((tab) => tab.id !== "payments" || isAdmin).map((tab) => {
             const Icon = tab.icon;
             return (
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`flex items-center space-x-2 px-4 py-3 text-sm font-medium transition-colors ${
-                  activeTab === tab.id ? "border-b-2 border-black text-black" : "text-gray-600 hover:text-gray-900"
+                className={`flex items-center space-x-2 px-3 py-3 text-sm font-medium transition-colors ${
+                  activeTab === tab.id
+                      ? "border-b-2 border-black text-black dark:border-white dark:text-white"
+                      : "text-black hover:text-black dark:text-white dark:hover:text-white"
                 }`}
               >
                 <Icon className="h-4 w-4" />
@@ -1392,17 +1363,17 @@ export default function EnergyCustomerDetailsPage() {
       </div>
 
       {/* Content */}
-      <div className="p-6 pr-[340px]">
-        <div className="rounded-lg bg-white p-6 shadow-sm">
+      <div className="p-6 pr-[440px]">
+        <div className="rounded-lg bg-white p-6 shadow-sm dark:border dark:border-slate-800 dark:bg-slate-900">
           {/* Contact Information Tab */}
           {activeTab === "contact" && (
             <div className="space-y-6">
-              <h2 className="text-lg font-semibold text-gray-900">Contact Information</h2>
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-slate-100">Contact Information</h2>
 
               <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
                 {/* ID */}
                 <div>
-                  <label className="text-sm font-medium text-gray-700">ID</label>
+                  <label className="text-sm font-medium text-gray-700 dark:text-slate-300">ID</label>
                   <Input
                     value={
                       (displayCustomer as any).display_order ||
@@ -1411,129 +1382,129 @@ export default function EnergyCustomerDetailsPage() {
                       ""
                     }
                     disabled
-                    className="mt-1 bg-gray-50"
+                    className="mt-1 bg-gray-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300"
                   />
                 </div>
 
                 {/* Client Name (Person) */}
                 <div>
-                  <label className="text-sm font-medium text-gray-700">Client Name</label>
+                  <label className="text-sm font-medium text-gray-700 dark:text-slate-300">Client Name</label>
                   <Input
                     value={displayCustomer.contact_person || ""}
                     onChange={(e) => handleUpdateField("contact_person", e.target.value)}
                     disabled={!isEditing}
-                    className="mt-1"
+                    className="mt-1 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
                   />
                 </div>
 
                 {/* Business Name (Trading Name) */}
                 <div>
-                  <label className="text-sm font-medium text-gray-700">Trading Name</label>
+                  <label className="text-sm font-medium text-gray-700 dark:text-slate-300">Trading Name</label>
                   <Input
                     value={displayCustomer.business_name || ""}
                     onChange={(e) => handleUpdateField("business_name", e.target.value)}
                     disabled={!isEditing}
-                    className="mt-1"
+                    className="mt-1 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
                   />
                 </div>
 
                 {/* Position */}
                 <div>
-                  <label className="text-sm font-medium text-gray-700">Position</label>
+                  <label className="text-sm font-medium text-gray-700 dark:text-slate-300">Position</label>
                   <Input
                     value={displayCustomer.position || ""}
                     onChange={(e) => handleUpdateField("position", e.target.value)}
                     disabled={!isEditing}
-                    className="mt-1"
+                    className="mt-1 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
                   />
                 </div>
 
                 {/* Tel Number */}
                 <div>
-                  <label className="text-sm font-medium text-gray-700">
+                  <label className="text-sm font-medium text-gray-700 dark:text-slate-300">
                     Tel Number <span className="text-red-500">*</span>
                   </label>
                   <Input
                     value={displayCustomer.phone || ""}
                     onChange={(e) => handleUpdateField("phone", e.target.value)}
                     disabled={!isEditing}
-                    className="mt-1"
+                    className="mt-1 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
                   />
                 </div>
 
                 {/* Mobile Number */}
                 <div>
-                  <label className="text-sm font-medium text-gray-700">Mobile Number</label>
+                  <label className="text-sm font-medium text-gray-700 dark:text-slate-300">Mobile Number</label>
                   <Input
                     value={displayCustomer.mobile_no || ""}
                     onChange={(e) => handleUpdateField("mobile_no", e.target.value)}
                     disabled={!isEditing}
-                    className="mt-1"
+                    className="mt-1 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
                   />
                 </div>
 
                 {/* Email */}
                 <div>
-                  <label className="text-sm font-medium text-gray-700">Email</label>
+                  <label className="text-sm font-medium text-gray-700 dark:text-slate-300">Email</label>
                   <Input
                     value={displayCustomer.email || ""}
                     onChange={(e) => handleUpdateField("email", e.target.value)}
                     disabled={!isEditing}
-                    className="mt-1"
+                    className="mt-1 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
                   />
                 </div>
 
                 {/* Company Number */}
                 <div>
-                  <label className="text-sm font-medium text-gray-700">Company Number</label>
+                  <label className="text-sm font-medium text-gray-700 dark:text-slate-300">Company Number</label>
                   <Input
                     value={displayCustomer.company_number || ""}
                     onChange={(e) => handleUpdateField("company_number", e.target.value)}
                     disabled={!isEditing}
-                    className="mt-1"
+                    className="mt-1 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
                   />
                 </div>
 
                 {/* Date of Birth */}
                 <div>
-                  <label className="text-sm font-medium text-gray-700">Date of Birth</label>
+                  <label className="text-sm font-medium text-gray-700 dark:text-slate-300">Date of Birth</label>
                   <Input
                     type="date"
                     value={displayCustomer.date_of_birth?.split("T")[0] || ""}
                     onChange={(e) => handleUpdateField("date_of_birth", e.target.value)}
                     disabled={!isEditing}
-                    className="mt-1"
+                    className="mt-1 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
                   />
                 </div>
 
                 {/* Agent Allocated */}
                 <div>
-                  <label className="text-sm font-medium text-gray-700">Agent Allocated</label>
+                  <label className="text-sm font-medium text-gray-700 dark:text-slate-300">Agent Allocated</label>
                   {isEditing ? (
                     <Select
                       value={displayCustomer.assigned_to_id?.toString() || ""}
                       onValueChange={(value) => handleUpdateField("assigned_to_id", parseInt(value))}
                     >
-                      <SelectTrigger className="mt-1">
+                      <SelectTrigger className="mt-1 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100">
                         <SelectValue placeholder="Select agent" />
                       </SelectTrigger>
-                      <SelectContent>
+                      <SelectContent className="dark:border-slate-800 dark:bg-slate-900">
                         {employees.map((employee) => (
-                          <SelectItem key={employee.employee_id} value={employee.employee_id.toString()}>
+                          <SelectItem key={employee.employee_id} value={employee.employee_id.toString()} className="dark:text-slate-200 dark:focus:bg-slate-800">
                             {employee.employee_name}
                           </SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
                   ) : (
-                    <Input value={displayCustomer.assigned_to_name || ""} disabled className="mt-1 bg-gray-50" />
+                    <Input value={displayCustomer.assigned_to_name || ""} disabled className="mt-1 bg-gray-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300" />
                   )}
                 </div>
 
                 {/* Agent Sold */}
                 <div>
-                  <label className="text-sm font-medium text-gray-700">Agent Sold</label>
-                  <Input disabled className="mt-1 bg-gray-50" placeholder="—" />
+                  <label className="text-sm font-medium text-gray-700 dark:text-slate-300">Agent Sold</label>
+                  <Input disabled className="mt-1 bg-gray-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300" placeholder="—" />
                 </div>
               </div>
             </div>
@@ -1542,73 +1513,73 @@ export default function EnergyCustomerDetailsPage() {
           {/* Contract & Billing Details Tab */}
           {activeTab === "contract" && (
             <div className="space-y-6">
-              <h2 className="text-lg font-semibold text-gray-900">Contract & Billing Details</h2>
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-slate-100">Contract & Billing Details</h2>
 
               <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
                 {/* Supplier */}
                 <div>
-                  <label className="text-sm font-medium text-gray-700">Old Supplier</label>
+                  <label className="text-sm font-medium text-gray-700 dark:text-slate-300">Old Supplier</label>
                   {isEditing ? (
                     <Select
                       value={displayCustomer.old_supplier_id?.toString() || ""}
                       onValueChange={(value) => handleUpdateField("old_supplier_id", parseInt(value))}
                     >
-                      <SelectTrigger className="mt-1">
+                      <SelectTrigger className="mt-1 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100">
                         <SelectValue placeholder="Select old supplier" />
                       </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="0">— None —</SelectItem>
+                      <SelectContent className="dark:border-slate-800 dark:bg-slate-900">
+                        <SelectItem value="0" className="dark:text-slate-200 dark:focus:bg-slate-800">— None —</SelectItem>
                         {suppliers.map((s) => (
-                          <SelectItem key={s.supplier_id} value={s.supplier_id.toString()}>
+                          <SelectItem key={s.supplier_id} value={s.supplier_id.toString()} className="dark:text-slate-200 dark:focus:bg-slate-800">
                             {s.supplier_name}
                           </SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
                   ) : (
-                    <Input value={displayCustomer.old_supplier_name || ""} disabled className="mt-1 bg-gray-50" />
+                    <Input value={displayCustomer.old_supplier_name || ""} disabled className="mt-1 bg-gray-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300" />
                   )}
                 </div>
 
-                {/* New Supplier — this updates the active contract supplier */}
+                {/* New Supplier */}
                 <div>
-                  <label className="text-sm font-medium text-gray-700">New Supplier</label>
+                  <label className="text-sm font-medium text-gray-700 dark:text-slate-300">New Supplier</label>
                   {isEditing ? (
                     <Select
                       value={displayCustomer.supplier_id?.toString() || ""}
                       onValueChange={(value) => handleUpdateField("supplier_id", parseInt(value))}
                     >
-                      <SelectTrigger className="mt-1">
+                      <SelectTrigger className="mt-1 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100">
                         <SelectValue placeholder="Select new supplier" />
                       </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="0">— None —</SelectItem>
+                      <SelectContent className="dark:border-slate-800 dark:bg-slate-900">
+                        <SelectItem value="0" className="dark:text-slate-200 dark:focus:bg-slate-800">— None —</SelectItem>
                         {suppliers.map((s) => (
-                          <SelectItem key={s.supplier_id} value={s.supplier_id.toString()}>
+                          <SelectItem key={s.supplier_id} value={s.supplier_id.toString()} className="dark:text-slate-200 dark:focus:bg-slate-800">
                             {s.supplier_name}
                           </SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
                   ) : (
-                    <Input value={displayCustomer.supplier_name || ""} disabled className="mt-1 bg-gray-50" />
+                    <Input value={displayCustomer.supplier_name || ""} disabled className="mt-1 bg-gray-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300" />
                   )}
                 </div>
 
                 {/* Site Name */}
                 <div>
-                  <label className="text-sm font-medium text-gray-700">Site Name</label>
+                  <label className="text-sm font-medium text-gray-700 dark:text-slate-300">Site Name</label>
                   <Input
                     value={displayCustomer.site_name || ""}
                     onChange={(e) => handleUpdateField("site_name", e.target.value)}
                     disabled={!isEditing}
-                    className="mt-1"
+                    className="mt-1 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
                   />
                 </div>
 
                 {/* Month Sold */}
                 <div>
-                  <label className="text-sm font-medium text-gray-700">Month Sold</label>
+                  <label className="text-sm font-medium text-gray-700 dark:text-slate-300">Month Sold</label>
                   <Input
                     value={
                       displayCustomer.month_sold
@@ -1622,138 +1593,138 @@ export default function EnergyCustomerDetailsPage() {
                     }
                     onChange={(e) => handleUpdateField("month_sold", e.target.value)}
                     disabled={!isEditing}
-                    className="mt-1"
+                    className="mt-1 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
                   />
                 </div>
 
                 {/* MPAN Top */}
                 <div>
-                  <label className="text-sm font-medium text-gray-700">MPAN Top</label>
+                  <label className="text-sm font-medium text-gray-700 dark:text-slate-300">MPAN Top</label>
                   <Input
                     value={displayCustomer.mpan_top || ""}
                     onChange={(e) => handleUpdateField("mpan_top", e.target.value)}
                     disabled={!isEditing}
-                    className="mt-1"
+                    className="mt-1 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
                   />
                 </div>
 
                 {/* MPAN Bottom */}
                 <div>
-                  <label className="text-sm font-medium text-gray-700">MPAN Bottom</label>
+                  <label className="text-sm font-medium text-gray-700 dark:text-slate-300">MPAN Bottom</label>
                   <Input
                     value={displayCustomer.mpan_bottom || ""}
                     onChange={(e) => handleUpdateField("mpan_bottom", e.target.value)}
                     disabled={!isEditing}
-                    className="mt-1"
+                    className="mt-1 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
                   />
                 </div>
 
                 {/* Data Source */}
                 <div>
-                  <label className="text-sm font-medium text-gray-700">Data Source</label>
-                  <Input disabled className="mt-1 bg-gray-50" placeholder="—" />
+                  <label className="text-sm font-medium text-gray-700 dark:text-slate-300">Data Source</label>
+                  <Input disabled className="mt-1 bg-gray-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300" placeholder="—" />
                 </div>
 
                 {/* Annual Usage */}
                 <div>
-                  <label className="text-sm font-medium text-gray-700">Annual Usage (kWh)</label>
+                  <label className="text-sm font-medium text-gray-700 dark:text-slate-300">Annual Usage (kWh)</label>
                   <Input
                     type="number"
                     value={displayCustomer.annual_usage || ""}
                     onChange={(e) => handleUpdateField("annual_usage", parseFloat(e.target.value))}
                     disabled={!isEditing}
-                    className="mt-1"
+                    className="mt-1 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
                   />
                 </div>
 
                 {/* Payment Type */}
                 <div>
-                  <label className="text-sm font-medium text-gray-700">Payment Type</label>
+                  <label className="text-sm font-medium text-gray-700 dark:text-slate-300">Payment Type</label>
                   <Input
                     value={displayCustomer.payment_type || ""}
                     onChange={(e) => handleUpdateField("payment_type", e.target.value)}
                     disabled={!isEditing}
-                    className="mt-1"
+                    className="mt-1 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
                   />
                 </div>
 
                 {/* Start Date */}
                 <div>
-                  <label className="text-sm font-medium text-gray-700">Start Date</label>
+                  <label className="text-sm font-medium text-gray-700 dark:text-slate-300">Start Date</label>
                   <Input
                     type="date"
                     value={displayCustomer.start_date?.split("T")[0] || ""}
                     onChange={(e) => handleUpdateField("start_date", e.target.value)}
                     disabled={!isEditing}
-                    className="mt-1"
+                    className="mt-1 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
                   />
                 </div>
 
                 {/* End Date */}
                 <div>
-                  <label className="text-sm font-medium text-gray-700">Contract End</label>
+                  <label className="text-sm font-medium text-gray-700 dark:text-slate-300">Contract End</label>
                   <Input
                     type="date"
                     value={displayCustomer.end_date?.split("T")[0] || ""}
                     onChange={(e) => handleUpdateField("end_date", e.target.value)}
                     disabled={!isEditing}
-                    className="mt-1"
+                    className="mt-1 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
                   />
                 </div>
 
                 {/* Term Sold */}
                 <div>
-                  <label className="text-sm font-medium text-gray-700">Term Sold (Years)</label>
+                  <label className="text-sm font-medium text-gray-700 dark:text-slate-300">Term Sold (Years)</label>
                   <Input
                     type="number"
                     value={displayCustomer.term_sold || ""}
                     onChange={(e) => handleUpdateField("term_sold", parseFloat(e.target.value))}
                     disabled={!isEditing}
-                    className="mt-1"
+                    className="mt-1 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
                   />
                 </div>
 
                 {/* Net Notch */}
                 <div>
-                  <label className="text-sm font-medium text-gray-700">Net Notch</label>
+                  <label className="text-sm font-medium text-gray-700 dark:text-slate-300">Net Notch</label>
                   <Input
                     type="number"
                     step="0.01"
                     value={displayCustomer.net_notch || ""}
                     onChange={(e) => handleUpdateField("net_notch", parseFloat(e.target.value))}
                     disabled={!isEditing}
-                    className="mt-1"
+                    className="mt-1 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
                   />
                 </div>
 
                 {/* Comms Paid */}
                 <div>
-                  <label className="text-sm font-medium text-gray-700">Comms Paid (£)</label>
+                  <label className="text-sm font-medium text-gray-700 dark:text-slate-300">Comms Paid (£)</label>
                   <Input
                     type="number"
                     step="0.01"
                     value={displayCustomer.comms_paid || ""}
                     onChange={(e) => handleUpdateField("comms_paid", parseFloat(e.target.value))}
                     disabled={!isEditing}
-                    className="mt-1"
+                    className="mt-1 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
                   />
                 </div>
 
                 {/* Aggregator */}
                 <div>
-                  <label className="text-sm font-medium text-gray-700">Aggregator</label>
+                  <label className="text-sm font-medium text-gray-700 dark:text-slate-300">Aggregator</label>
                   <Input
                     value={displayCustomer.aggregator || ""}
                     onChange={(e) => handleUpdateField("aggregator", e.target.value)}
                     disabled={!isEditing}
-                    className="mt-1"
+                    className="mt-1 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
                   />
                 </div>
 
                 {/* Documents Section */}
-                <div className="mt-6 border-t pt-6 md:col-span-2">
+                <div className="mt-6 border-t border-gray-200 pt-6 md:col-span-2 dark:border-slate-800">
                   <div className="mb-4 flex items-center justify-between">
-                    <label className="text-sm font-medium text-gray-700">Documents</label>
+                    <label className="text-sm font-medium text-gray-700 dark:text-slate-300">Documents</label>
                     <div>
                       <input
                         type="file"
@@ -1770,6 +1741,7 @@ export default function EnergyCustomerDetailsPage() {
                         size="sm"
                         onClick={() => document.getElementById("document-upload")?.click()}
                         disabled={isUploadingDocument}
+                        className="dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
                       >
                         {isUploadingDocument ? (
                           <>
@@ -1791,11 +1763,11 @@ export default function EnergyCustomerDetailsPage() {
                       {uploadedDocuments.map((doc, index) => (
                         <div
                           key={index}
-                          className="flex items-center justify-between rounded-lg border border-gray-200 bg-gray-50 p-3"
+                          className="flex items-center justify-between rounded-lg border border-gray-200 bg-gray-50 p-3 dark:border-slate-800 dark:bg-slate-800/60"
                         >
                           <div className="flex min-w-0 flex-1 items-center space-x-3">
-                            <File className="h-5 w-5 flex-shrink-0 text-gray-400" />
-                            <span className="truncate text-sm text-gray-700">{getFileNameFromPath(doc)}</span>
+                            <File className="h-5 w-5 flex-shrink-0 text-gray-400 dark:text-slate-500" />
+                            <span className="truncate text-sm text-gray-700 dark:text-slate-300">{getFileNameFromPath(doc)}</span>
                           </div>
                           <div className="ml-4 flex items-center space-x-2">
                             <Button
@@ -1803,6 +1775,7 @@ export default function EnergyCustomerDetailsPage() {
                               size="sm"
                               onClick={() => window.open(doc, "_blank")}
                               title="Download"
+                              className="dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-200"
                             >
                               <Download className="h-4 w-4" />
                             </Button>
@@ -1810,7 +1783,7 @@ export default function EnergyCustomerDetailsPage() {
                               variant="ghost"
                               size="sm"
                               onClick={() => handleDeleteDocument(index)}
-                              className="text-red-600 hover:bg-red-50 hover:text-red-700"
+                              className="text-red-600 hover:bg-red-50 hover:text-red-700 dark:text-rose-400 dark:hover:bg-rose-950/40"
                               title="Delete"
                             >
                               <Trash2 className="h-4 w-4" />
@@ -1820,10 +1793,10 @@ export default function EnergyCustomerDetailsPage() {
                       ))}
                     </div>
                   ) : (
-                    <div className="rounded-lg border-2 border-dashed border-gray-200 bg-gray-50 p-6 text-center">
-                      <File className="mx-auto mb-2 h-8 w-8 text-gray-400" />
-                      <p className="text-sm text-gray-500">No documents uploaded yet</p>
-                      <p className="mt-1 text-xs text-gray-400">Click "Upload Documents" to add files</p>
+                    <div className="rounded-lg border-2 border-dashed border-gray-200 bg-gray-50 p-6 text-center dark:border-slate-800 dark:bg-slate-800/40">
+                      <File className="mx-auto mb-2 h-8 w-8 text-gray-400 dark:text-slate-500" />
+                      <p className="text-sm text-gray-500 dark:text-slate-400">No documents uploaded yet</p>
+                      <p className="mt-1 text-xs text-gray-400 dark:text-slate-500">Click "Upload Documents" to add files</p>
                     </div>
                   )}
                 </div>
@@ -1836,8 +1809,8 @@ export default function EnergyCustomerDetailsPage() {
             <div className="space-y-6">
               <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                 <div>
-                  <h2 className="text-lg font-semibold text-gray-900">Payments Log</h2>
-                  <p className="mt-1 text-sm text-gray-500">
+                  <h2 className="text-lg font-semibold text-gray-900 dark:text-slate-100">Payments Log</h2>
+                  <p className="mt-1 text-sm text-gray-500 dark:text-slate-400">
                     Commission payment schedule, supplier receipt history, and agent commission entries for this
                     customer.
                   </p>
@@ -1846,6 +1819,7 @@ export default function EnergyCustomerDetailsPage() {
                   variant="outline"
                   onClick={() => loadPaymentLog(displayCustomer.client_id)}
                   disabled={loadingPaymentLog}
+                  className="dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
                 >
                   {loadingPaymentLog ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                   Refresh
@@ -1853,42 +1827,42 @@ export default function EnergyCustomerDetailsPage() {
               </div>
 
               {paymentLogError && (
-                <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-rose-900 dark:bg-rose-950/50 dark:text-rose-300">
                   {paymentLogError}
                 </div>
               )}
 
               {loadingPaymentLog ? (
-                <div className="flex min-h-48 items-center justify-center rounded-lg border bg-gray-50 text-gray-500">
+                <div className="flex min-h-48 items-center justify-center rounded-lg border bg-gray-50 text-gray-500 dark:border-slate-800 dark:bg-slate-800/40 dark:text-slate-400">
                   <Loader2 className="mr-2 h-5 w-5 animate-spin" />
                   Loading payment log...
                 </div>
               ) : !paymentLog ? (
-                <div className="rounded-lg border border-dashed bg-gray-50 px-4 py-12 text-center text-sm text-gray-500">
+                <div className="rounded-lg border border-dashed bg-gray-50 px-4 py-12 text-center text-sm text-gray-500 dark:border-slate-800 dark:bg-slate-800/40 dark:text-slate-400">
                   No payment log is available for this customer yet.
                 </div>
               ) : (
                 <>
                   <div className="grid gap-4 md:grid-cols-3">
-                    <div className="rounded-lg border bg-white p-4">
-                      <p className="text-sm font-medium text-gray-500">Payment Rows</p>
-                      <p className="mt-2 text-2xl font-semibold">{paymentLog.totals.payment_count}</p>
+                    <div className="rounded-lg border bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
+                      <p className="text-sm font-medium text-gray-500 dark:text-slate-400">Payment Rows</p>
+                      <p className="mt-2 text-2xl font-semibold text-gray-900 dark:text-slate-100">{paymentLog.totals.payment_count}</p>
                     </div>
-                    <div className="rounded-lg border bg-white p-4">
-                      <p className="text-sm font-medium text-gray-500">
+                    <div className="rounded-lg border bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
+                      <p className="text-sm font-medium text-gray-500 dark:text-slate-400">
                         {paymentLog.is_admin ? "Supplier Receipts" : "Agent Commission Entries"}
                       </p>
-                      <p className="mt-2 text-2xl font-semibold">
+                      <p className="mt-2 text-2xl font-semibold text-gray-900 dark:text-slate-100">
                         {paymentLog.is_admin
                           ? paymentLog.totals.receipt_count
                           : paymentLog.totals.agent_commission_count}
                       </p>
                     </div>
-                    <div className="rounded-lg border bg-white p-4">
-                      <p className="text-sm font-medium text-gray-500">
+                    <div className="rounded-lg border bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
+                      <p className="text-sm font-medium text-gray-500 dark:text-slate-400">
                         {paymentLog.is_admin ? "Outstanding" : "View"}
                       </p>
-                      <p className="mt-2 text-2xl font-semibold">
+                      <p className="mt-2 text-2xl font-semibold text-gray-900 dark:text-slate-100">
                         {paymentLog.is_admin ? formatMoney(paymentLog.totals.total_outstanding) : "Own commissions"}
                       </p>
                     </div>
@@ -1896,32 +1870,32 @@ export default function EnergyCustomerDetailsPage() {
 
                   {paymentLog.is_admin && (
                     <div className="grid gap-4 md:grid-cols-3">
-                      <div className="rounded-lg border bg-slate-50 p-4">
-                        <p className="text-sm font-medium text-gray-500">Expected</p>
-                        <p className="mt-1 text-xl font-semibold">{formatMoney(paymentLog.totals.total_expected)}</p>
+                      <div className="rounded-lg border bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-800/50">
+                        <p className="text-sm font-medium text-gray-500 dark:text-slate-400">Expected</p>
+                        <p className="mt-1 text-xl font-semibold text-gray-900 dark:text-slate-100">{formatMoney(paymentLog.totals.total_expected)}</p>
                       </div>
-                      <div className="rounded-lg border bg-emerald-50 p-4">
-                        <p className="text-sm font-medium text-emerald-700">Received</p>
-                        <p className="mt-1 text-xl font-semibold text-emerald-900">
+                      <div className="rounded-lg border bg-emerald-50 p-4 dark:border-emerald-950/60 dark:bg-emerald-950/30">
+                        <p className="text-sm font-medium text-emerald-700 dark:text-emerald-400">Received</p>
+                        <p className="mt-1 text-xl font-semibold text-emerald-900 dark:text-emerald-300">
                           {formatMoney(paymentLog.totals.total_received)}
                         </p>
                       </div>
-                      <div className="rounded-lg border bg-orange-50 p-4">
-                        <p className="text-sm font-medium text-orange-700">Outstanding</p>
-                        <p className="mt-1 text-xl font-semibold text-orange-900">
+                      <div className="rounded-lg border bg-orange-50 p-4 dark:border-orange-950/60 dark:bg-orange-950/30">
+                        <p className="text-sm font-medium text-orange-700 dark:text-orange-400">Outstanding</p>
+                        <p className="mt-1 text-xl font-semibold text-orange-900 dark:text-orange-300">
                           {formatMoney(paymentLog.totals.total_outstanding)}
                         </p>
                       </div>
                     </div>
                   )}
 
-                  <div className="rounded-lg border bg-white">
-                    <div className="border-b px-4 py-3">
-                      <h3 className="font-semibold text-gray-900">Commission Payment Schedule</h3>
+                  <div className="rounded-lg border bg-white dark:border-slate-800 dark:bg-slate-900">
+                    <div className="border-b px-4 py-3 dark:border-slate-800">
+                      <h3 className="font-semibold text-gray-900 dark:text-slate-100">Commission Payment Schedule</h3>
                     </div>
                     <div className="overflow-x-auto">
                       <table className="w-full min-w-[920px] text-sm">
-                        <thead className="bg-gray-50 text-left text-xs font-semibold text-gray-500 uppercase">
+                        <thead className="bg-gray-50 text-left text-xs font-semibold uppercase text-gray-500 dark:bg-slate-800/60 dark:text-slate-400">
                           <tr>
                             <th className="px-4 py-3">Contract / Year</th>
                             <th className="px-4 py-3">Supplier</th>
@@ -1936,30 +1910,30 @@ export default function EnergyCustomerDetailsPage() {
                             {paymentLog.is_admin && <th className="px-4 py-3 text-right">Action</th>}
                           </tr>
                         </thead>
-                        <tbody className="divide-y">
+                        <tbody className="divide-y dark:divide-slate-800">
                           {paymentLog.payments.map((payment) => (
                             <React.Fragment key={payment.id}>
-                              <tr>
-                                <td className="px-4 py-3 font-medium text-gray-900">
+                              <tr className="hover:bg-gray-50 dark:hover:bg-slate-800/40">
+                                <td className="px-4 py-3 font-medium text-gray-900 dark:text-slate-100">
                                   Contract #{payment.contract_id || "-"}
-                                  <span className="block text-xs text-gray-500">
+                                  <span className="block text-xs text-gray-500 dark:text-slate-400">
                                     {payment.payment_period_label || `Year ${payment.instalment_year}`}
                                   </span>
                                 </td>
-                                <td className="px-4 py-3 text-gray-700">{payment.supplier_name || "-"}</td>
-                                <td className="px-4 py-3 text-gray-700">{payment.aggregator || "-"}</td>
-                                <td className="px-4 py-3 text-gray-700">{payment.agent_name || "-"}</td>
+                                <td className="px-4 py-3 text-gray-700 dark:text-slate-300">{payment.supplier_name || "-"}</td>
+                                <td className="px-4 py-3 text-gray-700 dark:text-slate-300">{payment.aggregator || "-"}</td>
+                                <td className="px-4 py-3 text-gray-700 dark:text-slate-300">{payment.agent_name || "-"}</td>
                                 {paymentLog.is_admin && (
-                                  <td className="px-4 py-3 text-right font-medium">
+                                  <td className="px-4 py-3 text-right font-medium text-gray-900 dark:text-slate-100">
                                     {formatMoney(payment.expected_net_amount)}
                                   </td>
                                 )}
-                                <td className="px-4 py-3 text-gray-700">{formatDate(payment.due_date || undefined)}</td>
+                                <td className="px-4 py-3 text-gray-700 dark:text-slate-300">{formatDate(payment.due_date || undefined)}</td>
                                 {paymentLog.is_admin && (
-                                  <td className="px-4 py-3 text-right">{formatMoney(payment.amount_received)}</td>
+                                  <td className="px-4 py-3 text-right text-gray-900 dark:text-slate-100">{formatMoney(payment.amount_received)}</td>
                                 )}
                                 {paymentLog.is_admin && (
-                                  <td className="px-4 py-3 text-right font-medium">
+                                  <td className="px-4 py-3 text-right font-medium text-gray-900 dark:text-slate-100">
                                     {formatMoney(payment.outstanding_amount)}
                                   </td>
                                 )}
@@ -1972,7 +1946,7 @@ export default function EnergyCustomerDetailsPage() {
                                     {payment.status}
                                   </span>
                                 </td>
-                                <td className="px-4 py-3 text-gray-700">{formatDateTime(payment.last_checked_at)}</td>
+                                <td className="px-4 py-3 text-gray-700 dark:text-slate-300">{formatDateTime(payment.last_checked_at)}</td>
                                 {paymentLog.is_admin && (
                                   <td className="px-4 py-3 text-right">
                                     <Button
@@ -1981,6 +1955,7 @@ export default function EnergyCustomerDetailsPage() {
                                       variant="outline"
                                       onClick={() => setActivePaymentReceiptId(payment.id)}
                                       disabled={payment.status === "Closed"}
+                                      className="dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
                                     >
                                       Log Payment
                                     </Button>
@@ -1989,13 +1964,13 @@ export default function EnergyCustomerDetailsPage() {
                               </tr>
                               {paymentLog.is_admin && activePaymentReceiptId === payment.id && (
                                 <tr>
-                                  <td colSpan={11} className="bg-gray-50 px-4 py-4">
+                                  <td colSpan={11} className="bg-gray-50 px-4 py-4 dark:bg-slate-800/60">
                                     <form
                                       onSubmit={(event) => submitPaymentReceipt(event, payment.id)}
                                       className="grid gap-3 md:grid-cols-[1fr_1fr_2fr_auto_auto] md:items-end"
                                     >
                                       <div className="space-y-2">
-                                        <label className="text-sm font-medium" htmlFor={`payment_amount_${payment.id}`}>
+                                        <label className="text-sm font-medium dark:text-slate-300" htmlFor={`payment_amount_${payment.id}`}>
                                           Amount received
                                         </label>
                                         <Input
@@ -2011,10 +1986,11 @@ export default function EnergyCustomerDetailsPage() {
                                             }))
                                           }
                                           required
+                                          className="dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
                                         />
                                       </div>
                                       <div className="space-y-2">
-                                        <label className="text-sm font-medium" htmlFor={`payment_date_${payment.id}`}>
+                                        <label className="text-sm font-medium dark:text-slate-300" htmlFor={`payment_date_${payment.id}`}>
                                           Date received
                                         </label>
                                         <Input
@@ -2027,10 +2003,11 @@ export default function EnergyCustomerDetailsPage() {
                                               date_received: event.target.value,
                                             }))
                                           }
+                                          className="dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
                                         />
                                       </div>
                                       <div className="space-y-2">
-                                        <label className="text-sm font-medium" htmlFor={`payment_notes_${payment.id}`}>
+                                        <label className="text-sm font-medium dark:text-slate-300" htmlFor={`payment_notes_${payment.id}`}>
                                           Notes
                                         </label>
                                         <Input
@@ -2042,13 +2019,14 @@ export default function EnergyCustomerDetailsPage() {
                                               notes: event.target.value,
                                             }))
                                           }
+                                          className="dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
                                         />
                                       </div>
                                       <Button type="submit" disabled={savingPaymentReceipt}>
                                         {savingPaymentReceipt ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                                         Save
                                       </Button>
-                                      <Button type="button" variant="outline" onClick={resetPaymentReceiptDraft}>
+                                      <Button type="button" variant="outline" onClick={resetPaymentReceiptDraft} className="dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200">
                                         Cancel
                                       </Button>
                                     </form>
@@ -2061,7 +2039,7 @@ export default function EnergyCustomerDetailsPage() {
                             <tr>
                               <td
                                 colSpan={paymentLog.is_admin ? 11 : 7}
-                                className="px-4 py-10 text-center text-gray-500"
+                                className="px-4 py-10 text-center text-gray-500 dark:text-slate-400"
                               >
                                 No commission payment rows have been generated for this customer yet.
                               </td>
@@ -2073,11 +2051,11 @@ export default function EnergyCustomerDetailsPage() {
                   </div>
 
                   {paymentLog.is_admin && (
-                    <div className="rounded-lg border bg-white">
-                      <div className="border-b px-4 py-3">
-                        <h3 className="font-semibold text-gray-900">Supplier Receipt History</h3>
+                    <div className="rounded-lg border bg-white dark:border-slate-800 dark:bg-slate-900">
+                      <div className="border-b px-4 py-3 dark:border-slate-800">
+                        <h3 className="font-semibold text-gray-900 dark:text-slate-100">Supplier Receipt History</h3>
                       </div>
-                      <div className="divide-y">
+                      <div className="divide-y dark:divide-slate-800">
                         {paymentLog.receipts.map((receipt) => (
                           <div key={receipt.id} className="px-4 py-3 text-sm">
                             {editingPaymentReceiptId === receipt.id ? (
@@ -2086,7 +2064,7 @@ export default function EnergyCustomerDetailsPage() {
                                 className="grid gap-3 md:grid-cols-[1fr_1fr_2fr_auto_auto] md:items-end"
                               >
                                 <div className="space-y-2">
-                                  <label className="text-sm font-medium" htmlFor={`edit_payment_amount_${receipt.id}`}>
+                                  <label className="text-sm font-medium dark:text-slate-300" htmlFor={`edit_payment_amount_${receipt.id}`}>
                                     Amount received
                                   </label>
                                   <Input
@@ -2102,10 +2080,11 @@ export default function EnergyCustomerDetailsPage() {
                                       }))
                                     }
                                     required
+                                    className="dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
                                   />
                                 </div>
                                 <div className="space-y-2">
-                                  <label className="text-sm font-medium" htmlFor={`edit_payment_date_${receipt.id}`}>
+                                  <label className="text-sm font-medium dark:text-slate-300" htmlFor={`edit_payment_date_${receipt.id}`}>
                                     Date received
                                   </label>
                                   <Input
@@ -2118,10 +2097,11 @@ export default function EnergyCustomerDetailsPage() {
                                         date_received: event.target.value,
                                       }))
                                     }
+                                    className="dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
                                   />
                                 </div>
                                 <div className="space-y-2">
-                                  <label className="text-sm font-medium" htmlFor={`edit_payment_notes_${receipt.id}`}>
+                                  <label className="text-sm font-medium dark:text-slate-300" htmlFor={`edit_payment_notes_${receipt.id}`}>
                                     Notes
                                   </label>
                                   <Textarea
@@ -2131,44 +2111,46 @@ export default function EnergyCustomerDetailsPage() {
                                       setPaymentReceiptEditDraft((current) => ({ ...current, notes: event.target.value }))
                                     }
                                     rows={2}
+                                    className="dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
                                   />
                                 </div>
                                 <Button type="submit" disabled={savingPaymentReceipt}>
                                   {savingPaymentReceipt ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                                   Save
                                 </Button>
-                                <Button type="button" variant="outline" onClick={cancelEditingPaymentReceipt}>
+                                <Button type="button" variant="outline" onClick={cancelEditingPaymentReceipt} className="dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200">
                                   Cancel
                                 </Button>
                               </form>
                             ) : (
                               <div className="grid gap-3 md:grid-cols-[1fr_auto_auto_auto]">
-                            <div>
-                              <p className="font-medium text-gray-900">
-                                Contract #{receipt.contract_id || "-"} · {receipt.payment_period_label || `Year ${receipt.instalment_year || "-"}`}
-                              </p>
-                              <p className="text-gray-500">
-                                Logged by {receipt.logged_by_name || "Unknown"} · {formatDateTime(receipt.created_at)}
-                              </p>
-                              {receipt.notes && <p className="mt-1 text-gray-700">{receipt.notes}</p>}
-                            </div>
-                            <div className="font-semibold text-gray-900">{formatMoney(receipt.amount_received)}</div>
-                            <div className="text-gray-500">{formatDate(receipt.date_received || undefined)}</div>
-                            <Button
-                              type="button"
-                              size="sm"
-                              variant="outline"
-                              onClick={() => startEditingPaymentReceipt(receipt)}
-                            >
-                              <Edit className="mr-2 h-4 w-4" />
-                              Edit
-                            </Button>
+                                <div>
+                                  <p className="font-medium text-gray-900 dark:text-slate-100">
+                                    Contract #{receipt.contract_id || "-"} · {receipt.payment_period_label || `Year ${receipt.instalment_year || "-"}`}
+                                  </p>
+                                  <p className="text-gray-500 dark:text-slate-400">
+                                    Logged by {receipt.logged_by_name || "Unknown"} · {formatDateTime(receipt.created_at)}
+                                  </p>
+                                  {receipt.notes && <p className="mt-1 text-gray-700 dark:text-slate-300">{receipt.notes}</p>}
+                                </div>
+                                <div className="font-semibold text-gray-900 dark:text-slate-100">{formatMoney(receipt.amount_received)}</div>
+                                <div className="text-gray-500 dark:text-slate-400">{formatDate(receipt.date_received || undefined)}</div>
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => startEditingPaymentReceipt(receipt)}
+                                  className="dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+                                >
+                                  <Edit className="mr-2 h-4 w-4" />
+                                  Edit
+                                </Button>
                               </div>
                             )}
                           </div>
                         ))}
                         {paymentLog.receipts.length === 0 && (
-                          <div className="px-4 py-10 text-center text-sm text-gray-500">
+                          <div className="px-4 py-10 text-center text-sm text-gray-500 dark:text-slate-400">
                             No supplier receipts have been logged for this customer.
                           </div>
                         )}
@@ -2176,13 +2158,13 @@ export default function EnergyCustomerDetailsPage() {
                     </div>
                   )}
 
-                  <div className="rounded-lg border bg-white">
-                    <div className="border-b px-4 py-3">
-                      <h3 className="font-semibold text-gray-900">Agent Commission Entries</h3>
+                  <div className="rounded-lg border bg-white dark:border-slate-800 dark:bg-slate-900">
+                    <div className="border-b px-4 py-3 dark:border-slate-800">
+                      <h3 className="font-semibold text-gray-900 dark:text-slate-100">Agent Commission Entries</h3>
                     </div>
                     <div className="overflow-x-auto">
                       <table className="w-full min-w-[720px] text-sm">
-                        <thead className="bg-gray-50 text-left text-xs font-semibold text-gray-500 uppercase">
+                        <thead className="bg-gray-50 text-left text-xs font-semibold uppercase text-gray-500 dark:bg-slate-800/60 dark:text-slate-400">
                           <tr>
                             <th className="px-4 py-3">Contract / Year</th>
                             {paymentLog.is_admin && <th className="px-4 py-3 text-right">Receipt Amount</th>}
@@ -2192,23 +2174,23 @@ export default function EnergyCustomerDetailsPage() {
                             <th className="px-4 py-3">Status</th>
                           </tr>
                         </thead>
-                        <tbody className="divide-y">
+                        <tbody className="divide-y dark:divide-slate-800">
                           {paymentLog.agent_commissions.map((item) => (
-                            <tr key={item.id}>
-                              <td className="px-4 py-3 font-medium text-gray-900">
+                            <tr key={item.id} className="hover:bg-gray-50 dark:hover:bg-slate-800/40">
+                              <td className="px-4 py-3 font-medium text-gray-900 dark:text-slate-100">
                                 Contract #{item.contract_id || "-"}
-                                <span className="block text-xs text-gray-500">
+                                <span className="block text-xs text-gray-500 dark:text-slate-400">
                                   {item.payment_period_label || `Year ${item.instalment_year || "-"}`}
                                 </span>
                               </td>
                               {paymentLog.is_admin && (
-                                <td className="px-4 py-3 text-right">{formatMoney(item.receipt_amount)}</td>
+                                <td className="px-4 py-3 text-right text-gray-900 dark:text-slate-100">{formatMoney(item.receipt_amount)}</td>
                               )}
-                              <td className="px-4 py-3 text-right">{Number(item.commission_rate || 0).toFixed(2)}%</td>
-                              <td className="px-4 py-3 text-right font-semibold">
+                              <td className="px-4 py-3 text-right text-gray-900 dark:text-slate-100">{Number(item.commission_rate || 0).toFixed(2)}%</td>
+                              <td className="px-4 py-3 text-right font-semibold text-gray-900 dark:text-slate-100">
                                 {formatMoney(item.commission_amount)}
                               </td>
-                              <td className="px-4 py-3 text-gray-700">{formatDate(item.batch_month || undefined)}</td>
+                              <td className="px-4 py-3 text-gray-700 dark:text-slate-300">{formatDate(item.batch_month || undefined)}</td>
                               <td className="px-4 py-3">
                                 <span
                                   className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${paymentStatusClass(
@@ -2224,7 +2206,7 @@ export default function EnergyCustomerDetailsPage() {
                             <tr>
                               <td
                                 colSpan={paymentLog.is_admin ? 6 : 5}
-                                className="px-4 py-10 text-center text-gray-500"
+                                className="px-4 py-10 text-center text-gray-500 dark:text-slate-400"
                               >
                                 No agent commission entries have been created for this customer yet.
                               </td>
@@ -2242,83 +2224,76 @@ export default function EnergyCustomerDetailsPage() {
           {/* Address Tab */}
           {activeTab === "address" && (
             <div className="space-y-6">
-              <h2 className="text-lg font-semibold text-gray-900">Address</h2>
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-slate-100">Address</h2>
 
               <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
-                {/* House Name */}
                 <div>
-                  <label className="text-sm font-medium text-gray-700">House Name</label>
+                  <label className="text-sm font-medium text-gray-700 dark:text-slate-300">House Name</label>
                   <Input
                     value={displayCustomer.house_name || ""}
                     onChange={(e) => handleUpdateField("house_name", e.target.value)}
                     disabled={!isEditing}
-                    className="mt-1"
+                    className="mt-1 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
                   />
                 </div>
 
-                {/* House Number */}
                 <div>
-                  <label className="text-sm font-medium text-gray-700">House Number</label>
+                  <label className="text-sm font-medium text-gray-700 dark:text-slate-300">House Number</label>
                   <Input
                     value={displayCustomer.house_number || ""}
                     onChange={(e) => handleUpdateField("house_number", e.target.value)}
                     disabled={!isEditing}
-                    className="mt-1"
+                    className="mt-1 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
                   />
                 </div>
 
-                {/* Door Number */}
                 <div>
-                  <label className="text-sm font-medium text-gray-700">Door Number</label>
+                  <label className="text-sm font-medium text-gray-700 dark:text-slate-300">Door Number</label>
                   <Input
                     value={displayCustomer.door_number || ""}
                     onChange={(e) => handleUpdateField("door_number", e.target.value)}
                     disabled={!isEditing}
-                    className="mt-1"
+                    className="mt-1 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
                   />
                 </div>
 
-                {/* Street */}
                 <div>
-                  <label className="text-sm font-medium text-gray-700">Street</label>
+                  <label className="text-sm font-medium text-gray-700 dark:text-slate-300">Street</label>
                   <Input
                     value={displayCustomer.address || ""}
                     onChange={(e) => handleUpdateField("address", e.target.value)}
                     disabled={!isEditing}
-                    className="mt-1"
+                    className="mt-1 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
                   />
                 </div>
 
-                {/* Town */}
                 <div>
-                  <label className="text-sm font-medium text-gray-700">Town</label>
+                  <label className="text-sm font-medium text-gray-700 dark:text-slate-300">Town</label>
                   <Input
                     value={displayCustomer.town || ""}
                     onChange={(e) => handleUpdateField("town", e.target.value)}
                     disabled={!isEditing}
-                    className="mt-1"
+                    className="mt-1 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
                   />
                 </div>
 
-                {/* County */}
                 <div>
-                  <label className="text-sm font-medium text-gray-700">County</label>
+                  <label className="text-sm font-medium text-gray-700 dark:text-slate-300">County</label>
                   <Input
                     value={displayCustomer.county || ""}
                     onChange={(e) => handleUpdateField("county", e.target.value)}
                     disabled={!isEditing}
-                    className="mt-1"
+                    className="mt-1 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
                   />
                 </div>
 
-                {/* Post Code */}
                 <div>
-                  <label className="text-sm font-medium text-gray-700">Post Code</label>
+                  <label className="text-sm font-medium text-gray-700 dark:text-slate-300">Post Code</label>
                   <Input
                     value={displayCustomer.post_code || ""}
                     onChange={(e) => handleUpdateField("post_code", e.target.value)}
                     disabled={!isEditing}
-                    className="mt-1"
+                    className="mt-1 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
                   />
                 </div>
               </div>
@@ -2328,123 +2303,114 @@ export default function EnergyCustomerDetailsPage() {
           {/* Charges Tab */}
           {activeTab === "charges" && (
             <div className="space-y-6">
-              <h2 className="text-lg font-semibold text-gray-900">Charges</h2>
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-slate-100">Charges</h2>
 
               <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
-                {/* Standing Charge */}
                 <div>
-                  <label className="text-sm font-medium text-gray-700">Standing Charge (£)</label>
+                  <label className="text-sm font-medium text-gray-700 dark:text-slate-300">Standing Charge (£)</label>
                   <Input
                     type="text"
                     value={displayCustomer.standing_charge || ""}
                     onChange={(e) => handleUpdateField("standing_charge", e.target.value)}
                     disabled={!isEditing}
-                    className="mt-1"
+                    className="mt-1 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
                     placeholder="e.g., 60p, 0.6, 25.2"
                   />
                 </div>
 
-                {/* Rate 1 (Unit Charge) */}
                 <div>
-                  <label className="text-sm font-medium text-gray-700">Rate 1 (p/kWh)</label>
+                  <label className="text-sm font-medium text-gray-700 dark:text-slate-300">Rate 1 (p/kWh)</label>
                   <Input
                     type="number"
                     step="0.0001"
                     value={displayCustomer.unit_rate || ""}
                     onChange={(e) => handleUpdateField("unit_rate", parseFloat(e.target.value))}
                     disabled={!isEditing}
-                    className="mt-1"
+                    className="mt-1 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
                   />
                 </div>
 
-                {/* Rate 2 */}
                 <div>
-                  <label className="text-sm font-medium text-gray-700">Rate 2 (p/kWh)</label>
+                  <label className="text-sm font-medium text-gray-700 dark:text-slate-300">Rate 2 (p/kWh)</label>
                   <Input
                     type="number"
                     step="0.0001"
                     value={displayCustomer.rate_2 || ""}
                     onChange={(e) => handleUpdateField("rate_2", parseFloat(e.target.value))}
                     disabled={!isEditing}
-                    className="mt-1"
+                    className="mt-1 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
                   />
                 </div>
 
-                {/* Rate 3 */}
                 <div>
-                  <label className="text-sm font-medium text-gray-700">Rate 3 (p/kWh)</label>
+                  <label className="text-sm font-medium text-gray-700 dark:text-slate-300">Rate 3 (p/kWh)</label>
                   <Input
                     type="number"
                     step="0.0001"
                     value={displayCustomer.rate_3 || ""}
                     onChange={(e) => handleUpdateField("rate_3", parseFloat(e.target.value))}
                     disabled={!isEditing}
-                    className="mt-1"
+                    className="mt-1 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
                   />
                 </div>
 
-                {/* Night Charge */}
                 <div>
-                  <label className="text-sm font-medium text-gray-700">Night Charge</label>
+                  <label className="text-sm font-medium text-gray-700 dark:text-slate-300">Night Charge</label>
                   <Input
                     type="number"
                     step="0.01"
                     value={displayCustomer.night_charge || ""}
                     onChange={(e) => handleUpdateField("night_charge", parseFloat(e.target.value))}
                     disabled={!isEditing}
-                    className="mt-1"
+                    className="mt-1 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
                   />
                 </div>
 
-                {/* Eve/Weekend Charge */}
                 <div>
-                  <label className="text-sm font-medium text-gray-700">Eve/Weekend Charge</label>
+                  <label className="text-sm font-medium text-gray-700 dark:text-slate-300">Eve/Weekend Charge</label>
                   <Input
                     type="number"
                     step="0.01"
                     value={displayCustomer.eve_weekend_charge || ""}
                     onChange={(e) => handleUpdateField("eve_weekend_charge", parseFloat(e.target.value))}
                     disabled={!isEditing}
-                    className="mt-1"
+                    className="mt-1 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
                   />
                 </div>
 
-                {/* Other Charges 1 */}
                 <div>
-                  <label className="text-sm font-medium text-gray-700">Other Charges 1</label>
+                  <label className="text-sm font-medium text-gray-700 dark:text-slate-300">Other Charges 1</label>
                   <Input
                     type="number"
                     step="0.01"
                     value={displayCustomer.other_charges_1 || ""}
                     onChange={(e) => handleUpdateField("other_charges_1", parseFloat(e.target.value))}
                     disabled={!isEditing}
-                    className="mt-1"
+                    className="mt-1 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
                   />
                 </div>
 
-                {/* Other Charges 2 */}
                 <div>
-                  <label className="text-sm font-medium text-gray-700">Other Charges 2</label>
+                  <label className="text-sm font-medium text-gray-700 dark:text-slate-300">Other Charges 2</label>
                   <Input
                     type="number"
                     step="0.01"
                     value={displayCustomer.other_charges_2 || ""}
                     onChange={(e) => handleUpdateField("other_charges_2", parseFloat(e.target.value))}
                     disabled={!isEditing}
-                    className="mt-1"
+                    className="mt-1 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
                   />
                 </div>
 
-                {/* Other Charges 3 */}
                 <div>
-                  <label className="text-sm font-medium text-gray-700">Other Charges 3</label>
+                  <label className="text-sm font-medium text-gray-700 dark:text-slate-300">Other Charges 3</label>
                   <Input
                     type="number"
                     step="0.01"
                     value={displayCustomer.other_charges_3 || ""}
                     onChange={(e) => handleUpdateField("other_charges_3", parseFloat(e.target.value))}
                     disabled={!isEditing}
-                    className="mt-1"
+                    className="mt-1 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
                   />
                 </div>
               </div>
@@ -2454,62 +2420,57 @@ export default function EnergyCustomerDetailsPage() {
           {/* Banking Tab */}
           {activeTab === "banking" && (
             <div className="space-y-6">
-              <h2 className="text-lg font-semibold text-gray-900">Bank & Trading Account Details</h2>
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-slate-100">Bank & Trading Account Details</h2>
 
               <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
-                {/* Bank Name */}
                 <div>
-                  <label className="text-sm font-medium text-gray-700">Bank Name</label>
+                  <label className="text-sm font-medium text-gray-700 dark:text-slate-300">Bank Name</label>
                   <Input
                     value={displayCustomer.bank_name || ""}
                     onChange={(e) => handleUpdateField("bank_name", e.target.value)}
                     disabled={!isEditing}
-                    className="mt-1"
+                    className="mt-1 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
                   />
                 </div>
 
-                {/* Account Number */}
                 <div>
-                  <label className="text-sm font-medium text-gray-700">Account Number</label>
+                  <label className="text-sm font-medium text-gray-700 dark:text-slate-300">Account Number</label>
                   <Input
                     value={displayCustomer.bank_account_number || ""}
                     onChange={(e) => handleUpdateField("bank_account_number", e.target.value)}
                     disabled={!isEditing}
-                    className="mt-1"
+                    className="mt-1 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
                   />
                 </div>
 
-                {/* Sort Code */}
                 <div>
-                  <label className="text-sm font-medium text-gray-700">Sort Code</label>
+                  <label className="text-sm font-medium text-gray-700 dark:text-slate-300">Sort Code</label>
                   <Input
                     value={displayCustomer.bank_sort_code || ""}
                     onChange={(e) => handleUpdateField("bank_sort_code", e.target.value)}
                     disabled={!isEditing}
-                    className="mt-1"
+                    className="mt-1 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
                     placeholder="XX-XX-XX"
                   />
                 </div>
 
-                {/* Charity/Ltd Company Number */}
                 <div>
-                  <label className="text-sm font-medium text-gray-700">Charity/Ltd Company Number</label>
+                  <label className="text-sm font-medium text-gray-700 dark:text-slate-300">Charity/Ltd Company Number</label>
                   <Input
                     value={displayCustomer.charity_ltd_company_number || ""}
                     onChange={(e) => handleUpdateField("charity_ltd_company_number", e.target.value)}
                     disabled={!isEditing}
-                    className="mt-1"
+                    className="mt-1 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
                   />
                 </div>
 
-                {/* Partner Details */}
                 <div className="md:col-span-2">
-                  <label className="text-sm font-medium text-gray-700">Partner Details</label>
+                  <label className="text-sm font-medium text-gray-700 dark:text-slate-300">Partner Details</label>
                   <Textarea
                     value={displayCustomer.partner_details || ""}
                     onChange={(e) => handleUpdateField("partner_details", e.target.value)}
                     disabled={!isEditing}
-                    className="mt-1"
+                    className="mt-1 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
                     rows={3}
                     placeholder="Enter partner details..."
                   />
@@ -2521,41 +2482,38 @@ export default function EnergyCustomerDetailsPage() {
           {/* Others Tab */}
           {activeTab === "others" && (
             <div className="space-y-6">
-              <h2 className="text-lg font-semibold text-gray-900">Others</h2>
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-slate-100">Others</h2>
 
               <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
-                {/* Meter Ref */}
                 <div>
-                  <label className="text-sm font-medium text-gray-700">Meter Ref</label>
+                  <label className="text-sm font-medium text-gray-700 dark:text-slate-300">Meter Ref</label>
                   <Input
                     value={displayCustomer.meter_ref || ""}
                     onChange={(e) => handleUpdateField("meter_ref", e.target.value)}
                     disabled={!isEditing}
-                    className="mt-1"
+                    className="mt-1 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
                   />
                 </div>
 
-                {/* Uplift */}
                 <div>
-                  <label className="text-sm font-medium text-gray-700">Uplift</label>
+                  <label className="text-sm font-medium text-gray-700 dark:text-slate-300">Uplift</label>
                   <Input
                     type="number"
                     step="0.01"
                     value={displayCustomer.uplift || ""}
                     onChange={(e) => handleUpdateField("uplift", parseFloat(e.target.value))}
                     disabled={!isEditing}
-                    className="mt-1"
+                    className="mt-1 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
                   />
                 </div>
 
-                {/* Comments */}
                 <div className="md:col-span-2">
-                  <label className="text-sm font-medium text-gray-700">Comments</label>
+                  <label className="text-sm font-medium text-gray-700 dark:text-slate-300">Comments</label>
                   <Textarea
                     value={displayCustomer.comments || ""}
                     onChange={(e) => handleUpdateField("comments", e.target.value)}
                     disabled={!isEditing}
-                    className="mt-1"
+                    className="mt-1 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
                     rows={4}
                   />
                 </div>
@@ -2564,12 +2522,12 @@ export default function EnergyCustomerDetailsPage() {
           )}
 
           {isEditing && (
-            <div className="mt-8 flex items-center justify-end gap-3 border-t border-gray-200 pt-5">
-              <Button onClick={handleCancel} variant="outline" disabled={isSaving}>
+            <div className="mt-8 flex items-center justify-end gap-3 border-t border-gray-200 pt-5 dark:border-slate-800">
+              <Button onClick={handleCancel} variant="outline" disabled={isSaving} className="dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700">
                 <X className="mr-2 h-4 w-4" />
                 Cancel
               </Button>
-              <Button onClick={handleSave} disabled={isSaving} className="bg-black hover:bg-gray-800">
+              <Button onClick={handleSave} disabled={isSaving} className="bg-black hover:bg-gray-800 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-slate-200">
                 {isSaving ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -2587,12 +2545,12 @@ export default function EnergyCustomerDetailsPage() {
         </div>
       </div>
 
-      {/* ✅ CALLBACK MODAL */}
+      {/* CALLBACK MODAL */}
       <Dialog open={showCallbackModal} onOpenChange={setShowCallbackModal}>
-        <DialogContent className="max-h-[90vh] max-w-md overflow-y-auto">
+        <DialogContent className="max-h-[90vh] max-w-md overflow-y-auto dark:border-slate-800 dark:bg-slate-900">
           <DialogHeader>
-            <DialogTitle>Add Callback</DialogTitle>
-            <DialogDescription>Record customer interaction and set follow-up</DialogDescription>
+            <DialogTitle className="dark:text-slate-100">Add Callback</DialogTitle>
+            <DialogDescription className="dark:text-slate-400">Record customer interaction and set follow-up</DialogDescription>
           </DialogHeader>
 
           <div className="space-y-4 py-4">
@@ -2604,8 +2562,8 @@ export default function EnergyCustomerDetailsPage() {
             )}
 
             <div className="space-y-2">
-              <label className="text-sm font-medium">Status</label>
-              <div className="rounded border bg-gray-50 p-2">
+              <label className="text-sm font-medium dark:text-slate-300">Status</label>
+              <div className="rounded border bg-gray-50 p-2 dark:border-slate-700 dark:bg-slate-800">
                 <span
                   className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${getStatusColor(callbackStatus)}`}
                 >
@@ -2615,20 +2573,20 @@ export default function EnergyCustomerDetailsPage() {
             </div>
 
             <div className="space-y-2">
-              <label className="text-sm font-medium">Called Date</label>
-              <Input type="date" value={calledDate} onChange={(e) => setCalledDate(e.target.value)} />
+              <label className="text-sm font-medium dark:text-slate-300">Called Date</label>
+              <Input type="date" value={calledDate} onChange={(e) => setCalledDate(e.target.value)} className="dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100" />
             </div>
 
             {statusConfig[callbackStatus]?.requiresSold && (
               <div className="space-y-2">
-                <label className="text-sm font-medium">Was it sold? *</label>
+                <label className="text-sm font-medium dark:text-slate-300">Was it sold? *</label>
                 <Select value={isSold} onValueChange={setIsSold}>
-                  <SelectTrigger>
+                  <SelectTrigger className="dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100">
                     <SelectValue placeholder="Select" />
                   </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="yes">Yes - Sold</SelectItem>
-                    <SelectItem value="no">No - Move to Priced page</SelectItem>
+                  <SelectContent className="dark:border-slate-800 dark:bg-slate-900">
+                    <SelectItem value="yes" className="dark:text-slate-200 dark:focus:bg-slate-800">Yes - Sold</SelectItem>
+                    <SelectItem value="no" className="dark:text-slate-200 dark:focus:bg-slate-800">No - Move to Priced page</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -2636,80 +2594,73 @@ export default function EnergyCustomerDetailsPage() {
 
             {isDateRequired() && (
               <div>
-                <label className="text-sm font-medium text-gray-700">
-                  {callbackStatus === "End Date Changed" || isRenewalOrSoldAction
-                    ? "Callback Date:"
-                    : "Callback Date:"}{" "}
-                  <span className="text-red-500">*</span>
+                <label className="text-sm font-medium text-gray-700 dark:text-slate-300">
+                  Callback Date: <span className="text-red-500">*</span>
                 </label>
                 <Input
                   type="date"
-                  className="mt-1"
+                  className="mt-1 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
                   value={callbackDate}
                   onChange={(e) => setCallbackDate(e.target.value)}
                 />
               </div>
             )}
 
-            {/* ✅ NEW: New End Date field for "End Date Changed" and "Already Renewed" */}
             {isRenewalOrSoldAction && renewedBy === "agent" && (
               <div className="space-y-2">
-                <label className="text-sm font-medium">
+                <label className="text-sm font-medium dark:text-slate-300">
                   Contract Start Date <span className="text-red-500">*</span>
                 </label>
-                <Input type="date" value={newStartDate} onChange={(e) => setNewStartDate(e.target.value)} />
+                <Input type="date" value={newStartDate} onChange={(e) => setNewStartDate(e.target.value)} className="dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100" />
               </div>
             )}
 
             {statusConfig[callbackStatus]?.requiresNewEndDate && (
               <div className="space-y-2">
-                <label className="text-sm font-medium">New Contract End Date *</label>
-                <Input type="date" value={newEndDate} onChange={(e) => setNewEndDate(e.target.value)} />
-                <p className="text-xs text-gray-500">The contract end date will be updated to this new date</p>
+                <label className="text-sm font-medium dark:text-slate-300">New Contract End Date *</label>
+                <Input type="date" value={newEndDate} onChange={(e) => setNewEndDate(e.target.value)} className="dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100" />
+                <p className="text-xs text-gray-500 dark:text-slate-400">The contract end date will be updated to this new date</p>
               </div>
             )}
 
-            {/* ✅ New Supplier for Already Renewed */}
             {isRenewalOrSoldAction && (
               <div>
-                <label className="text-sm font-medium text-gray-700">
-                  New Supplier <span className="font-normal text-gray-400">(Optional)</span>
+                <label className="text-sm font-medium text-gray-700 dark:text-slate-300">
+                  New Supplier <span className="font-normal text-gray-400 dark:text-slate-500">(Optional)</span>
                 </label>
                 <Input
                   type="text"
-                  className="mt-1"
+                  className="mt-1 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
                   placeholder="Enter new supplier name"
                   value={newSupplier}
                   onChange={(e) => setNewSupplier(e.target.value)}
                 />
-                <p className="mt-1 text-xs text-gray-500">Leave blank if supplier hasn't changed</p>
+                <p className="mt-1 text-xs text-gray-500 dark:text-slate-400">Leave blank if supplier hasn't changed</p>
               </div>
             )}
 
-            {/* ✅ New Address for Already Renewed */}
             {currentConfig?.requiresAddressChange && (
               <div>
-                <label className="text-sm font-medium text-gray-700">
-                  New Address <span className="font-normal text-gray-400">(Optional)</span>
+                <label className="text-sm font-medium text-gray-700 dark:text-slate-300">
+                  New Address <span className="font-normal text-gray-400 dark:text-slate-500">(Optional)</span>
                 </label>
                 <Textarea
-                  className="mt-1"
+                  className="mt-1 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
                   rows={2}
                   placeholder="Enter new address if changed"
                   value={newAddress}
                   onChange={(e) => setNewAddress(e.target.value)}
                 />
-                <p className="mt-1 text-xs text-gray-500">Leave blank if address hasn't changed</p>
+                <p className="mt-1 text-xs text-gray-500 dark:text-slate-400">Leave blank if address hasn't changed</p>
               </div>
             )}
 
-            {/* Renewed By - only for Already Renewed */}
             {isRenewalOrSoldAction && (
               <div>
-                <label className="text-sm font-medium text-gray-700">
+                <label className="text-sm font-medium text-gray-700 dark:text-slate-300">
                   {actionByLabel} <span className="text-red-500">*</span>
                 </label>
-                <div className="mt-1 flex flex-col gap-2 rounded-lg border bg-white p-3">
+                <div className="mt-1 flex flex-col gap-2 rounded-lg border bg-white p-3 dark:border-slate-700 dark:bg-slate-800">
                   <label className="flex cursor-pointer items-center gap-3">
                     <input
                       type="radio"
@@ -2717,11 +2668,11 @@ export default function EnergyCustomerDetailsPage() {
                       value={callbackStatus === "Sold" ? "supplier" : "customer"}
                       checked={renewedBy === (callbackStatus === "Sold" ? "supplier" : "customer")}
                       onChange={() => setRenewedBy(callbackStatus === "Sold" ? "supplier" : "customer")}
-                      className="h-4 w-4 accent-black"
+                      className="h-4 w-4 accent-black dark:accent-slate-200"
                     />
                     <div>
-                      <span className="text-sm font-medium text-gray-900">{supplierOptionLabel}</span>
-                      <p className="text-xs text-gray-500">{supplierOptionHelp}</p>
+                      <span className="text-sm font-medium text-gray-900 dark:text-slate-100">{supplierOptionLabel}</span>
+                      <p className="text-xs text-gray-500 dark:text-slate-400">{supplierOptionHelp}</p>
                     </div>
                   </label>
                   <label className="flex cursor-pointer items-center gap-3">
@@ -2731,42 +2682,42 @@ export default function EnergyCustomerDetailsPage() {
                       value="agent"
                       checked={renewedBy === "agent"}
                       onChange={() => setRenewedBy("agent")}
-                      className="h-4 w-4 accent-black"
+                      className="h-4 w-4 accent-black dark:accent-slate-200"
                     />
                     <div>
-                      <span className="text-sm font-medium text-gray-900">{agentOptionLabel}</span>
-                      <p className="text-xs text-gray-500">{agentOptionHelp}</p>
+                      <span className="text-sm font-medium text-gray-900 dark:text-slate-100">{agentOptionLabel}</span>
+                      <p className="text-xs text-gray-500 dark:text-slate-400">{agentOptionHelp}</p>
                     </div>
                   </label>
                 </div>
               </div>
             )}
 
-            {/* ✅ NEW: Supplier change field for "Already Renewed" */}
             {statusConfig[callbackStatus]?.requiresSupplierChange && (
               <div className="space-y-2">
-                <label className="text-sm font-medium">New Supplier (Optional)</label>
+                <label className="text-sm font-medium dark:text-slate-300">New Supplier (Optional)</label>
                 <Input
                   type="text"
                   placeholder="Enter new supplier name"
                   value={newSupplier}
                   onChange={(e) => setNewSupplier(e.target.value)}
+                  className="dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
                 />
-                <p className="text-xs text-gray-500">Leave blank if supplier hasn't changed</p>
+                <p className="text-xs text-gray-500 dark:text-slate-400">Leave blank if supplier hasn't changed</p>
               </div>
             )}
 
-            {/* ✅ NEW: Address change field for "Already Renewed" */}
             {isRenewalOrSoldAction && (
               <div className="space-y-2">
-                <label className="text-sm font-medium">New Address (Optional)</label>
+                <label className="text-sm font-medium dark:text-slate-300">New Address (Optional)</label>
                 <Textarea
                   placeholder="Enter new address if changed"
                   value={newAddress}
                   onChange={(e) => setNewAddress(e.target.value)}
                   rows={2}
+                  className="dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
                 />
-                <p className="text-xs text-gray-500">Leave blank if address hasn't changed</p>
+                <p className="text-xs text-gray-500 dark:text-slate-400">Leave blank if address hasn't changed</p>
               </div>
             )}
 
@@ -2780,7 +2731,7 @@ export default function EnergyCustomerDetailsPage() {
             )}
 
             <div className="space-y-2">
-              <label className="text-sm font-medium">
+              <label className="text-sm font-medium dark:text-slate-300">
                 Notes {statusConfig[callbackStatus]?.requiresNotes && <span className="text-red-500">*</span>}
               </label>
               <Textarea
@@ -2792,15 +2743,16 @@ export default function EnergyCustomerDetailsPage() {
                 value={callbackNotes}
                 onChange={(e) => setCallbackNotes(e.target.value)}
                 rows={3}
+                className="dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
               />
               {statusConfig[callbackStatus]?.requiresNotes && (
-                <p className="text-xs text-gray-500">Required: Please explain the reason for this status</p>
+                <p className="text-xs text-gray-500 dark:text-slate-400">Required: Please explain the reason for this status</p>
               )}
             </div>
           </div>
 
           <div className="flex justify-end gap-2">
-            <Button variant="outline" onClick={() => setShowCallbackModal(false)} disabled={isSubmittingCallback}>
+            <Button variant="outline" onClick={() => setShowCallbackModal(false)} disabled={isSubmittingCallback} className="dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200">
               Cancel
             </Button>
             <Button onClick={handleSubmitCallback} disabled={isSubmittingCallback}>
@@ -2817,24 +2769,25 @@ export default function EnergyCustomerDetailsPage() {
         </DialogContent>
       </Dialog>
 
+      {/* ASSIGNMENT MODAL */}
       <Dialog open={showAssignmentModal} onOpenChange={setShowAssignmentModal}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-md dark:border-slate-800 dark:bg-slate-900">
           <DialogHeader>
-            <DialogTitle>Assign Salesperson</DialogTitle>
-            <DialogDescription>Add an optional note about this assignment</DialogDescription>
+            <DialogTitle className="dark:text-slate-100">Assign Salesperson</DialogTitle>
+            <DialogDescription className="dark:text-slate-400">Add an optional note about this assignment</DialogDescription>
           </DialogHeader>
 
           <div className="space-y-4">
             <div>
-              <label className="text-sm font-medium text-gray-700">Assigned To</label>
+              <label className="text-sm font-medium text-gray-700 dark:text-slate-300">Assigned To</label>
               <Select value={assigningEmployeeId} onValueChange={setAssigningEmployeeId}>
-                <SelectTrigger className="mt-1">
+                <SelectTrigger className="mt-1 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100">
                   <SelectValue placeholder="Select salesperson" />
                 </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="0">Unassigned</SelectItem>
+                <SelectContent className="dark:border-slate-800 dark:bg-slate-900">
+                  <SelectItem value="0" className="dark:text-slate-200 dark:focus:bg-slate-800">Unassigned</SelectItem>
                   {employees.map((emp) => (
-                    <SelectItem key={emp.employee_id} value={emp.employee_id.toString()}>
+                    <SelectItem key={emp.employee_id} value={emp.employee_id.toString()} className="dark:text-slate-200 dark:focus:bg-slate-800">
                       {emp.employee_name}
                     </SelectItem>
                   ))}
@@ -2843,9 +2796,9 @@ export default function EnergyCustomerDetailsPage() {
             </div>
 
             <div>
-              <label className="text-sm font-medium text-gray-700">Assignment Notes (Optional)</label>
+              <label className="text-sm font-medium text-gray-700 dark:text-slate-300">Assignment Notes (Optional)</label>
               <Textarea
-                className="mt-1"
+                className="mt-1 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
                 placeholder="Why is this being assigned? Any specific instructions..."
                 value={assignmentNotes}
                 onChange={(e) => setAssignmentNotes(e.target.value)}
@@ -2863,6 +2816,7 @@ export default function EnergyCustomerDetailsPage() {
                 setAssignmentNotes("");
               }}
               disabled={isAssigningEmployee}
+              className="dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
             >
               Cancel
             </Button>
@@ -2881,294 +2835,444 @@ export default function EnergyCustomerDetailsPage() {
       </Dialog>
 
       {/* ✅ SIMPLE ACTION PANEL (Right Side) - Direct Form, No Modal */}
-      <div className="fixed top-0 right-0 h-full w-80 overflow-y-auto border-l border-gray-200 bg-gray-50 p-6">
-        <h3 className="mb-4 text-lg font-semibold text-gray-900">Action</h3>
+     <div className="fixed top-0 right-0 bottom-0 z-50 flex h-screen w-[440px] flex-col overflow-hidden border-l-2 border-slate-300 bg-slate-50 p-5 shadow-[-6px_0_16px_rgba(0,0,0,0.04)] dark:border-slate-700 dark:bg-slate-950 dark:shadow-[-6px_0_16px_rgba(0,0,0,0.25)]">
 
-        <div className="space-y-4">
-          {/* Assign To */}
-          <div>
-            <label className="text-sm font-medium text-gray-700">Assign to:</label>
-            <Select
-              value={customer.assigned_to_id?.toString() || "0"}
-              onValueChange={(value) => {
-                setAssigningEmployeeId(value);
-                setAssignmentNotes("");
-                setShowAssignmentModal(true);
-              }}
-            >
-              <SelectTrigger className="mt-1">
-                <SelectValue placeholder="Unassigned">{customer.assigned_to_name || "Unassigned"}</SelectValue>
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="0">Unassigned</SelectItem>
-                {employees.map((employee) => (
-                  <SelectItem key={employee.employee_id} value={employee.employee_id.toString()}>
-                    {employee.employee_name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+        {/* Log Interaction Card */}
+        <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+
+          <div className="mb-4">
+            <h3 className="text-base font-semibold text-slate-900 dark:text-slate-100">
+              Log Interaction
+            </h3>
+
+            <p className="mt-1 text-[11px] leading-4 text-slate-400 dark:text-slate-500">
+              Update status and record outcomes
+            </p>
           </div>
 
-          {/* Status Selection */}
-          <div>
-            <label className="text-sm font-medium text-gray-700">
-              Status: <span className="text-red-500">*</span>
-            </label>
-            <Select
-              value={callbackStatus}
-              onValueChange={(value) => {
-                if (value === "CLEAR_STATUS") {
-                  handleClearStatus();
-                } else {
-                  setCallbackStatus(value);
-                  setCallbackNotes("");
-                  setIsSold("");
-                  setNewStartDate("");
-                  setNewEndDate("");
-                  setNewSupplier("");
-                  setNewAddress("");
-                  setRenewedBy("");
-                }
-              }}
-            >
-              <SelectTrigger className="w-full">
-                <SelectValue placeholder="Set status" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="Not Called">Not Called</SelectItem>
-                <SelectItem value="Callback">Callback</SelectItem>
-                <SelectItem value="Not Answered">Not Answered</SelectItem>
-                <SelectItem value="Dead">Dead</SelectItem>
-                <SelectItem value="Priced">Priced</SelectItem>
-                <SelectItem value="Sold">Sold</SelectItem>
-                <SelectItem value="Lost">Lost</SelectItem>
-                <SelectItem value="Lost COT">Lost COT</SelectItem>
-                <SelectItem value="Already Renewed">Already Renewed</SelectItem>
-                <SelectItem value="Renewed Directly">Renewed Directly</SelectItem>
-                <SelectItem value="Invalid Number">Invalid Number</SelectItem>
-                <SelectItem value="Incorrect Supplier">Incorrect Supplier</SelectItem>
-                <SelectItem value="Meter De-energised">Meter De-energised</SelectItem>
-                <SelectItem value="Broker in Place">Broker in Place</SelectItem>
-                <SelectItem value="End Date Changed">End Date Changed</SelectItem>
-                <SelectItem value="Complaint">Complaint</SelectItem>
-                <SelectItem value="Email Only">Email Only</SelectItem>
-                {customer.status && (
-                  <>
-                    <div className="my-1 border-t" />
-                    <SelectItem value="CLEAR_STATUS" className="text-red-600">
-                      ✕ Clear Status
-                    </SelectItem>
-                  </>
-                )}
-              </SelectContent>
-            </Select>
-          </div>
+          <div className="space-y-3">
 
-          {callbackStatus && (
-            <div>
-              <label className="text-sm font-medium text-gray-700">Called Date</label>
-              <Input type="date" className="mt-1" value={calledDate} onChange={(e) => setCalledDate(e.target.value)} />
-            </div>
-          )}
-
-          {/* Conditional "Sold?" for Priced Status */}
-          {currentConfig?.requiresSold && (
-            <div>
-              <label className="text-sm font-medium text-gray-700">
-                Was it sold? <span className="text-red-500">*</span>
+            {/* Assign To */}
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-slate-600 dark:text-slate-400">
+                Assigned Agent
               </label>
-              <Select value={isSold} onValueChange={setIsSold}>
-                <SelectTrigger className="mt-1">
-                  <SelectValue placeholder="Select" />
+
+              <Select
+                value={customer.assigned_to_id?.toString() || "0"}
+                onValueChange={(value) => {
+                  setAssigningEmployeeId(value);
+                  setAssignmentNotes("");
+                  setShowAssignmentModal(true);
+                }}
+              >
+                <SelectTrigger className="h-8 rounded-lg border-slate-200 bg-slate-50 text-[11px] dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200">
+                  <SelectValue placeholder="Unassigned">
+                    {customer.assigned_to_name || "Unassigned"}
+                  </SelectValue>
                 </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="yes">Yes - Sold</SelectItem>
-                  <SelectItem value="no">No - Move to Priced</SelectItem>
+
+                <SelectContent className="dark:border-slate-800 dark:bg-slate-900">
+                  <SelectItem value="0" className="dark:text-slate-200 dark:focus:bg-slate-800">Unassigned</SelectItem>
+
+                  {employees.map((employee) => (
+                    <SelectItem
+                      key={employee.employee_id}
+                      value={employee.employee_id.toString()}
+                      className="dark:text-slate-200 dark:focus:bg-slate-800"
+                    >
+                      {employee.employee_name}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
-          )}
 
-          {/* Conditional Date Picker */}
-          {isDateRequired() && (
-            <div>
-              <label className="text-sm font-medium text-gray-700">
-                {isRenewalOrSoldAction ? "Callback Date:" : "Callback Date:"} <span className="font-normal text-gray-400"></span>
+            {/* Status */}
+            <div className="space-y-1">
+              <label className="text-[10px] font-medium text-slate-600 dark:text-slate-400">
+                Status <span className="text-red-500">*</span>
               </label>
-              <Input
-                type="date"
-                className="mt-1"
-                value={callbackDate}
-                onChange={(e) => setCallbackDate(e.target.value)}
-              />
+
+              <Select
+                value={callbackStatus}
+                onValueChange={(value) => {
+                  if (value === "CLEAR_STATUS") {
+                    handleClearStatus();
+                  } else {
+                    setCallbackStatus(value);
+                    setCallbackNotes("");
+                    setIsSold("");
+                    setNewStartDate("");
+                    setNewEndDate("");
+                    setNewSupplier("");
+                    setNewAddress("");
+                    setRenewedBy("");
+                  }
+                }}
+              >
+                <SelectTrigger className="h-8 w-full rounded-lg border-slate-200 bg-slate-50 text-[11px] dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200">
+                  <SelectValue placeholder="Set status" />
+                </SelectTrigger>
+
+                <SelectContent className="dark:border-slate-800 dark:bg-slate-900">
+                  <SelectItem value="Not Called" className="dark:text-slate-200 dark:focus:bg-slate-800">Not Called</SelectItem>
+                  <SelectItem value="Callback" className="dark:text-slate-200 dark:focus:bg-slate-800">Callback</SelectItem>
+                  <SelectItem value="Not Answered" className="dark:text-slate-200 dark:focus:bg-slate-800">Not Answered</SelectItem>
+                  <SelectItem value="Dead" className="dark:text-slate-200 dark:focus:bg-slate-800">Dead</SelectItem>
+                  <SelectItem value="Priced" className="dark:text-slate-200 dark:focus:bg-slate-800">Priced</SelectItem>
+                  <SelectItem value="Sold" className="dark:text-slate-200 dark:focus:bg-slate-800">Sold</SelectItem>
+                  <SelectItem value="Lost" className="dark:text-slate-200 dark:focus:bg-slate-800">Lost</SelectItem>
+                  <SelectItem value="Lost COT" className="dark:text-slate-200 dark:focus:bg-slate-800">Lost COT</SelectItem>
+                  <SelectItem value="Already Renewed" className="dark:text-slate-200 dark:focus:bg-slate-800">Already Renewed</SelectItem>
+                  <SelectItem value="Renewed Directly" className="dark:text-slate-200 dark:focus:bg-slate-800">Renewed Directly</SelectItem>
+                  <SelectItem value="Invalid Number" className="dark:text-slate-200 dark:focus:bg-slate-800">Invalid Number</SelectItem>
+                  <SelectItem value="Incorrect Supplier" className="dark:text-slate-200 dark:focus:bg-slate-800">Incorrect Supplier</SelectItem>
+                  <SelectItem value="Meter De-energised" className="dark:text-slate-200 dark:focus:bg-slate-800">
+                    Meter De-energised
+                  </SelectItem>
+                  <SelectItem value="Broker in Place" className="dark:text-slate-200 dark:focus:bg-slate-800">
+                    Broker in Place
+                  </SelectItem>
+                  <SelectItem value="End Date Changed" className="dark:text-slate-200 dark:focus:bg-slate-800">
+                    End Date Changed
+                  </SelectItem>
+                  <SelectItem value="Complaint" className="dark:text-slate-200 dark:focus:bg-slate-800">Complaint</SelectItem>
+                  <SelectItem value="Email Only" className="dark:text-slate-200 dark:focus:bg-slate-800">Email Only</SelectItem>
+
+                  {customer.status && (
+                    <>
+                      <div className="my-1 border-t border-slate-200 dark:border-slate-700" />
+
+                      <SelectItem
+                        value="CLEAR_STATUS"
+                        className="text-red-600 dark:text-red-400 dark:focus:bg-rose-950/40"
+                      >
+                        ✕ Clear Status
+                      </SelectItem>
+                    </>
+                  )}
+                </SelectContent>
+              </Select>
             </div>
-          )}
 
-          {/* ✅ NEW: Contract End Date field for "End Date Changed" */}
-          {isRenewalOrSoldAction && renewedBy === "agent" && (
-            <div>
-              <label className="text-sm font-medium text-gray-700">
-                Contract Start Date: <span className="text-red-500">*</span>
-              </label>
-              <Input type="date" className="mt-1" value={newStartDate} onChange={(e) => setNewStartDate(e.target.value)} />
-            </div>
-          )}
-
-          {currentConfig?.requiresNewEndDate && (
-            <div>
-              <label className="text-sm font-medium text-gray-700">
-                New Contract End Date: <span className="text-red-500">*</span>
-              </label>
-              <Input type="date" className="mt-1" value={newEndDate} onChange={(e) => setNewEndDate(e.target.value)} />
-              <p className="mt-1 text-xs text-gray-500">Contract end date will be updated</p>
-            </div>
-          )}
-
-          {/* ✅ Renewed By - only for Already Renewed */}
-          {isRenewalOrSoldAction && (
-            <div>
-              <label className="text-sm font-medium text-gray-700">
-                {actionByLabel} <span className="text-red-500">*</span>
-              </label>
-              <div className="mt-1 flex flex-col gap-2 rounded-lg border bg-white p-3">
-                <label className="flex cursor-pointer items-center gap-3">
-                  <input
-                    type="radio"
-                    name="renewedBy_action_panel"
-                    value={callbackStatus === "Sold" ? "supplier" : "customer"}
-                    checked={renewedBy === (callbackStatus === "Sold" ? "supplier" : "customer")}
-                    onChange={() => setRenewedBy(callbackStatus === "Sold" ? "supplier" : "customer")}
-                    className="h-4 w-4 accent-black"
-                  />
-                  <div>
-                    <span className="text-sm font-medium text-gray-900">{supplierOptionLabel}</span>
-                    <p className="text-xs text-gray-500">{supplierOptionHelp}</p>
-                  </div>
+            {/* Called Date */}
+            {callbackStatus && (
+              <div className="space-y-1">
+                <label className="text-[10px] font-medium text-slate-600 dark:text-slate-400">
+                  Contact Date
                 </label>
-                <label className="flex cursor-pointer items-center gap-3">
-                  <input
-                    type="radio"
-                    name="renewedBy_action_panel"
-                    value="agent"
-                    checked={renewedBy === "agent"}
-                    onChange={() => setRenewedBy("agent")}
-                    className="h-4 w-4 accent-black"
-                  />
-                  <div>
-                    <span className="text-sm font-medium text-gray-900">{agentOptionLabel}</span>
-                    <p className="text-xs text-gray-500">{agentOptionHelp}</p>
-                  </div>
-                </label>
+
+                <Input
+                  type="date"
+                  className="h-8 rounded-lg border-slate-200 bg-slate-50 text-[11px] dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+                  value={calledDate}
+                  onChange={(e) => setCalledDate(e.target.value)}
+                />
               </div>
-            </div>
-          )}
-
-          {/* Deletion Warning */}
-          {currentConfig?.deletesRecord && (
-            <Alert className="mt-2">
-              <AlertCircle className="h-4 w-4" />
-              <AlertDescription>
-                <strong>Warning:</strong> This will permanently delete the record.
-              </AlertDescription>
-            </Alert>
-          )}
-
-          {/* New Supplier - Already Renewed */}
-          {isRenewalOrSoldAction && (
-            <div>
-              <label className="text-sm font-medium text-gray-700">
-                New Supplier <span className="font-normal text-gray-400">(Optional)</span>
-              </label>
-              <Input
-                type="text"
-                className="mt-1"
-                placeholder="Enter new supplier name"
-                value={newSupplier}
-                onChange={(e) => setNewSupplier(e.target.value)}
-              />
-              <p className="mt-1 text-xs text-gray-500">Leave blank if supplier hasn't changed</p>
-            </div>
-          )}
-
-          {/* New Address - Already Renewed */}
-          {isRenewalOrSoldAction && (
-            <div>
-              <label className="text-sm font-medium text-gray-700">
-                New Address <span className="font-normal text-gray-400">(Optional)</span>
-              </label>
-              <Textarea
-                className="mt-1"
-                rows={2}
-                placeholder="Enter new address if changed"
-                value={newAddress}
-                onChange={(e) => setNewAddress(e.target.value)}
-              />
-              <p className="mt-1 text-xs text-gray-500">Leave blank if address hasn't changed</p>
-            </div>
-          )}
-
-          {/* Notes */}
-          <div>
-            <label className="text-sm font-medium text-gray-700">
-              Notes: {currentConfig?.requiresNotes && <span className="text-red-500">*</span>}
-            </label>
-            <Textarea
-              className="mt-1"
-              rows={3}
-              placeholder={currentConfig?.requiresNotes ? "Enter reason why it was lost..." : "Add notes..."}
-              value={callbackNotes}
-              onChange={(e) => setCallbackNotes(e.target.value)}
-            />
-            {currentConfig?.requiresNotes && <p className="mt-1 text-xs text-gray-500">Required for Lost/Lost COT</p>}
-          </div>
-
-          {/* Error Display */}
-          {callbackError && (
-            <Alert variant="destructive">
-              <AlertCircle className="h-4 w-4" />
-              <AlertDescription>{callbackError}</AlertDescription>
-            </Alert>
-          )}
-
-          {/* Save Button */}
-          <Button
-            className="w-full bg-black hover:bg-gray-800"
-            onClick={handleSubmitCallback}
-            disabled={isSubmittingCallback}
-          >
-            {isSubmittingCallback ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Saving...
-              </>
-            ) : callbackStatus ? (
-              `Save ${callbackStatus} Action`
-            ) : (
-              "Save Status Action"
             )}
-          </Button>
+
+            {/* Sold */}
+            {currentConfig?.requiresSold && (
+              <div className="space-y-1">
+                <label className="text-[10px] font-medium text-slate-600 dark:text-slate-400">
+                  Was it sold? <span className="text-red-500">*</span>
+                </label>
+
+                <Select value={isSold} onValueChange={setIsSold}>
+                  <SelectTrigger className="h-8 rounded-lg border-slate-200 bg-slate-50 text-[11px] dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200">
+                    <SelectValue placeholder="Select" />
+                  </SelectTrigger>
+
+                  <SelectContent className="dark:border-slate-800 dark:bg-slate-900">
+                    <SelectItem value="yes" className="dark:text-slate-200 dark:focus:bg-slate-800">Yes - Sold</SelectItem>
+                    <SelectItem value="no" className="dark:text-slate-200 dark:focus:bg-slate-800">No - Move to Priced</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
+            {/* Callback Date */}
+            {isDateRequired() && (
+              <div className="space-y-1">
+                <label className="text-[10px] font-medium text-slate-600 dark:text-slate-400">
+                  Callback Date:
+                </label>
+
+                <Input
+                  type="date"
+                  className="h-8 rounded-lg border-slate-200 bg-slate-50 text-[11px] dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+                  value={callbackDate}
+                  onChange={(e) => setCallbackDate(e.target.value)}
+                />
+              </div>
+            )}
+
+            {/* Contract Start Date */}
+            {isRenewalOrSoldAction && renewedBy === "agent" && (
+              <div className="space-y-1">
+                <label className="text-[10px] font-medium text-slate-600 dark:text-slate-400">
+                  Contract Start Date:{" "}
+                  <span className="text-red-500">*</span>
+                </label>
+
+                <Input
+                  type="date"
+                  className="h-8 rounded-lg border-slate-200 bg-slate-50 text-[11px] dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+                  value={newStartDate}
+                  onChange={(e) => setNewStartDate(e.target.value)}
+                />
+              </div>
+            )}
+
+            {/* New Contract End Date */}
+            {currentConfig?.requiresNewEndDate && (
+              <div className="space-y-1">
+                <label className="text-[10px] font-medium text-slate-600 dark:text-slate-400">
+                  New Contract End Date:{" "}
+                  <span className="text-red-500">*</span>
+                </label>
+
+                <Input
+                  type="date"
+                  className="h-8 rounded-lg border-slate-200 bg-slate-50 text-[11px] dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+                  value={newEndDate}
+                  onChange={(e) => setNewEndDate(e.target.value)}
+                />
+
+                <p className="text-[9px] text-slate-400 dark:text-slate-500">
+                  Contract end date will be updated
+                </p>
+              </div>
+            )}
+
+            {/* Renewed By */}
+            {isRenewalOrSoldAction && (
+              <div className="space-y-1">
+                <label className="text-[10px] font-medium text-slate-600 dark:text-slate-400">
+                  {actionByLabel} <span className="text-red-500">*</span>
+                </label>
+
+                <div className="flex flex-col gap-2 rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-slate-700 dark:bg-slate-800">
+                  <label className="flex cursor-pointer items-center gap-3">
+                    <input
+                      type="radio"
+                      name="renewedBy_action_panel"
+                      value={
+                        callbackStatus === "Sold"
+                          ? "supplier"
+                          : "customer"
+                      }
+                      checked={
+                        renewedBy ===
+                        (callbackStatus === "Sold"
+                          ? "supplier"
+                          : "customer")
+                      }
+                      onChange={() =>
+                        setRenewedBy(
+                          callbackStatus === "Sold"
+                            ? "supplier"
+                            : "customer"
+                        )
+                      }
+                      className="h-3.5 w-3.5 accent-black dark:accent-slate-200"
+                    />
+
+                    <div>
+                      <span className="text-[11px] font-medium text-slate-900 dark:text-slate-100">
+                        {supplierOptionLabel}
+                      </span>
+
+                      <p className="text-[9px] text-slate-400 dark:text-slate-500">
+                        {supplierOptionHelp}
+                      </p>
+                    </div>
+                  </label>
+
+                  <label className="flex cursor-pointer items-center gap-3">
+                    <input
+                      type="radio"
+                      name="renewedBy_action_panel"
+                      value="agent"
+                      checked={renewedBy === "agent"}
+                      onChange={() => setRenewedBy("agent")}
+                      className="h-3.5 w-3.5 accent-black dark:accent-slate-200"
+                    />
+
+                    <div>
+                      <span className="text-[11px] font-medium text-slate-900 dark:text-slate-100">
+                        {agentOptionLabel}
+                      </span>
+
+                      <p className="text-[9px] text-slate-400 dark:text-slate-500">
+                        {agentOptionHelp}
+                      </p>
+                    </div>
+                  </label>
+                </div>
+              </div>
+            )}
+
+            {/* Deletion Warning */}
+            {currentConfig?.deletesRecord && (
+              <Alert className="mt-2 dark:border-rose-900 dark:bg-rose-950/40">
+                <AlertCircle className="h-4 w-4 text-rose-600 dark:text-rose-400" />
+                <AlertDescription className="dark:text-rose-300">
+                  <strong>Warning:</strong> This will permanently delete the record.
+                </AlertDescription>
+              </Alert>
+            )}
+
+            {/* New Supplier */}
+            {isRenewalOrSoldAction && (
+              <div className="space-y-1">
+                <label className="text-[10px] font-medium text-slate-600 dark:text-slate-400">
+                  New Supplier{" "}
+                  <span className="font-normal text-slate-400">
+                    (Optional)
+                  </span>
+                </label>
+
+                <Input
+                  type="text"
+                  className="h-8 rounded-lg border-slate-200 bg-slate-50 text-[11px] dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+                  placeholder="Enter new supplier name"
+                  value={newSupplier}
+                  onChange={(e) => setNewSupplier(e.target.value)}
+                />
+
+                <p className="text-[9px] text-slate-400 dark:text-slate-500">
+                  Leave blank if supplier hasn't changed
+                </p>
+              </div>
+            )}
+
+            {/* New Address */}
+            {isRenewalOrSoldAction && (
+              <div className="space-y-1">
+                <label className="text-[10px] font-medium text-slate-600 dark:text-slate-400">
+                  New Address{" "}
+                  <span className="font-normal text-slate-400">
+                    (Optional)
+                  </span>
+                </label>
+
+                <Textarea
+                  className="text-[11px] dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+                  rows={2}
+                  placeholder="Enter new address if changed"
+                  value={newAddress}
+                  onChange={(e) => setNewAddress(e.target.value)}
+                />
+
+                <p className="text-[9px] text-slate-400 dark:text-slate-500">
+                  Leave blank if address hasn't changed
+                </p>
+              </div>
+            )}
+
+            {/* Notes */}
+            <div className="space-y-1">
+              <label className="text-[10px] font-medium text-slate-600 dark:text-slate-400">
+                Interaction Notes:{" "}
+                {currentConfig?.requiresNotes && (
+                  <span className="text-red-500">*</span>
+                )}
+              </label>
+
+              <Textarea
+                className="text-[11px] dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+                rows={3}
+                placeholder={
+                  currentConfig?.requiresNotes
+                    ? "Enter reason why it was lost..."
+                    : "Log conversation outcomes, price discussion, or schedule..."
+                }
+                value={callbackNotes}
+                onChange={(e) => setCallbackNotes(e.target.value)}
+              />
+
+              {currentConfig?.requiresNotes && (
+                <p className="text-[9px] text-slate-400 dark:text-slate-500">
+                  Required for Lost/Lost COT
+                </p>
+              )}
+            </div>
+
+            {/* Error */}
+            {callbackError && (
+              <Alert variant="destructive">
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription>{callbackError}</AlertDescription>
+              </Alert>
+            )}
+
+            {/* Save Button */}
+            <Button
+              className="h-9 w-full rounded-lg bg-slate-950 text-xs font-semibold text-white hover:bg-slate-800 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-slate-200"
+              onClick={handleSubmitCallback}
+              disabled={isSubmittingCallback}
+            >
+              {isSubmittingCallback ? (
+                <>
+                  <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />
+                  Saving...
+                </>
+              ) : callbackStatus ? (
+                `Save ${callbackStatus} Action`
+              ) : (
+                "✓  Save Record"
+              )}
+            </Button>
+
+          </div>
         </div>
 
-        {/* ✅ History Section */}
-        <div className="mt-8">
-          <h3 className="mb-3 text-lg font-semibold text-gray-900">History</h3>
+        {/* Interaction History Card */}
+        <div className="mt-3 flex min-h-0 flex-1 flex-col rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+
+          <div className="mb-4 flex items-start justify-between">
+            <div>
+              <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">
+                Interaction History
+              </h3>
+
+              <p className="mt-0.5 text-[10px] text-slate-400 dark:text-slate-500">
+                Chronological audit log
+              </p>
+            </div>
+
+            <span className="rounded-full bg-slate-100 px-2 py-1 text-[9px] font-semibold text-slate-500 dark:bg-slate-800 dark:text-slate-400">
+              {history.length}{" "}
+              {history.length === 1 ? "entry" : "entries"}
+            </span>
+          </div>
 
           {loadingHistory ? (
-            <div className="flex items-center justify-center py-4">
-              <Loader2 className="h-5 w-5 animate-spin text-gray-400" />
+            <div className="flex items-center justify-center py-8">
+              <Loader2 className="h-5 w-5 animate-spin text-slate-400 dark:text-slate-500" />
             </div>
           ) : history.length === 0 ? (
-            <p className="text-sm text-gray-500">No interactions yet</p>
+            <div className="flex flex-col items-center justify-center py-8">
+              <div className="mb-3 flex h-9 w-9 items-center justify-center rounded-full bg-slate-100 dark:bg-slate-800">
+                <Loader2 className="h-4 w-4 text-slate-400 dark:text-slate-500" />
+              </div>
+
+              <p className="text-[11px] font-medium text-slate-500 dark:text-slate-400">
+                No interactions yet
+              </p>
+            </div>
           ) : (
-            <div className="space-y-3">
+            <div className="space-y-3 overflow-y-auto">
               {history.map((interaction) => {
                 const rawNotes = interaction.notes || "";
                 const cleanNotes = rawNotes.replace(/^\[.*?\]\s*/, "");
-                const displayStatus = interaction.interaction_type || "Unknown";
-                const actionOptionLabel = getActionOptionLabelFromNotes(rawNotes);
+                const displayStatus =
+                  interaction.interaction_type || "Unknown";
+                const actionOptionLabel =
+                  getActionOptionLabelFromNotes(rawNotes);
 
-                // ✅ Check if this is a callback with a reminder date
                 const hasCallback =
                   interaction.reminder_date &&
                   [
@@ -3183,45 +3287,55 @@ export default function EnergyCustomerDetailsPage() {
                 return (
                   <div
                     key={interaction.interaction_id}
-                    className="group relative rounded-lg border border-gray-200 bg-white p-3 text-sm"
+                    className="group relative rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm dark:border-slate-700 dark:bg-slate-800"
                   >
-                    {/* ✅ DELETE BUTTON - Shows on hover */}
                     <button
-                      onClick={() => handleDeleteInteraction(interaction.interaction_id)}
-                      className="absolute top-2 right-2 rounded p-1 opacity-0 transition-opacity group-hover:opacity-100 hover:bg-red-50"
+                      onClick={() =>
+                        handleDeleteInteraction(
+                          interaction.interaction_id
+                        )
+                      }
+                      className="absolute top-2 right-2 rounded p-1 opacity-0 transition-opacity group-hover:opacity-100 hover:bg-red-50 dark:hover:bg-red-950/40"
                       title="Delete this entry"
                     >
-                      <Trash2 className="h-4 w-4 text-red-600" />
+                      <Trash2 className="h-4 w-4 text-red-600 dark:text-red-400" />
                     </button>
 
-                    {/* ✅ Show the actual status */}
                     <div className="mb-2">
-                      <span className="font-semibold text-gray-900">{displayStatus}</span>
+                      <span className="font-semibold text-slate-900 dark:text-slate-100">
+                        {displayStatus}
+                      </span>
                     </div>
 
-                    {/* ✅ ALWAYS show notes if they exist */}
                     {actionOptionLabel && (
                       <div className="mb-2">
-                        <span className="inline-flex rounded-full bg-slate-100 px-2 py-1 text-xs font-medium text-slate-700">
+                        <span className="inline-flex rounded-full bg-slate-200 px-2 py-1 text-xs font-medium text-slate-700 dark:bg-slate-700 dark:text-slate-300">
                           {actionOptionLabel}
                         </span>
                       </div>
                     )}
 
-                    {cleanNotes && <p className="mb-2 pr-8 text-xs text-gray-600">{cleanNotes}</p>}
+                    {cleanNotes && (
+                      <p className="mb-2 pr-8 text-xs text-slate-600 dark:text-slate-300">
+                        {cleanNotes}
+                      </p>
+                    )}
 
-                    {/* ✅ Show callback/reminder date with calendar icon - ONLY for callback-type statuses */}
                     {hasCallback && (
-                      <div className="mb-1 flex items-center gap-1 text-xs text-purple-700">
+                      <div className="mb-1 flex items-center gap-1 text-xs text-purple-700 dark:text-purple-400">
                         <Calendar className="h-3 w-3" />
-                        <span>Callback: {formatDate(interaction.reminder_date)}</span>
+                        <span>
+                          Callback:{" "}
+                          {formatDate(interaction.reminder_date)}
+                        </span>
                       </div>
                     )}
 
-                    {/* ✅ Show timestamp for when this was created */}
                     {interaction.created_at && (
-                      <div className="mt-1 text-xs text-gray-400">
-                        {new Date(interaction.created_at).toLocaleString("en-GB", {
+                      <div className="mt-1 text-xs text-slate-400 dark:text-slate-500">
+                        {new Date(
+                          interaction.created_at
+                        ).toLocaleString("en-GB", {
                           day: "2-digit",
                           month: "2-digit",
                           year: "numeric",
@@ -3236,6 +3350,7 @@ export default function EnergyCustomerDetailsPage() {
             </div>
           )}
         </div>
+
       </div>
     </div>
   );

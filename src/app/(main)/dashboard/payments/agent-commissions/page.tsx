@@ -48,8 +48,8 @@ const formatMoney = (value: string | number | null | undefined) => moneyFormatte
 const currentMonth = () => new Date().toISOString().slice(0, 7);
 
 const statusClass = {
-  "Awaiting Payment": "bg-amber-100 text-amber-800 hover:bg-amber-100",
-  "Commission Paid": "bg-emerald-100 text-emerald-700 hover:bg-emerald-100",
+  "Awaiting Payment": "bg-amber-100 text-amber-800 hover:bg-amber-100 dark:bg-amber-950/60 dark:text-amber-300 dark:hover:bg-amber-950/60",
+  "Commission Paid": "bg-emerald-100 text-emerald-700 hover:bg-emerald-100 dark:bg-emerald-950/60 dark:text-emerald-300 dark:hover:bg-emerald-950/60",
 };
 
 export default function AgentCommissionsPage() {
@@ -213,44 +213,44 @@ export default function AgentCommissionsPage() {
   const renderAgentView = () => (
     <div className="space-y-4">
       <div className="grid gap-4 md:grid-cols-3">
-        <Card className="border-slate-200 shadow-sm">
+        <Card className="border-slate-200 shadow-sm dark:border-slate-800 dark:bg-slate-900">
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-slate-600">Total Due</CardTitle>
+            <CardTitle className="text-sm font-medium text-slate-600 dark:text-slate-400">Total Due</CardTitle>
           </CardHeader>
-          <CardContent className="text-2xl font-semibold">{formatMoney(agentTotal)}</CardContent>
+          <CardContent className="text-2xl font-semibold text-slate-950 dark:text-slate-50">{formatMoney(agentTotal)}</CardContent>
         </Card>
-        <Card className="border-slate-200 shadow-sm">
+        <Card className="border-slate-200 shadow-sm dark:border-slate-800 dark:bg-slate-900">
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-slate-600">Items</CardTitle>
+            <CardTitle className="text-sm font-medium text-slate-600 dark:text-slate-400">Items</CardTitle>
           </CardHeader>
-          <CardContent className="text-2xl font-semibold">{items.length}</CardContent>
+          <CardContent className="text-2xl font-semibold text-slate-950 dark:text-slate-50">{items.length}</CardContent>
         </Card>
-        <Card className="border-slate-200 shadow-sm">
+        <Card className="border-slate-200 shadow-sm dark:border-slate-800 dark:bg-slate-900">
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-slate-600">Status</CardTitle>
+            <CardTitle className="text-sm font-medium text-slate-600 dark:text-slate-400">Status</CardTitle>
           </CardHeader>
           <CardContent>
             <Badge className={statusClass[agentStatus]}>{agentStatus}</Badge>
           </CardContent>
         </Card>
       </div>
-      <Card className="border-slate-200 shadow-sm">
+      <Card className="border-slate-200 shadow-sm dark:border-slate-800 dark:bg-slate-900">
         <CardHeader className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <div>
-            <CardTitle>{agentName}</CardTitle>
-            <p className="mt-1 text-sm text-slate-500">Your commission items for the selected month.</p>
+            <CardTitle className="text-slate-950 dark:text-slate-50">{agentName}</CardTitle>
+            <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Your commission items for the selected month.</p>
           </div>
           {batches[0] && (
-            <Button variant="outline" onClick={() => downloadStatement(batches[0].id)}>
+            <Button variant="outline" onClick={() => downloadStatement(batches[0].id)} className="dark:border-slate-700 dark:hover:bg-slate-800">
               <Download className="mr-2 h-4 w-4" />
               Download Statement
             </Button>
           )}
         </CardHeader>
         <CardContent className="p-0">
-          <div className="overflow-x-auto border-t">
+          <div className="overflow-x-auto border-t border-slate-200 dark:border-slate-800">
             <table className="w-full min-w-[760px] text-sm">
-              <thead className="bg-slate-50 text-left text-xs font-semibold text-slate-500 uppercase">
+              <thead className="bg-slate-50 text-left text-xs font-semibold text-slate-500 uppercase dark:bg-slate-800/60 dark:text-slate-400">
                 <tr>
                   <th className="px-5 py-3">Client</th>
                   <th className="px-5 py-3">Receipt Date</th>
@@ -259,13 +259,13 @@ export default function AgentCommissionsPage() {
                   <th className="px-5 py-3">Status</th>
                 </tr>
               </thead>
-              <tbody className="divide-y bg-white">
+              <tbody className="divide-y divide-slate-200 bg-white dark:divide-slate-800 dark:bg-slate-900">
                 {filteredItems.map((item, index) => (
-                  <tr key={item.id || `${item.client_name}-${item.date_received}-${index}`}>
-                    <td className="px-5 py-3 font-medium text-slate-950">{item.client_name || "Client"}</td>
-                    <td className="px-5 py-3 text-slate-600">{item.date_received || "-"}</td>
-                    <td className="px-5 py-3 text-right">{Number(item.commission_rate || 0).toFixed(2)}%</td>
-                    <td className="px-5 py-3 text-right font-semibold">{formatMoney(item.commission_amount)}</td>
+                  <tr key={item.id || `${item.client_name}-${item.date_received}-${index}`} className="dark:hover:bg-slate-800/50">
+                    <td className="px-5 py-3 font-medium text-slate-950 dark:text-slate-100">{item.client_name || "Client"}</td>
+                    <td className="px-5 py-3 text-slate-600 dark:text-slate-400">{item.date_received || "-"}</td>
+                    <td className="px-5 py-3 text-right text-slate-700 dark:text-slate-300">{Number(item.commission_rate || 0).toFixed(2)}%</td>
+                    <td className="px-5 py-3 text-right font-semibold text-slate-950 dark:text-slate-100">{formatMoney(item.commission_amount)}</td>
                     <td className="px-5 py-3">
                       <Badge className={statusClass[item.status]}>{item.status}</Badge>
                     </td>
@@ -273,7 +273,7 @@ export default function AgentCommissionsPage() {
                 ))}
                 {filteredItems.length === 0 && (
                   <tr>
-                    <td colSpan={5} className="px-5 py-12 text-center text-slate-500">
+                    <td colSpan={5} className="px-5 py-12 text-center text-slate-500 dark:text-slate-400">
                       No commission items match this month and search.
                     </td>
                   </tr>
@@ -289,48 +289,48 @@ export default function AgentCommissionsPage() {
   const renderAdminView = () => (
     <div className="space-y-5">
       <div className="grid gap-4 md:grid-cols-4">
-        <Card className="border-slate-200 shadow-sm">
+        <Card className="border-slate-200 shadow-sm dark:border-slate-800 dark:bg-slate-900">
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-slate-600">Batches</CardTitle>
+            <CardTitle className="text-sm font-medium text-slate-600 dark:text-slate-400">Batches</CardTitle>
           </CardHeader>
-          <CardContent className="text-2xl font-semibold">{batches.length}</CardContent>
+          <CardContent className="text-2xl font-semibold text-slate-950 dark:text-slate-50">{batches.length}</CardContent>
         </Card>
-        <Card className="border-slate-200 shadow-sm">
+        <Card className="border-slate-200 shadow-sm dark:border-slate-800 dark:bg-slate-900">
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-slate-600">Total Commission</CardTitle>
+            <CardTitle className="text-sm font-medium text-slate-600 dark:text-slate-400">Total Commission</CardTitle>
           </CardHeader>
-          <CardContent className="text-2xl font-semibold">{formatMoney(adminTotals.total)}</CardContent>
+          <CardContent className="text-2xl font-semibold text-slate-950 dark:text-slate-50">{formatMoney(adminTotals.total)}</CardContent>
         </Card>
-        <Card className="border-slate-200 shadow-sm">
+        <Card className="border-slate-200 shadow-sm dark:border-slate-800 dark:bg-slate-900">
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-slate-600">Paid</CardTitle>
+            <CardTitle className="text-sm font-medium text-slate-600 dark:text-slate-400">Paid</CardTitle>
           </CardHeader>
-          <CardContent className="text-2xl font-semibold text-emerald-700">{formatMoney(adminTotals.paid)}</CardContent>
+          <CardContent className="text-2xl font-semibold text-emerald-700 dark:text-emerald-400">{formatMoney(adminTotals.paid)}</CardContent>
         </Card>
-        <Card className="border-slate-200 shadow-sm">
+        <Card className="border-slate-200 shadow-sm dark:border-slate-800 dark:bg-slate-900">
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-slate-600">Awaiting</CardTitle>
+            <CardTitle className="text-sm font-medium text-slate-600 dark:text-slate-400">Awaiting</CardTitle>
           </CardHeader>
-          <CardContent className="text-2xl font-semibold text-orange-700">
+          <CardContent className="text-2xl font-semibold text-orange-700 dark:text-orange-400">
             {formatMoney(adminTotals.awaiting)}
           </CardContent>
         </Card>
       </div>
 
       {batches.length === 0 && items.length === 0 && (
-        <Card className="border-slate-200 shadow-sm">
-          <CardContent className="py-12 text-center text-slate-500">
+        <Card className="border-slate-200 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+          <CardContent className="py-12 text-center text-slate-500 dark:text-slate-400">
             No agent commissions found for this month.
           </CardContent>
         </Card>
       )}
 
       {filteredBatches.map((batch) => (
-        <Card key={batch.id} className="border-slate-200 shadow-sm">
+        <Card key={batch.id} className="border-slate-200 shadow-sm dark:border-slate-800 dark:bg-slate-900">
           <CardHeader className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
             <div>
-              <CardTitle>{batch.agent_name}</CardTitle>
-              <p className="mt-1 text-sm text-slate-500">Total: {formatMoney(batch.total_amount)}</p>
+              <CardTitle className="text-slate-950 dark:text-slate-50">{batch.agent_name}</CardTitle>
+              <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Total: {formatMoney(batch.total_amount)}</p>
             </div>
             <div className="flex flex-wrap gap-2">
               <Badge className={statusClass[batch.status]}>{batch.status}</Badge>
@@ -344,16 +344,16 @@ export default function AgentCommissionsPage() {
                   Mark as Paid
                 </Button>
               )}
-              <Button size="sm" variant="outline" onClick={() => downloadStatement(batch.id)}>
+              <Button size="sm" variant="outline" onClick={() => downloadStatement(batch.id)} className="dark:border-slate-700 dark:hover:bg-slate-800">
                 <Download className="mr-2 h-4 w-4" />
                 Download Statement
               </Button>
             </div>
           </CardHeader>
           <CardContent>
-            <div className="overflow-hidden rounded-lg border">
+            <div className="overflow-hidden rounded-lg border border-slate-200 dark:border-slate-800">
               <table className="w-full min-w-[760px] text-sm">
-                <thead className="bg-slate-50 text-left text-xs font-semibold text-slate-500 uppercase">
+                <thead className="bg-slate-50 text-left text-xs font-semibold text-slate-500 uppercase dark:bg-slate-800/60 dark:text-slate-400">
                   <tr>
                     <th className="px-4 py-3">Client</th>
                     <th className="px-4 py-3 text-right">Supplier Receipt</th>
@@ -361,13 +361,13 @@ export default function AgentCommissionsPage() {
                     <th className="px-4 py-3 text-right">Commission</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y bg-white">
+                <tbody className="divide-y divide-slate-200 bg-white dark:divide-slate-800 dark:bg-slate-900">
                   {batch.items.map((item) => (
-                    <tr key={item.id}>
-                      <td className="px-4 py-3 font-medium">{item.client_name || "Client"}</td>
-                      <td className="px-4 py-3 text-right">{formatMoney(item.receipt_amount)}</td>
-                      <td className="px-4 py-3 text-right">{Number(item.commission_rate || 0).toFixed(2)}%</td>
-                      <td className="px-4 py-3 text-right font-semibold">{formatMoney(item.commission_amount)}</td>
+                    <tr key={item.id} className="dark:hover:bg-slate-800/50">
+                      <td className="px-4 py-3 font-medium text-slate-950 dark:text-slate-100">{item.client_name || "Client"}</td>
+                      <td className="px-4 py-3 text-right text-slate-700 dark:text-slate-300">{formatMoney(item.receipt_amount)}</td>
+                      <td className="px-4 py-3 text-right text-slate-700 dark:text-slate-300">{Number(item.commission_rate || 0).toFixed(2)}%</td>
+                      <td className="px-4 py-3 text-right font-semibold text-slate-950 dark:text-slate-100">{formatMoney(item.commission_amount)}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -378,14 +378,14 @@ export default function AgentCommissionsPage() {
       ))}
 
       {items.some((item) => !item.batch_id) && (
-        <Card className="border-slate-200 shadow-sm">
+        <Card className="border-slate-200 shadow-sm dark:border-slate-800 dark:bg-slate-900">
           <CardHeader>
-            <CardTitle>Awaiting Batch Generation</CardTitle>
+            <CardTitle className="text-slate-950 dark:text-slate-50">Awaiting Batch Generation</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="overflow-hidden rounded-lg border">
+            <div className="overflow-hidden rounded-lg border border-slate-200 dark:border-slate-800">
               <table className="w-full min-w-[760px] text-sm">
-                <thead className="bg-slate-50 text-left text-xs font-semibold text-slate-500 uppercase">
+                <thead className="bg-slate-50 text-left text-xs font-semibold text-slate-500 uppercase dark:bg-slate-800/60 dark:text-slate-400">
                   <tr>
                     <th className="px-4 py-3">Agent</th>
                     <th className="px-4 py-3">Client</th>
@@ -394,23 +394,23 @@ export default function AgentCommissionsPage() {
                     <th className="px-4 py-3 text-right">Commission</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y bg-white">
+                <tbody className="divide-y divide-slate-200 bg-white dark:divide-slate-800 dark:bg-slate-900">
                   {filteredItems
                     .filter((item) => !item.batch_id)
                     .map((item, index) => (
-                      <tr key={`${item.commission_payment_receipt_id}-${index}`}>
-                        <td className="px-4 py-3">{item.agent_name}</td>
-                        <td className="px-4 py-3 font-medium">{item.client_name || "Client"}</td>
-                        <td className="px-4 py-3 text-right">{formatMoney(item.receipt_amount)}</td>
-                        <td className="px-4 py-3 text-right">
+                      <tr key={`${item.commission_payment_receipt_id}-${index}`} className="dark:hover:bg-slate-800/50">
+                        <td className="px-4 py-3 text-slate-700 dark:text-slate-300">{item.agent_name}</td>
+                        <td className="px-4 py-3 font-medium text-slate-950 dark:text-slate-100">{item.client_name || "Client"}</td>
+                        <td className="px-4 py-3 text-right text-slate-700 dark:text-slate-300">{formatMoney(item.receipt_amount)}</td>
+                        <td className="px-4 py-3 text-right text-slate-700 dark:text-slate-300">
                           {Number(item.commission_rate || 0).toFixed(2)}%
                           {Number(item.commission_rate || 0) === 0 && (
-                            <span className="ml-2 rounded bg-red-50 px-2 py-0.5 text-xs font-medium text-red-700">
+                            <span className="ml-2 rounded bg-red-50 px-2 py-0.5 text-xs font-medium text-red-700 dark:bg-red-950/60 dark:text-red-300">
                               Missing
                             </span>
                           )}
                         </td>
-                        <td className="px-4 py-3 text-right font-semibold">{formatMoney(item.commission_amount)}</td>
+                        <td className="px-4 py-3 text-right font-semibold text-slate-950 dark:text-slate-100">{formatMoney(item.commission_amount)}</td>
                       </tr>
                     ))}
                 </tbody>
@@ -423,33 +423,33 @@ export default function AgentCommissionsPage() {
   );
 
   return (
-    <div className="min-h-screen bg-slate-50/50 px-4 py-6 sm:px-6 lg:px-8">
+    <div className="min-h-screen bg-transparent px-4 py-6 text-slate-900 dark:bg-transparent dark:text-slate-100 sm:px-6 lg:px-8">
       <div className="mx-auto max-w-7xl space-y-6">
-        <div className="flex flex-col gap-4 rounded-lg border bg-white p-5 shadow-sm md:flex-row md:items-center md:justify-between">
+        <div className="flex flex-col gap-4 rounded-lg border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900 md:flex-row md:items-center md:justify-between">
           <div>
-            <p className="text-sm font-medium text-slate-500">Payments</p>
-            <h1 className="mt-1 text-3xl font-semibold tracking-tight text-slate-950">Agent Commissions</h1>
-            <p className="mt-2 max-w-3xl text-sm text-slate-600">
+            <p className="text-sm font-medium text-slate-500 dark:text-slate-400">Payments</p>
+            <h1 className="mt-1 text-3xl font-semibold tracking-tight text-slate-950 dark:text-slate-50">Agent Commissions</h1>
+            <p className="mt-2 max-w-3xl text-sm text-slate-600 dark:text-slate-400">
               Review monthly agent commission batches, generate payouts, and download statements.
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <div className="relative">
-              <Search className="pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-slate-400" />
+              <Search className="pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-slate-400 dark:text-slate-500" />
               <Input
-                className="w-72 pl-9"
+                className="w-72 pl-9 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-100 dark:placeholder:text-slate-500"
                 placeholder="Search agent, client, status..."
                 value={searchTerm}
                 onChange={(event) => setSearchTerm(event.target.value)}
               />
             </div>
             <Input
-              className="w-48 pr-4 [color-scheme:light] [&::-webkit-calendar-picker-indicator]:mr-1"
+              className="w-48 pr-4 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-100 dark:[color-scheme:dark] [&::-webkit-calendar-picker-indicator]:mr-1"
               type="month"
               value={month}
               onChange={(event) => setMonth(event.target.value)}
             />
-            <Button variant="outline" onClick={loadCommissions} disabled={loading}>
+            <Button variant="outline" onClick={loadCommissions} disabled={loading} className="dark:border-slate-800 dark:hover:bg-slate-800">
               {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCcw className="mr-2 h-4 w-4" />}
               Refresh
             </Button>
@@ -467,16 +467,16 @@ export default function AgentCommissionsPage() {
         </div>
 
         {error && (
-          <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>
+          <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-400">{error}</div>
         )}
         {message && (
-          <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+          <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700 dark:border-emerald-900/50 dark:bg-emerald-950/30 dark:text-emerald-400">
             {message}
           </div>
         )}
 
         {loading ? (
-          <div className="flex min-h-64 items-center justify-center text-slate-500">
+          <div className="flex min-h-64 items-center justify-center text-slate-500 dark:text-slate-400">
             <Loader2 className="mr-2 h-5 w-5 animate-spin" />
             Loading agent commissions...
           </div>

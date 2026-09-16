@@ -104,14 +104,31 @@ const formatDate = (d?: string | null) => {
 };
 
 const getStatusColor = (s?: string | null) => {
-  if (!s) return "bg-gray-100 text-gray-800";
+  if (!s) return "bg-muted text-muted-foreground";
+
   const l = s.toLowerCase();
-  if (l === "lead" || l === "not called") return "bg-gray-100 text-gray-500";
-  if (["callback", "priced", "called", "converted", "won"].includes(l)) return "bg-green-100 text-green-800";
-  if (l === "not answered") return "bg-yellow-100 text-yellow-800";
-  if (["lost", "lost cot"].includes(l)) return "bg-red-100 text-red-800";
-  if (l === "dead") return "bg-red-200 text-red-900";
-  return "bg-gray-100 text-gray-800";
+
+  if (l === "lead" || l === "not called") {
+    return "bg-muted text-muted-foreground";
+  }
+
+  if (["callback", "priced", "called", "converted", "won"].includes(l)) {
+    return "bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300";
+  }
+
+  if (l === "not answered") {
+    return "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/40 dark:text-yellow-300";
+  }
+
+  if (["lost", "lost cot"].includes(l)) {
+    return "bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300";
+  }
+
+  if (l === "dead") {
+    return "bg-red-200 text-red-900 dark:bg-red-900/50 dark:text-red-200";
+  }
+
+  return "bg-muted text-muted-foreground";
 };
 
 const getStatusLabel = (s?: string | null) => {
@@ -442,8 +459,8 @@ export default function AllocatedLeadsPage() {
   const PaginationControls = () => {
     if (totalPages <= 1) return null;
     return (
-      <div className="flex items-center justify-between py-3 px-4 bg-gray-50 border-t">
-        <div className="text-sm text-gray-700">
+      <div className="flex items-center justify-between py-3 px-4 bg-muted/50 border-t border-border">
+        <div className="text-sm text-muted-foreground">
           Showing <span className="font-medium">{(currentPage - 1) * LEADS_PER_PAGE + 1}</span> to{" "}
           <span className="font-medium">{Math.min(currentPage * LEADS_PER_PAGE, filteredLeads.length)}</span>{" "}
           of <span className="font-medium">{filteredLeads.length}</span> leads
@@ -451,7 +468,7 @@ export default function AllocatedLeadsPage() {
         <div className="flex space-x-1">
           <Button variant="outline" size="icon" onClick={() => setCurrentPage(1)} disabled={currentPage === 1}><ChevronFirst className="h-4 w-4" /></Button>
           <Button variant="outline" size="icon" onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1}><ChevronLeft className="h-4 w-4" /></Button>
-          <div className="flex items-center px-3 text-sm text-gray-700">Page {currentPage} of {totalPages}</div>
+          <div className="flex items-center px-3 text-sm text-muted-foreground">Page {currentPage} of {totalPages}</div>
           <Button variant="outline" size="icon" onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages}><ChevronRight className="h-4 w-4" /></Button>
           <Button variant="outline" size="icon" onClick={() => setCurrentPage(totalPages)} disabled={currentPage === totalPages}><ChevronLast className="h-4 w-4" /></Button>
         </div>
@@ -464,8 +481,8 @@ export default function AllocatedLeadsPage() {
     <div className="w-full max-w-full overflow-x-hidden p-6">
       <Toaster position="top-right" />
 
-      <h1 className="mb-2 text-4xl font-semibold tracking-tight text-slate-900">Allocated Leads</h1>
-      <p className="mb-6 text-sm text-gray-500">
+      <h1 className="mb-2 text-4xl font-semibold tracking-tight text-foreground">Allocated Leads</h1>
+      <p className="mb-6 text-sm text-muted-foreground">
         {isAdmin
           ? "Leads that have been assigned to salespersons across the team."
           : "Leads assigned to you by an administrator."}
@@ -473,11 +490,13 @@ export default function AllocatedLeadsPage() {
 
       {/* Service Tabs */}
       <div className="mb-6 flex justify-center">
-        <div className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white/80 p-1 shadow-sm backdrop-blur">
+        <div className="inline-flex items-center gap-2 rounded-full border border-border bg-card/80 p-1 shadow-sm backdrop-blur">
           {["utilities", "water"].map(s => (
             <button key={s} type="button" onClick={() => setService(s)}
               className={`px-8 py-3 rounded-full text-base font-semibold transition-all capitalize ${
-                service === s ? "bg-slate-900 text-white shadow" : "text-slate-700 hover:bg-slate-100"
+                service === s
+  ? "bg-primary text-primary-foreground shadow"
+  : "text-muted-foreground hover:bg-muted hover:text-foreground"
               }`}>
               {s.charAt(0).toUpperCase() + s.slice(1)}
             </button>
@@ -488,29 +507,29 @@ export default function AllocatedLeadsPage() {
       {/* Admin: Employee stats grid */}
       {isAdmin && employeeStats.length > 0 && (
         <div className="mb-6">
-          <h2 className="text-sm font-medium text-gray-700 mb-3">Allocated per Salesperson</h2>
+          <h2 className="text-sm font-medium text-foreground mb-3">Allocated per Salesperson</h2>
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
             {employeeStats.map(stat => (
               <div key={stat.employee_id}
                 onClick={() => setSalespersonFilter(salespersonFilter === stat.employee_id ? "All" : stat.employee_id)}
-                className={`bg-white border rounded-lg p-4 hover:shadow-md transition-shadow cursor-pointer ${
+                className={`bg-card border border-border rounded-lg p-4 hover:shadow-md transition-shadow cursor-pointer ${
                   salespersonFilter === stat.employee_id
-                    ? "border-indigo-400 ring-1 ring-indigo-300 bg-indigo-50"
-                    : "border-gray-200"
+                    ? "border-indigo-400 ring-1 ring-indigo-300 bg-indigo-50 dark:bg-indigo-950/40"
+: "border-border"
                 }`}>
                 <div className="flex items-center gap-2 mb-2">
-                  <Phone className="h-4 w-4 text-indigo-600" />
-                  <span className="text-xs font-medium text-gray-500 truncate">{stat.employee_name}</span>
+                  <Phone className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
+                  <span className="text-xs font-medium text-muted-foreground truncate">{stat.employee_name}</span>
                 </div>
                 <div className="flex items-baseline gap-2">
-                  <span className="text-2xl font-bold text-gray-900">{stat.count}</span>
-                  <span className="text-xs text-gray-500">lead{stat.count !== 1 ? "s" : ""}</span>
+                  <span className="text-2xl font-bold text-foreground">{stat.count}</span>
+                  <span className="text-xs text-muted-foreground">lead{stat.count !== 1 ? "s" : ""}</span>
                 </div>
               </div>
             ))}
           </div>
           {salespersonFilter !== "All" && (
-            <button className="mt-2 text-xs text-indigo-600 hover:underline" onClick={() => setSalespersonFilter("All")}>
+            <button className="mt-2 text-xs text-indigo-600 dark:text-indigo-400 hover:underline" onClick={() => setSalespersonFilter("All")}>
               ✕ Clear salesperson filter
             </button>
           )}
@@ -520,12 +539,12 @@ export default function AllocatedLeadsPage() {
       {/* Salesperson: summary card */}
       {!isAdmin && (
         <div className="mb-6">
-          <div className="bg-gradient-to-r from-indigo-50 to-blue-50 border border-indigo-200 rounded-lg p-4">
+          <div className="bg-gradient-to-r from-indigo-50 to-blue-50 dark:from-indigo-950/40 dark:to-blue-950/40 border border-indigo-200 dark:border-indigo-800 rounded-lg p-4">
             <div className="flex items-center gap-3">
               <div className="bg-indigo-600 p-2 rounded-lg"><UserCheck className="h-5 w-5 text-white" /></div>
               <div>
-                <p className="text-sm text-gray-600">Allocated to You</p>
-                <p className="text-2xl font-bold text-gray-900">{allLeads.length}</p>
+                <p className="text-sm text-muted-foreground">Allocated to You</p>
+                <p className="text-2xl font-bold text-foreground">{allLeads.length}</p>
               </div>
             </div>
           </div>
@@ -534,11 +553,11 @@ export default function AllocatedLeadsPage() {
 
       {/* Error */}
       {error && (
-        <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg flex items-start gap-3">
-          <AlertCircle className="h-5 w-5 text-red-600 flex-shrink-0 mt-0.5" />
+        <div className="mb-6 p-4 bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 rounded-lg flex items-start gap-3">
+          <AlertCircle className="h-5 w-5 text-red-600 dark:text-red-400 flex-shrink-0 mt-0.5" />
           <div className="flex-1">
-            <h3 className="text-sm font-medium text-red-800">Error Loading Leads</h3>
-            <p className="mt-1 text-sm text-red-700">{error}</p>
+            <h3 className="text-sm font-medium text-red-800 dark:text-red-300">Error Loading Leads</h3>
+            <p className="mt-1 text-sm text-red-700 dark:text-red-300">{error}</p>
             <Button onClick={fetchAllocatedLeads} variant="outline" size="sm" className="mt-3">Try Again</Button>
           </div>
         </div>
@@ -632,52 +651,56 @@ export default function AllocatedLeadsPage() {
       </div>
 
       {/* Table */}
-      <div className="overflow-hidden rounded-lg border border-gray-200 bg-white">
+      <div className="overflow-hidden rounded-lg border border-gray-200 dark:border-slate-800 bg-white dark:bg-slate-900">
         <div className="overflow-x-auto">
-          <table className="w-full divide-y divide-gray-200 table-fixed">
-            <thead className="bg-gray-50">
+          <table className="w-full divide-y divide-gray-200 dark:divide-slate-800 table-fixed">
+            <thead className="bg-gray-50 dark:bg-slate-800/50">
               <tr>
-                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase w-20 border-r-2 border-gray-300">ID</th>
-                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase w-[9%]">Client Name</th>
-                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase w-[11%]">Trading Name</th>
-                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase w-[8%]">Tel No</th>
-                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase w-[8%]">Mobile No</th>
-                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase w-[10%]">MPAN</th>
-                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase w-[9%]">Supplier</th>
-                <th className="px-3 py-3 text-right text-xs font-medium tracking-wider text-gray-500 uppercase w-[9%] whitespace-nowrap">Annual Usage</th>
-                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase w-[9%] whitespace-nowrap">Start Date</th>
-                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase w-[9%] whitespace-nowrap">Contract End</th>
-                <th className="px-3 py-3 text-center text-xs font-medium tracking-wider text-gray-500 uppercase w-[13%]">Status</th>
-                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase w-[9%]">Assigned To</th>
+                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 dark:text-gray-400 uppercase w-20 border-r-2 border-border">ID</th>
+                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 dark:text-gray-400 uppercase w-[9%]">Client Name</th>
+                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 dark:text-gray-400 uppercase w-[11%]">Trading Name</th>
+                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 dark:text-gray-400 uppercase w-[8%]">Tel No</th>
+                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 dark:text-gray-400 uppercase w-[8%]">Mobile No</th>
+                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 dark:text-gray-400 uppercase w-[10%]">MPAN</th>
+                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 dark:text-gray-400 uppercase w-[9%]">Supplier</th>
+                <th className="px-3 py-3 text-right text-xs font-medium tracking-wider text-gray-500 dark:text-gray-400 uppercase w-[9%] whitespace-nowrap">Annual Usage</th>
+                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 dark:text-gray-400 uppercase w-[9%] whitespace-nowrap">Start Date</th>
+                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 dark:text-gray-400 uppercase w-[9%] whitespace-nowrap">Contract End</th>
+                <th className="px-3 py-3 text-center text-xs font-medium tracking-wider text-gray-500 dark:text-gray-400 uppercase w-[13%]">Status</th>
+                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 dark:text-gray-400 uppercase w-[9%]">Assigned To</th>
               </tr>
             </thead>
 
-            <tbody className="divide-y divide-gray-200 bg-white">
+            <tbody className="divide-y divide-gray-200 dark:divide-slate-800 bg-white dark:bg-slate-900">
               {isLoading ? (
                 <tr>
                   <td colSpan={12} className="px-6 py-12 text-center">
-                    <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-current border-r-transparent text-gray-600" />
-                    <p className="mt-4 text-gray-500">Loading allocated leads...</p>
+                    <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-current border-r-transparent text-muted-foreground" />
+                    <p className="mt-4 text-muted-foreground">Loading allocated leads...</p>
                   </td>
                 </tr>
               ) : error ? (
                 <tr>
                   <td colSpan={12} className="px-6 py-12 text-center">
                     <AlertCircle className="h-12 w-12 text-red-400 mx-auto mb-3" />
-                    <p className="text-lg text-red-600">Failed to load leads</p>
+                    <p className="text-lg text-red-600 dark:text-red-400">Failed to load leads</p>
                   </td>
                 </tr>
               ) : paginatedLeads.length === 0 ? (
                 <tr>
-                  <td colSpan={12} className="px-6 py-12 text-center text-gray-500">
-                    <UserCheck className="h-12 w-12 text-gray-400 mx-auto mb-3" />
-                    <p className="text-lg">No allocated leads yet.</p>
-                    <p className="mt-2 text-sm">
-                      {isAdmin
-                        ? "Assigned leads will appear here."
-                        : "Leads assigned to you will appear here."}
-                    </p>
-                  </td>
+                 <td colSpan={12} className="px-6 py-12 text-center text-gray-500 dark:text-gray-400">
+  <UserCheck className="h-12 w-12 text-gray-400 dark:text-gray-600 mx-auto mb-3" />
+
+  <p className="text-lg text-gray-700 dark:text-gray-200 font-medium">
+    No allocated leads yet.
+  </p>
+
+  <p className="mt-2 text-sm">
+    {isAdmin
+      ? "Assigned leads will appear here."
+      : "Leads assigned to you will appear here."}
+  </p>
+</td>
                 </tr>
               ) : (
                 paginatedLeads.map(lead => {
@@ -685,52 +708,52 @@ export default function AllocatedLeadsPage() {
                   return (
                     <tr
                       key={lead.opportunity_id}
-                      className="hover:bg-gray-50 transition-colors cursor-pointer"
+                      className="hover:bg-muted/50 transition-colors cursor-pointer"
                       onClick={() => window.open(`/dashboard/leads/${lead.opportunity_id}`, "_blank")}
                     >
-                      <td className="px-3 py-3 text-sm font-medium text-gray-900 border-r-2 border-gray-300 align-top">
+                      <td className="px-3 py-3 text-sm font-medium text-foreground border-r-2 border-border align-top">
                         <div className="whitespace-nowrap">{displayId}</div>
                       </td>
 
-                      <td className="px-3 py-3 text-sm text-gray-700 align-top overflow-hidden">
+                      <td className="px-3 py-3 text-sm text-foreground align-top overflow-hidden">
                         <div className="whitespace-normal break-words leading-tight">{lead.contact_person || "—"}</div>
                       </td>
 
-                      <td className="px-3 py-3 text-sm text-gray-900 align-top overflow-hidden">
+                      <td className="px-3 py-3 text-sm text-foreground align-top overflow-hidden">
                         <div className="whitespace-normal break-words leading-tight">{lead.business_name || "—"}</div>
                       </td>
 
-                      <td className="px-3 py-3 text-sm text-gray-900 align-top">
+                      <td className="px-3 py-3 text-sm text-foreground align-top">
                         <div className="whitespace-nowrap">
                           {lead.tel_number ? String(lead.tel_number).replace(/\.0$/, "") : "—"}
                         </div>
                       </td>
 
-                      <td className="px-3 py-3 text-sm text-gray-900 align-top">
+                      <td className="px-3 py-3 text-sm text-foreground align-top">
                         <div className="whitespace-nowrap">
                           {lead.mobile_no ? String(lead.mobile_no).replace(/\.0$/, "") : "—"}
                         </div>
                       </td>
 
-                      <td className="px-3 py-3 text-sm text-gray-900 align-top overflow-hidden">
+                      <td className="px-3 py-3 text-sm text-foreground align-top overflow-hidden">
                         <div className="truncate" title={lead.mpan_mpr || ""}>{lead.mpan_mpr || "—"}</div>
                       </td>
 
-                      <td className="px-3 py-3 text-sm text-gray-900 align-top overflow-hidden">
+                      <td className="px-3 py-3 text-sm text-foreground align-top overflow-hidden">
                         <div className="truncate">{lead.supplier_name || getSupplierName(lead.supplier_id)}</div>
                       </td>
 
-                      <td className="px-3 py-3 text-sm text-gray-900 text-right align-top">
+                      <td className="px-3 py-3 text-sm text-foreground text-right align-top">
                         <div className="whitespace-nowrap">
                           {lead.annual_usage ? lead.annual_usage.toLocaleString() : "—"}
                         </div>
                       </td>
 
-                      <td className="px-3 py-3 text-sm text-gray-900 align-top">
+                      <td className="px-3 py-3 text-sm text-foreground align-top">
                         <div className="whitespace-nowrap">{formatDate(lead.start_date)}</div>
                       </td>
 
-                      <td className="px-3 py-3 text-sm text-gray-900 align-top">
+                      <td className="px-3 py-3 text-sm text-foreground align-top">
                         <div className="whitespace-nowrap">{formatDate(lead.end_date)}</div>
                       </td>
 
@@ -747,7 +770,7 @@ export default function AllocatedLeadsPage() {
                                   {getStatusLabel(lead.stage_name)}
                                 </span>
                               ) : (
-                                <span className="text-gray-500 text-xs">Set status</span>
+                                <span className="text-muted-foreground text-xs">Set status</span>
                               )}
                             </SelectValue>
                           </SelectTrigger>
@@ -792,7 +815,7 @@ export default function AllocatedLeadsPage() {
                             </SelectContent>
                           </Select>
                         ) : (
-                          <span className="text-sm text-gray-700">{lead.assigned_to_name || "—"}</span>
+                          <span className="text-sm text-foreground">{lead.assigned_to_name || "—"}</span>
                         )}
                       </td>
                     </tr>
@@ -823,7 +846,7 @@ export default function AllocatedLeadsPage() {
 
             <div className="space-y-2">
               <label className="text-sm font-medium">Status</label>
-              <div className="p-2 bg-gray-50 rounded border">
+              <div className="p-2 bg-muted/50 rounded border border-border">
                 <span className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${getStatusColor(callbackStatus)}`}>
                   {getStatusLabel(callbackStatus)}
                 </span>
@@ -861,7 +884,7 @@ export default function AllocatedLeadsPage() {
                   New Contract End Date {callbackStatus === "End Date Changed" ? "*" : ""}
                 </label>
                 <Input type="date" value={newEndDate} onChange={e => setNewEndDate(e.target.value)} />
-                <p className="text-xs text-gray-500">
+                <p className="text-xs text-muted-foreground">
                   {callbackStatus === "Already Renewed"
                     ? "Optional: Update if the contract end date has changed"
                     : "The contract end date will be updated to this new date"}
@@ -872,16 +895,16 @@ export default function AllocatedLeadsPage() {
             {callbackStatus === "Already Renewed" && (
               <div className="space-y-2">
                 <label className="text-sm font-medium">Renewed By <span className="text-red-500">*</span></label>
-                <div className="flex flex-col gap-2 p-3 border rounded-lg bg-gray-50">
+                <div className="flex flex-col gap-2 p-3 border border-border rounded-lg bg-muted/50">
                   {(["customer", "agent"] as const).map(val => (
                     <label key={val} className="flex items-center gap-3 cursor-pointer">
                       <input type="radio" name="renewedBy" value={val} checked={renewedBy === val}
-                        onChange={() => setRenewedBy(val)} className="w-4 h-4 accent-black" />
+                        onChange={() => setRenewedBy(val)} className="w-4 h-4 accent-primary" />
                       <div>
-                        <span className="text-sm font-medium text-gray-900">
+                        <span className="text-sm font-medium text-foreground">
                           Renewed by {val.charAt(0).toUpperCase() + val.slice(1)}
                         </span>
-                        <p className="text-xs text-gray-500">
+                        <p className="text-xs text-muted-foreground">
                           {val === "customer" ? "Customer renewed directly without agent" : "Agent successfully renewed the contract"}
                         </p>
                       </div>
@@ -948,7 +971,7 @@ export default function AllocatedLeadsPage() {
 
           <div className="space-y-4">
             <div>
-              <label className="text-sm font-medium text-gray-700">Assigned To</label>
+              <label className="text-sm font-medium text-foreground">Assigned To</label>
               <Select value={assignToEmployeeId} onValueChange={setAssignToEmployeeId}>
                 <SelectTrigger className="mt-1"><SelectValue placeholder="Select salesperson" /></SelectTrigger>
                 <SelectContent>
@@ -962,7 +985,7 @@ export default function AllocatedLeadsPage() {
               </Select>
             </div>
             <div>
-              <label className="text-sm font-medium text-gray-700">Assignment Notes (Optional)</label>
+              <label className="text-sm font-medium text-foreground">Assignment Notes (Optional)</label>
               <Textarea className="mt-1" placeholder="Why is this being assigned?" value={assignmentNotes}
                 onChange={e => setAssignmentNotes(e.target.value)} rows={3} />
             </div>
