@@ -313,3 +313,39 @@ These serve as the fallback; there is no separate default.css file. */
 .cp-spotlight-glow {
   animation: cp-shimmer-bg 5s ease-in-out infinite;
 }
+
+
+.customer-tabs-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: #9ca3af transparent;
+}
+
+.customer-tabs-scroll::-webkit-scrollbar {
+  height: 6px;
+}
+
+.customer-tabs-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.customer-tabs-scroll::-webkit-scrollbar-thumb {
+  background: #9ca3af;
+  border-radius: 9999px;
+}
+
+.dark .customer-tabs-scroll {
+  scrollbar-color: #475569 transparent;
+}
+
+.dark .customer-tabs-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.dark .customer-tabs-scroll::-webkit-scrollbar-thumb {
+  background: #475569;
+  border-radius: 9999px;
+}
+
+.dark .customer-tabs-scroll::-webkit-scrollbar-thumb:hover {
+  background: #64748b;
+}

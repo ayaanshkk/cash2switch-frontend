@@ -220,13 +220,13 @@ export default function DocumentsPage({ category, title }: DocumentsPageProps) {
   const getFileIcon = (format: string) => {
     const type = format?.toLowerCase() || '';
     if (type === 'pdf') {
-      return <FileText className="h-8 w-8 text-red-500" />;
+      return <FileText className="h-8 w-8 text-red-500 shrink-0" />;
     } else if (type === 'doc' || type === 'docx') {
-      return <FileText className="h-8 w-8 text-blue-500" />;
+      return <FileText className="h-8 w-8 text-blue-500 shrink-0" />;
     } else if (type === 'xls' || type === 'xlsx') {
-      return <FileText className="h-8 w-8 text-green-500" />;
+      return <FileText className="h-8 w-8 text-green-500 shrink-0" />;
     }
-    return <File className="h-8 w-8 text-gray-500 dark:text-slate-400" />;
+    return <File className="h-8 w-8 text-gray-500 dark:text-slate-400 shrink-0" />;
   };
 
   const formatFileSize = (bytes: number): string => {
@@ -254,18 +254,18 @@ export default function DocumentsPage({ category, title }: DocumentsPageProps) {
   });
 
   return (
-    <div className="w-full p-6 text-slate-900 dark:text-slate-100">
-      <div className="flex justify-between items-center mb-6">
+    <div className="w-full p-4 sm:p-6 text-slate-900 dark:text-slate-100">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
         <div>
-          <h1 className="text-3xl font-bold text-slate-950 dark:text-slate-50">{title}</h1>
-          <p className="text-muted-foreground mt-1 dark:text-slate-400">
+          <h1 className="text-2xl sm:text-3xl font-bold text-slate-950 dark:text-slate-50">{title}</h1>
+          <p className="text-sm text-muted-foreground mt-1 dark:text-slate-400">
             {category === "NEW_CONNECTIONS" 
               ? "Documents specifically for new customer connections"
               : "All document templates - contracts, LOAs, applications, and more"
             }
           </p>
         </div>
-        <Button onClick={() => setUploadModalOpen(true)} className="dark:bg-slate-100 dark:text-slate-950 dark:hover:bg-slate-200">
+        <Button onClick={() => setUploadModalOpen(true)} className="w-full sm:w-auto dark:bg-slate-100 dark:text-slate-950 dark:hover:bg-slate-200">
           <Upload className="mr-2 h-4 w-4" />
           Upload Template
         </Button>
@@ -273,7 +273,7 @@ export default function DocumentsPage({ category, title }: DocumentsPageProps) {
 
       {/* Search */}
       <div className="mb-6">
-        <div className="relative w-64">
+        <div className="relative w-full sm:w-64">
           <Search className="text-muted-foreground absolute top-2.5 left-2 h-4 w-4 dark:text-slate-500" />
           <Input
             placeholder="Search documents..."
@@ -301,16 +301,16 @@ export default function DocumentsPage({ category, title }: DocumentsPageProps) {
           <Card className="border-slate-200 dark:border-slate-800 dark:bg-slate-900">
             <CardContent className="pt-6">
               <div className="text-center py-12">
-                <FileText className="h-12 w-12 text-gray-400 dark:text-slate-500 mx-auto mb-3" />
+                <FileText className="h-12 w-12 text-gray-400 dark:text-slate-500 mx-auto mb-4" />
                 <p className="text-lg text-gray-600 dark:text-slate-300">No documents found</p>
                 {searchTerm ? (
-                  <p className="mt-2 text-sm text-gray-500 dark:text-slate-400">Try adjusting your search</p>
+                  <p className="mt-1 text-sm text-gray-500 dark:text-slate-400">Try adjusting your search</p>
                 ) : category === "NEW_CONNECTIONS" ? (
-                  <p className="mt-2 text-sm text-gray-500 dark:text-slate-400">
+                  <p className="mt-1 text-sm text-gray-500 dark:text-slate-400">
                     Upload documents to show here
                   </p>
                 ) : (
-                  <p className="mt-2 text-sm text-gray-500 dark:text-slate-400">Upload your first document to get started</p>
+                  <p className="mt-1 text-sm text-gray-500 dark:text-slate-400">Upload your first document to get started</p>
                 )}
               </div>
             </CardContent>
@@ -319,7 +319,7 @@ export default function DocumentsPage({ category, title }: DocumentsPageProps) {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {filteredDocuments.map((doc, index) => (
               <Card key={`${doc.public_id}-${index}`} className="border-slate-200 transition-shadow hover:shadow-lg dark:border-slate-800 dark:bg-slate-900">
-                <CardHeader>
+                <CardHeader className="pb-3">
                   <div className="flex items-start justify-between">
                     <div className="flex items-center gap-3 flex-1 min-w-0">
                       {getFileIcon(doc.format)}
@@ -327,10 +327,10 @@ export default function DocumentsPage({ category, title }: DocumentsPageProps) {
                         <CardTitle className="text-base truncate text-slate-950 dark:text-slate-50">
                           {doc.document_name}
                         </CardTitle>
-                        <CardDescription className="text-xs dark:text-slate-400">
+                        <CardDescription className="text-xs dark:text-slate-400 mt-0.5">
                           {doc.format?.toUpperCase()} • {formatFileSize(doc.file_size)}
                           {doc.category && (
-                            <span className="ml-2 px-2 py-0.5 bg-blue-100 text-blue-700 rounded text-xs dark:bg-blue-950/60 dark:text-blue-300">
+                            <span className="ml-2 px-2 py-0.5 bg-blue-100 text-blue-750 rounded text-[10px] dark:bg-blue-950/60 dark:text-blue-300">
                               {doc.category === "NEW_CONNECTIONS" ? "New Connection" : doc.category}
                             </span>
                           )}
@@ -351,7 +351,7 @@ export default function DocumentsPage({ category, title }: DocumentsPageProps) {
                       className="flex-1 dark:border-slate-700 dark:hover:bg-slate-800"
                       onClick={() => handleDownload(doc.download_url || doc.url, doc.document_name, doc.format)}
                     >
-                      <Download className="h-4 w-4 mr-1" />
+                      <Download className="h-4 w-4 mr-1 shrink-0" />
                       Download
                     </Button>
                     <Button
@@ -361,7 +361,7 @@ export default function DocumentsPage({ category, title }: DocumentsPageProps) {
                       onClick={() => handleView(doc.url)}
                       title="View in new tab"
                     >
-                      <ExternalLink className="h-4 w-4" />
+                      <ExternalLink className="h-4 w-4 shrink-0" />
                     </Button>
                     <Button
                       variant="outline"
@@ -369,7 +369,7 @@ export default function DocumentsPage({ category, title }: DocumentsPageProps) {
                       className="dark:border-slate-700 dark:hover:bg-slate-800"
                       onClick={() => handleDelete(doc.public_id, doc.document_name)}
                     >
-                      <Trash2 className="h-4 w-4 text-red-500 dark:text-red-400" />
+                      <Trash2 className="h-4 w-4 text-red-500 dark:text-red-400 shrink-0" />
                     </Button>
                   </div>
                 </CardContent>
@@ -384,7 +384,7 @@ export default function DocumentsPage({ category, title }: DocumentsPageProps) {
         setUploadModalOpen(open);
         if (!open) resetUploadForm();
       }}>
-        <DialogContent className="max-w-md dark:border-slate-800 dark:bg-slate-950">
+        <DialogContent className="max-w-md w-[90vw] sm:w-full dark:border-slate-800 dark:bg-slate-950">
           <DialogHeader>
             <DialogTitle className="text-slate-950 dark:text-slate-50">Upload Document Template</DialogTitle>
             <DialogDescription className="dark:text-slate-400">
@@ -408,9 +408,11 @@ export default function DocumentsPage({ category, title }: DocumentsPageProps) {
                 className="mt-1 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100"
               />
               {file && (
-                <div className="mt-2 text-sm text-gray-600 dark:text-slate-300 flex items-center gap-2">
-                  <FileText className="h-4 w-4" />
-                  {file.name} ({formatFileSize(file.size)})
+                <div className="mt-2 text-sm text-gray-600 dark:text-slate-300 flex items-center justify-between bg-gray-50 dark:bg-slate-900 p-2 rounded border border-slate-200 dark:border-slate-800">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <FileText className="h-4 w-4 shrink-0" />
+                    <span className="truncate">{file.name}</span> ({formatFileSize(file.size)})
+                  </div>
                   <button
                     onClick={() => {
                       setFile(null);
@@ -418,7 +420,7 @@ export default function DocumentsPage({ category, title }: DocumentsPageProps) {
                         fileInputRef.current.value = "";
                       }
                     }}
-                    className="text-red-500 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300"
+                    className="text-red-500 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 shrink-0 ml-2"
                   >
                     <X className="h-4 w-4" />
                   </button>
@@ -442,7 +444,7 @@ export default function DocumentsPage({ category, title }: DocumentsPageProps) {
 
             {/* Category selection */}
             {!isNewConnectionsPage && (
-              <div className="grid grid-cols-[1fr_auto] gap-3 items-start">
+              <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto] gap-3 items-start">
                 <div>
                   <Label htmlFor="category" className="dark:text-slate-300">Category *</Label>
                   <Select
@@ -464,8 +466,8 @@ export default function DocumentsPage({ category, title }: DocumentsPageProps) {
                 </div>
 
                 {/* New Connection Checkbox */}
-                <div className="pt-7">
-                  <div className="flex items-center space-x-2">
+                <div className="sm:pt-7">
+                  <div className="flex items-center space-x-2 pt-1 sm:pt-0">
                     <Checkbox
                       id="new_connection"
                       checked={uploadForm.isNewConnection}
@@ -501,7 +503,7 @@ export default function DocumentsPage({ category, title }: DocumentsPageProps) {
               </p>
             )}
 
-            <div className="flex justify-end gap-3 pt-4">
+            <div className="flex flex-col-reverse sm:flex-row justify-end gap-2 pt-4">
               <Button
                 variant="outline"
                 onClick={() => {

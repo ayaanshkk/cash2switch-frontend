@@ -115,27 +115,27 @@ function ImportProgressBar({ progress }: { progress: ImportProgress }) {
 // ---------------------------------------------------------------------------
 
 export default function DraftsPage() {
-  const [leads, setLeads]                 = useState<DraftLead[]>([]);
-  const [employees, setEmployees]         = useState<Employee[]>([]);
-  const [suppliers, setSuppliers]         = useState<Supplier[]>([]);
-  const [loading, setLoading]             = useState(true);
-  const [importOpen, setImportOpen]       = useState(false);
-  const [importFile, setImportFile]       = useState<File | null>(null);
-  const [importing, setImporting]         = useState(false);
+  const [leads, setLeads]                    = useState<DraftLead[]>([]);
+  const [employees, setEmployees]        = useState<Employee[]>([]);
+  const [suppliers, setSuppliers]        = useState<Supplier[]>([]);
+  const [loading, setLoading]            = useState(true);
+  const [importOpen, setImportOpen]      = useState(false);
+  const [importFile, setImportFile]      = useState<File | null>(null);
+  const [importing, setImporting]        = useState(false);
   const [importProgress, setImportProgress] = useState<ImportProgress | null>(null);
-  const [assigning, setAssigning]         = useState(false);
-  const [deleting, setDeleting]           = useState(false);
-  const [deleteOpen, setDeleteOpen]       = useState(false);
-  const [selectedLeadIds, setSelectedLeadIds]       = useState<number[]>([]);
-  const [currentLeadsPage, setCurrentLeadsPage]     = useState(1);
-  const [searchTerm, setSearchTerm]                 = useState("");
-  const [selectedSupplier, setSelectedSupplier]     = useState<string>("all");
-  const [showBulkAssignModal, setShowBulkAssignModal]       = useState(false);
-  const [bulkAssignEmployeeId, setBulkAssignEmployeeId]     = useState("");
+  const [assigning, setAssigning]        = useState(false);
+  const [deleting, setDeleting]          = useState(false);
+  const [deleteOpen, setDeleteOpen]      = useState(false);
+  const [selectedLeadIds, setSelectedLeadIds]      = useState<number[]>([]);
+  const [currentLeadsPage, setCurrentLeadsPage]    = useState(1);
+  const [searchTerm, setSearchTerm]                = useState("");
+  const [selectedSupplier, setSelectedSupplier]    = useState<string>("all");
+  const [showBulkAssignModal, setShowBulkAssignModal]      = useState(false);
+  const [bulkAssignEmployeeId, setBulkAssignEmployeeId]    = useState("");
   const [bulkAssignEmployeeName, setBulkAssignEmployeeName] = useState("");
-  const [isBulkAssigning, setIsBulkAssigning]               = useState(false);
+  const [isBulkAssigning, setIsBulkAssigning]              = useState(false);
   const [endDateFilter, setEndDateFilter] = useState<"all" | "365" | "30" | "60" | "90" | "90+">("all");
-  const [usageSort, setUsageSort]         = useState<"none" | "low-high" | "high-low">("none");
+  const [usageSort, setUsageSort]        = useState<"none" | "low-high" | "high-low">("none");
   const [bulkAssignQuantity, setBulkAssignQuantity] = useState<string>("" );
 
   const pollAbortRef = useRef<AbortController | null>(null);
@@ -451,19 +451,19 @@ export default function DraftsPage() {
   // ── Pagination sub-component ──────────────────────────────────────────────
 
   const PaginationControls = ({
-      currentPage, totalPages, onPageChange, totalItems,
-    }: { currentPage: number; totalPages: number; onPageChange: (p: number) => void; totalItems: number }) => {
+    currentPage, totalPages, onPageChange, totalItems,
+  }: { currentPage: number; totalPages: number; onPageChange: (p: number) => void; totalItems: number }) => {
       if (totalPages <= 1) return null;
       const start = (currentPage - 1) * DRAFTS_PER_PAGE + 1;
       const end   = Math.min(currentPage * DRAFTS_PER_PAGE, totalItems);
       return (
-        <div className="flex items-center justify-between py-3 px-4 bg-gray-50 border-t border-gray-200 dark:border-slate-800 dark:bg-slate-900">
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 py-3 px-4 bg-gray-50 border-t border-gray-200 dark:border-slate-800 dark:bg-slate-900">
           <div className="text-sm text-gray-700 dark:text-slate-300">
             Showing <span className="font-medium text-gray-900 dark:text-white">{start}</span> to{" "}
             <span className="font-medium text-gray-900 dark:text-white">{end}</span> of{" "}
             <span className="font-medium text-gray-900 dark:text-white">{totalItems}</span> leads
           </div>
-          <div className="flex space-x-1">
+          <div className="flex flex-wrap items-center justify-center space-x-1">
             <Button
               variant="outline"
               size="icon"
@@ -511,7 +511,7 @@ export default function DraftsPage() {
   // ── Render ────────────────────────────────────────────────────────────────
 
   return (
-    <div className="min-h-screen bg-gray-50 p-6 text-slate-900 dark:bg-slate-950 dark:text-slate-100">
+    <div className="min-h-screen bg-gray-50 p-4 sm:p-6 text-slate-900 dark:bg-slate-950 dark:text-slate-100">
       <Toaster position="top-right" />
 
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
@@ -521,14 +521,14 @@ export default function DraftsPage() {
             Import draft leads and renewals, then assign them when ready.
           </p>
         </div>
-        <Button variant="outline" onClick={loadData} disabled={loading} className="dark:border-slate-800 dark:bg-slate-900 dark:hover:bg-slate-800">
+        <Button variant="outline" onClick={loadData} disabled={loading} className="w-full sm:w-auto dark:border-slate-800 dark:bg-slate-900 dark:hover:bg-slate-800">
           <RefreshCw className="mr-2 h-4 w-4" />
           Refresh
         </Button>
       </div>
 
       {/* Inline filters */}
-      <div className="mb-4 grid grid-cols-[repeat(auto-fit,minmax(160px,1fr))] gap-3">
+      <div className="mb-4 grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
         <div className="relative min-w-0 sm:col-span-2 xl:col-span-1">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400 dark:text-slate-500" />
           <Input
@@ -581,21 +581,21 @@ export default function DraftsPage() {
           <h2 className="text-sm font-medium text-gray-700 dark:text-slate-300">
             Leads {draftLeads.length > 0 && `(${draftLeads.length.toLocaleString()})`}
           </h2>
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
             <Button
               variant="default"
               onClick={() => setShowBulkAssignModal(true)}
               disabled={selectedIds.length === 0}
-              className="dark:bg-slate-100 dark:text-slate-950 dark:hover:bg-slate-200"
+              className="flex-1 sm:flex-none dark:bg-slate-100 dark:text-slate-950 dark:hover:bg-slate-200"
             >
               <Users className="mr-2 h-4 w-4" />
               Assign Selected ({selectedIds.length})
             </Button>
-            <Button variant="destructive" onClick={() => setDeleteOpen(true)} disabled={selectedIds.length === 0}>
+            <Button variant="destructive" onClick={() => setDeleteOpen(true)} disabled={selectedIds.length === 0} className="flex-1 sm:flex-none">
               <Trash2 className="mr-2 h-4 w-4" />
               Delete Selected
             </Button>
-            <Button onClick={() => setImportOpen(true)} className="dark:bg-slate-100 dark:text-slate-950 dark:hover:bg-slate-200">
+            <Button onClick={() => setImportOpen(true)} className="w-full sm:w-auto dark:bg-slate-100 dark:text-slate-950 dark:hover:bg-slate-200">
               <Upload className="mr-2 h-4 w-4" />
               Import Leads
             </Button>
@@ -629,7 +629,7 @@ export default function DraftsPage() {
         setShowBulkAssignModal(open);
         if (!open) { setBulkAssignQuantity(""); setBulkAssignEmployeeId(""); setBulkAssignEmployeeName(""); }
       }}>
-        <DialogContent className="dark:border-slate-800 dark:bg-slate-950">
+        <DialogContent className="dark:border-slate-800 dark:bg-slate-950 max-w-md w-[90vw] sm:w-full">
           <DialogHeader>
             <DialogTitle className="dark:text-slate-50">Bulk Assign Leads</DialogTitle>
             <DialogDescription className="dark:text-slate-400">
@@ -682,7 +682,7 @@ export default function DraftsPage() {
             </div>
           </div>
 
-          <div className="flex justify-end gap-2 pt-2">
+          <div className="flex flex-col-reverse sm:flex-row justify-end gap-2 pt-2">
             <Button
               variant="outline"
               onClick={() => setShowBulkAssignModal(false)}
@@ -707,7 +707,7 @@ export default function DraftsPage() {
 
       {/* ── Import dialog ── */}
       <Dialog open={importOpen} onOpenChange={handleImportDialogClose}>
-        <DialogContent className="dark:border-slate-800 dark:bg-slate-950">
+        <DialogContent className="dark:border-slate-800 dark:bg-slate-950 max-w-md w-[90vw] sm:w-full">
           <DialogHeader>
             <DialogTitle className="dark:text-slate-50">
               Import Lead Drafts
@@ -728,7 +728,7 @@ export default function DraftsPage() {
 
           {importProgress && <ImportProgressBar progress={importProgress} />}
 
-          <div className="flex justify-end gap-2 pt-1">
+          <div className="flex flex-col-reverse sm:flex-row justify-end gap-2 pt-1">
             <Button
               variant="outline"
               onClick={() => handleImportDialogClose(false)}
@@ -753,7 +753,7 @@ export default function DraftsPage() {
 
       {/* ── Delete dialog ── */}
       <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
-        <DialogContent className="dark:border-slate-800 dark:bg-slate-950">
+        <DialogContent className="dark:border-slate-800 dark:bg-slate-950 max-w-md w-[90vw] sm:w-full">
           <DialogHeader>
             <DialogTitle className="dark:text-slate-50">Delete selected drafts?</DialogTitle>
             <DialogDescription className="dark:text-slate-400">
@@ -761,7 +761,7 @@ export default function DraftsPage() {
               leads from the database.
             </DialogDescription>
           </DialogHeader>
-          <div className="flex justify-end gap-2">
+          <div className="flex flex-col-reverse sm:flex-row justify-end gap-2">
             <Button
               variant="outline"
               onClick={() => setDeleteOpen(false)}
@@ -799,10 +799,10 @@ function DraftLeadsTable({
   return (
     <div className="overflow-hidden rounded-lg border border-gray-200 bg-white dark:border-slate-800 dark:bg-slate-900">
       <div className="overflow-x-auto">
-        <table className="w-full divide-y divide-gray-200 dark:divide-slate-800 table-fixed">
+        <table className="w-full divide-y divide-gray-200 dark:divide-slate-800 min-w-[1000px]">
           <thead className="bg-gray-50 dark:bg-slate-800/60">
             <tr>
-              <th className="px-3 py-3 text-left w-8">
+              <th className="px-3 py-3 text-left w-10">
                 <input
                   type="checkbox"
                   className="rounded border-gray-300 dark:border-slate-700 dark:bg-slate-800 dark:checked:bg-primary"
@@ -815,7 +815,7 @@ function DraftLeadsTable({
                 <th
                   key={h}
                   className={`px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase dark:text-slate-400 ${
-                    i === 0 ? "w-20 border-r-2 border-gray-300 dark:border-slate-700" : "w-[9%]"
+                    i === 0 ? "w-16 border-r-2 border-gray-300 dark:border-slate-700" : "w-[9%]"
                   } ${["Annual Usage","Start Date","Contract End"].includes(h) ? "whitespace-nowrap" : ""} ${
                     h === "Annual Usage" ? "text-right" : ""
                   }`}
@@ -893,7 +893,7 @@ function DraftLeadsTable({
                       value={row.opportunity_owner_employee_id?.toString() || "0"}
                       onValueChange={(v) => onAssign(row.opportunity_id, v)}
                     >
-                      <SelectTrigger className="h-7 text-xs w-full max-w-[150px] dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100">
+                      <SelectTrigger className="h-7 text-xs w-full min-w-[120px] dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100">
                         <SelectValue placeholder="Assign">{row.assigned_to_name || "Unassigned"}</SelectValue>
                       </SelectTrigger>
                       <SelectContent className="dark:border-slate-800 dark:bg-slate-900">

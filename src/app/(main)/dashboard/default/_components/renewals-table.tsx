@@ -146,8 +146,8 @@ export function RenewalsTable({ employeeId }: RenewalsTableProps = {}) {
           href={`tel:${row.original.phone}`}
           className="flex items-center gap-1 text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
         >
-          <Phone className="h-3 w-3" />
-          <span className="text-sm">{row.original.phone}</span>
+          <Phone className="h-3 w-3 shrink-0" />
+          <span className="text-sm truncate">{row.original.phone}</span>
         </a>
       ),
     },
@@ -192,11 +192,11 @@ export function RenewalsTable({ employeeId }: RenewalsTableProps = {}) {
         const days = row.original.days_until_expiry;
         return (
           <div className="space-y-1">
-            <div className="text-sm font-medium">
+            <div className="text-sm font-medium whitespace-nowrap">
               {format(new Date(row.original.end_date), "dd MMM yyyy")}
             </div>
-            <Badge className={cn("text-xs", getUrgencyColor(days))}>
-              <AlertTriangle className="h-3 w-3 mr-1" />
+            <Badge className={cn("text-xs whitespace-nowrap", getUrgencyColor(days))}>
+              <AlertTriangle className="h-3 w-3 mr-1 shrink-0" />
               {days} days
             </Badge>
           </div>
@@ -208,7 +208,7 @@ export function RenewalsTable({ employeeId }: RenewalsTableProps = {}) {
       header: ({ column }) => <DataTableColumnHeader column={column} title="Annual Usage" />,
       cell: ({ row }) => (
         <div className="text-right">
-          <div className="font-semibold">
+          <div className="font-semibold whitespace-nowrap">
             {row.original.annual_usage?.toLocaleString() || "—"}
           </div>
           <div className="text-xs text-muted-foreground">kWh/year</div>
@@ -219,7 +219,7 @@ export function RenewalsTable({ employeeId }: RenewalsTableProps = {}) {
       accessorKey: "status",
       header: ({ column }) => <DataTableColumnHeader column={column} title="Status" />,
       cell: ({ row }) => (
-        <Badge className={getStatusColor(row.original.status)}>
+        <Badge className={cn("whitespace-nowrap", getStatusColor(row.original.status))}>
           {row.original.status || "Pending"}
         </Badge>
       ),
@@ -228,7 +228,7 @@ export function RenewalsTable({ employeeId }: RenewalsTableProps = {}) {
       accessorKey: "assigned_to_name",
       header: ({ column }) => <DataTableColumnHeader column={column} title="Assigned To" />,
       cell: ({ row }) => (
-        <span className="text-sm">{row.original.assigned_to_name || "Unassigned"}</span>
+        <span className="text-sm whitespace-nowrap">{row.original.assigned_to_name || "Unassigned"}</span>
       ),
     },
     {
@@ -240,7 +240,7 @@ export function RenewalsTable({ employeeId }: RenewalsTableProps = {}) {
           className="border-slate-200 bg-white text-slate-800 hover:bg-slate-50 hover:text-slate-900 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-200 dark:hover:bg-slate-900 dark:hover:text-white"
           onClick={() => window.open(`/dashboard/renewals/${row.original.client_id}`, "_blank", "noopener,noreferrer")}
         >
-          <Eye className="h-4 w-4" />
+          <Eye className="h-4 w-4 shrink-0" />
           <span className="ml-1">View</span>
         </Button>
       ),
@@ -266,22 +266,24 @@ export function RenewalsTable({ employeeId }: RenewalsTableProps = {}) {
 
   return (
     <Card className="rounded-xl border-0 bg-white shadow-md shadow-slate-200/50 ring-1 ring-slate-100 dark:bg-slate-900 dark:shadow-none dark:ring-slate-800">
-      <CardHeader>
-        <CardTitle className="text-lg font-bold text-slate-900 dark:text-slate-100">
-          {employeeId ? "My renewals" : "Upcoming renewals"}
-        </CardTitle>
-        <CardDescription>
-          {employeeId
-            ? "Your assigned contracts expiring in the next 90 days"
-            : "All contracts expiring in the next 90 days"}
-        </CardDescription>
+      <CardHeader className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <CardTitle className="text-lg font-bold text-slate-900 dark:text-slate-100">
+            {employeeId ? "My renewals" : "Upcoming renewals"}
+          </CardTitle>
+          <CardDescription className="dark:text-slate-400">
+            {employeeId
+              ? "Your assigned contracts expiring in the next 90 days"
+              : "All contracts expiring in the next 90 days"}
+          </CardDescription>
+        </div>
         <CardAction>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
             <DataTableViewOptions table={table} />
             <Button
               variant="outline"
               size="sm"
-              className="border-slate-200 bg-white text-slate-800 hover:bg-slate-50 hover:text-slate-900 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-200 dark:hover:bg-slate-900 dark:hover:text-white"
+              className="w-full sm:w-auto border-slate-200 bg-white text-slate-800 hover:bg-slate-50 hover:text-slate-900 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-200 dark:hover:bg-slate-900 dark:hover:text-white"
               onClick={fetchRenewals}
             >
               Refresh
@@ -289,8 +291,8 @@ export function RenewalsTable({ employeeId }: RenewalsTableProps = {}) {
           </div>
         </CardAction>
       </CardHeader>
-      <CardContent className="flex size-full flex-col gap-4">
-        <div className="overflow-hidden rounded-lg border border-slate-200/80 bg-slate-50/30 dark:border-slate-800 dark:bg-slate-950/30">
+      <CardContent className="flex size-full flex-col gap-4 p-4 sm:p-6">
+        <div className="overflow-x-auto rounded-lg border border-slate-200/80 bg-slate-50/30 dark:border-slate-800 dark:bg-slate-950/30">
           <DataTable table={table} columns={columns} />
         </div>
         <DataTablePagination table={table} />

@@ -448,10 +448,8 @@ export default function LeadDetailsPage() {
     setLoading(true);
     setError(null);
     try {
-      // ✅ Try strict opportunity_id match first
       let raw = await fetchWithAuth(`/api/crm/leads/${id}`);
 
-      // ✅ If not found or error, fall back to tenant_lead_id lookup
       if (!raw || raw.error || raw.detail === "Not found") {
         console.log(`⚠️ opportunity_id lookup failed for ${id}, trying tenant_lead_id...`);
         raw = await fetchWithAuth(`/api/crm/leads/${id}?use_display_id=true`);
@@ -476,13 +474,6 @@ export default function LeadDetailsPage() {
         stand_charge: data.stand_charge ?? (raw as any).standing_charge,
       };
 
-      console.log(
-        "📋 Normalised lead - opportunity_id:",
-        normalised.opportunity_id,
-        "tenant_lead_id:",
-        normalised.tenant_lead_id,
-      );
-
       setLead(normalised);
       setEditedLead(normalised);
 
@@ -497,7 +488,6 @@ export default function LeadDetailsPage() {
         }
       }
 
-      // ✅ Always use real opportunity_id for history
       await loadHistoryById(normalised.opportunity_id);
     } catch (e: any) {
       console.error("❌ loadLead error:", e);
@@ -542,12 +532,8 @@ export default function LeadDetailsPage() {
       setHistory(interactions);
 
       if (syncCallbackDate) {
-        // ✅ Pick the most recently CREATED interaction that has a reminder_date
-        // NOT the one with the latest reminder_date value
         const withReminder = interactions.filter((i: InteractionHistory) => Boolean(i.reminder_date));
         if (withReminder.length > 0) {
-          // interactions are already ordered by created_at DESC from the backend
-          // so just take the first one with a reminder_date
           setCallbackDate(String(withReminder[0].reminder_date).slice(0, 10));
         }
       }
@@ -560,7 +546,6 @@ export default function LeadDetailsPage() {
 
   const loadHistory = async () => {
     if (lead?.opportunity_id) {
-      // ✅ Pass false so user's manually chosen date is never overwritten
       await loadHistoryById(lead.opportunity_id, false);
     }
   };
@@ -627,8 +612,6 @@ export default function LeadDetailsPage() {
           }),
       );
 
-      console.log("🚀 PATCH payload:", JSON.stringify(safePayload, null, 2));
-
       const res = await fetch(`${API_BASE_URL}/api/crm/leads/${lead?.opportunity_id}`, {
         method: "PATCH",
         headers: {
@@ -639,18 +622,13 @@ export default function LeadDetailsPage() {
       });
 
       const data = await res.json();
-      console.log("📥 PATCH response:", data);
 
       if (!res.ok || data?.error) throw new Error(data?.error || "Save failed");
 
-      // ✅ Use the response data directly — do NOT call loadLead() which re-fetches
-      // and may return stale data due to connection pooling / read-after-write lag
       const updatedLead: Lead = {
         ...lead,
         ...editedLead,
-        // If backend returned the updated record, merge it on top
         ...(data?.opportunity_id ? data : {}),
-        // Preserve computed fields from original lead
         stage_name: data?.stage_name ?? lead.stage_name,
         assigned_to_name: data?.assigned_to_name ?? lead.assigned_to_name,
         supplier_name: data?.supplier_name ?? lead.supplier_name,
@@ -732,16 +710,11 @@ export default function LeadDetailsPage() {
       if (cfg?.requiresSupplierChange && newSupplier.trim()) payload.new_supplier = newSupplier.trim();
       if (cfg?.requiresAddressChange && newAddress.trim()) payload.new_address = newAddress.trim();
 
-      console.log("📤 Leads callback payload:", payload);
-
-      // ✅ Always use opportunity_id not URL param (tenant_lead_id)
       const data = await fetchWithAuth(`/api/crm/leads/${lead?.opportunity_id}/callback`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
-
-      console.log("📥 Leads callback response:", data);
 
       if (!data || data.error) throw new Error(data?.error || "Failed to save");
 
@@ -754,18 +727,15 @@ export default function LeadDetailsPage() {
         return;
       }
 
-      // ✅ CRITICAL FIX: Update local state with returned lead data
       if (data.lead) {
         setLead((prev) => (prev ? { ...prev, ...data.lead } : data.lead));
         setEditedLead((prev) => ({ ...prev, ...data.lead }));
 
-        // ✅ Update the status in the action panel
         if (data.lead.stage_name) {
           setCallbackStatus(data.lead.stage_name);
         }
       }
 
-      // ✅ Handle routing cases first
       if (data.moved_to_cleansing) {
         alert("🧹 Moved to Cleansing");
         router.push("/dashboard/cleansing");
@@ -782,10 +752,8 @@ export default function LeadDetailsPage() {
         return;
       }
 
-      // ✅ Invalidate cache so next load re-fetches fresh from DB
       sessionStorage.removeItem(`lead_${id}_cache`);
 
-      // ✅ Reload history using real opportunity_id — updates callbackDate to latest
       await loadHistory();
 
       if (data.lead) {
@@ -800,7 +768,6 @@ export default function LeadDetailsPage() {
       else if (callbackStatus === "Converted") alert("✅ Lead marked as Converted");
       else alert("✅ Action saved successfully");
 
-      // ✅ Reset form fields only — keep callbackStatus
       setCallbackNotes("");
       setIsSold("");
       setNewStartDate("");
@@ -811,7 +778,6 @@ export default function LeadDetailsPage() {
       setRenewedBy("");
       setCallbackError("");
 
-      // ✅ Signal calendar to refetch
       try {
         localStorage.setItem("calendar-refetch-trigger", Date.now().toString());
         window.dispatchEvent(new CustomEvent("calendar-refetch", { detail: { action: "refetch-calendar" } }));
@@ -827,7 +793,7 @@ export default function LeadDetailsPage() {
   };
 
   useEffect(() => {
-    if (!callbackStatus || callbackDate) return; // ← only runs if callbackDate is empty
+    if (!callbackStatus || callbackDate) return;
     if (!callbackDateStatuses.has(callbackStatus)) return;
     const latestWithReminder = history.find((i) => Boolean(i.reminder_date));
     if (latestWithReminder?.reminder_date) {
@@ -841,12 +807,11 @@ export default function LeadDetailsPage() {
       await fetchWithAuth(`/api/crm/leads/${id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ stage_id: 1 }), // 1 = "Lead" — never send null
+        body: JSON.stringify({ stage_id: 1 }),
       });
-      // Update local lead state so UI shows "Lead" immediately
       setLead((prev) => (prev ? { ...prev, stage_id: 1, stage_name: "Lead" } : null));
       setEditedLead((prev) => ({ ...prev, stage_id: 1, stage_name: "Lead" }));
-      setCallbackStatus(""); // clear the action panel selection
+      setCallbackStatus("");
       alert("✅ Status cleared successfully");
     } catch {
       alert("❌ Failed to clear status");
@@ -966,10 +931,10 @@ export default function LeadDetailsPage() {
   // ── loading / error ──────────────────────────────────────────────────────
   if (loading) {
     return (
-      <div className="flex h-screen items-center justify-center bg-gray-50">
+      <div className="flex h-screen items-center justify-center bg-gray-50 dark:bg-gray-950">
         <div className="text-center">
-          <Loader2 className="mx-auto h-12 w-12 animate-spin text-gray-600" />
-          <p className="mt-4 text-gray-600">Loading lead details...</p>
+          <Loader2 className="mx-auto h-12 w-12 animate-spin text-gray-600 dark:text-gray-400" />
+          <p className="mt-4 text-gray-600 dark:text-gray-400">Loading lead details...</p>
         </div>
       </div>
     );
@@ -977,10 +942,10 @@ export default function LeadDetailsPage() {
 
   if (error || !lead) {
     return (
-      <div className="flex h-screen items-center justify-center bg-gray-50">
+      <div className="flex h-screen items-center justify-center bg-gray-50 dark:bg-gray-950">
         <div className="text-center">
           <AlertCircle className="mx-auto h-12 w-12 text-red-500" />
-          <h3 className="mt-4 text-lg font-medium text-red-900">{error || "Lead not found"}</h3>
+          <h3 className="mt-4 text-lg font-medium text-red-900 dark:text-red-400">{error || "Lead not found"}</h3>
           <Button onClick={() => router.push("/dashboard/leads")} className="mt-4">
             Back to Leads
           </Button>
@@ -992,34 +957,34 @@ export default function LeadDetailsPage() {
   const displayLead = isEditing ? editedLead : lead;
 
   // ─────────────────────────────────────────────────────────────────────────
- return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-950">
+  return (
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-950 pb-16 lg:pb-0">
       {/* ── Header ─────────────────────────────────────────────────────────── */}
-      <div className="border-b border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 px-6 py-4 pr-[400px]">
-        <div className="flex items-center justify-between">
+      <div className="border-b border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 px-4 sm:px-6 py-4 lg:pr-[400px]">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="flex items-center space-x-3">
             <button
               onClick={() =>
                 router.push(fromPage === "allocated" ? "/dashboard/allocated-renewals" : "/dashboard/leads")
               }
-              className="rounded-lg p-2 hover:bg-gray-100 dark:hover:bg-gray-800"
+              className="rounded-lg p-2 hover:bg-gray-100 dark:hover:bg-gray-800 shrink-0"
             >
               <ArrowLeft className="h-5 w-5 text-gray-600 dark:text-gray-300" />
             </button>
             <div>
-              <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Lead Details</h1>
-              <p className="text-sm text-gray-500 dark:text-gray-400">ID: {lead.tenant_lead_id || lead.opportunity_id}</p>
+              <h1 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white">Lead Details</h1>
+              <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400">ID: {lead.tenant_lead_id || lead.opportunity_id}</p>
             </div>
           </div>
 
           <div className="flex items-center space-x-3">
             {isEditing ? (
               <>
-                <Button onClick={handleCancel} variant="outline" disabled={isSaving} className="dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700">
+                <Button onClick={handleCancel} variant="outline" disabled={isSaving} className="w-full sm:w-auto dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700">
                   <X className="mr-2 h-4 w-4" />
                   Cancel
                 </Button>
-                <Button onClick={handleSave} disabled={isSaving} className="bg-black text-white hover:bg-gray-800 dark:bg-white dark:text-black dark:hover:bg-gray-200">
+                <Button onClick={handleSave} disabled={isSaving} className="w-full sm:w-auto bg-black text-white hover:bg-gray-800 dark:bg-white dark:text-black dark:hover:bg-gray-200">
                   {isSaving ? (
                     <>
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -1034,7 +999,7 @@ export default function LeadDetailsPage() {
                 </Button>
               </>
             ) : (
-              <Button onClick={() => setIsEditing(true)} variant="outline" className="dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700">
+              <Button onClick={() => setIsEditing(true)} variant="outline" className="w-full sm:w-auto dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700">
                 <Edit className="mr-2 h-4 w-4" />
                 Edit
               </Button>
@@ -1043,20 +1008,20 @@ export default function LeadDetailsPage() {
         </div>
 
         {/* Tabs */}
-        <div className="mt-4 flex space-x-1 border-b border-gray-200 dark:border-gray-800">
+        <div className="mt-4 flex space-x-1 border-b border-gray-200 dark:border-gray-800 overflow-x-auto no-scrollbar pb-0">
           {TABS.map((tab) => {
             const Icon = tab.icon;
             return (
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`flex items-center space-x-2 px-4 py-3 text-sm font-medium transition-colors ${
+                className={`flex items-center space-x-2 px-3 sm:px-4 py-3 text-xs sm:text-sm font-medium transition-colors whitespace-nowrap ${
                   activeTab === tab.id 
                     ? "border-b-2 border-black dark:border-white text-black dark:text-white" 
                     : "text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200"
                 }`}
               >
-                <Icon className="h-4 w-4" />
+                <Icon className="h-4 w-4 shrink-0" />
                 <span>{tab.label}</span>
               </button>
             );
@@ -1065,8 +1030,8 @@ export default function LeadDetailsPage() {
       </div>
 
       {/* ── Tab Content ────────────────────────────────────────────────────── */}
-      <div className="p-6 pr-[400px]">
-        <div className="rounded-lg bg-white dark:bg-gray-900 p-6 shadow-sm border border-transparent dark:border-gray-800">
+      <div className="p-4 sm:p-6 lg:pr-[400px]">
+        <div className="rounded-lg bg-white dark:bg-gray-900 p-4 sm:p-6 shadow-sm border border-transparent dark:border-gray-800">
           {/* ── Contact ── */}
           {activeTab === "contact" && (
             <div className="space-y-6">
@@ -1368,7 +1333,7 @@ export default function LeadDetailsPage() {
 
                 {/* Documents */}
                 <div className="mt-6 border-t dark:border-gray-800 pt-6 md:col-span-2">
-                  <div className="mb-4 flex items-center justify-between">
+                  <div className="mb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                     <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Documents</label>
                     <div>
                       <input
@@ -1386,7 +1351,7 @@ export default function LeadDetailsPage() {
                         size="sm"
                         onClick={() => document.getElementById("document-upload")?.click()}
                         disabled={isUploadingDocument}
-                        className="dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
+                        className="w-full sm:w-auto dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
                       >
                         {isUploadingDocument ? (
                           <>
@@ -1440,7 +1405,7 @@ export default function LeadDetailsPage() {
                     <div className="rounded-lg border-2 border-dashed border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-800/20 p-6 text-center">
                       <File className="mx-auto mb-2 h-8 w-8 text-gray-400 dark:text-gray-600" />
                       <p className="text-sm text-gray-500 dark:text-gray-400">No documents uploaded yet</p>
-                      <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">Click "Upload Documents" to add files</p>
+                      <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">Click &quot;Upload Documents&quot; to add files</p>
                     </div>
                   )}
                 </div>
@@ -1612,7 +1577,7 @@ export default function LeadDetailsPage() {
 
       {/* ── Assign Modal ─────────────────────────────────────────────────────── */}
       <Dialog open={showAssignmentModal} onOpenChange={setShowAssignmentModal}>
-        <DialogContent className="max-w-md dark:bg-gray-900 dark:border-gray-800 dark:text-white">
+        <DialogContent className="max-w-md w-[90vw] sm:w-full dark:bg-gray-900 dark:border-gray-800 dark:text-white">
           <DialogHeader>
             <DialogTitle className="dark:text-white">Assign Salesperson</DialogTitle>
             <DialogDescription className="dark:text-gray-400">Add an optional note about this assignment</DialogDescription>
@@ -1645,7 +1610,7 @@ export default function LeadDetailsPage() {
               />
             </div>
           </div>
-          <div className="mt-4 flex justify-end gap-2">
+          <div className="mt-4 flex flex-col-reverse sm:flex-row justify-end gap-2">
             <Button
               variant="outline"
               onClick={() => {
@@ -1675,504 +1640,503 @@ export default function LeadDetailsPage() {
           </div>
         </DialogContent>
       </Dialog>
- {/* ── Action Panel / Interaction Sidebar ─────────────────────────────── */}
-<div className="fixed top-0 right-0 z-30 flex h-screen w-[380px] flex-col gap-3 overflow-y-auto border-l border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-950 p-4 pt-4 text-gray-900 dark:text-gray-100">
 
-  {/* ── Log Interaction Card ─────────────────────────────────────────── */}
-  <div className="rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 p-4 shadow-sm">
+      {/* ── Action Panel / Interaction Sidebar (Responsive on mobile) ─────────────────────────────── */}
+      <div className="lg:fixed lg:top-0 lg:right-0 lg:bottom-0 z-30 flex lg:h-screen w-full lg:w-[380px] flex-col gap-3 overflow-y-auto border-t lg:border-t-0 lg:border-l border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-950 p-4 pt-4 text-gray-900 dark:text-gray-100">
 
-    <div className="mb-4">
-      <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
-        Log Interaction
-      </h3>
-      <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-        Update status and record outcomes
-      </p>
-    </div>
+        {/* ── Log Interaction Card ─────────────────────────────────────────── */}
+        <div className="rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 p-4 shadow-sm">
 
-    <div className="space-y-4">
-
-      {/* Assigned Agent */}
-      <div>
-        <label className="text-xs font-medium text-gray-600 dark:text-gray-400">
-          Assigned Agent
-        </label>
-
-        <Select
-          value={lead.opportunity_owner_employee_id?.toString() || "0"}
-          onValueChange={(v) => {
-            setAssigningEmployeeId(v);
-            setAssignmentNotes("");
-            setShowAssignmentModal(true);
-          }}
-        >
-          <SelectTrigger className="mt-1 h-9 border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100">
-            <SelectValue placeholder="Unassigned">
-              {lead.assigned_to_name || "Unassigned"}
-            </SelectValue>
-          </SelectTrigger>
-
-          <SelectContent className="border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100">
-            <SelectItem value="0" className="focus:bg-gray-100 dark:focus:bg-gray-800 focus:text-gray-900 dark:focus:text-gray-100">Unassigned</SelectItem>
-
-            {employees.map((e) => (
-              <SelectItem
-                key={e.employee_id}
-                value={e.employee_id.toString()}
-                className="focus:bg-gray-100 dark:focus:bg-gray-800 focus:text-gray-900 dark:focus:text-gray-100"
-              >
-                {e.employee_name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-
-      {/* Status */}
-      <div>
-        <label className="text-xs font-medium text-gray-600 dark:text-gray-400">
-          Status <span className="text-red-500 dark:text-red-400">*</span>
-        </label>
-
-        <Select
-          value={callbackStatus}
-          onValueChange={(v) => {
-            if (v === "CLEAR_STATUS") {
-              handleClearStatus();
-              return;
-            }
-
-            setCallbackStatus(v);
-            setCallbackNotes("");
-            setIsSold("");
-            setNewStartDate("");
-            setNewEndDate("");
-            setNewSupplier("");
-            setNewAddress("");
-            setCalledDate(new Date().toISOString().split("T")[0]);
-            setRenewedBy("");
-          }}
-        >
-          <SelectTrigger className="mt-1 h-9 w-full border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100">
-            <SelectValue placeholder="Set status" />
-          </SelectTrigger>
-
-          <SelectContent className="border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100">
-            {STATUS_OPTIONS.map((o) => (
-              <SelectItem key={o.value} value={o.value} className="focus:bg-gray-100 dark:focus:bg-gray-800 focus:text-gray-900 dark:focus:text-gray-100">
-                {o.label}
-              </SelectItem>
-            ))}
-
-            {lead.stage_name && (
-              <>
-                <div className="my-1 border-t border-gray-200 dark:border-gray-800" />
-
-                <SelectItem
-                  value="CLEAR_STATUS"
-                  className="text-red-600 dark:text-red-400 focus:bg-gray-100 dark:focus:bg-gray-800 focus:text-red-700 dark:focus:text-red-300"
-                >
-                  ✕ Clear Status
-                </SelectItem>
-              </>
-            )}
-          </SelectContent>
-        </Select>
-      </div>
-
-      {/* Called Date */}
-      {callbackStatus && (
-        <div>
-          <label className="text-xs font-medium text-gray-600 dark:text-gray-400">
-            Contact Date
-          </label>
-
-          <Input
-            type="date"
-            className="mt-1 h-9 border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100"
-            value={calledDate}
-            onChange={(e) => setCalledDate(e.target.value)}
-          />
-        </div>
-      )}
-
-      {/* Was it sold? */}
-      {currentConfig?.requiresSold && (
-        <div>
-          <label className="text-xs font-medium text-gray-600 dark:text-gray-400">
-            Was it sold? <span className="text-red-500 dark:text-red-400">*</span>
-          </label>
-
-          <Select value={isSold} onValueChange={setIsSold}>
-            <SelectTrigger className="mt-1 h-9 border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100">
-              <SelectValue placeholder="Select" />
-            </SelectTrigger>
-
-            <SelectContent className="border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100">
-              <SelectItem value="yes" className="focus:bg-gray-100 dark:focus:bg-gray-800 focus:text-gray-900 dark:focus:text-gray-100">
-                Yes - Sold
-              </SelectItem>
-
-              <SelectItem value="no" className="focus:bg-gray-100 dark:focus:bg-gray-800 focus:text-gray-900 dark:focus:text-gray-100">
-                No - Move to Priced
-              </SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-      )}
-
-      {/* Callback Date */}
-      {callbackStatus && (
-        <div>
-          <label className="text-xs font-medium text-gray-600 dark:text-gray-400">
-            Callback Date
-          </label>
-
-          <Input
-            type="date"
-            className="mt-1 h-9 border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100"
-            value={callbackDate}
-            onChange={(e) => setCallbackDate(e.target.value)}
-          />
-        </div>
-      )}
-
-      {/* Contract Start Date */}
-      {(callbackStatus === "Already Renewed" ||
-        callbackStatus === "Sold") &&
-        renewedBy === "agent" && (
-          <div>
-            <label className="text-xs font-medium text-gray-600 dark:text-gray-400">
-              Contract Start Date{" "}
-              <span className="text-red-500 dark:text-red-400">*</span>
-            </label>
-
-            <Input
-              type="date"
-              className="mt-1 h-9 border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100"
-              value={newStartDate}
-              onChange={(e) => setNewStartDate(e.target.value)}
-            />
+          <div className="mb-4">
+            <h3 className="text-base sm:text-lg font-semibold text-gray-900 dark:text-gray-100">
+              Log Interaction
+            </h3>
+            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+              Update status and record outcomes
+            </p>
           </div>
-        )}
 
-      {/* New Contract End Date */}
-      {currentConfig?.requiresNewEndDate && (
-        <div>
-          <label className="text-xs font-medium text-gray-600 dark:text-gray-400">
-            New Contract End Date{" "}
-            <span className="text-red-500 dark:text-red-400">*</span>
-          </label>
+          <div className="space-y-4">
 
-          <Input
-            type="date"
-            className="mt-1 h-9 border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100"
-            value={newEndDate}
-            onChange={(e) => setNewEndDate(e.target.value)}
-          />
+            {/* Assigned Agent */}
+            <div>
+              <label className="text-xs font-medium text-gray-600 dark:text-gray-400">
+                Assigned Agent
+              </label>
 
-          <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-            Contract end date will be updated
-          </p>
-        </div>
-      )}
-
-      {/* Renewed / Sold By */}
-      {(callbackStatus === "Already Renewed" ||
-        callbackStatus === "Sold") && (
-        <div>
-          <label className="text-xs font-medium text-gray-600 dark:text-gray-400">
-            {callbackStatus === "Sold" ? "Sold By" : "Renewed By"}{" "}
-            <span className="text-red-500 dark:text-red-400">*</span>
-          </label>
-
-          <div className="mt-1 flex flex-col gap-2 rounded-lg border border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-900 p-3">
-            {(callbackStatus === "Sold"
-              ? (["supplier", "agent"] as const)
-              : (["customer", "agent"] as const)
-            ).map((v) => (
-              <label
-                key={v}
-                className="flex cursor-pointer items-center gap-3"
+              <Select
+                value={lead.opportunity_owner_employee_id?.toString() || "0"}
+                onValueChange={(v) => {
+                  setAssigningEmployeeId(v);
+                  setAssignmentNotes("");
+                  setShowAssignmentModal(true);
+                }}
               >
-                <input
-                  type="radio"
-                  name="renewedBy_action_panel"
-                  value={v}
-                  checked={renewedBy === v}
-                  onChange={() => setRenewedBy(v)}
-                  className="h-4 w-4 accent-black dark:accent-white"
+                <SelectTrigger className="mt-1 h-9 border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100">
+                  <SelectValue placeholder="Unassigned">
+                    {lead.assigned_to_name || "Unassigned"}
+                  </SelectValue>
+                </SelectTrigger>
+
+                <SelectContent className="border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100">
+                  <SelectItem value="0" className="focus:bg-gray-100 dark:focus:bg-gray-800 focus:text-gray-900 dark:focus:text-gray-100">Unassigned</SelectItem>
+
+                  {employees.map((e) => (
+                    <SelectItem
+                      key={e.employee_id}
+                      value={e.employee_id.toString()}
+                      className="focus:bg-gray-100 dark:focus:bg-gray-800 focus:text-gray-900 dark:focus:text-gray-100"
+                    >
+                      {e.employee_name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Status */}
+            <div>
+              <label className="text-xs font-medium text-gray-600 dark:text-gray-400">
+                Status <span className="text-red-500 dark:text-red-400">*</span>
+              </label>
+
+              <Select
+                value={callbackStatus}
+                onValueChange={(v) => {
+                  if (v === "CLEAR_STATUS") {
+                    handleClearStatus();
+                    return;
+                  }
+
+                  setCallbackStatus(v);
+                  setCallbackNotes("");
+                  setIsSold("");
+                  setNewStartDate("");
+                  setNewEndDate("");
+                  setNewSupplier("");
+                  setNewAddress("");
+                  setCalledDate(new Date().toISOString().split("T")[0]);
+                  setRenewedBy("");
+                }}
+              >
+                <SelectTrigger className="mt-1 h-9 w-full border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100">
+                  <SelectValue placeholder="Set status" />
+                </SelectTrigger>
+
+                <SelectContent className="border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100">
+                  {STATUS_OPTIONS.map((o) => (
+                    <SelectItem key={o.value} value={o.value} className="focus:bg-gray-100 dark:focus:bg-gray-800 focus:text-gray-900 dark:focus:text-gray-100">
+                      {o.label}
+                    </SelectItem>
+                  ))}
+
+                  {lead.stage_name && (
+                    <>
+                      <div className="my-1 border-t border-gray-200 dark:border-gray-800" />
+
+                      <SelectItem
+                        value="CLEAR_STATUS"
+                        className="text-red-600 dark:text-red-400 focus:bg-gray-100 dark:focus:bg-gray-800 focus:text-red-700 dark:focus:text-red-300"
+                      >
+                        ✕ Clear Status
+                      </SelectItem>
+                    </>
+                  )}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Called Date */}
+            {callbackStatus && (
+              <div>
+                <label className="text-xs font-medium text-gray-600 dark:text-gray-400">
+                  Contact Date
+                </label>
+
+                <Input
+                  type="date"
+                  className="mt-1 h-9 border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100"
+                  value={calledDate}
+                  onChange={(e) => setCalledDate(e.target.value)}
+                />
+              </div>
+            )}
+
+            {/* Was it sold? */}
+            {currentConfig?.requiresSold && (
+              <div>
+                <label className="text-xs font-medium text-gray-600 dark:text-gray-400">
+                  Was it sold? <span className="text-red-500 dark:text-red-400">*</span>
+                </label>
+
+                <Select value={isSold} onValueChange={setIsSold}>
+                  <SelectTrigger className="mt-1 h-9 border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100">
+                    <SelectValue placeholder="Select" />
+                  </SelectTrigger>
+
+                  <SelectContent className="border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100">
+                    <SelectItem value="yes" className="focus:bg-gray-100 dark:focus:bg-gray-800 focus:text-gray-900 dark:focus:text-gray-100">
+                      Yes - Sold
+                    </SelectItem>
+
+                    <SelectItem value="no" className="focus:bg-gray-100 dark:focus:bg-gray-800 focus:text-gray-900 dark:focus:text-gray-100">
+                      No - Move to Priced
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
+            {/* Callback Date */}
+            {callbackStatus && (
+              <div>
+                <label className="text-xs font-medium text-gray-600 dark:text-gray-400">
+                  Callback Date
+                </label>
+
+                <Input
+                  type="date"
+                  className="mt-1 h-9 border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100"
+                  value={callbackDate}
+                  onChange={(e) => setCallbackDate(e.target.value)}
+                />
+              </div>
+            )}
+
+            {/* Contract Start Date */}
+            {(callbackStatus === "Already Renewed" ||
+              callbackStatus === "Sold") &&
+              renewedBy === "agent" && (
+                <div>
+                  <label className="text-xs font-medium text-gray-600 dark:text-gray-400">
+                    Contract Start Date{" "}
+                    <span className="text-red-500 dark:text-red-400">*</span>
+                  </label>
+
+                  <Input
+                    type="date"
+                    className="mt-1 h-9 border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100"
+                    value={newStartDate}
+                    onChange={(e) => setNewStartDate(e.target.value)}
+                  />
+                </div>
+              )}
+
+            {/* New Contract End Date */}
+            {currentConfig?.requiresNewEndDate && (
+              <div>
+                <label className="text-xs font-medium text-gray-600 dark:text-gray-400">
+                  New Contract End Date{" "}
+                  <span className="text-red-500 dark:text-red-400">*</span>
+                </label>
+
+                <Input
+                  type="date"
+                  className="mt-1 h-9 border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100"
+                  value={newEndDate}
+                  onChange={(e) => setNewEndDate(e.target.value)}
                 />
 
-                <div>
-                  <span className="text-sm font-medium text-gray-800 dark:text-gray-200">
-                    {callbackStatus === "Sold"
-                      ? `Sold by ${
-                          v.charAt(0).toUpperCase() + v.slice(1)
-                        }`
-                      : `Renewed by ${
-                          v.charAt(0).toUpperCase() + v.slice(1)
-                        }`}
-                  </span>
-
-                  <p className="text-xs text-gray-500 dark:text-gray-400">
-                    {v === "agent"
-                      ? "Counts for agent commission"
-                      : callbackStatus === "Sold"
-                      ? "Sold directly by supplier"
-                      : "Counts as Renewed Directly"}
-                  </p>
-                </div>
-              </label>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Deletion Warning */}
-      {currentConfig?.deletesRecord && (
-        <Alert className="mt-2 border-red-200 dark:border-red-900 bg-red-50 dark:bg-red-950/40 text-red-800 dark:text-red-300">
-          <AlertCircle className="h-4 w-4 text-red-600 dark:text-red-400" />
-
-          <AlertDescription>
-            <strong>Warning:</strong> This will permanently delete the record.
-          </AlertDescription>
-        </Alert>
-      )}
-
-      {/* New Supplier */}
-      {(callbackStatus === "Already Renewed" ||
-        callbackStatus === "Sold") && (
-        <div>
-          <label className="text-xs font-medium text-gray-600 dark:text-gray-400">
-            New Supplier{" "}
-            <span className="font-normal text-gray-400 dark:text-gray-500">
-              (Optional)
-            </span>
-          </label>
-
-          <Input
-            type="text"
-            className="mt-1 h-9 border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 placeholder:text-gray-400 dark:placeholder:text-gray-500"
-            placeholder="Enter new supplier name"
-            value={newSupplier}
-            onChange={(e) => setNewSupplier(e.target.value)}
-          />
-
-          <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-            Leave blank if supplier hasn't changed
-          </p>
-        </div>
-      )}
-
-      {/* New Address */}
-      {(callbackStatus === "Already Renewed" ||
-        callbackStatus === "Sold") && (
-        <div>
-          <label className="text-xs font-medium text-gray-600 dark:text-gray-400">
-            New Address{" "}
-            <span className="font-normal text-gray-400 dark:text-gray-500">
-              (Optional)
-            </span>
-          </label>
-
-          <Textarea
-            className="mt-1 border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 placeholder:text-gray-400 dark:placeholder:text-gray-500"
-            rows={2}
-            placeholder="Enter new address if changed"
-            value={newAddress}
-            onChange={(e) => setNewAddress(e.target.value)}
-          />
-
-          <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-            Leave blank if address hasn't changed
-          </p>
-        </div>
-      )}
-
-      {/* Interaction Notes */}
-      <div>
-        <label className="text-xs font-medium text-gray-600 dark:text-gray-400">
-          Interaction Notes
-          {currentConfig?.requiresNotes && (
-            <span className="text-red-500 dark:text-red-400"> *</span>
-          )}
-        </label>
-
-        <Textarea
-          className="mt-1 border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 placeholder:text-gray-400 dark:placeholder:text-gray-500"
-          rows={3}
-          placeholder={
-            currentConfig?.requiresNotes
-              ? "Enter reason why it was lost..."
-              : "Log conversation outcomes, price discussion, or schedule..."
-          }
-          value={callbackNotes}
-          onChange={(e) => setCallbackNotes(e.target.value)}
-        />
-
-        {currentConfig?.requiresNotes && (
-          <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-            Required for Lost/Lost COT
-          </p>
-        )}
-      </div>
-
-      {/* Error */}
-      {callbackError && (
-        <Alert variant="destructive" className="border-red-200 dark:border-red-900 bg-red-50 dark:bg-red-950/40 text-red-800 dark:text-red-300">
-          <AlertCircle className="h-4 w-4 text-red-600 dark:text-red-400" />
-          <AlertDescription>
-            {callbackError}
-          </AlertDescription>
-        </Alert>
-      )}
-
-      {/* Save */}
-      <Button
-        className="w-full bg-gray-900 text-white hover:bg-gray-800 dark:bg-white dark:text-gray-950 dark:hover:bg-gray-200"
-        onClick={handleSubmitCallback}
-        disabled={isSubmittingCallback}
-      >
-        {isSubmittingCallback ? (
-          <>
-            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-            Saving...
-          </>
-        ) : callbackStatus ? (
-          `Save ${callbackStatus} Action`
-        ) : (
-          "Save Action"
-        )}
-      </Button>
-    </div>
-  </div>
-
-  {/* ── Interaction History Card ─────────────────────────────────────── */}
-  <div className="rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 p-4 shadow-sm">
-
-    <div className="mb-4">
-      <h3 className="text-base font-semibold text-gray-900 dark:text-gray-100">
-        Interaction History
-      </h3>
-
-      <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-        Chronological audit log
-      </p>
-    </div>
-
-    {loadingHistory ? (
-      <div className="flex items-center justify-center py-10">
-        <Loader2 className="h-5 w-5 animate-spin text-gray-400 dark:text-gray-500" />
-      </div>
-    ) : history.length === 0 ? (
-      <div className="flex flex-col items-center justify-center py-10 text-center">
-        <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-full bg-gray-100 dark:bg-gray-800">
-          <Loader2 className="h-5 w-5 text-gray-400 dark:text-gray-500" />
-        </div>
-
-        <p className="text-sm font-medium text-gray-500 dark:text-gray-400">
-          No interactions yet
-        </p>
-      </div>
-    ) : (
-      <div className="space-y-3">
-        {history.map((interaction) => {
-          const rawNotes = interaction.notes || "";
-
-          const pipeIndex = rawNotes.indexOf(" | ");
-
-          const cleanNotes =
-            pipeIndex !== -1
-              ? rawNotes.slice(pipeIndex + 3).trim()
-              : rawNotes
-                  .replace(/^\[.*?\]\s*/, "")
-                  .replace(/^Status:[^|]*(\|)?/, "")
-                  .trim();
-
-          const displayStatus =
-            interaction.interaction_type || "Unknown";
-
-          const actionOptionLabel =
-            getActionOptionLabelFromNotes(rawNotes);
-
-          const hasCallback =
-            interaction.reminder_date &&
-            [
-              "Callback",
-              "Called",
-              "Not Answered",
-              "Broker in Place",
-              "End Date Changed",
-              "Already Renewed",
-            ].includes(displayStatus);
-
-          return (
-            <div
-              key={interaction.interaction_id}
-              className="group relative rounded-lg border border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-950 p-3 text-sm"
-            >
-              <button
-                onClick={() =>
-                  handleDeleteInteraction(
-                    interaction.interaction_id
-                  )
-                }
-                className="absolute right-2 top-2 rounded p-1 opacity-0 transition-opacity group-hover:opacity-100 hover:bg-red-100 dark:hover:bg-red-950/60"
-                title="Delete this entry"
-              >
-                <Trash2 className="h-4 w-4 text-red-600 dark:text-red-400" />
-              </button>
-
-              <div className="mb-2">
-                <span className="font-semibold text-gray-900 dark:text-gray-100">
-                  {displayStatus}
-                </span>
+                <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                  Contract end date will be updated
+                </p>
               </div>
+            )}
 
-              {actionOptionLabel && (
-                <div className="mb-2">
-                  <span className="inline-flex rounded-full bg-gray-200 dark:bg-gray-800 px-2 py-1 text-xs font-medium text-gray-700 dark:text-gray-300">
-                    {actionOptionLabel}
-                  </span>
+            {/* Renewed / Sold By */}
+            {(callbackStatus === "Already Renewed" ||
+              callbackStatus === "Sold") && (
+              <div>
+                <label className="text-xs font-medium text-gray-600 dark:text-gray-400">
+                  {callbackStatus === "Sold" ? "Sold By" : "Renewed By"}{" "}
+                  <span className="text-red-500 dark:text-red-400">*</span>
+                </label>
+
+                <div className="mt-1 flex flex-col gap-2 rounded-lg border border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-900 p-3">
+                  {(callbackStatus === "Sold"
+                    ? (["supplier", "agent"] as const)
+                    : (["customer", "agent"] as const)
+                  ).map((v) => (
+                    <label
+                      key={v}
+                      className="flex cursor-pointer items-center gap-3"
+                    >
+                      <input
+                        type="radio"
+                        name="renewedBy_action_panel"
+                        value={v}
+                        checked={renewedBy === v}
+                        onChange={() => setRenewedBy(v)}
+                        className="h-4 w-4 accent-black dark:accent-white"
+                      />
+
+                      <div>
+                        <span className="text-sm font-medium text-gray-800 dark:text-gray-200">
+                          {callbackStatus === "Sold"
+                            ? `Sold by ${
+                                v.charAt(0).toUpperCase() + v.slice(1)
+                              }`
+                            : `Renewed by ${
+                                v.charAt(0).toUpperCase() + v.slice(1)
+                              }`}
+                        </span>
+
+                        <p className="text-xs text-gray-500 dark:text-gray-400">
+                          {v === "agent"
+                            ? "Counts for agent commission"
+                            : callbackStatus === "Sold"
+                            ? "Sold directly by supplier"
+                            : "Counts as Renewed Directly"}
+                        </p>
+                      </div>
+                    </label>
+                  ))}
                 </div>
-              )}
+              </div>
+            )}
 
-              {cleanNotes && (
-                <p className="mb-2 pr-8 text-xs text-gray-600 dark:text-gray-400">
-                  {cleanNotes}
+            {/* Deletion Warning */}
+            {currentConfig?.deletesRecord && (
+              <Alert className="mt-2 border-red-200 dark:border-red-900 bg-red-50 dark:bg-red-950/40 text-red-800 dark:text-red-300">
+                <AlertCircle className="h-4 w-4 text-red-600 dark:text-red-400" />
+                <AlertDescription>
+                  <strong>Warning:</strong> This will permanently delete the record.
+                </AlertDescription>
+              </Alert>
+            )}
+
+            {/* New Supplier */}
+            {(callbackStatus === "Already Renewed" ||
+              callbackStatus === "Sold") && (
+              <div>
+                <label className="text-xs font-medium text-gray-600 dark:text-gray-400">
+                  New Supplier{" "}
+                  <span className="font-normal text-gray-400 dark:text-gray-500">
+                    (Optional)
+                  </span>
+                </label>
+
+                <Input
+                  type="text"
+                  className="mt-1 h-9 border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 placeholder:text-gray-400 dark:placeholder:text-gray-500"
+                  placeholder="Enter new supplier name"
+                  value={newSupplier}
+                  onChange={(e) => setNewSupplier(e.target.value)}
+                />
+
+                <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                  Leave blank if supplier hasn't changed
+                </p>
+              </div>
+            )}
+
+            {/* New Address */}
+            {(callbackStatus === "Already Renewed" ||
+              callbackStatus === "Sold") && (
+              <div>
+                <label className="text-xs font-medium text-gray-600 dark:text-gray-400">
+                  New Address{" "}
+                  <span className="font-normal text-gray-400 dark:text-gray-500">
+                    (Optional)
+                  </span>
+                </label>
+
+                <Textarea
+                  className="mt-1 border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 placeholder:text-gray-400 dark:placeholder:text-gray-500"
+                  rows={2}
+                  placeholder="Enter new address if changed"
+                  value={newAddress}
+                  onChange={(e) => setNewAddress(e.target.value)}
+                />
+
+                <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                  Leave blank if address hasn't changed
+                </p>
+              </div>
+            )}
+
+            {/* Interaction Notes */}
+            <div>
+              <label className="text-xs font-medium text-gray-600 dark:text-gray-400">
+                Interaction Notes
+                {currentConfig?.requiresNotes && (
+                  <span className="text-red-500 dark:text-red-400"> *</span>
+                )}
+              </label>
+
+              <Textarea
+                className="mt-1 border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 placeholder:text-gray-400 dark:placeholder:text-gray-500"
+                rows={3}
+                placeholder={
+                  currentConfig?.requiresNotes
+                    ? "Enter reason why it was lost..."
+                    : "Log conversation outcomes, price discussion, or schedule..."
+                }
+                value={callbackNotes}
+                onChange={(e) => setCallbackNotes(e.target.value)}
+              />
+
+              {currentConfig?.requiresNotes && (
+                <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                  Required for Lost/Lost COT
                 </p>
               )}
-
-              {hasCallback && (
-                <div className="mb-1 flex items-center gap-1 text-xs text-purple-600 dark:text-purple-400">
-                  <Calendar className="h-3 w-3" />
-                  <span>
-                    Callback: {formatDate(interaction.reminder_date)}
-                  </span>
-                </div>
-              )}
-
-              {interaction.created_at && (
-                <div className="mt-1 text-xs text-gray-400 dark:text-gray-500">
-                  {new Date(
-                    interaction.created_at
-                  ).toLocaleString("en-GB", {
-                    day: "2-digit",
-                    month: "2-digit",
-                    year: "numeric",
-                    hour: "2-digit",
-                    minute: "2-digit",
-                  })}
-                </div>
-              )}
             </div>
-          );
-        })}
+
+            {/* Error */}
+            {callbackError && (
+              <Alert variant="destructive" className="border-red-200 dark:border-red-900 bg-red-50 dark:bg-red-950/40 text-red-800 dark:text-red-300">
+                <AlertCircle className="h-4 w-4 text-red-600 dark:text-red-400" />
+                <AlertDescription>
+                  {callbackError}
+                </AlertDescription>
+              </Alert>
+            )}
+
+            {/* Save */}
+            <Button
+              className="w-full bg-gray-900 text-white hover:bg-gray-800 dark:bg-white dark:text-gray-950 dark:hover:bg-gray-200"
+              onClick={handleSubmitCallback}
+              disabled={isSubmittingCallback}
+            >
+              {isSubmittingCallback ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Saving...
+                </>
+              ) : callbackStatus ? (
+                `Save ${callbackStatus} Action`
+              ) : (
+                "Save Action"
+              )}
+            </Button>
+          </div>
+        </div>
+
+        {/* ── Interaction History Card ─────────────────────────────────────── */}
+        <div className="rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 p-4 shadow-sm">
+
+          <div className="mb-4">
+            <h3 className="text-base font-semibold text-gray-900 dark:text-gray-100">
+              Interaction History
+            </h3>
+            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+              Chronological audit log
+            </p>
+          </div>
+
+          {loadingHistory ? (
+            <div className="flex items-center justify-center py-10">
+              <Loader2 className="h-5 w-5 animate-spin text-gray-400 dark:text-gray-500" />
+            </div>
+          ) : history.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-10 text-center">
+              <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-full bg-gray-100 dark:bg-gray-800">
+                <Loader2 className="h-5 w-5 text-gray-400 dark:text-gray-500" />
+              </div>
+              <p className="text-sm font-medium text-gray-500 dark:text-gray-400">
+                No interactions yet
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-3 max-h-[300px] lg:max-h-none overflow-y-auto">
+              {history.map((interaction) => {
+                const rawNotes = interaction.notes || "";
+
+                const pipeIndex = rawNotes.indexOf(" | ");
+
+                const cleanNotes =
+                  pipeIndex !== -1
+                    ? rawNotes.slice(pipeIndex + 3).trim()
+                    : rawNotes
+                        .replace(/^\[.*?\]\s*/, "")
+                        .replace(/^Status:[^|]*(\|)?/, "")
+                        .trim();
+
+                const displayStatus =
+                  interaction.interaction_type || "Unknown";
+
+                const actionOptionLabel =
+                  getActionOptionLabelFromNotes(rawNotes);
+
+                const hasCallback =
+                  interaction.reminder_date &&
+                  [
+                    "Callback",
+                    "Called",
+                    "Not Answered",
+                    "Broker in Place",
+                    "End Date Changed",
+                    "Already Renewed",
+                  ].includes(displayStatus);
+
+                return (
+                  <div
+                    key={interaction.interaction_id}
+                    className="group relative rounded-lg border border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-950 p-3 text-sm"
+                  >
+                    <button
+                      onClick={() =>
+                        handleDeleteInteraction(
+                          interaction.interaction_id
+                        )
+                      }
+                      className="absolute right-2 top-2 rounded p-1 opacity-0 transition-opacity group-hover:opacity-100 hover:bg-red-100 dark:hover:bg-red-950/60"
+                      title="Delete this entry"
+                    >
+                      <Trash2 className="h-4 w-4 text-red-600 dark:text-red-400" />
+                    </button>
+
+                    <div className="mb-2">
+                      <span className="font-semibold text-gray-900 dark:text-gray-100">
+                        {displayStatus}
+                      </span>
+                    </div>
+
+                    {actionOptionLabel && (
+                      <div className="mb-2">
+                        <span className="inline-flex rounded-full bg-gray-200 dark:bg-gray-800 px-2 py-1 text-xs font-medium text-gray-700 dark:text-gray-300">
+                          {actionOptionLabel}
+                        </span>
+                      </div>
+                    )}
+
+                    {cleanNotes && (
+                      <p className="mb-2 pr-8 text-xs text-gray-600 dark:text-gray-400 break-words">
+                        {cleanNotes}
+                      </p>
+                    )}
+
+                    {hasCallback && (
+                      <div className="mb-1 flex items-center gap-1 text-xs text-purple-600 dark:text-purple-400">
+                        <Calendar className="h-3 w-3 shrink-0" />
+                        <span>
+                          Callback: {formatDate(interaction.reminder_date)}
+                        </span>
+                      </div>
+                    )}
+
+                    {interaction.created_at && (
+                      <div className="mt-1 text-xs text-gray-400 dark:text-gray-500">
+                        {new Date(
+                          interaction.created_at
+                        ).toLocaleString("en-GB", {
+                          day: "2-digit",
+                          month: "2-digit",
+                          year: "numeric",
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
       </div>
-    )}
-  </div>
-</div>
     </div>
   );
 }

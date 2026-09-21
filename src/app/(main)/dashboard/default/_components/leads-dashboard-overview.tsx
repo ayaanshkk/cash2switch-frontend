@@ -342,7 +342,7 @@ export function LeadsOverview({ userRole, employeeId }: LeadsOverviewProps = {})
   };
 
   return (
-    <div className="space-y-4 text-slate-900 dark:text-slate-100">
+    <div className="space-y-4 text-slate-900 dark:text-slate-100 p-4 sm:p-6 overflow-x-hidden">
       
     {/* Top Stats Cards */}
     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6">
@@ -589,14 +589,14 @@ export function LeadsOverview({ userRole, employeeId }: LeadsOverviewProps = {})
                   <div className="flex items-center justify-between text-sm">
                     <div className="flex items-center gap-2">
                       <div
-                        className="h-3 w-3 rounded-full"
+                        className="h-3 w-3 rounded-full shrink-0"
                         style={{ backgroundColor: supplierColors[index % supplierColors.length] }}
                       />
                       <span className="font-medium truncate max-w-[150px] dark:text-slate-200">
                         {supplier.supplier_name}
                       </span>
                     </div>
-                    <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-3 shrink-0">
                       <span className="text-muted-foreground dark:text-slate-400">{supplier.lead_count} leads</span>
                       <span className="font-semibold dark:text-slate-100">{formatCurrency(supplier.total_value)}</span>
                     </div>
@@ -626,25 +626,25 @@ export function LeadsOverview({ userRole, employeeId }: LeadsOverviewProps = {})
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
-            <div className="text-center p-4 border rounded-lg bg-green-50 dark:bg-green-950/20 dark:border-green-900/40">
-              <div className="text-3xl font-bold text-green-700 dark:text-green-400">{stats?.converted_leads || 0}</div>
-              <div className="text-sm text-green-600 dark:text-green-300 mt-1">Converted</div>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+            <div className="text-center p-4 sm:p-6 border rounded-lg bg-green-50 dark:bg-green-950/20 dark:border-green-900/40">
+              <div className="text-3xl sm:text-4xl font-bold text-green-700 dark:text-green-400">{stats?.converted_leads || 0}</div>
+              <div className="text-xs sm:text-sm text-green-600 dark:text-green-300 mt-2 font-medium">Converted</div>
               <CheckCircle2 className="h-5 w-5 text-green-600 dark:text-green-400 mx-auto mt-2" />
             </div>
-            <div className="text-center p-4 border rounded-lg bg-blue-50 dark:bg-blue-950/20 dark:border-blue-900/40">
-              <div className="text-3xl font-bold text-blue-700 dark:text-blue-400">{stats?.in_progress || 0}</div>
-              <div className="text-sm text-blue-600 dark:text-blue-300 mt-1">In Progress</div>
+            <div className="text-center p-4 sm:p-6 border rounded-lg bg-blue-50 dark:bg-blue-950/20 dark:border-blue-900/40">
+              <div className="text-3xl sm:text-4xl font-bold text-blue-700 dark:text-blue-400">{stats?.in_progress || 0}</div>
+              <div className="text-xs sm:text-sm text-blue-600 dark:text-blue-300 mt-2 font-medium">In Progress</div>
               <TrendingUp className="h-5 w-5 text-blue-600 dark:text-blue-400 mx-auto mt-2" />
             </div>
-            <div className="text-center p-4 border rounded-lg bg-orange-50 dark:bg-orange-950/20 dark:border-orange-900/40">
-              <div className="text-3xl font-bold text-orange-700 dark:text-orange-400">{stats?.new_leads || 0}</div>
-              <div className="text-sm text-orange-600 dark:text-orange-300 mt-1">Not Contacted</div>
+            <div className="text-center p-4 sm:p-6 border rounded-lg bg-orange-50 dark:bg-orange-950/20 dark:border-orange-900/40">
+              <div className="text-3xl sm:text-4xl font-bold text-orange-700 dark:text-orange-400">{stats?.new_leads || 0}</div>
+              <div className="text-xs sm:text-sm text-orange-600 dark:text-orange-300 mt-2 font-medium">Not Contacted</div>
               <AlertTriangle className="h-5 w-5 text-orange-600 dark:text-orange-400 mx-auto mt-2" />
             </div>
-            <div className="text-center p-4 border rounded-lg bg-red-50 dark:bg-red-950/20 dark:border-red-900/40">
-              <div className="text-3xl font-bold text-red-700 dark:text-red-400">{stats?.lost_leads || 0}</div>
-              <div className="text-sm text-red-600 dark:text-red-300 mt-1">Lost</div>
+            <div className="text-center p-4 sm:p-6 border rounded-lg bg-red-50 dark:bg-red-950/20 dark:border-red-900/40">
+              <div className="text-3xl sm:text-4xl font-bold text-red-700 dark:text-red-400">{stats?.lost_leads || 0}</div>
+              <div className="text-xs sm:text-sm text-red-600 dark:text-red-300 mt-2 font-medium">Lost</div>
               <TrendingDown className="h-5 w-5 text-red-600 dark:text-red-400 mx-auto mt-2" />
             </div>
           </div>
@@ -663,18 +663,18 @@ export function LeadsOverview({ userRole, employeeId }: LeadsOverviewProps = {})
           setModalEmployeeFilter(undefined);
         }
       }}>
-        <DialogContent className="max-w-[98vw] w-[98vw] max-h-[90vh] overflow-hidden flex flex-col dark:border-slate-800 dark:bg-slate-950">
-          <DialogHeader className="pb-4 border-b border-gray-200 dark:border-slate-800 flex-shrink-0">
-            <div className="flex items-start justify-between gap-6">
+        <DialogContent className="max-w-[95vw] w-[95vw] max-h-[90vh] overflow-hidden flex flex-col dark:border-slate-800 dark:bg-slate-950">
+          <DialogHeader className="pb-4 border-b border-gray-200 dark:border-slate-800 shrink-0">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div className="flex-1 min-w-0">
-                <DialogTitle className="text-2xl font-bold mb-2 text-slate-950 dark:text-slate-50">
+                <DialogTitle className="text-xl sm:text-2xl font-bold mb-1 text-slate-950 dark:text-slate-50">
                   {selectedPeriod === 'not-due' ? 'Not Due Leads (365+ Days)' :
                   selectedPeriod === '30-60' ? 'Leads Due: 30-60 Days' : 
                   selectedPeriod === '61-90' ? 'Leads Due: 61-90 Days' : 
                   selectedPeriod === '91-180' ? 'Leads Due: 91-180 Days' :
                   'Leads in Progress'}
                 </DialogTitle>
-                <DialogDescription className="text-sm dark:text-slate-400">
+                <DialogDescription className="text-xs sm:text-sm dark:text-slate-400">
                   Showing {periodLeads.length} lead{periodLeads.length !== 1 ? 's' : ''} in this period
                 </DialogDescription>
               </div>
@@ -688,7 +688,7 @@ export function LeadsOverview({ userRole, employeeId }: LeadsOverviewProps = {})
                     fetchPeriodLeads(selectedPeriod, newEmployeeId);
                   }}
                 >
-                  <SelectTrigger className="w-[220px] flex-shrink-0 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100">
+                  <SelectTrigger className="w-full sm:w-[220px] shrink-0 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100">
                     <SelectValue placeholder="All Salespeople" />
                   </SelectTrigger>
                   <SelectContent className="dark:border-slate-800 dark:bg-slate-900">
@@ -718,24 +718,24 @@ export function LeadsOverview({ userRole, employeeId }: LeadsOverviewProps = {})
                 {periodLeads.map((lead) => (
                   <div
                     key={lead.opportunity_id}
-                    className="p-5 border border-gray-200 dark:border-slate-800 dark:bg-slate-900 rounded-xl hover:bg-gray-50 dark:hover:bg-slate-800/60 hover:shadow-sm cursor-pointer transition-all"
+                    className="p-4 sm:p-5 border border-gray-200 dark:border-slate-800 dark:bg-slate-900 rounded-xl hover:bg-gray-50 dark:hover:bg-slate-800/60 hover:shadow-sm cursor-pointer transition-all"
                     onClick={() => window.open(`/dashboard/leads/${lead.opportunity_id}`, '_blank')}
                   >
-                    <div className="flex items-start justify-between gap-4 mb-4">
+                    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-4">
                       <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-2">
-                          <h3 className="text-lg font-bold text-gray-900 dark:text-slate-100 truncate">{lead.business_name}</h3>
-                          <Badge variant="outline" className="text-xs flex-shrink-0 dark:border-slate-700 dark:text-slate-300">
+                        <div className="flex items-center gap-2 mb-2 flex-wrap">
+                          <h3 className="text-base sm:text-lg font-bold text-gray-900 dark:text-slate-100 truncate">{lead.business_name}</h3>
+                          <Badge variant="outline" className="text-xs shrink-0 dark:border-slate-700 dark:text-slate-300">
                             {lead.stage_name}
                           </Badge>
                         </div>
-                        <p className="text-sm text-gray-600 dark:text-slate-400 truncate">
+                        <p className="text-xs sm:text-sm text-gray-600 dark:text-slate-400 truncate">
                           {lead.contact_person} · {lead.tel_number}
                         </p>
                       </div>
                       
-                      <div className="text-right flex-shrink-0">
-                        <p className="text-xl font-bold text-blue-700 dark:text-blue-400 whitespace-nowrap">
+                      <div className="text-left sm:text-right shrink-0">
+                        <p className="text-lg sm:text-xl font-bold text-blue-700 dark:text-blue-400 whitespace-nowrap">
                           {lead.annual_usage?.toLocaleString() || 0} kWh
                         </p>
                         <p className="text-xs text-gray-600 dark:text-slate-400 mt-1 whitespace-nowrap">
@@ -746,7 +746,7 @@ export function LeadsOverview({ userRole, employeeId }: LeadsOverviewProps = {})
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-5 gap-4 pt-3 border-t border-gray-100 dark:border-slate-800">
+                    <div className="grid grid-cols-2 sm:grid-cols-5 gap-4 pt-3 border-t border-gray-100 dark:border-slate-800">
                       <div className="min-w-0">
                         <p className="text-xs text-gray-500 dark:text-slate-400 uppercase mb-1">Email</p>
                         <p className="font-semibold text-sm text-gray-900 dark:text-slate-100 truncate">{lead.email || 'N/A'}</p>
@@ -773,10 +773,10 @@ export function LeadsOverview({ userRole, employeeId }: LeadsOverviewProps = {})
                         </p>
                       </div>
                       
-                      <div className="min-w-0">
+                      <div className="min-w-0 col-span-2 sm:col-span-1">
                         <p className="text-xs text-gray-500 dark:text-slate-400 uppercase mb-1">Assigned To</p>
                         <p className="font-semibold text-sm text-purple-700 dark:text-purple-400 flex items-center gap-1 truncate">
-                          <Users className="h-3 w-3 flex-shrink-0" />
+                          <Users className="h-3 w-3 shrink-0" />
                           <span className="truncate">{lead.assigned_to_name || 'Unassigned'}</span>
                         </p>
                       </div>
@@ -786,112 +786,6 @@ export function LeadsOverview({ userRole, employeeId }: LeadsOverviewProps = {})
               </div>
             )}
           </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* Value Breakdown Modal */}
-      <Dialog open={showVolumeModal} onOpenChange={setShowVolumeModal}>
-        <DialogContent className="max-w-[98vw] w-[98vw] max-h-[90vh] overflow-y-auto p-6 dark:border-slate-800 dark:bg-slate-950">
-          <DialogHeader className="pb-4">
-            <DialogTitle className="text-2xl dark:text-slate-50">
-              {isAdmin ? "Pipeline Value by Salesperson" : "Your Pipeline Value"}
-            </DialogTitle>
-            <DialogDescription className="text-base dark:text-slate-400">
-              {isAdmin 
-                ? "Total opportunity value split across sales team"
-                : "Your total opportunity value"}
-            </DialogDescription>
-          </DialogHeader>
-
-          {isAdmin ? (
-            <div className="space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <Card className="bg-purple-50 border-purple-200 dark:bg-purple-950/20 dark:border-purple-900/40">
-                  <CardHeader className="pb-3">
-                    <CardDescription className="text-sm dark:text-purple-300/70">Total Pipeline Value</CardDescription>
-                    <CardTitle className="text-3xl text-purple-900 dark:text-purple-300">
-                      {formatCurrency(stats?.total_value || 0)}
-                    </CardTitle>
-                  </CardHeader>
-                </Card>
-                <Card className="bg-green-50 border-green-200 dark:bg-green-950/20 dark:border-green-900/40">
-                  <CardHeader className="pb-3">
-                    <CardDescription className="text-sm dark:text-green-300/70">Total Leads</CardDescription>
-                    <CardTitle className="text-3xl text-green-900 dark:text-green-300">
-                      {stats?.total_leads || 0}
-                    </CardTitle>
-                  </CardHeader>
-                </Card>
-                <Card className="bg-blue-50 border-blue-200 dark:bg-blue-950/20 dark:border-blue-900/40">
-                  <CardHeader className="pb-3">
-                    <CardDescription className="text-sm dark:text-blue-300/70">Avg Value/Lead</CardDescription>
-                    <CardTitle className="text-3xl text-blue-900 dark:text-blue-300">
-                      £{stats?.total_leads ? Math.round((stats.total_value || 0) / stats.total_leads) : 0}
-                    </CardTitle>
-                  </CardHeader>
-                </Card>
-              </div>
-
-              <div className="rounded-lg border border-gray-200 dark:border-slate-800 bg-white dark:bg-slate-900">
-                <div className="overflow-x-auto">
-                  <table className="w-full">
-                    <thead className="bg-gray-50 dark:bg-slate-800/60 border-b border-gray-200 dark:border-slate-800">
-                      <tr>
-                        <th className="px-6 py-4 text-left text-sm font-semibold whitespace-nowrap dark:text-slate-300">Salesperson</th>
-                        <th className="px-6 py-4 text-right text-sm font-semibold whitespace-nowrap dark:text-slate-300">Total Leads</th>
-                        <th className="px-6 py-4 text-right text-sm font-semibold whitespace-nowrap dark:text-slate-300">Total Value (£)</th>
-                        <th className="px-6 py-4 text-right text-sm font-semibold whitespace-nowrap dark:text-slate-300">Conversion Rate</th>
-                        <th className="px-6 py-4 text-right text-sm font-semibold whitespace-nowrap dark:text-slate-300">% of Total Value</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-200 dark:divide-slate-800">
-                      {salesData.map((sales) => {
-                        const valuePercentage = ((sales.total_value / (stats?.total_value || 1)) * 100).toFixed(1);
-                        
-                        return (
-                          <tr key={sales.employee_id} className="hover:bg-gray-50 dark:hover:bg-slate-800/50">
-                            <td className="px-6 py-5 whitespace-nowrap">
-                              <div className="flex items-center gap-3">
-                                <Users className="h-5 w-5 text-purple-600 dark:text-purple-400 flex-shrink-0" />
-                                <span className="font-medium text-base text-slate-900 dark:text-slate-100">{sales.employee_name}</span>
-                              </div>
-                            </td>
-                            <td className="px-6 py-5 text-right text-base whitespace-nowrap text-slate-900 dark:text-slate-200">
-                              {sales.total_leads}
-                            </td>
-                            <td className="px-6 py-5 text-right font-semibold text-lg text-purple-900 dark:text-purple-300 whitespace-nowrap font-mono">
-                              {formatCurrency(sales.total_value)}
-                            </td>
-                            <td className="px-6 py-5 text-right text-base text-gray-700 dark:text-slate-300 whitespace-nowrap">
-                              {sales.conversion_rate}%
-                            </td>
-                            <td className="px-6 py-5 text-right whitespace-nowrap">
-                              <div className="flex items-center justify-end gap-4">
-                                <div className="w-40 h-4 bg-gray-200 dark:bg-slate-800 rounded-full overflow-hidden flex-shrink-0">
-                                  <div
-                                    className="h-full bg-purple-600 dark:bg-purple-500 rounded-full transition-all"
-                                    style={{ width: `${valuePercentage}%` }}
-                                  />
-                                </div>
-                                <span className="text-base font-semibold w-16 text-right text-slate-900 dark:text-slate-100">{valuePercentage}%</span>
-                              </div>
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            </div>
-          ) : (
-            <div className="text-center py-8">
-              <p className="text-4xl font-bold text-purple-900 dark:text-purple-300 font-mono">
-                £{(stats?.total_value || 0).toLocaleString()}
-              </p>
-              <p className="text-gray-600 dark:text-slate-400 mt-2">Your total pipeline value</p>
-            </div>
-          )}
         </DialogContent>
       </Dialog>
     </div>

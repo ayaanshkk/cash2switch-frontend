@@ -537,7 +537,7 @@ export default function EnergyCustomersPage() {
     const customersToShow = searchTerm.trim() 
       ? allCustomers  
       : allCustomers.filter(c => !c.is_archived);
-    
+      
     if (searchTerm && searchResults.length > 0) {
       const assignedIds = new Set(customersToShow.map(c => c.client_id));
       const uniqueSearchResults = searchResults.filter(c => !assignedIds.has(c.client_id));
@@ -545,7 +545,7 @@ export default function EnergyCustomersPage() {
         return new Date(a.created_at || new Date()).getTime() - new Date(b.created_at || new Date()).getTime();
       });
     }
-    
+      
     return [...customersToShow].sort((a, b) => {
       return (a.display_order ?? 9999) - (b.display_order ?? 9999);
     });
@@ -612,8 +612,7 @@ export default function EnergyCustomersPage() {
     if (!callbackStatus) return false;
     const config = statusConfig[callbackStatus];
     if (!config) return false;
-    if (config.requiresSold) return isSold === "yes";
-    return config.requiresDate;
+    return config.requiresSold ? isSold === "yes" : config.requiresDate;
   };
 
   // ---------------- Update Status ----------------
@@ -979,10 +978,10 @@ export default function EnergyCustomersPage() {
     const customersToDelete = selectedCustomers.length > 0 
       ? allCustomers.filter(c => selectedCustomers.includes(c.client_id))
       : allCustomers;
-    
+      
     const totalCount = customersToDelete.length;
     if (totalCount === 0) { alert("No customers to delete"); return; }
-    
+      
     const confirmation = prompt(`⚠️ WARNING: This will DELETE ${totalCount} energy customer(s) and RESET the ID numbering.\n\nThis action CANNOT be undone!\n\nType "DELETE ALL" to confirm:`);
     if (confirmation !== "DELETE ALL") { alert("Deletion cancelled."); return; }
 
@@ -1232,13 +1231,13 @@ export default function EnergyCustomersPage() {
   const PaginationControls = () => {
     if (totalPages <= 1) return null;
     return (
-      <div className="flex items-center justify-between py-3 px-4 bg-gray-50 dark:bg-slate-900 border-t border-gray-200 dark:border-slate-800">
+      <div className="flex flex-col sm:flex-row items-center justify-between gap-3 py-3 px-4 bg-gray-50 dark:bg-slate-900 border-t border-gray-200 dark:border-slate-800">
         <div className="text-sm text-gray-700 dark:text-gray-300">
           Showing <span className="font-medium">{(currentPage - 1) * CUSTOMERS_PER_PAGE + 1}</span> to{" "}
           <span className="font-medium">{Math.min(currentPage * CUSTOMERS_PER_PAGE, filteredCustomers.length)}</span>{" "}
           of <span className="font-medium">{filteredCustomers.length}</span> clients
         </div>
-        <div className="flex space-x-1">
+        <div className="flex flex-wrap items-center justify-center space-x-1">
           <Button variant="outline" size="icon" onClick={() => setCurrentPage(1)} disabled={currentPage === 1}>
             <ChevronFirst className="h-4 w-4" />
           </Button>
@@ -1300,15 +1299,15 @@ export default function EnergyCustomersPage() {
   };
 
   return (
-    <div className="w-full max-w-full overflow-x-hidden p-6">
+    <div className="w-full max-w-full overflow-x-hidden p-4 sm:p-6 text-slate-900 dark:text-slate-100">
       <Toaster position="top-right" />
-      <h1 className="mb-6 text-4xl font-semibold tracking-tight text-slate-900 dark:text-slate-100">Renewals</h1>
+      <h1 className="mb-6 text-2xl sm:text-4xl font-semibold tracking-tight text-slate-900 dark:text-slate-100">Renewals</h1>
 
       {/* Service Tabs */}
       <div className="mb-6 flex justify-center">
-        <div className="inline-flex items-center gap-2 rounded-full border border-slate-200 dark:border-slate-800 bg-white/80 dark:bg-slate-900/80 p-1 shadow-sm backdrop-blur">
+        <div className="inline-flex items-center gap-2 rounded-full border border-slate-200 dark:border-slate-800 bg-white/80 dark:bg-slate-900/80 p-1 shadow-sm backdrop-blur w-full sm:w-auto">
           <button type="button" onClick={() => setService("utilities")}
-            className={`px-8 py-3 rounded-full text-base font-semibold transition-all ${
+            className={`flex-1 sm:flex-initial px-6 sm:px-8 py-2.5 sm:py-3 rounded-full text-sm sm:text-base font-semibold transition-all ${
               service === "utilities" 
                 ? "bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900 shadow" 
                 : "text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
@@ -1316,7 +1315,7 @@ export default function EnergyCustomersPage() {
             Utilities
           </button>
           <button type="button" onClick={() => setService("water")}
-            className={`px-8 py-3 rounded-full text-base font-semibold transition-all ${
+            className={`flex-1 sm:flex-initial px-6 sm:px-8 py-2.5 sm:py-3 rounded-full text-sm sm:text-base font-semibold transition-all ${
               service === "water" 
                 ? "bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900 shadow" 
                 : "text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
@@ -1333,7 +1332,7 @@ export default function EnergyCustomersPage() {
             {employeeStats.map((stat) => (
               <div key={stat.employee_id} className="bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-800 rounded-lg p-4 hover:shadow-md transition-shadow">
                 <div className="flex items-center gap-2 mb-2">
-                  <Users className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                  <Users className="h-4 w-4 text-blue-600 dark:text-blue-400 shrink-0" />
                   <span className="text-xs font-medium text-gray-500 dark:text-gray-400 truncate">{stat.employee_name}</span>
                 </div>
                 <div className="flex items-baseline gap-2">
@@ -1350,7 +1349,7 @@ export default function EnergyCustomersPage() {
         <div className="mb-6">
           <div className="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-950/40 dark:to-indigo-950/40 border border-blue-200 dark:border-blue-900 rounded-lg p-4">
             <div className="flex items-center gap-3">
-              <div className="bg-blue-600 dark:bg-blue-500 p-2 rounded-lg"><Users className="h-5 w-5 text-white" /></div>
+              <div className="bg-blue-600 dark:bg-blue-500 p-2 rounded-lg shrink-0"><Users className="h-5 w-5 text-white" /></div>
               <div>
                 <p className="text-sm text-gray-600 dark:text-gray-400">Your Customers</p>
                 <p className="text-2xl font-bold text-gray-900 dark:text-slate-100">{allCustomers.length}</p>
@@ -1362,7 +1361,7 @@ export default function EnergyCustomersPage() {
 
       {error && (
         <div className="mb-6 p-4 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900 rounded-lg flex items-start gap-3">
-          <AlertCircle className="h-5 w-5 text-red-600 dark:text-red-400 flex-shrink-0 mt-0.5" />
+          <AlertCircle className="h-5 w-5 text-red-600 dark:text-red-400 shrink-0 mt-0.5" />
           <div className="flex-1">
             <h3 className="text-sm font-medium text-red-800 dark:text-red-300">Error Loading Clients</h3>
             <p className="mt-1 text-sm text-red-700 dark:text-red-400">{error}</p>
@@ -1373,9 +1372,9 @@ export default function EnergyCustomersPage() {
 
       {selectedCustomers.length > 0 && (
         <div className="mb-4 p-4 bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-900 rounded-lg">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
             <div className="flex items-center gap-3">
-              <UserCheck className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+              <UserCheck className="h-5 w-5 text-blue-600 dark:text-blue-400 shrink-0" />
               <div>
                 <h3 className="font-semibold text-blue-900 dark:text-blue-200">{selectedCustomers.length} client(s) selected</h3>
                 <p className="text-sm text-blue-700 dark:text-blue-400">Click on a salesperson to assign these clients</p>
@@ -1405,16 +1404,16 @@ export default function EnergyCustomersPage() {
 
       {/* Performance Metrics */}
       <div className="mb-6">
-        <div className="bg-white dark:bg-slate-900 rounded-lg border border-gray-200 dark:border-slate-800 p-6">
+        <div className="bg-white dark:bg-slate-900 rounded-lg border border-gray-200 dark:border-slate-800 p-4 sm:p-6">
           <div className="mb-4">
             <h2 className="text-xl font-semibold text-gray-900 dark:text-slate-100">Renewal Performance</h2>
             <p className="text-sm text-gray-600 dark:text-gray-400">{isAdmin ? "Overall renewal success metrics" : "Your renewal success metrics"}</p>
           </div>
 
           {/* Period selector */}
-          <div className="flex items-center gap-2 mb-4">
-            <span className="text-xs font-medium text-gray-500 dark:text-gray-400">Period:</span>
-            <div className="flex items-center gap-1 rounded-xl border border-gray-200 dark:border-slate-800 bg-gray-50 dark:bg-slate-800/60 p-1">
+          <div className="flex items-center gap-2 mb-4 overflow-x-auto pb-2">
+            <span className="text-xs font-medium text-gray-500 dark:text-gray-400 shrink-0">Period:</span>
+            <div className="flex items-center gap-1 rounded-xl border border-gray-200 dark:border-slate-800 bg-gray-50 dark:bg-slate-800/60 p-1 shrink-0">
               {(['daily', 'weekly', 'monthly', 'alltime'] as const).map((p) => (
                 <button
                   key={p}
@@ -1432,45 +1431,45 @@ export default function EnergyCustomersPage() {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 lg:grid-cols-4 gap-4">
-            <div className="text-center p-6 border rounded-lg bg-green-50 dark:bg-green-950/30 border-green-200 dark:border-green-900/60 cursor-pointer hover:shadow-md transition-shadow" onClick={() => handlePerformanceClick('renewed')}>
-              <div className="text-4xl font-bold text-green-700 dark:text-green-300">{performanceStats.renewed}</div>
-              <div className="text-sm text-green-600 dark:text-green-400 mt-2 font-medium">Renewed</div>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+            <div className="text-center p-4 sm:p-6 border rounded-lg bg-green-50 dark:bg-green-950/30 border-green-200 dark:border-green-900/60 cursor-pointer hover:shadow-md transition-shadow" onClick={() => handlePerformanceClick('renewed')}>
+              <div className="text-3xl sm:text-4xl font-bold text-green-700 dark:text-green-300">{performanceStats.renewed}</div>
+              <div className="text-xs sm:text-sm text-green-600 dark:text-green-400 mt-2 font-medium">Renewed</div>
               <div className="mt-3"><CheckCircle2 className="h-6 w-6 text-green-600 dark:text-green-400 mx-auto" /></div>
             </div>
-            <div className="text-center p-6 border rounded-lg bg-blue-50 dark:bg-blue-950/30 border-blue-200 dark:border-blue-900/60 cursor-pointer hover:shadow-md transition-shadow" onClick={() => handlePerformanceClick('in_progress')}>
-              <div className="text-4xl font-bold text-blue-700 dark:text-blue-300">{performanceStats.in_progress}</div>
-              <div className="text-sm text-blue-600 dark:text-blue-400 mt-2 font-medium">In Progress</div>
+            <div className="text-center p-4 sm:p-6 border rounded-lg bg-blue-50 dark:bg-blue-950/30 border-blue-200 dark:border-blue-900/60 cursor-pointer hover:shadow-md transition-shadow" onClick={() => handlePerformanceClick('in_progress')}>
+              <div className="text-3xl sm:text-4xl font-bold text-blue-700 dark:text-blue-300">{performanceStats.in_progress}</div>
+              <div className="text-xs sm:text-sm text-blue-600 dark:text-blue-400 mt-2 font-medium">In Progress</div>
               <div className="mt-3"><TrendingUp className="h-6 w-6 text-blue-600 dark:text-blue-400 mx-auto" /></div>
             </div>
-            <div className="text-center p-6 border rounded-lg bg-teal-50 dark:bg-teal-950/30 border-teal-200 dark:border-teal-900/60 cursor-pointer hover:shadow-md transition-shadow" onClick={() => handlePerformanceClick('renewed_directly')}>
-              <div className="text-4xl font-bold text-teal-700 dark:text-teal-300">{performanceStats.renewed_directly}</div>
-              <div className="text-sm text-teal-600 dark:text-teal-400 mt-2 font-medium">Renewed Directly</div>
+            <div className="text-center p-4 sm:p-6 border rounded-lg bg-teal-50 dark:bg-teal-950/30 border-teal-200 dark:border-teal-900/60 cursor-pointer hover:shadow-md transition-shadow" onClick={() => handlePerformanceClick('renewed_directly')}>
+              <div className="text-3xl sm:text-4xl font-bold text-teal-700 dark:text-teal-300">{performanceStats.renewed_directly}</div>
+              <div className="text-xs sm:text-sm text-teal-600 dark:text-teal-400 mt-2 font-medium">Renewed Directly</div>
               <div className="mt-3"><CheckCircle2 className="h-6 w-6 text-teal-600 dark:text-teal-400 mx-auto" /></div>
             </div>
-            <div className="text-center p-6 border rounded-lg bg-purple-50 dark:bg-purple-950/30 border-purple-200 dark:border-purple-900/60 cursor-pointer hover:shadow-md transition-shadow" onClick={() => handlePerformanceClick('end_date_changed')}>
-              <div className="text-4xl font-bold text-purple-700 dark:text-purple-300">{performanceStats.end_date_changed}</div>
-              <div className="text-sm text-purple-600 dark:text-purple-400 mt-2 font-medium">End Date Changed</div>
+            <div className="text-center p-4 sm:p-6 border rounded-lg bg-purple-50 dark:bg-purple-950/30 border-purple-200 dark:border-purple-900/60 cursor-pointer hover:shadow-md transition-shadow" onClick={() => handlePerformanceClick('end_date_changed')}>
+              <div className="text-3xl sm:text-4xl font-bold text-purple-700 dark:text-purple-300">{performanceStats.end_date_changed}</div>
+              <div className="text-xs sm:text-sm text-purple-600 dark:text-purple-400 mt-2 font-medium">End Date Changed</div>
               <div className="mt-3"><Calendar className="h-6 w-6 text-purple-600 dark:text-purple-400 mx-auto" /></div>
             </div>
-            <div className="text-center p-6 border rounded-lg bg-yellow-50 dark:bg-yellow-950/30 border-yellow-200 dark:border-yellow-900/60 cursor-pointer hover:shadow-md transition-shadow" onClick={() => handlePerformanceClick('priced')}>
-              <div className="text-4xl font-bold text-yellow-700 dark:text-yellow-300">{performanceStats.priced}</div>
-              <div className="text-sm text-yellow-600 dark:text-yellow-400 mt-2 font-medium">Priced</div>
+            <div className="text-center p-4 sm:p-6 border rounded-lg bg-yellow-50 dark:bg-yellow-950/30 border-yellow-200 dark:border-yellow-900/60 cursor-pointer hover:shadow-md transition-shadow" onClick={() => handlePerformanceClick('priced')}>
+              <div className="text-3xl sm:text-4xl font-bold text-yellow-700 dark:text-yellow-300">{performanceStats.priced}</div>
+              <div className="text-xs sm:text-sm text-yellow-600 dark:text-yellow-400 mt-2 font-medium">Priced</div>
               <div className="mt-3"><TrendingUp className="h-6 w-6 text-yellow-600 dark:text-yellow-400 mx-auto" /></div>
             </div>
-            <div className="text-center p-6 border rounded-lg bg-cyan-50 dark:bg-cyan-950/30 border-cyan-200 dark:border-cyan-900/60 cursor-pointer hover:shadow-md transition-shadow" onClick={() => handlePerformanceClick('not_due')}>
-              <div className="text-4xl font-bold text-cyan-700 dark:text-cyan-300">{performanceStats.not_due}</div>
-              <div className="text-sm text-cyan-600 dark:text-cyan-400 mt-2 font-medium">Not Due (365+)</div>
+            <div className="text-center p-4 sm:p-6 border rounded-lg bg-cyan-50 dark:bg-cyan-950/30 border-cyan-200 dark:border-cyan-900/60 cursor-pointer hover:shadow-md transition-shadow" onClick={() => handlePerformanceClick('not_due')}>
+              <div className="text-3xl sm:text-4xl font-bold text-cyan-700 dark:text-cyan-300">{performanceStats.not_due}</div>
+              <div className="text-xs sm:text-sm text-cyan-600 dark:text-cyan-400 mt-2 font-medium">Not Due (365+)</div>
               <div className="mt-3"><Calendar className="h-6 w-6 text-cyan-600 dark:text-cyan-400 mx-auto" /></div>
             </div>
-            <div className="text-center p-6 border rounded-lg bg-orange-50 dark:bg-orange-950/30 border-orange-200 dark:border-orange-900/60 cursor-pointer hover:shadow-md transition-shadow" onClick={() => handlePerformanceClick('not_contacted')}>
-              <div className="text-4xl font-bold text-orange-700 dark:text-orange-300">{performanceStats.not_contacted}</div>
-              <div className="text-sm text-orange-600 dark:text-orange-400 mt-2 font-medium">Not Contacted</div>
+            <div className="text-center p-4 sm:p-6 border rounded-lg bg-orange-50 dark:bg-orange-950/30 border-orange-200 dark:border-orange-900/60 cursor-pointer hover:shadow-md transition-shadow" onClick={() => handlePerformanceClick('not_contacted')}>
+              <div className="text-3xl sm:text-4xl font-bold text-orange-700 dark:text-orange-300">{performanceStats.not_contacted}</div>
+              <div className="text-xs sm:text-sm text-orange-600 dark:text-orange-400 mt-2 font-medium">Not Contacted</div>
               <div className="mt-3"><AlertTriangle className="h-6 w-6 text-orange-600 dark:text-orange-400 mx-auto" /></div>
             </div>
-            <div className="text-center p-6 border rounded-lg bg-red-50 dark:bg-red-950/30 border-red-200 dark:border-red-900/60 cursor-pointer hover:shadow-md transition-shadow" onClick={() => handlePerformanceClick('lost')}>
-              <div className="text-4xl font-bold text-red-700 dark:text-red-300">{performanceStats.lost}</div>
-              <div className="text-sm text-red-600 dark:text-red-400 mt-2 font-medium">Lost</div>
+            <div className="text-center p-4 sm:p-6 border rounded-lg bg-red-50 dark:bg-red-950/30 border-red-200 dark:border-red-900/60 cursor-pointer hover:shadow-md transition-shadow" onClick={() => handlePerformanceClick('lost')}>
+              <div className="text-3xl sm:text-4xl font-bold text-red-700 dark:text-red-300">{performanceStats.lost}</div>
+              <div className="text-xs sm:text-sm text-red-600 dark:text-red-400 mt-2 font-medium">Lost</div>
               <div className="mt-3"><TrendingDown className="h-6 w-6 text-red-600 dark:text-red-400 mx-auto" /></div>
             </div>
           </div>
@@ -1507,22 +1506,22 @@ export default function EnergyCustomersPage() {
               <div className="space-y-3 py-4">
                 {performanceFilteredCustomers.map((customer) => (
                   <div key={customer.client_id}
-                    className="p-5 border border-gray-200 dark:border-slate-800 bg-white dark:bg-slate-900 rounded-xl hover:bg-gray-50 dark:hover:bg-slate-800/60 hover:shadow-sm cursor-pointer transition-all"
+                    className="p-4 sm:p-5 border border-gray-200 dark:border-slate-800 bg-white dark:bg-slate-900 rounded-xl hover:bg-gray-50 dark:hover:bg-slate-800/60 hover:shadow-sm cursor-pointer transition-all"
                     onClick={() => { setShowPerformanceModal(false); window.open(`/dashboard/renewals/${customer.client_id}`, "_blank"); }}>
-                    <div className="flex items-start justify-between gap-4 mb-4">
+                    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-4">
                       <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-2">
-                          <h3 className="text-lg font-bold text-gray-900 dark:text-slate-100 truncate">{customer.business_name}</h3>
+                        <div className="flex items-center gap-2 mb-2 flex-wrap">
+                          <h3 className="text-base sm:text-lg font-bold text-gray-900 dark:text-slate-100 truncate">{customer.business_name}</h3>
                           {customer.status && (
-                            <Badge variant="outline" className={`text-xs flex-shrink-0 ${getStatusColor(customer.status)}`}>
+                            <Badge variant="outline" className={`text-xs shrink-0 ${getStatusColor(customer.status)}`}>
                               {getStatusLabel(customer.status)}
                             </Badge>
                           )}
                         </div>
-                        <p className="text-sm text-gray-600 dark:text-gray-400 truncate">{customer.contact_person} · {customer.phone}</p>
+                        <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400 truncate">{customer.contact_person} · {customer.phone}</p>
                       </div>
-                      <div className="text-right flex-shrink-0">
-                        {customer.annual_usage && <p className="text-sm font-semibold text-gray-700 dark:text-gray-300">{formatUsage(customer.annual_usage)}</p>}
+                      <div className="text-left sm:text-right shrink-0">
+                        {customer.annual_usage && <p className="text-xs sm:text-sm font-semibold text-gray-700 dark:text-gray-300">{formatUsage(customer.annual_usage)}</p>}
                         {customer.end_date && <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">End: {formatDate(customer.end_date)}</p>}
                       </div>
                     </div>
@@ -1538,7 +1537,7 @@ export default function EnergyCustomersPage() {
                       <div className="min-w-0">
                         <p className="text-xs text-gray-500 dark:text-gray-400 uppercase mb-1">Assigned To</p>
                         <p className="font-semibold text-sm text-purple-700 dark:text-purple-400 flex items-center gap-1 truncate">
-                          <Users className="h-3 w-3 flex-shrink-0" />
+                          <Users className="h-3 w-3 shrink-0" />
                           <span className="truncate">{customer.assigned_to_name || 'Unassigned'}</span>
                         </p>
                       </div>
@@ -1548,488 +1547,430 @@ export default function EnergyCustomersPage() {
               </div>
             )}
           </div>
-          <div className="flex justify-end gap-2 pt-4 border-t border-gray-200 dark:border-slate-800">
+          <div className="flex justify-end gap-2 pt-4 border-t border-gray-200 dark:border-slate-800 shrink-0">
             <Button variant="outline" onClick={() => setShowPerformanceModal(false)}>Close</Button>
           </div>
         </DialogContent>
       </Dialog>
 
-{/* Search and Filter Bar */}
-<div className="mb-6 flex w-full items-center gap-2">
-
-  {/* Search */}
-  <div className="relative min-w-0 flex-1">
-    <Search className="text-muted-foreground absolute left-2.5 top-2.5 h-4 w-4" />
-
-    <Input
-      placeholder="Search clients..."
-      className="h-9 w-full pl-8 text-xs"
-      value={searchTerm}
-      onChange={(e) => setSearchTerm(e.target.value)}
-    />
-
-    {isSearching && (
-      <div className="absolute right-2 top-2.5">
-        <div className="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-      </div>
-    )}
-  </div>
-
-  {/* Supplier Filter */}
-  <DropdownMenu>
-    <DropdownMenuTrigger asChild>
-      <Button
-        variant="outline"
-        size="sm"
-        className="h-9 min-w-0 flex-1 justify-between gap-1 text-xs"
-      >
-        <Filter className="h-3.5 w-3.5 shrink-0" />
-
-        <span className="truncate">
-          {supplierFilter === "All"
-            ? "All Suppliers"
-            : getSupplierName(supplierFilter as number)}
-        </span>
-
-        <ChevronDown className="h-3 w-3 shrink-0 opacity-60" />
-      </Button>
-    </DropdownMenuTrigger>
-
-    <DropdownMenuContent>
-      <DropdownMenuItem onClick={() => setSupplierFilter("All")}>
-        All Suppliers
-      </DropdownMenuItem>
-
-      {suppliers.map((supplier) => (
-        <DropdownMenuItem
-          key={supplier.supplier_id}
-          onClick={() => setSupplierFilter(supplier.supplier_id)}
-        >
-          {supplier.supplier_name}
-        </DropdownMenuItem>
-      ))}
-    </DropdownMenuContent>
-  </DropdownMenu>
-
-  {/* Status Filter */}
-  <DropdownMenu>
-    <DropdownMenuTrigger asChild>
-      <Button
-        variant="outline"
-        size="sm"
-        className="h-9 min-w-0 flex-1 justify-between gap-1 text-xs"
-      >
-        <Filter className="h-3.5 w-3.5 shrink-0" />
-
-        <span className="truncate">
-          {statusFilter === "All"
-            ? "All Status"
-            : getStatusLabel(statusFilter as string)}
-        </span>
-
-        <ChevronDown className="h-3 w-3 shrink-0 opacity-60" />
-      </Button>
-    </DropdownMenuTrigger>
-
-    <DropdownMenuContent>
-      <DropdownMenuItem onClick={() => setStatusFilter("All")}>
-        All Status
-      </DropdownMenuItem>
-
-      {STATUS_OPTIONS.map((status) => (
-        <DropdownMenuItem
-          key={status.value}
-          onClick={() => setStatusFilter(status.value)}
-        >
-          {status.label}
-        </DropdownMenuItem>
-      ))}
-    </DropdownMenuContent>
-  </DropdownMenu>
-
-  {/* All Contracts */}
-  <Select
-    value={endDateFilter}
-    onValueChange={(value: any) => setEndDateFilter(value)}
-  >
-    <SelectTrigger className="h-9 min-w-0 flex-1 text-xs">
-      <SelectValue />
-    </SelectTrigger>
-
-    <SelectContent>
-      <SelectItem value="all">All Contracts</SelectItem>
-      <SelectItem value="365">Ending in 0-365 days</SelectItem>
-      <SelectItem value="30">Ending in 30 days</SelectItem>
-      <SelectItem value="60">Ending in 31-60 days</SelectItem>
-      <SelectItem value="90">Ending in 61-90 days</SelectItem>
-      <SelectItem value="90+">Ending in 90+ days</SelectItem>
-      <SelectItem value="expired">Expired Contracts</SelectItem>
-    </SelectContent>
-  </Select>
-
-  {/* Usage */}
-  <Select
-    value={usageSort}
-    onValueChange={(value: any) => setUsageSort(value)}
-  >
-    <SelectTrigger className="h-9 min-w-0 flex-1 text-xs">
-      <SelectValue />
-    </SelectTrigger>
-
-    <SelectContent>
-      <SelectItem value="none">Usage: Default</SelectItem>
-      <SelectItem value="low-high">Usage: Low to High</SelectItem>
-      <SelectItem value="high-low">Usage: High to Low</SelectItem>
-    </SelectContent>
-  </Select>
-
-  {/* All Filters */}
-  <Button
-    variant="outline"
-    size="sm"
-    onClick={() => setShowFilterSidebar(true)}
-    className="relative h-9 min-w-0 flex-1 gap-1.5 text-xs"
-  >
-    <Filter className="h-3.5 w-3.5 shrink-0" />
-
-    <span className="truncate">All Filters</span>
-
-    {isAdmin && salespersonFilter !== "All" && (
-      <span className="absolute -right-1 -top-1 h-2.5 w-2.5 rounded-full bg-black dark:bg-white" />
-    )}
-  </Button>
-
-  {/* Download Renewals */}
-  {isAdmin && (
-    <Button
-      onClick={downloadRenewalsCsv}
-      variant="outline"
-      size="sm"
-      className="h-9 min-w-0 flex-1 text-xs"
-      disabled={filteredCustomers.length === 0}
-    >
-      <Download className="mr-1.5 h-3.5 w-3.5 shrink-0" />
-      <span className="truncate">Download Renewals</span>
-    </Button>
-  )}
-
-  {/* Bulk Import */}
-  <Button
-    variant="outline"
-    size="sm"
-    className="h-9 min-w-0 flex-1 text-xs"
-    onClick={() => {
-      setBulkImportResult(null);
-      setDuplicateDetails([]);
-      setShowAllDuplicates(false);
-      setBulkImportFile(null);
-      setAssignToEmployee(null);
-      setImportProgress(0);
-      setBulkImporting(false);
-      setShowImportModal(true);
-    }}
-  >
-    <Upload className="mr-1.5 h-3.5 w-3.5 shrink-0" />
-    <span className="truncate">Bulk Import</span>
-  </Button>
-
-  {/* Add Renewal */}
-  <Button
-    size="sm"
-    className="h-9 min-w-0 flex-1 text-xs"
-    onClick={() => setShowCreateModal(true)}
-  >
-    <Plus className="mr-1.5 h-3.5 w-3.5 shrink-0" />
-    <span className="truncate">Add Renewal</span>
-  </Button>
-
-  {/* Delete Selected */}
-  {selectedCustomers.length > 0 && user && (
-    <Button
-      size="sm"
-      className="h-9 min-w-0 flex-1 text-xs"
-      onClick={bulkDeleteCustomers}
-      variant="destructive"
-    >
-      <Trash2 className="mr-1.5 h-3.5 w-3.5 shrink-0" />
-      <span className="truncate">
-        Delete Selected ({selectedCustomers.length})
-      </span>
-    </Button>
-  )}
-
-
-{/* All Filters Sidebar */}
-{showFilterSidebar && (
-  <>
-    {/* Overlay */}
-    <div
-      className="fixed inset-0 z-40 bg-black/40 dark:bg-black/60"
-      onClick={() => setShowFilterSidebar(false)}
-    />
-
-    {/* Sidebar */}
-    <div className="fixed right-0 top-0 z-50 flex h-screen w-[420px] flex-col border-l border-border bg-background text-foreground shadow-2xl">
-
-      {/* Header */}
-      <div className="flex h-[64px] shrink-0 items-center justify-between border-b border-border px-6">
-        <h2 className="text-lg font-semibold text-foreground">
-          All Filters
-        </h2>
-
-        <button
-          type="button"
-          onClick={() => setShowFilterSidebar(false)}
-          className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-        >
-          <X className="h-5 w-5" />
-        </button>
-      </div>
-
-      {/* Filter Content */}
-      <div className="flex-1 overflow-y-auto px-6 py-6">
-
-        {/* Salesperson */}
-        {isAdmin && (
-          <div className="mb-6">
-            <label className="mb-2 block text-sm font-medium text-foreground">
-              Salesperson
-            </label>
-
-            <Select
-              value={salespersonFilter.toString()}
-              onValueChange={(value) =>
-                setSalespersonFilter(
-                  value === "All" ? "All" : Number(value)
-                )
-              }
-            >
-              <SelectTrigger className="h-10 w-full border-border bg-background text-foreground">
-                <SelectValue placeholder="All Salespersons" />
-              </SelectTrigger>
-
-              <SelectContent>
-                <SelectItem value="All">
-                  All Salespersons
-                </SelectItem>
-
-                {employees.map((employee) => (
-                  <SelectItem
-                    key={employee.employee_id}
-                    value={employee.employee_id.toString()}
-                  >
-                    {employee.employee_name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+      {/* Search and Filter Bar */}
+      <div className="mb-6 grid grid-cols-1 gap-3 xl:grid-cols-[minmax(0,1fr)_auto]">
+        <div className="grid min-w-0 grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-3">
+          {/* Search */}
+          <div className="relative min-w-0 sm:col-span-2 xl:col-span-1">
+            <Search className="text-muted-foreground absolute left-2.5 top-2.5 h-4 w-4" />
+            <Input
+              placeholder="Search clients..."
+              className="pl-8"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
           </div>
-        )}
 
-        {/* Divider */}
-        <div className="mb-6 border-t border-border" />
-
-        {/* Quick Filters */}
-        <div className="mb-4 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-          Quick Filters
-        </div>
-
-        {/* Supplier */}
-        <div className="mb-6">
-          <label className="mb-2 block text-sm font-medium text-foreground">
-            Supplier
-          </label>
-
-          <Select
-            value={
-              supplierFilter === "All"
-                ? "All"
-                : String(supplierFilter)
-            }
-            onValueChange={(value) =>
-              setSupplierFilter(
-                value === "All" ? "All" : Number(value)
-              )
-            }
-          >
-            <SelectTrigger className="h-10 w-full border-border bg-background text-foreground">
-              <SelectValue placeholder="All Suppliers" />
-            </SelectTrigger>
-
-            <SelectContent>
-              <SelectItem value="All">
+          {/* Supplier Filter */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="outline"
+                className="min-w-0 justify-between w-full"
+              >
+                <Filter className="mr-2 h-4 w-4 shrink-0" />
+                <span className="truncate">
+                  {supplierFilter === "All"
+                    ? "All Suppliers"
+                    : getSupplierName(supplierFilter as number)}
+                </span>
+                <ChevronDown className="ml-1 h-3 w-3 shrink-0 opacity-60" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent>
+              <DropdownMenuItem onClick={() => setSupplierFilter("All")}>
                 All Suppliers
-              </SelectItem>
-
+              </DropdownMenuItem>
               {suppliers.map((supplier) => (
-                <SelectItem
+                <DropdownMenuItem
                   key={supplier.supplier_id}
-                  value={supplier.supplier_id.toString()}
+                  onClick={() => setSupplierFilter(supplier.supplier_id)}
                 >
                   {supplier.supplier_name}
-                </SelectItem>
+                </DropdownMenuItem>
               ))}
-            </SelectContent>
-          </Select>
-        </div>
+            </DropdownMenuContent>
+          </DropdownMenu>
 
-        {/* Status */}
-        <div className="mb-6">
-          <label className="mb-2 block text-sm font-medium text-foreground">
-            Status
-          </label>
-
-          <Select
-            value={statusFilter}
-            onValueChange={(value) =>
-              setStatusFilter(value)
-            }
-          >
-            <SelectTrigger className="h-10 w-full border-border bg-background text-foreground">
-              <SelectValue placeholder="All Status" />
-            </SelectTrigger>
-
-            <SelectContent>
-              <SelectItem value="All">
+          {/* Status Filter */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="outline"
+                className="min-w-0 justify-between w-full"
+              >
+                <Filter className="mr-2 h-4 w-4 shrink-0" />
+                <span className="truncate">
+                  {statusFilter === "All"
+                    ? "All Status"
+                    : getStatusLabel(statusFilter as string)}
+                </span>
+                <ChevronDown className="ml-1 h-3 w-3 shrink-0 opacity-60" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent>
+              <DropdownMenuItem onClick={() => setStatusFilter("All")}>
                 All Status
-              </SelectItem>
-
+              </DropdownMenuItem>
               {STATUS_OPTIONS.map((status) => (
-                <SelectItem
+                <DropdownMenuItem
                   key={status.value}
-                  value={status.value}
+                  onClick={() => setStatusFilter(status.value)}
                 >
                   {status.label}
-                </SelectItem>
+                </DropdownMenuItem>
               ))}
-            </SelectContent>
-          </Select>
-        </div>
+            </DropdownMenuContent>
+          </DropdownMenu>
 
-        {/* Contract End Date */}
-        <div className="mb-6">
-          <label className="mb-2 block text-sm font-medium text-foreground">
-            Contract End Date
-          </label>
-
+          {/* All Contracts */}
           <Select
             value={endDateFilter}
-            onValueChange={(value: any) =>
-              setEndDateFilter(value)
-            }
+            onValueChange={(value: any) => setEndDateFilter(value)}
           >
-            <SelectTrigger className="h-10 w-full border-border bg-background text-foreground">
-              <SelectValue placeholder="All Contracts" />
-            </SelectTrigger>
-
+            <SelectTrigger className="w-full min-w-0"><SelectValue /></SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">
-                All Contracts
-              </SelectItem>
-
-              <SelectItem value="365">
-                Ending in 0-365 days
-              </SelectItem>
-
-              <SelectItem value="30">
-                Ending in 30 days
-              </SelectItem>
-
-              <SelectItem value="60">
-                Ending in 31-60 days
-              </SelectItem>
-
-              <SelectItem value="90">
-                Ending in 61-90 days
-              </SelectItem>
-
-              <SelectItem value="90+">
-                Ending in 90+ days
-              </SelectItem>
-
-              <SelectItem value="expired">
-                Expired Contracts
-              </SelectItem>
+              <SelectItem value="all">All Contracts</SelectItem>
+              <SelectItem value="365">Ending in 0-365 days</SelectItem>
+              <SelectItem value="30">Ending in 30 days</SelectItem>
+              <SelectItem value="60">Ending in 31-60 days</SelectItem>
+              <SelectItem value="90">Ending in 61-90 days</SelectItem>
+              <SelectItem value="90+">Ending in 90+ days</SelectItem>
+              <SelectItem value="expired">Expired Contracts</SelectItem>
             </SelectContent>
           </Select>
-        </div>
 
-        {/* Annual Usage Sort */}
-        <div className="mb-6">
-          <label className="mb-2 block text-sm font-medium text-foreground">
-            Annual Usage Sort
-          </label>
-
+          {/* Usage */}
           <Select
             value={usageSort}
-            onValueChange={(value: any) =>
-              setUsageSort(value)
-            }
+            onValueChange={(value: any) => setUsageSort(value)}
           >
-            <SelectTrigger className="h-10 w-full border-border bg-background text-foreground">
-              <SelectValue placeholder="Default" />
-            </SelectTrigger>
-
+            <SelectTrigger className="w-full min-w-0"><SelectValue /></SelectTrigger>
             <SelectContent>
-              <SelectItem value="none">
-                Default
-              </SelectItem>
-
-              <SelectItem value="low-high">
-                Low to High
-              </SelectItem>
-
-              <SelectItem value="high-low">
-                High to Low
-              </SelectItem>
+              <SelectItem value="none">Usage: Default</SelectItem>
+              <SelectItem value="low-high">Usage: Low to High</SelectItem>
+              <SelectItem value="high-low">Usage: High to Low</SelectItem>
             </SelectContent>
           </Select>
         </div>
 
+        <div className="flex flex-wrap items-center gap-2 xl:justify-end">
+          {/* All Filters */}
+          <Button
+            variant="outline"
+            onClick={() => setShowFilterSidebar(true)}
+            className="relative flex-none whitespace-nowrap"
+          >
+            <Filter className="mr-2 h-4 w-4" />
+            All Filters
+            {isAdmin && salespersonFilter !== "All" && (
+              <span className="absolute -right-1 -top-1 h-2.5 w-2.5 rounded-full bg-black dark:bg-white" />
+            )}
+          </Button>
+
+          {/* Download Renewals */}
+          {isAdmin && (
+            <Button
+              onClick={downloadRenewalsCsv}
+              variant="outline"
+              disabled={filteredCustomers.length === 0}
+              className="flex-none whitespace-nowrap"
+            >
+              <Download className="mr-2 h-4 w-4 shrink-0" />
+              Download Renewals
+            </Button>
+          )}
+
+          {/* Bulk Import */}
+          <Button
+            variant="outline"
+            onClick={() => {
+              setBulkImportResult(null);
+              setDuplicateDetails([]);
+              setShowAllDuplicates(false);
+              setBulkImportFile(null);
+              setAssignToEmployee(null);
+              setImportProgress(0);
+              setBulkImporting(false);
+              setShowImportModal(true);
+            }}
+            className="flex-none whitespace-nowrap"
+          >
+            <Upload className="mr-2 h-4 w-4 shrink-0" />
+            Bulk Import
+          </Button>
+
+          {/* Add Renewal */}
+          <Button
+            onClick={() => setShowCreateModal(true)}
+            className="w-full sm:w-auto"
+          >
+            <Plus className="mr-2 h-4 w-4 shrink-0" />
+            Add Renewal
+          </Button>
+
+          {/* Delete Selected */}
+          {selectedCustomers.length > 0 && user && (
+            <Button
+              onClick={bulkDeleteCustomers}
+              variant="destructive"
+              className="w-full sm:w-auto"
+            >
+              <Trash2 className="mr-2 h-4 w-4 shrink-0" />
+              Delete Selected ({selectedCustomers.length})
+            </Button>
+          )}
+        </div>
       </div>
 
-      {/* Footer */}
-      <div className="flex shrink-0 gap-2 border-t border-border bg-background p-4">
+      {/* All Filters Sidebar */}
+      {showFilterSidebar && (
+        <>
+          {/* Overlay */}
+          <div
+            className="fixed inset-0 z-40 bg-black/40 dark:bg-black/60"
+            onClick={() => setShowFilterSidebar(false)}
+          />
 
-        {/* Clear All */}
-        <Button
-          type="button"
-          variant="outline"
-          className="h-10 flex-1 border-border bg-muted text-foreground hover:bg-muted/80"
-          onClick={() => {
-            setSalespersonFilter("All");
-            setSupplierFilter("All");
-            setStatusFilter("All");
-            setEndDateFilter("all");
-            setUsageSort("none");
-          }}
-        >
-          Clear All
-        </Button>
+          {/* Sidebar */}
+          <div className="fixed right-0 top-0 z-50 flex h-screen w-full sm:w-[420px] flex-col border-l border-border bg-background text-foreground shadow-2xl">
+            {/* Header */}
+            <div className="flex h-[64px] shrink-0 items-center justify-between border-b border-border px-6">
+              <h2 className="text-lg font-semibold text-foreground">
+                All Filters
+              </h2>
+              <button
+                type="button"
+                onClick={() => setShowFilterSidebar(false)}
+                className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
 
-        {/* Done */}
-        <Button
-          type="button"
-          className="h-10 flex-1"
-          onClick={() => setShowFilterSidebar(false)}
-        >
-          Done
-        </Button>
+            {/* Filter Content */}
+            <div className="flex-1 overflow-y-auto px-6 py-6">
+              {/* Salesperson */}
+              {isAdmin && (
+                <div className="mb-6">
+                  <label className="mb-2 block text-sm font-medium text-foreground">
+                    Salesperson
+                  </label>
+                  <Select
+                    value={salespersonFilter.toString()}
+                    onValueChange={(value) =>
+                      setSalespersonFilter(
+                        value === "All" ? "All" : Number(value)
+                      )
+                    }
+                  >
+                    <SelectTrigger className="h-10 w-full border-border bg-background text-foreground">
+                      <SelectValue placeholder="All Salespersons" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="All">
+                        All Salespersons
+                      </SelectItem>
+                      {employees.map((employee) => (
+                        <SelectItem
+                          key={employee.employee_id}
+                          value={employee.employee_id.toString()}
+                        >
+                          {employee.employee_name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
 
-      </div>
+              {/* Divider */}
+              <div className="mb-6 border-t border-border" />
 
-    </div>
-  </>
-)}
+              {/* Quick Filters */}
+              <div className="mb-4 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                Quick Filters
+              </div>
 
-</div>
+              {/* Supplier */}
+              <div className="mb-6">
+                <label className="mb-2 block text-sm font-medium text-foreground">
+                  Supplier
+                </label>
+                <Select
+                  value={
+                    supplierFilter === "All"
+                      ? "All"
+                      : String(supplierFilter)
+                  }
+                  onValueChange={(value) =>
+                    setSupplierFilter(
+                      value === "All" ? "All" : Number(value)
+                    )
+                  }
+                >
+                  <SelectTrigger className="h-10 w-full border-border bg-background text-foreground">
+                    <SelectValue placeholder="All Suppliers" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="All">
+                      All Suppliers
+                    </SelectItem>
+                    {suppliers.map((supplier) => (
+                      <SelectItem
+                        key={supplier.supplier_id}
+                        value={supplier.supplier_id.toString()}
+                      >
+                        {supplier.supplier_name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Status */}
+              <div className="mb-6">
+                <label className="mb-2 block text-sm font-medium text-foreground">
+                  Status
+                </label>
+                <Select
+                  value={statusFilter}
+                  onValueChange={(value) =>
+                    setStatusFilter(value)
+                  }
+                >
+                  <SelectTrigger className="h-10 w-full border-border bg-background text-foreground">
+                    <SelectValue placeholder="All Status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="All">
+                      All Status
+                    </SelectItem>
+                    {STATUS_OPTIONS.map((status) => (
+                      <SelectItem
+                        key={status.value}
+                        value={status.value}
+                      >
+                        {status.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Contract End Date */}
+              <div className="mb-6">
+                <label className="mb-2 block text-sm font-medium text-foreground">
+                  Contract End Date
+                </label>
+                <Select
+                  value={endDateFilter}
+                  onValueChange={(value: any) =>
+                    setEndDateFilter(value)
+                  }
+                >
+                  <SelectTrigger className="h-10 w-full border-border bg-background text-foreground">
+                    <SelectValue placeholder="All Contracts" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">
+                      All Contracts
+                    </SelectItem>
+                    <SelectItem value="365">
+                      Ending in 0-365 days
+                    </SelectItem>
+                    <SelectItem value="30">
+                      Ending in 30 days
+                    </SelectItem>
+                    <SelectItem value="60">
+                      Ending in 31-60 days
+                    </SelectItem>
+                    <SelectItem value="90">
+                      Ending in 61-90 days
+                    </SelectItem>
+                    <SelectItem value="90+">
+                      Ending in 90+ days
+                    </SelectItem>
+                    <SelectItem value="expired">
+                      Expired Contracts
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Annual Usage Sort */}
+              <div className="mb-6">
+                <label className="mb-2 block text-sm font-medium text-foreground">
+                  Annual Usage Sort
+                </label>
+                <Select
+                  value={usageSort}
+                  onValueChange={(value: any) =>
+                    setUsageSort(value)
+                  }
+                >
+                  <SelectTrigger className="h-10 w-full border-border bg-background text-foreground">
+                    <SelectValue placeholder="Default" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">
+                      Default
+                    </SelectItem>
+                    <SelectItem value="low-high">
+                      Low to High
+                    </SelectItem>
+                    <SelectItem value="high-low">
+                      High to Low
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="flex shrink-0 gap-2 border-t border-border bg-background p-4">
+              {/* Clear All */}
+              <Button
+                type="button"
+                variant="outline"
+                className="h-10 flex-1 border-border bg-muted text-foreground hover:bg-muted/80"
+                onClick={() => {
+                  setSalespersonFilter("All");
+                  setSupplierFilter("All");
+                  setStatusFilter("All");
+                  setEndDateFilter("all");
+                  setUsageSort("none");
+                }}
+              >
+                Clear All
+              </Button>
+
+              {/* Done */}
+              <Button
+                type="button"
+                className="h-10 flex-1"
+                onClick={() => setShowFilterSidebar(false)}
+              >
+                Done
+              </Button>
+            </div>
+          </div>
+        </>
+      )}
+
       {/* Table */}
       <div className="overflow-hidden rounded-lg border border-gray-200 dark:border-slate-800 bg-white dark:bg-slate-900">
         <div className="overflow-x-auto">
-          <table className="w-full divide-y divide-gray-200 dark:divide-slate-800 table-fixed">
+          <table className="min-w-[1200px] w-full divide-y divide-gray-200 dark:divide-slate-800 table-auto">
             <thead className="bg-gray-50 dark:bg-slate-800/50">
               <tr>
-                <th className="px-3 py-3 text-left w-8">
+                <th className="px-3 py-3 text-left w-10">
                   <input
                     type="checkbox"
                     className="rounded border-gray-300 dark:border-slate-700 dark:bg-slate-800"
@@ -2037,10 +1978,10 @@ export default function EnergyCustomersPage() {
                     onChange={handleSelectAll}
                   />
                 </th>
-                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 dark:text-gray-400 uppercase w-20 border-r-2 border-gray-300 dark:border-slate-700">
+                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 dark:text-gray-400 uppercase w-16 border-r-2 border-gray-300 dark:border-slate-700">
                   ID
                 </th>
-                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 dark:text-gray-400 uppercase w-[9%]">
+                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 dark:text-gray-400 uppercase whitespace-nowrap">
                   Client Name
                 </th>
                 <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 dark:text-gray-400 uppercase w-[11%]">
@@ -2336,7 +2277,7 @@ export default function EnergyCustomersPage() {
           }
         }}
       >
-        <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+        <DialogContent className="max-w-2xl w-[90vw] sm:w-full max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Bulk Import Energy Customers</DialogTitle>
             <DialogDescription>
@@ -2568,7 +2509,7 @@ export default function EnergyCustomersPage() {
         open={showAllDuplicates}
         onOpenChange={setShowAllDuplicates}
       >
-        <DialogContent className="max-w-2xl p-0">
+        <DialogContent className="max-w-2xl w-[90vw] sm:w-full p-0">
           <DialogHeader className="border-b border-gray-200 dark:border-slate-800 px-5 py-4">
             <DialogTitle className="text-red-600 dark:text-red-400">Duplicate Records</DialogTitle>
             <DialogDescription>
@@ -2645,7 +2586,7 @@ export default function EnergyCustomersPage() {
         open={showCallbackModal}
         onOpenChange={setShowCallbackModal}
       >
-        <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-md w-[90vw] sm:w-full max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{callbackStatus ? `Add ${callbackStatus}` : "Add Action"}</DialogTitle>
             <DialogDescription>Record customer interaction and set follow-up</DialogDescription>
@@ -2769,7 +2710,7 @@ export default function EnergyCustomersPage() {
               />
             </div>
           </div>
-          <div className="flex justify-end gap-2">
+          <div className="flex flex-col-reverse sm:flex-row justify-end gap-2">
             <Button variant="outline" onClick={() => setShowCallbackModal(false)} disabled={isSubmittingCallback}>Cancel</Button>
             <Button onClick={handleSubmitCallback} disabled={isSubmittingCallback}>
               {isSubmittingCallback ? (<><Loader2 className="mr-2 h-4 w-4 animate-spin" />Saving...</>) : (callbackStatus ? `Save ${callbackStatus}` : "Save")}
@@ -2780,7 +2721,7 @@ export default function EnergyCustomersPage() {
 
       {/* Assign Modal */}
       <Dialog open={showAssignModal} onOpenChange={setShowAssignModal}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-md w-[90vw] sm:w-full">
           <DialogHeader>
             <DialogTitle>Assign Salesperson</DialogTitle>
             <DialogDescription>Add an optional note about this assignment</DialogDescription>
@@ -2803,7 +2744,7 @@ export default function EnergyCustomersPage() {
               <Textarea className="mt-1" placeholder="Why is this being assigned? Any specific instructions..." value={assignmentNotes} onChange={(e) => setAssignmentNotes(e.target.value)} rows={3} />
             </div>
           </div>
-          <div className="flex justify-end gap-2 mt-4">
+          <div className="flex flex-col-reverse sm:flex-row justify-end gap-2 mt-4">
             <Button variant="outline" onClick={() => { setShowAssignModal(false); setAssignToEmployeeId(""); setAssignmentNotes(""); setAssigningCustomerId(null); }} disabled={isAssigning}>Cancel</Button>
             <Button onClick={handleAssignWithNotes} disabled={isAssigning}>
               {isAssigning ? (<><Loader2 className="mr-2 h-4 w-4 animate-spin" />Assigning...</>) : "Assign"}
@@ -2814,7 +2755,7 @@ export default function EnergyCustomersPage() {
 
       {/* Bulk Assign Modal */}
       <Dialog open={showBulkAssignModal} onOpenChange={setShowBulkAssignModal}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-md w-[90vw] sm:w-full">
           <DialogHeader>
             <DialogTitle>Bulk Assign Customers</DialogTitle>
             <DialogDescription>Assign {selectedCustomers.length} customer(s) to {bulkAssignEmployeeName}</DialogDescription>
@@ -2832,7 +2773,7 @@ export default function EnergyCustomersPage() {
               <Textarea className="mt-1" placeholder="Why are these being assigned? Any specific instructions..." value={bulkAssignmentNotes} onChange={(e) => setBulkAssignmentNotes(e.target.value)} rows={3} />
             </div>
           </div>
-          <div className="flex justify-end gap-2 mt-4">
+          <div className="flex flex-col-reverse sm:flex-row justify-end gap-2 mt-4">
             <Button variant="outline" onClick={() => { setShowBulkAssignModal(false); setBulkAssignmentNotes(""); setBulkAssignEmployeeId(null); setBulkAssignEmployeeName(""); }} disabled={isBulkAssigning}>Cancel</Button>
             <Button onClick={handleBulkAssignWithNotes} disabled={isBulkAssigning}>
               {isBulkAssigning ? (<><Loader2 className="mr-2 h-4 w-4 animate-spin" />Assigning...</>) : `Assign ${selectedCustomers.length} Customer${selectedCustomers.length !== 1 ? 's' : ''}`}
@@ -2840,6 +2781,20 @@ export default function EnergyCustomersPage() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Add Energy Client Modal */}
+      <AddEnergyClientModal
+        isOpen={showCreateModal}
+        onClose={() => setShowCreateModal(false)}
+        onSuccess={() => {
+          setShowCreateModal(false);
+          fetchCustomers();
+          if (isAdmin) fetchEmployeeStats();
+        }}
+        service={service}
+        suppliers={suppliers}
+        employees={employees}
+      />
     </div>
   );
 }

@@ -112,33 +112,33 @@ const NotificationsPage = () => {
   );
 
   return (
-    <div className="container mx-auto py-6 max-w-5xl text-slate-900 dark:text-slate-100">
+    <div className="container mx-auto py-6 px-4 sm:px-6 max-w-5xl text-slate-900 dark:text-slate-100">
       {/* Header */}
       <div className="flex flex-col gap-4 mb-6">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
-            <h1 className="text-3xl font-bold tracking-tight flex items-center gap-3 text-slate-950 dark:text-slate-50">
-              <Bell className="h-8 w-8" />
+            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight flex items-center gap-3 text-slate-950 dark:text-slate-50">
+              <Bell className="h-7 w-7 sm:h-8 sm:w-8 shrink-0" />
               Notifications
             </h1>
-            <p className="text-muted-foreground mt-1 dark:text-slate-400">
+            <p className="text-sm sm:text-base text-muted-foreground mt-1 dark:text-slate-400">
               Contract expiry reminders and assignment notifications
             </p>
           </div>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             {selectedNotifications.size > 0 && (
-              <Button variant="destructive" onClick={deleteSelected} size="sm">
+              <Button variant="destructive" onClick={deleteSelected} size="sm" className="w-full sm:w-auto">
                 <Trash2 className="h-4 w-4 mr-2" />
                 Delete Selected ({selectedNotifications.size})
               </Button>
             )}
-            <Button variant="outline" onClick={markAllAsRead} size="sm" className="dark:border-slate-700 dark:hover:bg-slate-800">
+            <Button variant="outline" onClick={markAllAsRead} size="sm" className="flex-1 sm:flex-none dark:border-slate-700 dark:hover:bg-slate-800">
               <CheckCheck className="h-4 w-4 mr-2" />
               Mark All Read
             </Button>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="sm" className="dark:border-slate-700 dark:hover:bg-slate-800">
+                <Button variant="outline" size="sm" className="flex-1 sm:flex-none dark:border-slate-700 dark:hover:bg-slate-800">
                   <Filter className="h-4 w-4 mr-2" />
                   More Actions
                 </Button>
@@ -174,20 +174,20 @@ const NotificationsPage = () => {
 
       {/* Tabs */}
       <Tabs value={activeTab} onValueChange={v => setActiveTab(v as any)} className="mb-6">
-        <TabsList className="grid w-full grid-cols-5 bg-slate-100 dark:border dark:border-slate-800 dark:bg-slate-900">
-          <TabsTrigger value="all" className="dark:data-[state=active]:bg-slate-800 dark:data-[state=active]:text-slate-100">
-            All <Badge variant="secondary" className="ml-2 dark:bg-slate-800 dark:text-slate-300">{notifications.length}</Badge>
+        <TabsList className="grid w-full grid-cols-5 h-auto p-1 bg-slate-100 dark:border dark:border-slate-800 dark:bg-slate-900">
+          <TabsTrigger value="all" className="py-2 text-xs sm:text-sm dark:data-[state=active]:bg-slate-800 dark:data-[state=active]:text-slate-100">
+            All <Badge variant="secondary" className="ml-1 sm:ml-2 text-[10px] sm:text-xs dark:bg-slate-800 dark:text-slate-300">{notifications.length}</Badge>
           </TabsTrigger>
-          <TabsTrigger value="unread" className="dark:data-[state=active]:bg-slate-800 dark:data-[state=active]:text-slate-100">
-            Unread {unreadCount > 0 && <Badge variant="destructive" className="ml-2">{unreadCount}</Badge>}
+          <TabsTrigger value="unread" className="py-2 text-xs sm:text-sm dark:data-[state=active]:bg-slate-800 dark:data-[state=active]:text-slate-100">
+            Unread {unreadCount > 0 && <Badge variant="destructive" className="ml-1 sm:ml-2 text-[10px] sm:text-xs">{unreadCount}</Badge>}
           </TabsTrigger>
-          <TabsTrigger value="expiry" className="dark:data-[state=active]:bg-slate-800 dark:data-[state=active]:text-slate-100">
-            Expiring {expiryCount > 0 && <Badge className="ml-2 bg-orange-100 text-orange-800 dark:bg-orange-950/60 dark:text-orange-300">{expiryCount}</Badge>}
+          <TabsTrigger value="expiry" className="py-2 text-xs sm:text-sm dark:data-[state=active]:bg-slate-800 dark:data-[state=active]:text-slate-100">
+            Expiring {expiryCount > 0 && <Badge className="ml-1 sm:ml-2 text-[10px] sm:text-xs bg-orange-100 text-orange-800 dark:bg-orange-950/60 dark:text-orange-300">{expiryCount}</Badge>}
           </TabsTrigger>
-          <TabsTrigger value="assignments" className="dark:data-[state=active]:bg-slate-800 dark:data-[state=active]:text-slate-100">
-            Assigned {assignmentCount > 0 && <Badge className="ml-2 bg-blue-100 text-blue-800 dark:bg-blue-950/60 dark:text-blue-300">{assignmentCount}</Badge>}
+          <TabsTrigger value="assignments" className="py-2 text-xs sm:text-sm dark:data-[state=active]:bg-slate-800 dark:data-[state=active]:text-slate-100">
+            Assigned {assignmentCount > 0 && <Badge className="ml-1 sm:ml-2 text-[10px] sm:text-xs bg-blue-100 text-blue-800 dark:bg-blue-950/60 dark:text-blue-300">{assignmentCount}</Badge>}
           </TabsTrigger>
-          <TabsTrigger value="read" className="dark:data-[state=active]:bg-slate-800 dark:data-[state=active]:text-slate-100">Read</TabsTrigger>
+          <TabsTrigger value="read" className="py-2 text-xs sm:text-sm dark:data-[state=active]:bg-slate-800 dark:data-[state=active]:text-slate-100">Read</TabsTrigger>
         </TabsList>
       </Tabs>
 
@@ -217,7 +217,7 @@ const NotificationsPage = () => {
           </CardContent>
         </Card>
       ) : (
-        <ScrollArea className="h-[calc(100vh-340px)]">
+        <ScrollArea className="h-[calc(100vh-340px)] pr-2">
           <div className="space-y-3">
             {filteredNotifications.map((notification: Notification) => {
               const icon = getNotificationIcon(notification);
@@ -237,17 +237,17 @@ const NotificationsPage = () => {
                   } ${isAssignment ? 'border-l-4 border-l-blue-400 bg-blue-50/30 dark:border-l-blue-500 dark:bg-blue-950/20' : ''}`}
                 >
                   <CardContent className="p-4">
-                    <div className="flex items-start gap-4">
+                    <div className="flex items-start gap-3 sm:gap-4">
                       <input
                         type="checkbox"
                         checked={isSelected}
                         onChange={() => toggleSelect(notification.id)}
-                        className="mt-1 h-4 w-4 rounded border-gray-300 cursor-pointer dark:border-slate-700 dark:bg-slate-800 dark:checked:bg-primary"
+                        className="mt-1 h-4 w-4 shrink-0 rounded border-gray-300 cursor-pointer dark:border-slate-700 dark:bg-slate-800 dark:checked:bg-primary"
                       />
-                      <div className="text-3xl flex-shrink-0">{icon}</div>
-                      <div className="flex-1 space-y-3">
+                      <div className="text-2xl sm:text-3xl shrink-0">{icon}</div>
+                      <div className="flex-1 min-w-0 space-y-3">
                         <div className="flex items-start justify-between gap-2">
-                          <div className="flex-1">
+                          <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2 flex-wrap mb-1">
                               {isUrgent && !isAssignment && (
                                 <Badge variant="destructive" className="text-xs">Urgent</Badge>
@@ -258,7 +258,7 @@ const NotificationsPage = () => {
                                 </Badge>
                               )}
                             </div>
-                            <p className={`text-sm whitespace-pre-line text-slate-800 dark:text-slate-200 ${!notification.read ? 'font-semibold text-slate-950 dark:text-slate-50' : ''}`}>
+                            <p className={`text-sm whitespace-pre-line break-words text-slate-800 dark:text-slate-200 ${!notification.read ? 'font-semibold text-slate-950 dark:text-slate-50' : ''}`}>
                               {notification.message}
                             </p>
                           </div>
@@ -267,7 +267,7 @@ const NotificationsPage = () => {
                           )}
                         </div>
 
-                        <div className="flex items-center gap-2 text-xs text-muted-foreground dark:text-slate-400">
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground dark:text-slate-400 flex-wrap">
                           <span>
                             {formatDistanceToNow(new Date(notification.created_at), { addSuffix: true })}
                           </span>
@@ -293,7 +293,7 @@ const NotificationsPage = () => {
                         )}
                       </div>
 
-                      <div className="flex items-center gap-1 flex-shrink-0">
+                      <div className="flex items-center gap-1 shrink-0">
                         {!notification.read && (
                           <Button
                             variant="ghost" size="sm"

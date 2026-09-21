@@ -216,7 +216,7 @@ function DetailCard({ stat, delay }: { stat: LeadStaffStat; delay: number }) {
 
   return (
     <div
-      className="group flex flex-col gap-5 rounded-2xl border border-stone-200/90 bg-white dark:border-stone-800 dark:bg-stone-900/90 p-6 shadow-sm transition-all duration-300 ease-out hover:-translate-y-0.5 hover:border-stone-300 dark:hover:border-stone-700 hover:shadow-md"
+      className="group flex flex-col gap-5 rounded-2xl border border-stone-200/90 bg-white dark:border-stone-800 dark:bg-stone-900/90 p-4 sm:p-6 shadow-sm transition-all duration-300 ease-out hover:-translate-y-0.5 hover:border-stone-300 dark:hover:border-stone-700 hover:shadow-md"
       style={{ animation: `cp-stagger-up 0.45s ${delay}ms cubic-bezier(0.22,1,0.36,1) both` }}
     >
       <div className="flex items-center gap-4">
@@ -242,7 +242,7 @@ function DetailCard({ stat, delay }: { stat: LeadStaffStat; delay: number }) {
         </div>
       </div>
 
-      <div className="grid grid-cols-4 gap-2">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
         {outcomeMeta.map(({ key, label, icon: Icon }) => {
           const val = stat[key as keyof LeadStaffStat] as number;
           const st = OUTCOME_STYLES[key as keyof typeof OUTCOME_STYLES];
@@ -250,7 +250,7 @@ function DetailCard({ stat, delay }: { stat: LeadStaffStat; delay: number }) {
             <div
               key={key}
               className={cn(
-                "flex items-start gap-3 rounded-xl border px-3.5 py-3 shadow-sm transition-shadow duration-200 hover:shadow-md",
+                "flex items-start gap-3 rounded-xl border px-3 py-3 shadow-sm transition-shadow duration-200 hover:shadow-md",
                 st.card,
               )}
             >
@@ -282,7 +282,7 @@ function MemberSpotlight({ stat, delay }: { stat: LeadStaffStat; delay: number }
 
   return (
     <div
-      className="cp-performance-modal-surface relative overflow-hidden rounded-2xl border border-stone-200/90 dark:border-stone-800 bg-white dark:bg-stone-900 p-8 shadow-md"
+      className="cp-performance-modal-surface relative overflow-hidden rounded-2xl border border-stone-200/90 dark:border-stone-800 bg-white dark:bg-stone-900 p-4 sm:p-8 shadow-md"
       style={{ animationDelay: `${delay}ms` }}
     >
       <div className="relative z-[1] flex flex-col gap-8 md:flex-row md:items-start md:gap-10">
@@ -326,7 +326,7 @@ function MemberSpotlight({ stat, delay }: { stat: LeadStaffStat; delay: number }
           </div>
 
           <div
-            className="grid grid-cols-4 gap-3"
+            className="grid grid-cols-2 sm:grid-cols-4 gap-3"
             style={{ animation: `cp-stagger-up 0.5s ${delay + 120}ms cubic-bezier(0.22,1,0.36,1) both` }}
           >
             {outcomeMeta.map(({ key, label, icon: Icon }, i) => {
@@ -471,16 +471,18 @@ export function LeadsPerformanceGrid({ employeeId, service = "energy" }: LeadsPe
 
   return (
     <>
-      <div className="crm-panel rounded-[28px] px-5 pb-5 pt-4 dark:bg-stone-900 dark:border-stone-800">
-        <div className="mb-4 flex items-center gap-3">
-          <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-violet-600 text-white shadow-sm">
-            <Users className="h-4 w-4" />
-          </div>
-          <div>
-            <p className="text-sm font-semibold text-stone-900 dark:text-stone-100">
-              {employeeId ? "My Lead Performance" : "Team Lead Performance"}
-            </p>
-            <p className="text-xs text-stone-500 dark:text-stone-400">{subtitle}</p>
+      <div className="crm-panel rounded-[28px] px-4 sm:px-5 pb-5 pt-4 dark:bg-stone-900 dark:border-stone-800">
+        <div className="mb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-violet-600 text-white shadow-sm shrink-0">
+              <Users className="h-4 w-4" />
+            </div>
+            <div>
+              <p className="text-sm font-semibold text-stone-900 dark:text-stone-100">
+                {employeeId ? "My Lead Performance" : "Team Lead Performance"}
+              </p>
+              <p className="text-xs text-stone-500 dark:text-stone-400">{subtitle}</p>
+            </div>
           </div>
           <button
             type="button"
@@ -488,7 +490,7 @@ export function LeadsPerformanceGrid({ employeeId, service = "energy" }: LeadsPe
               setSelectedEmployeeId(null);
               setOpen(true);
             }}
-            className="group ml-auto inline-flex items-center gap-1.5 rounded-xl border border-stone-200/90 dark:border-stone-800 bg-white dark:bg-stone-800 px-3 py-1.5 text-xs font-medium text-stone-700 dark:text-stone-200 shadow-sm transition hover:border-stone-300 dark:hover:border-stone-700 hover:bg-stone-50 dark:hover:bg-stone-750 hover:text-stone-900 dark:hover:text-white active:scale-[0.98]"
+            className="group inline-flex items-center justify-center gap-1.5 rounded-xl border border-stone-200/90 dark:border-stone-800 bg-white dark:bg-stone-800 px-3 py-1.5 text-xs font-medium text-stone-700 dark:text-stone-200 shadow-sm transition hover:border-stone-300 dark:hover:border-stone-700 hover:bg-stone-50 dark:hover:bg-stone-750 hover:text-stone-900 dark:hover:text-white active:scale-[0.98] w-full sm:w-auto"
           >
             View all
             <ArrowRight className="h-3 w-3 transition-transform duration-200 group-hover:translate-x-0.5" />
@@ -516,15 +518,15 @@ export function LeadsPerformanceGrid({ employeeId, service = "energy" }: LeadsPe
         <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-stone-200/80 dark:border-stone-800 pt-3 text-[11px] text-stone-500 dark:text-stone-400">
           <span className="font-medium text-stone-600 dark:text-stone-300">Conversion bands</span>
           <span className="flex items-center gap-1.5">
-            <span className="inline-block h-2 w-2 rounded-full" style={{ background: "#22c55e" }} />
+            <span className="inline-block h-2 w-2 rounded-full shrink-0" style={{ background: "#22c55e" }} />
             ≥ 60% great
           </span>
           <span className="flex items-center gap-1.5">
-            <span className="inline-block h-2 w-2 rounded-full" style={{ background: "#f59e0b" }} />
+            <span className="inline-block h-2 w-2 rounded-full shrink-0" style={{ background: "#f59e0b" }} />
             35–59% good
           </span>
           <span className="flex items-center gap-1.5">
-            <span className="inline-block h-2 w-2 rounded-full" style={{ background: "#ef4444" }} />
+            <span className="inline-block h-2 w-2 rounded-full shrink-0" style={{ background: "#ef4444" }} />
             {"< 35%"} focus
           </span>
         </div>
@@ -540,7 +542,7 @@ export function LeadsPerformanceGrid({ employeeId, service = "energy" }: LeadsPe
           )}
         >
           <div className="cp-performance-modal-surface flex max-h-[92vh] flex-col overflow-hidden rounded-2xl border border-stone-200/90 dark:border-stone-800 bg-white dark:bg-stone-900 shadow-xl">
-            <div className="relative z-[1] border-b border-stone-200/90 dark:border-stone-800 bg-stone-50 dark:bg-stone-950/60 px-6 py-6 md:px-8">
+            <div className="relative z-[1] border-b border-stone-200/90 dark:border-stone-800 bg-stone-50 dark:bg-stone-950/60 px-4 sm:px-6 md:px-8 py-6">
               <DialogHeader className="relative space-y-4">
                 <div className="flex flex-wrap items-center gap-3">
                   {selectedStat && !employeeId && (
@@ -553,8 +555,8 @@ export function LeadsPerformanceGrid({ employeeId, service = "energy" }: LeadsPe
                       All team
                     </button>
                   )}
-                  <DialogTitle className="flex flex-wrap items-center gap-3 text-xl font-bold tracking-tight text-stone-900 dark:text-stone-100">
-                    <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-violet-600 text-white shadow-md">
+                  <DialogTitle className="flex flex-wrap items-center gap-3 text-lg sm:text-xl font-bold tracking-tight text-stone-900 dark:text-stone-100">
+                    <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-violet-600 text-white shadow-md shrink-0">
                       <Users className="h-5 w-5" />
                     </span>
                     {selectedStat
@@ -597,7 +599,7 @@ export function LeadsPerformanceGrid({ employeeId, service = "energy" }: LeadsPe
               </DialogHeader>
             </div>
 
-            <div className="max-h-[calc(92vh-200px)] min-h-0 flex-1 overflow-y-auto bg-stone-50 dark:bg-stone-900/40 px-6 py-6 md:px-8">
+            <div className="max-h-[calc(92vh-200px)] min-h-0 flex-1 overflow-y-auto bg-stone-50 dark:bg-stone-900/40 px-4 sm:px-6 md:px-8 py-6">
               <div className="space-y-6">
                 {!selectedEmployeeId && !employeeId && (
                   <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -612,14 +614,14 @@ export function LeadsPerformanceGrid({ employeeId, service = "energy" }: LeadsPe
                             "rounded-full px-4 py-2 text-sm font-medium transition-all duration-200",
                             sortBy === s
                               ? "scale-[1.02] bg-violet-600 text-white shadow-md"
-                              : "border border-stone-200 dark:border-stone-800 bg-white dark:bg-stone-800 text-stone-600 dark:text-stone-300 shadow-sm hover:border-stone-300 dark:hover:border-stone-700 hover:bg-stone-100 dark:hover:bg-stone-750",
+                              : "border border-stone-200 dark:border-stone-800 bg-white dark:bg-stone-800 text-stone-600 dark:text-stone-300 shadow-sm hover:border-stone-300 dark:hover:border-stone-700 hover:bg-stone-100 dark:hover:bg-stone-750 hover:text-stone-900 dark:hover:text-white",
                           )}
                         >
                           {s === "highest" ? "Highest %" : "Lowest %"}
                         </button>
                       ))}
                     </div>
-                    <div className="relative max-w-full sm:w-72">
+                    <div className="relative w-full sm:w-72">
                       <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-stone-400" />
                       <input
                         type="text"

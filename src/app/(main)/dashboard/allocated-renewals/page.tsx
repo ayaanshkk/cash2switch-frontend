@@ -427,14 +427,14 @@ export default function AllocatedContactsPage() {
   const PaginationControls = () => {
     if (totalPages <= 1) return null;
     return (
-      <div className="flex items-center justify-between py-3 px-4 bg-gray-50 dark:bg-slate-900 border-t border-gray-200 dark:border-slate-800">
+      <div className="flex flex-col sm:flex-row items-center justify-between gap-3 py-3 px-4 bg-gray-50 dark:bg-slate-900 border-t border-gray-200 dark:border-slate-800">
         <div className="text-sm text-gray-700 dark:text-gray-300">
           Showing{" "}
           <span className="font-medium">{(currentPage - 1) * CUSTOMERS_PER_PAGE + 1}</span> to{" "}
           <span className="font-medium">{Math.min(currentPage * CUSTOMERS_PER_PAGE, filteredCustomers.length)}</span>{" "}
           of <span className="font-medium">{filteredCustomers.length}</span> contacts
         </div>
-        <div className="flex space-x-1">
+        <div className="flex flex-wrap items-center justify-center space-x-1">
           <Button variant="outline" size="icon" onClick={() => setCurrentPage(1)} disabled={currentPage === 1}>
             <ChevronFirst className="h-4 w-4" />
           </Button>
@@ -454,13 +454,11 @@ export default function AllocatedContactsPage() {
   };
 
   // ---------------- Render ----------------
-  const colSpan = isAdmin ? 14 : 13;
-
   return (
-    <div className="w-full max-w-full overflow-x-hidden p-6">
+    <div className="w-full max-w-full overflow-x-hidden p-4 sm:p-6 text-slate-900 dark:bg-slate-950 dark:text-slate-100 min-h-screen">
       <Toaster position="top-right" />
 
-      <h1 className="mb-2 text-4xl font-semibold tracking-tight text-slate-900 dark:text-slate-100">Allocated Renewals</h1>
+      <h1 className="mb-2 text-2xl sm:text-4xl font-semibold tracking-tight text-slate-900 dark:text-slate-50">Allocated Renewals</h1>
       <p className="mb-6 text-sm text-gray-500 dark:text-gray-400">
         {isAdmin
           ? "Records that have been reassigned from one salesperson to another."
@@ -469,13 +467,13 @@ export default function AllocatedContactsPage() {
 
       {/* Service Tabs */}
       <div className="mb-6 flex justify-center">
-        <div className="inline-flex items-center gap-2 rounded-full border border-slate-200 dark:border-slate-800 bg-white/80 dark:bg-slate-900/80 p-1 shadow-sm backdrop-blur">
+        <div className="inline-flex items-center gap-2 rounded-full border border-slate-200 dark:border-slate-800 bg-white/80 dark:bg-slate-900/80 p-1 shadow-sm backdrop-blur w-full sm:w-auto">
           {["utilities", "water"].map(s => (
             <button
               key={s}
               type="button"
               onClick={() => setService(s)}
-              className={`px-8 py-3 rounded-full text-base font-semibold transition-all ${
+              className={`flex-1 sm:flex-initial px-6 sm:px-8 py-2.5 sm:py-3 rounded-full text-sm sm:text-base font-semibold transition-all capitalize ${
                 service === s 
                   ? "bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900 shadow" 
                   : "text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
@@ -503,7 +501,7 @@ export default function AllocatedContactsPage() {
                 }`}
               >
                 <div className="flex items-center gap-2 mb-2">
-                  <Users className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
+                  <Users className="h-4 w-4 text-indigo-600 dark:text-indigo-400 shrink-0" />
                   <span className="text-xs font-medium text-gray-500 dark:text-gray-400 truncate">{stat.employee_name}</span>
                 </div>
                 <div className="flex items-baseline gap-2">
@@ -529,7 +527,7 @@ export default function AllocatedContactsPage() {
         <div className="mb-6">
           <div className="bg-gradient-to-r from-indigo-50 to-blue-50 dark:from-indigo-950/40 dark:to-blue-950/40 border border-indigo-200 dark:border-indigo-800 rounded-lg p-4">
             <div className="flex items-center gap-3">
-              <div className="bg-indigo-600 dark:bg-indigo-500 p-2 rounded-lg">
+              <div className="bg-indigo-600 dark:bg-indigo-500 p-2 rounded-lg shrink-0">
                 <UserCheck className="h-5 w-5 text-white" />
               </div>
               <div>
@@ -544,7 +542,7 @@ export default function AllocatedContactsPage() {
       {/* Error */}
       {error && (
         <div className="mb-6 p-4 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900 rounded-lg flex items-start gap-3">
-          <AlertCircle className="h-5 w-5 text-red-600 dark:text-red-400 flex-shrink-0 mt-0.5" />
+          <AlertCircle className="h-5 w-5 text-red-600 dark:text-red-400 shrink-0 mt-0.5" />
           <div className="flex-1">
             <h3 className="text-sm font-medium text-red-800 dark:text-red-300">Error Loading Contacts</h3>
             <p className="mt-1 text-sm text-red-700 dark:text-red-400">{error}</p>
@@ -554,7 +552,7 @@ export default function AllocatedContactsPage() {
       )}
 
       {/* Search & Filters */}
-      <div className="mb-6 grid grid-cols-[repeat(auto-fit,minmax(150px,1fr))] gap-3">
+      <div className="mb-6 grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-6 gap-3">
         <div className="relative min-w-0 sm:col-span-2 xl:col-span-1">
           <Search className="text-muted-foreground absolute top-2.5 left-2 h-4 w-4" />
           <Input
@@ -569,14 +567,14 @@ export default function AllocatedContactsPage() {
         {isAdmin && (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="outline" className="min-w-0 justify-between">
-                <Users className="mr-2 h-4 w-4" />
+              <Button variant="outline" className="min-w-0 justify-between w-full">
+                <Users className="mr-2 h-4 w-4 shrink-0" />
                 <span className="truncate">
                   {salespersonFilter === "All"
                     ? "All Salespersons"
                     : employees.find(e => e.employee_id === salespersonFilter)?.employee_name || "Salesperson"}
                 </span>
-                <ChevronDown className="ml-1 h-3 w-3 flex-shrink-0" />
+                <ChevronDown className="ml-1 h-3 w-3 shrink-0" />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent>
@@ -593,10 +591,10 @@ export default function AllocatedContactsPage() {
         {/* Supplier filter */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="outline" className="min-w-0 justify-between">
-              <Filter className="mr-2 h-4 w-4" />
+            <Button variant="outline" className="min-w-0 justify-between w-full">
+              <Filter className="mr-2 h-4 w-4 shrink-0" />
               <span className="truncate">{supplierFilter === "All" ? "All Suppliers" : getSupplierName(supplierFilter as number)}</span>
-              <ChevronDown className="ml-1 h-3 w-3 flex-shrink-0" />
+              <ChevronDown className="ml-1 h-3 w-3 shrink-0" />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent>
@@ -612,10 +610,10 @@ export default function AllocatedContactsPage() {
         {/* Status filter */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="outline" className="min-w-0 justify-between">
-              <Filter className="mr-2 h-4 w-4" />
+            <Button variant="outline" className="min-w-0 justify-between w-full">
+              <Filter className="mr-2 h-4 w-4 shrink-0" />
               <span className="truncate">{statusFilter === "All" ? "All Status" : getStatusLabel(statusFilter as string)}</span>
-              <ChevronDown className="ml-1 h-3 w-3 flex-shrink-0" />
+              <ChevronDown className="ml-1 h-3 w-3 shrink-0" />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent>
@@ -654,10 +652,10 @@ export default function AllocatedContactsPage() {
       {/* Table */}
       <div className="overflow-hidden rounded-lg border border-gray-200 dark:border-slate-800 bg-white dark:bg-slate-900">
         <div className="overflow-x-auto">
-          <table className="w-full divide-y divide-gray-200 dark:divide-slate-800 table-fixed">
+          <table className="w-full divide-y divide-gray-200 dark:divide-slate-800 min-w-[1000px]">
             <thead className="bg-gray-50 dark:bg-slate-800/50">
               <tr>
-                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 dark:text-gray-400 uppercase w-20 border-r-2 border-gray-300 dark:border-slate-700">ID</th>
+                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 dark:text-gray-400 uppercase w-16 border-r-2 border-gray-300 dark:border-slate-700">ID</th>
                 <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 dark:text-gray-400 uppercase w-[9%]">Client Name</th>
                 <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 dark:text-gray-400 uppercase w-[11%]">Trading Name</th>
                 <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 dark:text-gray-400 uppercase w-[8%]">Tel No</th>
@@ -668,36 +666,34 @@ export default function AllocatedContactsPage() {
                 <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 dark:text-gray-400 uppercase w-[9%] whitespace-nowrap">Start Date</th>
                 <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 dark:text-gray-400 uppercase w-[9%] whitespace-nowrap">Contract End</th>
                 <th className="px-3 py-3 text-center text-xs font-medium tracking-wider text-gray-500 dark:text-gray-400 uppercase w-[12%]">Status</th>
-                {isAdmin && (
-                  <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 dark:text-gray-400 uppercase w-[9%]">Assigned To</th>
-                )}
+                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 dark:text-gray-400 uppercase w-[9%]">Assigned To</th>
               </tr>
             </thead>
 
             <tbody className="divide-y divide-gray-200 dark:divide-slate-800 bg-white dark:bg-slate-900">
               {isLoading ? (
                 <tr>
-                  <td colSpan={colSpan} className="px-6 py-12 text-center">
+                  <td colSpan={12} className="px-6 py-12 text-center">
                     <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-current border-r-transparent text-gray-600 dark:text-gray-400" />
                     <p className="mt-4 text-gray-500 dark:text-gray-400">Loading allocated renewals...</p>
                   </td>
                 </tr>
               ) : error ? (
                 <tr>
-                  <td colSpan={colSpan} className="px-6 py-12 text-center">
+                  <td colSpan={12} className="px-6 py-12 text-center">
                     <AlertCircle className="h-12 w-12 text-red-400 mx-auto mb-3" />
                     <p className="text-lg text-red-600 dark:text-red-400">Failed to load contacts</p>
                   </td>
                 </tr>
               ) : paginatedCustomers.length === 0 ? (
                 <tr>
-                  <td colSpan={colSpan} className="px-6 py-12 text-center text-gray-500 dark:text-gray-400">
+                  <td colSpan={12} className="px-6 py-12 text-center text-gray-500 dark:text-gray-400">
                     <UserCheck className="h-12 w-12 text-gray-400 dark:text-gray-600 mx-auto mb-3" />
                     <p className="text-lg text-gray-700 dark:text-gray-200 font-medium">No allocated renewals yet.</p>
                     <p className="mt-2 text-sm">
                       {isAdmin
-                        ? "Reassigned records will appear here."
-                        : "Records assigned to you by an admin will appear here."}
+                        ? "Records that have been reassigned will appear here."
+                        : "Records assigned to you by an admin or reassigned from another salesperson will appear here."}
                     </p>
                   </td>
                 </tr>
@@ -711,9 +707,7 @@ export default function AllocatedContactsPage() {
                       onClick={() => window.open(`/dashboard/renewals/${customer.client_id}?from=allocated`, "_blank")}
                     >
                       <td className="px-3 py-3 text-sm font-medium text-gray-900 dark:text-slate-100 border-r-2 border-gray-300 dark:border-slate-700 align-top">
-                        <div className="whitespace-nowrap">
-                          {displayId}
-                        </div>
+                        <div className="whitespace-nowrap">{displayId}</div>
                       </td>
 
                       <td className="px-3 py-3 text-sm text-gray-700 dark:text-gray-300 align-top overflow-hidden">
@@ -823,7 +817,7 @@ export default function AllocatedContactsPage() {
 
       {/* Callback Modal */}
       <Dialog open={showCallbackModal} onOpenChange={setShowCallbackModal}>
-        <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-md w-[90vw] sm:w-full max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{callbackStatus ? `Add ${callbackStatus}` : "Add Action"}</DialogTitle>
             <DialogDescription>Record customer interaction and set follow-up</DialogDescription>
@@ -901,7 +895,7 @@ export default function AllocatedContactsPage() {
                       />
                       <div>
                         <span className="text-sm font-medium text-gray-900 dark:text-slate-100">
-                          {val === "customer" ? "Renewed by Customer" : "Renewed by Agent"}
+                          Renewed by {val.charAt(0).toUpperCase() + val.slice(1)}
                         </span>
                         <p className="text-xs text-gray-500 dark:text-gray-400">
                           {val === "customer" ? "Customer renewed directly without agent" : "Agent successfully renewed the contract"}
@@ -946,13 +940,10 @@ export default function AllocatedContactsPage() {
                 onChange={e => setCallbackNotes(e.target.value)}
                 rows={3}
               />
-              {statusConfig[callbackStatus]?.requiresNotes && (
-                <p className="text-xs text-gray-500 dark:text-gray-400">Required: Please explain the reason for this status</p>
-              )}
             </div>
           </div>
 
-          <div className="flex justify-end gap-2">
+          <div className="flex flex-col-reverse sm:flex-row justify-end gap-2">
             <Button variant="outline" onClick={() => setShowCallbackModal(false)} disabled={isSubmittingCallback}>
               Cancel
             </Button>
@@ -967,7 +958,7 @@ export default function AllocatedContactsPage() {
 
       {/* Assign Modal */}
       <Dialog open={showAssignModal} onOpenChange={setShowAssignModal}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-md w-[90vw] sm:w-full">
           <DialogHeader>
             <DialogTitle>Assign Salesperson</DialogTitle>
             <DialogDescription>
@@ -1007,7 +998,7 @@ export default function AllocatedContactsPage() {
             </div>
           </div>
 
-          <div className="flex justify-end gap-2 mt-4">
+          <div className="flex flex-col-reverse sm:flex-row justify-end gap-2 mt-4">
             <Button
               variant="outline"
               onClick={() => {

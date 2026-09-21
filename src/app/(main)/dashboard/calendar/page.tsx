@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
@@ -531,21 +531,21 @@ export default function CalendarPage() {
   }
 
   return (
-    <div className="min-h-screen bg-white p-6 text-slate-900 dark:bg-slate-950 dark:text-slate-100">
+    <div className="min-h-screen bg-white p-4 sm:p-6 text-slate-900 dark:bg-slate-950 dark:text-slate-100">
       {/* Header */}
       <div className="mb-6 flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
         <div>
-          <h1 className="text-3xl font-bold dark:text-slate-50">{pageTitle}</h1>
-          <p className="text-muted-foreground mt-1 dark:text-slate-400">{pageSubtitle}</p>
+          <h1 className="text-2xl sm:text-3xl font-bold dark:text-slate-50">{pageTitle}</h1>
+          <p className="text-sm text-muted-foreground mt-1 dark:text-slate-400">{pageSubtitle}</p>
         </div>
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
+        <div className="flex flex-col sm:flex-row flex-wrap gap-3 items-stretch sm:items-center">
           <div className="relative">
             <Search className="pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-gray-400 dark:text-slate-500" />
             <Input
               value={searchTerm}
               onChange={(event) => setSearchTerm(event.target.value)}
               placeholder="Search renewals or leads..."
-              className="w-full pl-9 lg:w-72 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100 dark:placeholder:text-slate-500"
+              className="w-full sm:w-72 pl-9 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100 dark:placeholder:text-slate-500"
             />
           </div>
           <div className="flex rounded-md border border-gray-200 bg-white p-1 dark:border-slate-800 dark:bg-slate-900">
@@ -554,7 +554,7 @@ export default function CalendarPage() {
               size="sm"
               variant={calendarView === "leads" ? "default" : "ghost"}
               onClick={() => updateCalendarView("leads")}
-              className={calendarView === "leads" ? "" : "dark:text-slate-300 dark:hover:bg-slate-800"}
+              className={`flex-1 sm:flex-initial ${calendarView === "leads" ? "" : "dark:text-slate-300 dark:hover:bg-slate-800"}`}
             >
               Leads
             </Button>
@@ -563,7 +563,7 @@ export default function CalendarPage() {
               size="sm"
               variant={calendarView === "renewals" ? "default" : "ghost"}
               onClick={() => updateCalendarView("renewals")}
-              className={calendarView === "renewals" ? "" : "dark:text-slate-300 dark:hover:bg-slate-800"}
+              className={`flex-1 sm:flex-initial ${calendarView === "renewals" ? "" : "dark:text-slate-300 dark:hover:bg-slate-800"}`}
             >
               Renewals
             </Button>
@@ -579,7 +579,7 @@ export default function CalendarPage() {
                 }}
                 disabled={loadingEmployees}
               >
-                <SelectTrigger className="w-[200px] dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100">
+                <SelectTrigger className="w-full sm:w-[200px] dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100">
                   <SelectValue placeholder="All Salespeople" />
                 </SelectTrigger>
                 <SelectContent className="dark:border-slate-800 dark:bg-slate-900">
@@ -606,7 +606,7 @@ export default function CalendarPage() {
             disabled={loading}
             variant="outline"
             size="sm"
-            className="dark:border-slate-800 dark:bg-slate-900 dark:hover:bg-slate-800"
+            className="w-full sm:w-auto dark:border-slate-800 dark:bg-slate-900 dark:hover:bg-slate-800"
           >
             <RefreshCw className={`mr-2 h-4 w-4 ${loading ? "animate-spin" : ""}`} />
             Refresh
@@ -634,8 +634,8 @@ export default function CalendarPage() {
       )}
 
       {/* Navigation */}
-      <div className="mb-4 flex items-center justify-between">
-        <div className="flex items-center gap-2">
+      <div className="mb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div className="flex flex-wrap items-center gap-2 relative">
           <Button
             variant="outline"
             size="sm"
@@ -664,19 +664,19 @@ export default function CalendarPage() {
             variant="outline"
             size="sm"
             onClick={() => setShowMonthPicker(!showMonthPicker)}
-            className="ml-4 min-w-[200px] dark:border-slate-800 dark:bg-slate-900 dark:hover:bg-slate-800"
+            className="w-full sm:w-auto sm:ml-4 min-w-[200px] dark:border-slate-800 dark:bg-slate-900 dark:hover:bg-slate-800"
           >
             {currentDate.toLocaleDateString("en-GB", { month: "long", year: "numeric" })}
           </Button>
 
           {/* Month/Year Picker Dropdown */}
           {showMonthPicker && (
-            <div className="absolute top-[180px] z-50 mt-2 rounded-lg border bg-white p-4 shadow-lg dark:border-slate-800 dark:bg-slate-900 dark:shadow-slate-950/50">
-              <div className="flex gap-4">
+            <div className="absolute top-[50px] left-0 sm:left-auto z-50 mt-2 rounded-lg border bg-white p-4 shadow-lg dark:border-slate-800 dark:bg-slate-900 dark:shadow-slate-950/50 w-full sm:w-auto">
+              <div className="flex flex-col sm:flex-row gap-4">
                 {/* Month Selector */}
                 <div>
                   <p className="mb-2 text-sm font-medium dark:text-slate-300">Month</p>
-                  <div className="grid grid-cols-3 gap-2">
+                  <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
                     {["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"].map(
                       (month, idx) => (
                         <Button
@@ -688,7 +688,7 @@ export default function CalendarPage() {
                             newDate.setMonth(idx);
                             setCurrentDate(newDate);
                           }}
-                          className={`w-16 ${currentDate.getMonth() !== idx ? "dark:border-slate-700 dark:hover:bg-slate-800" : ""}`}
+                          className={`w-full ${currentDate.getMonth() !== idx ? "dark:border-slate-700 dark:hover:bg-slate-800" : ""}`}
                         >
                           {month}
                         </Button>
@@ -711,7 +711,7 @@ export default function CalendarPage() {
                           newDate.setFullYear(year);
                           setCurrentDate(newDate);
                         }}
-                        className={`w-20 ${currentDate.getFullYear() !== year ? "dark:border-slate-700 dark:hover:bg-slate-800" : ""}`}
+                        className={`w-full ${currentDate.getFullYear() !== year ? "dark:border-slate-700 dark:hover:bg-slate-800" : ""}`}
                       >
                         {year}
                       </Button>
@@ -750,72 +750,74 @@ export default function CalendarPage() {
       </div>
 
       {/* Calendar Grid */}
-      <div className="rounded-lg border border-gray-200 dark:border-slate-800">
-        <div className="grid grid-cols-7 border-b border-gray-200 bg-gray-50 dark:border-slate-800 dark:bg-slate-900">
-          {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((day) => (
-            <div key={day} className="border-r border-gray-200 p-2 text-center text-sm font-medium text-slate-700 last:border-r-0 dark:border-slate-800 dark:text-slate-300">
-              {day}
-            </div>
-          ))}
-        </div>
-        <div className="grid grid-cols-7">
-          {calendarDays.map((day, idx) => {
-            const isCurrentMonth = day.getMonth() === currentDate.getMonth();
-            const isToday = day.toDateString() === new Date().toDateString();
-            const dayRenewals = getRenewalsForDate(day);
-
-            return (
-              <div
-                key={idx}
-                className={`min-h-[120px] border-r border-b border-gray-200 p-2 last:border-r-0 dark:border-slate-800 ${
-                  isCurrentMonth
-                    ? "bg-white dark:bg-slate-950"
-                    : "bg-gray-50 dark:bg-slate-900/50"
-                } ${isToday ? "ring-2 ring-blue-500 ring-inset" : ""}`}
-              >
-                <div className="mb-1">
-                  <span className={`text-sm ${isToday ? "font-bold text-blue-600 dark:text-blue-400" : "dark:text-slate-300"}`}>
-                    {day.getDate()}
-                  </span>
-                </div>
-                <div className="space-y-1">
-                  {dayRenewals.slice(0, 3).map((renewal) => (
-                    <div
-                      key={`${renewal.id}-${renewal.display_date}`}
-                      onClick={() => {
-                        setSelectedRenewal(renewal);
-                        setShowDetailDialog(true);
-                      }}
-                      className={`cursor-pointer rounded border px-2 py-1 text-xs transition-shadow hover:shadow-md ${getRenewalColor(renewal)}`}
-                    >
-                      <div className="truncate font-medium">{renewal.name}</div>
-                      <div className="truncate text-xs opacity-75">{renewal.display_type}</div>
-                    </div>
-                  ))}
-                  {dayRenewals.length > 3 && (
-                    <button
-                      onClick={() => {
-                        setSelectedDayRenewals(dayRenewals);
-                        setShowDayEventsDialog(true);
-                      }}
-                      className="w-full text-left text-xs font-medium text-blue-600 hover:text-blue-800 hover:underline dark:text-blue-400 dark:hover:text-blue-300"
-                    >
-                      +{dayRenewals.length - 3} more
-                    </button>
-                  )}
-                </div>
+      <div className="rounded-lg border border-gray-200 dark:border-slate-800 overflow-x-auto">
+        <div className="min-w-[700px]">
+          <div className="grid grid-cols-7 border-b border-gray-200 bg-gray-50 dark:border-slate-800 dark:bg-slate-900">
+            {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((day) => (
+              <div key={day} className="border-r border-gray-200 p-2 text-center text-sm font-medium text-slate-700 last:border-r-0 dark:border-slate-800 dark:text-slate-300">
+                {day}
               </div>
-            );
-          })}
+            ))}
+          </div>
+          <div className="grid grid-cols-7">
+            {calendarDays.map((day, idx) => {
+              const isCurrentMonth = day.getMonth() === currentDate.getMonth();
+              const isToday = day.toDateString() === new Date().toDateString();
+              const dayRenewals = getRenewalsForDate(day);
+
+              return (
+                <div
+                  key={idx}
+                  className={`min-h-[120px] border-r border-b border-gray-200 p-2 last:border-r-0 dark:border-slate-800 ${
+                    isCurrentMonth
+                      ? "bg-white dark:bg-slate-950"
+                      : "bg-gray-50 dark:bg-slate-900/50"
+                  } ${isToday ? "ring-2 ring-blue-500 ring-inset" : ""}`}
+                >
+                  <div className="mb-1">
+                    <span className={`text-sm ${isToday ? "font-bold text-blue-600 dark:text-blue-400" : "dark:text-slate-300"}`}>
+                      {day.getDate()}
+                    </span>
+                  </div>
+                  <div className="space-y-1">
+                    {dayRenewals.slice(0, 3).map((renewal) => (
+                      <div
+                        key={`${renewal.id}-${renewal.display_date}`}
+                        onClick={() => {
+                          setSelectedRenewal(renewal);
+                          setShowDetailDialog(true);
+                        }}
+                        className={`cursor-pointer rounded border px-2 py-1 text-xs transition-shadow hover:shadow-md ${getRenewalColor(renewal)}`}
+                      >
+                        <div className="truncate font-medium">{renewal.name}</div>
+                        <div className="truncate text-xs opacity-75">{renewal.display_type}</div>
+                      </div>
+                    ))}
+                    {dayRenewals.length > 3 && (
+                      <button
+                        onClick={() => {
+                          setSelectedDayRenewals(dayRenewals);
+                          setShowDayEventsDialog(true);
+                        }}
+                        className="w-full text-left text-xs font-medium text-blue-600 hover:text-blue-800 hover:underline dark:text-blue-400 dark:hover:text-blue-300"
+                      >
+                        +{dayRenewals.length - 3} more
+                      </button>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
         </div>
       </div>
 
       {/* Detail Dialog */}
       <Dialog open={showDetailDialog} onOpenChange={setShowDetailDialog}>
-        <DialogContent className="flex max-h-[92vh] max-w-4xl flex-col overflow-hidden p-0 dark:border-slate-800 dark:bg-slate-950">
+        <DialogContent className="flex max-h-[92vh] max-w-4xl w-[95vw] sm:w-full flex-col overflow-hidden p-0 dark:border-slate-800 dark:bg-slate-950">
           {selectedRenewal && (
             <div className="flex min-h-0 flex-1 flex-col">
-              <DialogHeader className="border-b border-gray-200 bg-gray-50 px-6 py-5 dark:border-slate-800 dark:bg-slate-900">
+              <DialogHeader className="border-b border-gray-200 bg-gray-50 px-4 sm:px-6 py-5 dark:border-slate-800 dark:bg-slate-900">
                 <div className="flex flex-col gap-3 pr-8 sm:flex-row sm:items-start sm:justify-between">
                   <div>
                     <DialogTitle className="text-xl font-semibold text-gray-950 dark:text-slate-50">
@@ -845,7 +847,7 @@ export default function CalendarPage() {
                   </div>
                 </div>
               </DialogHeader>
-              <div className="min-h-0 flex-1 overflow-y-auto px-6 py-5 dark:bg-slate-950">
+              <div className="min-h-0 flex-1 overflow-y-auto px-4 sm:px-6 py-5 dark:bg-slate-950">
                 <div className="grid gap-4 md:grid-cols-2">
                   <div>
                     <p className="text-sm font-medium text-gray-500 dark:text-slate-400">Customer Name</p>
@@ -925,13 +927,13 @@ export default function CalendarPage() {
                   </div>
                 )}
                 <div className="mt-4 rounded-md border border-gray-200 bg-gray-50 p-4 dark:border-slate-800 dark:bg-slate-900">
-                  <div className="mb-3 flex items-center justify-between gap-3">
+                  <div className="mb-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                     <p className="text-sm font-medium text-gray-900 dark:text-slate-100">
                       {isLeadsView ? "Schedule Callback" : "Schedule Updates"}
                     </p>
                     <span className="text-xs text-gray-500 dark:text-slate-400">Changes save to calendar dates only</span>
                   </div>
-                  <div className="flex flex-wrap items-end gap-3">
+                  <div className="flex flex-col sm:flex-row flex-wrap items-stretch sm:items-end gap-3">
                     <div className="w-full sm:w-52">
                       <p className="mb-1 text-xs font-medium text-gray-500 dark:text-slate-400">Callback Date</p>
                       <Input
@@ -976,15 +978,15 @@ export default function CalendarPage() {
                   {rescheduleError && <p className="mt-2 text-xs font-medium text-red-600 dark:text-red-400">{rescheduleError}</p>}
                 </div>
               </div>
-              <div className="flex items-center justify-between gap-3 border-t border-gray-200 bg-white px-6 py-4 dark:border-slate-800 dark:bg-slate-900">
+              <div className="flex flex-col-reverse sm:flex-row items-center justify-between gap-3 border-t border-gray-200 bg-white px-4 sm:px-6 py-4 dark:border-slate-800 dark:bg-slate-900">
                 <Button
                   variant="outline"
                   onClick={() => setShowDetailDialog(false)}
-                  className="dark:border-slate-700 dark:hover:bg-slate-800"
+                  className="w-full sm:w-auto dark:border-slate-700 dark:hover:bg-slate-800"
                 >
                   Close
                 </Button>
-                <Button onClick={() => openCustomerDetails(selectedRenewal.customer_id)} className="gap-2">
+                <Button onClick={() => openCustomerDetails(selectedRenewal.customer_id)} className="w-full sm:w-auto gap-2">
                   View Full Details
                   <ExternalLink className="h-4 w-4" />
                 </Button>
@@ -995,7 +997,7 @@ export default function CalendarPage() {
       </Dialog>
 
       <Dialog open={showDayEventsDialog} onOpenChange={setShowDayEventsDialog}>
-        <DialogContent className="max-h-[80vh] max-w-3xl overflow-y-auto dark:border-slate-800 dark:bg-slate-950">
+        <DialogContent className="max-h-[80vh] max-w-3xl w-[90vw] sm:w-full overflow-y-auto dark:border-slate-800 dark:bg-slate-950">
           <DialogHeader>
             <DialogTitle className="dark:text-slate-50">
               All Events -{" "}
@@ -1014,15 +1016,15 @@ export default function CalendarPage() {
                 className={`cursor-pointer rounded border p-3 transition-shadow hover:shadow-md ${getRenewalColor(renewal)}`}
               >
                 <div className="flex items-start justify-between">
-                  <div className="flex-1">
-                    <div className="text-base font-semibold">{renewal.name}</div>
+                  <div className="flex-1 min-w-0 pr-2">
+                    <div className="text-base font-semibold truncate">{renewal.name}</div>
                     <div className="mt-1 text-sm">
                       <span className="font-medium">{renewal.display_type}</span>
                       {renewal.mpan && <span className="ml-2 text-xs opacity-75">• {renewal.mpan}</span>}
                     </div>
-                    {renewal.supplier && <div className="mt-1 text-xs opacity-75">Supplier: {renewal.supplier}</div>}
+                    {renewal.supplier && <div className="mt-1 text-xs opacity-75 truncate">Supplier: {renewal.supplier}</div>}
                   </div>
-                  <ExternalLink className="h-4 w-4 opacity-50" />
+                  <ExternalLink className="h-4 w-4 opacity-50 shrink-0 mt-1" />
                 </div>
               </div>
             ))}
@@ -1030,5 +1032,5 @@ export default function CalendarPage() {
         </DialogContent>
       </Dialog>
     </div>
-  );
+  );  
 }

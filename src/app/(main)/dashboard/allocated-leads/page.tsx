@@ -27,22 +27,22 @@ import { Badge } from "@/components/ui/badge";
 const LEADS_PER_PAGE = 25;
 
 const STATUS_OPTIONS = [
-  { value: "Callback",           label: "Callback" },
+  { value: "Callback",          label: "Callback" },
   { value: "Not Answered",       label: "Not Answered" },
-  { value: "Priced",             label: "Priced" },
-  { value: "Won",                label: "Won" },
-  { value: "Converted",          label: "Converted" },
+  { value: "Priced",            label: "Priced" },
+  { value: "Won",               label: "Won" },
+  { value: "Converted",         label: "Converted" },
   { value: "Already Renewed",    label: "Already Renewed" },
   { value: "Renewed Directly",   label: "Renewed Directly" },
-  { value: "Lost",               label: "Lost" },
-  { value: "Lost COT",           label: "Lost COT" },
-  { value: "Invalid Number",     label: "Invalid Number" },
+  { value: "Lost",              label: "Lost" },
+  { value: "Lost COT",          label: "Lost COT" },
+  { value: "Invalid Number",    label: "Invalid Number" },
   { value: "Incorrect Supplier", label: "Incorrect Supplier" },
   { value: "Meter De-energised", label: "Meter De-energised" },
   { value: "Broker in Place",    label: "Broker in Place" },
   { value: "End Date Changed",   label: "End Date Changed" },
-  { value: "Complaint",          label: "Complaint" },
-  { value: "Email Only",         label: "Email Only" },
+  { value: "Complaint",         label: "Complaint" },
+  { value: "Email Only",        label: "Email Only" },
 ];
 
 const statusConfig: Record<string, {
@@ -206,39 +206,18 @@ export default function AllocatedLeadsPage() {
   useEffect(() => { setCurrentPage(1); }, [searchTerm, supplierFilter, statusFilter, salespersonFilter, endDateFilter, usageSort]);
 
   // ---------------- Fetch ----------------
-  /**
-   * Fetch leads that are "allocated" — i.e. leads that have been reassigned
-   * from their original owner to another salesperson.
-   *
-   * Strategy: fetch ALL leads (admin) or own leads (salesperson) and surface
-   * those where opportunity_owner_employee_id !== the current user's employee_id,
-   * which indicates the lead was reassigned/allocated to someone else (or to the
-   * current user from someone else).
-   *
-   * For admins: show all leads that have been assigned (has an owner), grouped by
-   * assignee — this mirrors the allocated-renewals admin view.
-   * For salespersons: the backend already scopes to their employee_id via
-   * is_allocated logic, so we use the search-all endpoint filtered by assignment.
-   */
   const fetchAllocatedLeads = async () => {
     setIsLoading(true);
     setError(null);
     try {
-      // Use search-all to get cross-team leads (includes leads assigned to others)
-      // For non-admins the backend scopes correctly; for admins it returns all.
-      // We filter client-side to only show records that have been *reassigned*
-      // (i.e. stage_name exists meaning they've been worked on, OR simply have an owner).
       const resp = await fetchWithAuth(
         `/api/crm/leads/allocated?service=${encodeURIComponent(service)}&exclude_stage=Lost`
       );
       const data: AllocatedLead[] = Array.isArray(resp) ? resp : (resp?.data || []);
 
-      // Keep only leads that have an assigned owner — these are "allocated" leads
-      // (mirrors how allocated-renewals shows clients with is_allocated=true)
       const allocated = data.filter(l => l.opportunity_owner_employee_id !== null);
       setAllLeads(allocated);
 
-      // Build employee stats from the data
       if (isAdmin) {
         const countMap: Record<number, { name: string; count: number }> = {};
         allocated.forEach(l => {
@@ -441,13 +420,12 @@ export default function AllocatedLeadsPage() {
             : l
         ));
       } else {
-        // Salesperson: if reassigned away from self, remove from view
         if (empId !== user?.id) {
           setAllLeads(prev => prev.filter(l => l.opportunity_id !== assigningLeadId));
         }
       }
 
-      await fetchAllocatedLeads(); // refresh stats
+      await fetchAllocatedLeads();
       toast.success("✅ Salesperson reassigned successfully");
       setShowAssignModal(false);
       setAssignToEmployeeId(""); setAssignmentNotes(""); setAssigningLeadId(null);
@@ -459,13 +437,13 @@ export default function AllocatedLeadsPage() {
   const PaginationControls = () => {
     if (totalPages <= 1) return null;
     return (
-      <div className="flex items-center justify-between py-3 px-4 bg-muted/50 border-t border-border">
+      <div className="flex flex-col sm:flex-row items-center justify-between gap-3 py-3 px-4 bg-muted/50 border-t border-border">
         <div className="text-sm text-muted-foreground">
           Showing <span className="font-medium">{(currentPage - 1) * LEADS_PER_PAGE + 1}</span> to{" "}
           <span className="font-medium">{Math.min(currentPage * LEADS_PER_PAGE, filteredLeads.length)}</span>{" "}
           of <span className="font-medium">{filteredLeads.length}</span> leads
         </div>
-        <div className="flex space-x-1">
+        <div className="flex flex-wrap items-center justify-center space-x-1">
           <Button variant="outline" size="icon" onClick={() => setCurrentPage(1)} disabled={currentPage === 1}><ChevronFirst className="h-4 w-4" /></Button>
           <Button variant="outline" size="icon" onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1}><ChevronLeft className="h-4 w-4" /></Button>
           <div className="flex items-center px-3 text-sm text-muted-foreground">Page {currentPage} of {totalPages}</div>
@@ -478,10 +456,10 @@ export default function AllocatedLeadsPage() {
 
   // ---------------- Render ----------------
   return (
-    <div className="w-full max-w-full overflow-x-hidden p-6">
+    <div className="w-full max-w-full overflow-x-hidden p-4 sm:p-6 text-slate-900 dark:bg-slate-950 dark:text-slate-100 min-h-screen">
       <Toaster position="top-right" />
 
-      <h1 className="mb-2 text-4xl font-semibold tracking-tight text-foreground">Allocated Leads</h1>
+      <h1 className="mb-2 text-2xl sm:text-4xl font-semibold tracking-tight text-foreground">Allocated Leads</h1>
       <p className="mb-6 text-sm text-muted-foreground">
         {isAdmin
           ? "Leads that have been assigned to salespersons across the team."
@@ -490,13 +468,13 @@ export default function AllocatedLeadsPage() {
 
       {/* Service Tabs */}
       <div className="mb-6 flex justify-center">
-        <div className="inline-flex items-center gap-2 rounded-full border border-border bg-card/80 p-1 shadow-sm backdrop-blur">
+        <div className="inline-flex items-center gap-2 rounded-full border border-border bg-card/80 p-1 shadow-sm backdrop-blur w-full sm:w-auto">
           {["utilities", "water"].map(s => (
             <button key={s} type="button" onClick={() => setService(s)}
-              className={`px-8 py-3 rounded-full text-base font-semibold transition-all capitalize ${
+              className={`flex-1 sm:flex-initial px-6 sm:px-8 py-2.5 sm:py-3 rounded-full text-sm sm:text-base font-semibold transition-all capitalize ${
                 service === s
-  ? "bg-primary text-primary-foreground shadow"
-  : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                  ? "bg-primary text-primary-foreground shadow"
+                  : "text-muted-foreground hover:bg-muted hover:text-foreground"
               }`}>
               {s.charAt(0).toUpperCase() + s.slice(1)}
             </button>
@@ -515,10 +493,10 @@ export default function AllocatedLeadsPage() {
                 className={`bg-card border border-border rounded-lg p-4 hover:shadow-md transition-shadow cursor-pointer ${
                   salespersonFilter === stat.employee_id
                     ? "border-indigo-400 ring-1 ring-indigo-300 bg-indigo-50 dark:bg-indigo-950/40"
-: "border-border"
+                    : "border-border"
                 }`}>
                 <div className="flex items-center gap-2 mb-2">
-                  <Phone className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
+                  <Phone className="h-4 w-4 text-indigo-600 dark:text-indigo-400 shrink-0" />
                   <span className="text-xs font-medium text-muted-foreground truncate">{stat.employee_name}</span>
                 </div>
                 <div className="flex items-baseline gap-2">
@@ -541,7 +519,7 @@ export default function AllocatedLeadsPage() {
         <div className="mb-6">
           <div className="bg-gradient-to-r from-indigo-50 to-blue-50 dark:from-indigo-950/40 dark:to-blue-950/40 border border-indigo-200 dark:border-indigo-800 rounded-lg p-4">
             <div className="flex items-center gap-3">
-              <div className="bg-indigo-600 p-2 rounded-lg"><UserCheck className="h-5 w-5 text-white" /></div>
+              <div className="bg-indigo-600 p-2 rounded-lg shrink-0"><UserCheck className="h-5 w-5 text-white" /></div>
               <div>
                 <p className="text-sm text-muted-foreground">Allocated to You</p>
                 <p className="text-2xl font-bold text-foreground">{allLeads.length}</p>
@@ -554,7 +532,7 @@ export default function AllocatedLeadsPage() {
       {/* Error */}
       {error && (
         <div className="mb-6 p-4 bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 rounded-lg flex items-start gap-3">
-          <AlertCircle className="h-5 w-5 text-red-600 dark:text-red-400 flex-shrink-0 mt-0.5" />
+          <AlertCircle className="h-5 w-5 text-red-600 dark:text-red-400 shrink-0 mt-0.5" />
           <div className="flex-1">
             <h3 className="text-sm font-medium text-red-800 dark:text-red-300">Error Loading Leads</h3>
             <p className="mt-1 text-sm text-red-700 dark:text-red-300">{error}</p>
@@ -564,7 +542,7 @@ export default function AllocatedLeadsPage() {
       )}
 
       {/* Search & Filters */}
-      <div className="mb-6 grid grid-cols-[repeat(auto-fit,minmax(150px,1fr))] gap-3">
+      <div className="mb-6 grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-6 gap-3">
         <div className="relative min-w-0 sm:col-span-2 xl:col-span-1">
           <Search className="text-muted-foreground absolute top-2.5 left-2 h-4 w-4" />
           <Input placeholder="Search leads..." className="pl-8" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
@@ -573,14 +551,14 @@ export default function AllocatedLeadsPage() {
         {isAdmin && (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="outline" className="min-w-0 justify-between">
-                <Users className="mr-2 h-4 w-4" />
+              <Button variant="outline" className="min-w-0 justify-between w-full">
+                <Users className="mr-2 h-4 w-4 shrink-0" />
                 <span className="truncate">
                   {salespersonFilter === "All"
                     ? "All Salespersons"
                     : employees.find(e => e.employee_id === salespersonFilter)?.employee_name || "Salesperson"}
                 </span>
-                <ChevronDown className="ml-1 h-3 w-3 flex-shrink-0" />
+                <ChevronDown className="ml-1 h-3 w-3 shrink-0" />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent>
@@ -596,10 +574,10 @@ export default function AllocatedLeadsPage() {
 
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="outline" className="min-w-0 justify-between">
-              <Filter className="mr-2 h-4 w-4" />
+            <Button variant="outline" className="min-w-0 justify-between w-full">
+              <Filter className="mr-2 h-4 w-4 shrink-0" />
               <span className="truncate">{supplierFilter === "All" ? "All Suppliers" : getSupplierName(supplierFilter as number)}</span>
-              <ChevronDown className="ml-1 h-3 w-3 flex-shrink-0" />
+              <ChevronDown className="ml-1 h-3 w-3 shrink-0" />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent>
@@ -614,10 +592,10 @@ export default function AllocatedLeadsPage() {
 
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="outline" className="min-w-0 justify-between">
-              <Filter className="mr-2 h-4 w-4" />
+            <Button variant="outline" className="min-w-0 justify-between w-full">
+              <Filter className="mr-2 h-4 w-4 shrink-0" />
               <span className="truncate">{statusFilter === "All" ? "All Status" : getStatusLabel(statusFilter as string)}</span>
-              <ChevronDown className="ml-1 h-3 w-3 flex-shrink-0" />
+              <ChevronDown className="ml-1 h-3 w-3 shrink-0" />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent>
@@ -653,10 +631,10 @@ export default function AllocatedLeadsPage() {
       {/* Table */}
       <div className="overflow-hidden rounded-lg border border-gray-200 dark:border-slate-800 bg-white dark:bg-slate-900">
         <div className="overflow-x-auto">
-          <table className="w-full divide-y divide-gray-200 dark:divide-slate-800 table-fixed">
+          <table className="w-full divide-y divide-gray-200 dark:divide-slate-800 min-w-[1000px]">
             <thead className="bg-gray-50 dark:bg-slate-800/50">
               <tr>
-                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 dark:text-gray-400 uppercase w-20 border-r-2 border-border">ID</th>
+                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 dark:text-gray-400 uppercase w-16 border-r-2 border-border">ID</th>
                 <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 dark:text-gray-400 uppercase w-[9%]">Client Name</th>
                 <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 dark:text-gray-400 uppercase w-[11%]">Trading Name</th>
                 <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 dark:text-gray-400 uppercase w-[8%]">Tel No</th>
@@ -689,18 +667,18 @@ export default function AllocatedLeadsPage() {
               ) : paginatedLeads.length === 0 ? (
                 <tr>
                  <td colSpan={12} className="px-6 py-12 text-center text-gray-500 dark:text-gray-400">
-  <UserCheck className="h-12 w-12 text-gray-400 dark:text-gray-600 mx-auto mb-3" />
+                  <UserCheck className="h-12 w-12 text-gray-400 dark:text-gray-600 mx-auto mb-3" />
 
-  <p className="text-lg text-gray-700 dark:text-gray-200 font-medium">
-    No allocated leads yet.
-  </p>
+                  <p className="text-lg text-gray-700 dark:text-gray-200 font-medium">
+                    No allocated leads yet.
+                  </p>
 
-  <p className="mt-2 text-sm">
-    {isAdmin
-      ? "Assigned leads will appear here."
-      : "Leads assigned to you will appear here."}
-  </p>
-</td>
+                  <p className="mt-2 text-sm">
+                    {isAdmin
+                      ? "Assigned leads will appear here."
+                      : "Leads assigned to you will appear here."}
+                  </p>
+                </td>
                 </tr>
               ) : (
                 paginatedLeads.map(lead => {
@@ -830,7 +808,7 @@ export default function AllocatedLeadsPage() {
 
       {/* ── Callback Modal ── */}
       <Dialog open={showCallbackModal} onOpenChange={setShowCallbackModal}>
-        <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-md w-[90vw] sm:w-full max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{callbackStatus ? `Add ${callbackStatus}` : "Add Action"}</DialogTitle>
             <DialogDescription>Record lead interaction and set follow-up</DialogDescription>
@@ -950,7 +928,7 @@ export default function AllocatedLeadsPage() {
             </div>
           </div>
 
-          <div className="flex justify-end gap-2">
+          <div className="flex flex-col-reverse sm:flex-row justify-end gap-2">
             <Button variant="outline" onClick={() => setShowCallbackModal(false)} disabled={isSubmittingCallback}>Cancel</Button>
             <Button onClick={handleSubmitCallback} disabled={isSubmittingCallback}>
               {isSubmittingCallback
@@ -963,7 +941,7 @@ export default function AllocatedLeadsPage() {
 
       {/* ── Assign Modal ── */}
       <Dialog open={showAssignModal} onOpenChange={setShowAssignModal}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-md w-[90vw] sm:w-full">
           <DialogHeader>
             <DialogTitle>Assign Salesperson</DialogTitle>
             <DialogDescription>Add an optional note about this assignment</DialogDescription>
@@ -991,7 +969,7 @@ export default function AllocatedLeadsPage() {
             </div>
           </div>
 
-          <div className="flex justify-end gap-2 mt-4">
+          <div className="flex flex-col-reverse sm:flex-row justify-end gap-2 mt-4">
             <Button variant="outline"
               onClick={() => { setShowAssignModal(false); setAssignToEmployeeId(""); setAssignmentNotes(""); setAssigningLeadId(null); }}
               disabled={isAssigning}>
@@ -1006,4 +984,3 @@ export default function AllocatedLeadsPage() {
     </div>
   );
 }
-

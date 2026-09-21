@@ -171,7 +171,7 @@ export default function LeadsPage() {
   const [searchResults, setSearchResults] = useState<LeadCustomer[]>([]);
   const [employeeStats, setEmployeeStats] = useState<TeamStat[]>([]);
 
-  // ── Loading / error ────────────────────────────────────────────────────────
+  // ── Loading / error ────────────────────────────────────────────────        
   const [isLoading, setIsLoading]     = useState(true);
   const [isSearching, setIsSearching] = useState(false);
   const [error, setError]             = useState<string | null>(null);
@@ -189,7 +189,7 @@ export default function LeadsPage() {
   const [usageSort, setUsageSort] = useState<"none" | "low-high" | "high-low">(() => (sessionStorage.getItem('leads_usage_sort') as any) || "none");
 
   // ── Selection ──────────────────────────────────────────────────────────────
-  const [selectedLeads, setSelectedLeads]           = useState<number[]>([]);
+  const [selectedLeads, setSelectedLeads]            = useState<number[]>([]);
   const [isSelectAllChecked, setIsSelectAllChecked] = useState(false);
 
   // ── Import modal ───────────────────────────────────────────────────────────
@@ -227,11 +227,11 @@ export default function LeadsPage() {
   const [renewedBy, setRenewedBy]   = useState<"customer" | "supplier" | "agent" | "">("");
 
   // ── Assign modal ───────────────────────────────────────────────────────────
-  const [showAssignModal, setShowAssignModal]       = useState(false);
-  const [assigningLeadId, setAssigningLeadId]       = useState<number | null>(null);
+  const [showAssignModal, setShowAssignModal]        = useState(false);
+  const [assigningLeadId, setAssigningLeadId]        = useState<number | null>(null);
   const [assignToEmployeeId, setAssignToEmployeeId] = useState("");
-  const [assignmentNotes, setAssignmentNotes]       = useState("");
-  const [isAssigning, setIsAssigning]               = useState(false);
+  const [assignmentNotes, setAssignmentNotes]        = useState("");
+  const [isAssigning, setIsAssigning]                = useState(false);
 
   // ── Bulk assign modal ──────────────────────────────────────────────────────
   const [showBulkAssignModal, setShowBulkAssignModal]       = useState(false);
@@ -462,9 +462,9 @@ export default function LeadsPage() {
         const end   = new Date(l.end_date);
         const days  = Math.ceil((end.getTime() - today.getTime()) / 86400000);
         if      (endDateFilter === "expired") matchEndDate = days < 0;
-        else if (endDateFilter === "30")      matchEndDate = days >= 0 && days <= 30;
-        else if (endDateFilter === "60")      matchEndDate = days > 30 && days <= 60;
-        else if (endDateFilter === "90")      matchEndDate = days > 60 && days <= 90;
+        else if (endDateFilter === "30")     matchEndDate = days >= 0 && days <= 30;
+        else if (endDateFilter === "60")     matchEndDate = days > 30 && days <= 60;
+        else if (endDateFilter === "90")     matchEndDate = days > 60 && days <= 90;
         else if (endDateFilter === "90+")     matchEndDate = days > 90 && days <= 365;
       }
       const matchSalesperson = !isAdmin || salespersonFilter === "All" ||
@@ -1034,13 +1034,13 @@ export default function LeadsPage() {
   const PaginationControls = () => {
     if (totalPages <= 1) return null;
     return (
-      <div className="flex items-center justify-between py-3 px-4 bg-gray-50 dark:bg-slate-900 border-t border-gray-200 dark:border-slate-800">
+      <div className="flex flex-col sm:flex-row items-center justify-between gap-3 py-3 px-4 bg-gray-50 dark:bg-slate-900 border-t border-gray-200 dark:border-slate-800">
         <div className="text-sm text-gray-700 dark:text-gray-300">
           Showing <span className="font-medium">{(currentPage - 1) * CUSTOMERS_PER_PAGE + 1}</span> to{" "}
           <span className="font-medium">{Math.min(currentPage * CUSTOMERS_PER_PAGE, filteredLeads.length)}</span>{" "}
           of <span className="font-medium">{filteredLeads.length}</span> leads
         </div>
-        <div className="flex space-x-1">
+        <div className="flex flex-wrap items-center justify-center space-x-1">
           <Button variant="outline" size="icon" onClick={() => setCurrentPage(1)} disabled={currentPage === 1}><ChevronFirst className="h-4 w-4" /></Button>
           <Button variant="outline" size="icon" onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1}><ChevronLeft className="h-4 w-4" /></Button>
           <div className="flex items-center px-3 text-sm text-gray-700 dark:text-gray-300">Page {currentPage} of {totalPages}</div>
@@ -1097,16 +1097,16 @@ export default function LeadsPage() {
 
   // ─── Render ─────────────────────────────────────────────────────────────────
   return (
-    <div className="w-full max-w-full overflow-x-hidden p-6">
+    <div className="w-full max-w-full overflow-x-hidden p-4 sm:p-6 text-slate-900 dark:text-slate-100">
       <Toaster position="top-right" />
-      <h1 className="mb-6 text-4xl font-semibold tracking-tight text-slate-900 dark:text-slate-100">Leads</h1>
+      <h1 className="mb-6 text-2xl sm:text-4xl font-semibold tracking-tight text-slate-900 dark:text-slate-100">Leads</h1>
 
       {/* Service Tabs */}
       <div className="mb-6 flex justify-center">
-        <div className="inline-flex items-center gap-2 rounded-full border border-slate-200 dark:border-slate-800 bg-white/80 dark:bg-slate-900/80 p-1 shadow-sm backdrop-blur">
+        <div className="inline-flex items-center gap-2 rounded-full border border-slate-200 dark:border-slate-800 bg-white/80 dark:bg-slate-900/80 p-1 shadow-sm backdrop-blur w-full sm:w-auto">
           {["utilities", "water"].map(svc => (
             <button key={svc} type="button" onClick={() => setService(svc)}
-              className={`px-8 py-3 rounded-full text-base font-semibold transition-all capitalize ${
+              className={`flex-1 sm:flex-initial px-6 sm:px-8 py-2.5 sm:py-3 rounded-full text-sm sm:text-base font-semibold transition-all capitalize ${
                 service === svc 
                   ? "bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900 shadow" 
                   : "text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
@@ -1125,7 +1125,7 @@ export default function LeadsPage() {
             {employeeStats.map(stat => (
               <div key={stat.employee_id ?? "unassigned"} className="bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-800 rounded-lg p-4 hover:shadow-md transition-shadow">
                 <div className="flex items-center gap-2 mb-2">
-                  <Users className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                  <Users className="h-4 w-4 text-blue-600 dark:text-blue-400 shrink-0" />
                   <span className="text-xs font-medium text-gray-500 dark:text-gray-400 truncate">{stat.employee_name}</span>
                 </div>
                 <div className="flex items-baseline gap-2">
@@ -1143,7 +1143,7 @@ export default function LeadsPage() {
         <div className="mb-6">
           <div className="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-950/40 dark:to-indigo-950/40 border border-blue-200 dark:border-blue-900 rounded-lg p-4">
             <div className="flex items-center gap-3">
-              <div className="bg-blue-600 dark:bg-blue-500 p-2 rounded-lg"><Users className="h-5 w-5 text-white" /></div>
+              <div className="bg-blue-600 dark:bg-blue-500 p-2 rounded-lg shrink-0"><Users className="h-5 w-5 text-white" /></div>
               <div>
                 <p className="text-sm text-gray-600 dark:text-gray-400">Your Leads</p>
                 <p className="text-2xl font-bold text-gray-900 dark:text-slate-100">{allLeads.length}</p>
@@ -1155,7 +1155,7 @@ export default function LeadsPage() {
 
       {error && (
         <div className="mb-6 p-4 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900 rounded-lg flex items-start gap-3">
-          <AlertCircle className="h-5 w-5 text-red-600 dark:text-red-400 flex-shrink-0 mt-0.5" />
+          <AlertCircle className="h-5 w-5 text-red-600 dark:text-red-400 shrink-0 mt-0.5" />
           <div className="flex-1">
             <h3 className="text-sm font-medium text-red-800 dark:text-red-300">Error Loading Leads</h3>
             <p className="mt-1 text-sm text-red-700 dark:text-red-400">{error}</p>
@@ -1167,9 +1167,9 @@ export default function LeadsPage() {
       {/* Bulk selection bar */}
       {selectedLeads.length > 0 && (
         <div className="mb-4 p-4 bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-900 rounded-lg">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
             <div className="flex items-center gap-3">
-              <UserCheck className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+              <UserCheck className="h-5 w-5 text-blue-600 dark:text-blue-400 shrink-0" />
               <div>
                 <h3 className="font-semibold text-blue-900 dark:text-blue-200">{selectedLeads.length} lead(s) selected</h3>
                 <p className="text-sm text-blue-700 dark:text-blue-400">Click a salesperson to assign</p>
@@ -1190,16 +1190,16 @@ export default function LeadsPage() {
 
       {/* Performance Metrics */}
       <div className="mb-6">
-        <div className="bg-white dark:bg-slate-900 rounded-lg border border-gray-200 dark:border-slate-800 p-6">
+        <div className="bg-white dark:bg-slate-900 rounded-lg border border-gray-200 dark:border-slate-800 p-4 sm:p-6">
           <div className="mb-4">
             <h2 className="text-xl font-semibold text-gray-900 dark:text-slate-100">Lead Performance</h2>
             <p className="text-sm text-gray-600 dark:text-gray-400">{isAdmin ? "Overall lead success metrics" : "Your lead success metrics"}</p>
           </div>
 
           {/* Period selector */}
-          <div className="flex items-center gap-2 mb-4">
-            <span className="text-xs font-medium text-gray-500 dark:text-gray-400">Period:</span>
-            <div className="flex items-center gap-1 rounded-xl border border-gray-200 dark:border-slate-800 bg-gray-50 dark:bg-slate-800/60 p-1">
+          <div className="flex items-center gap-2 mb-4 overflow-x-auto pb-2">
+            <span className="text-xs font-medium text-gray-500 dark:text-gray-400 shrink-0">Period:</span>
+            <div className="flex items-center gap-1 rounded-xl border border-gray-200 dark:border-slate-800 bg-gray-50 dark:bg-slate-800/60 p-1 shrink-0">
               {(['daily', 'weekly', 'monthly', 'alltime'] as const).map((p) => (
                 <button
                   key={p}
@@ -1229,10 +1229,10 @@ export default function LeadsPage() {
               { key: "lost",             label: "Lost",             cardBg: "bg-red-50 dark:bg-red-950/30 border-red-200 dark:border-red-900/60", numColor: "text-red-700 dark:text-red-300", labelColor: "text-red-600 dark:text-red-400", icon: <TrendingDown className="h-6 w-6 text-red-600 dark:text-red-400 mx-auto" />, val: performanceStats.lost },
             ].map(({ key, label, cardBg, numColor, labelColor, icon, val }) => (
               <div key={key}
-                className={`text-center p-6 border rounded-lg ${cardBg} cursor-pointer hover:shadow-md transition-shadow`}
+                className={`text-center p-4 sm:p-6 border rounded-lg ${cardBg} cursor-pointer hover:shadow-md transition-shadow`}
                 onClick={() => handlePerformanceClick(key)}>
-                <div className={`text-4xl font-bold ${numColor}`}>{val}</div>
-                <div className={`text-sm ${labelColor} mt-2 font-medium`}>{label}</div>
+                <div className={`text-3xl sm:text-4xl font-bold ${numColor}`}>{val}</div>
+                <div className={`text-xs sm:text-sm ${labelColor} mt-2 font-medium`}>{label}</div>
                 <div className="mt-3">{icon}</div>
               </div>
             ))}
@@ -1248,7 +1248,7 @@ export default function LeadsPage() {
       {/* Performance Modal */}
       <Dialog open={showPerformanceModal} onOpenChange={setShowPerformanceModal}>
         <DialogContent className="max-w-[95vw] w-[95vw] max-h-[90vh] overflow-hidden flex flex-col">
-          <DialogHeader className="pb-4 border-b border-gray-200 dark:border-slate-800 flex-shrink-0">
+          <DialogHeader className="pb-4 border-b border-gray-200 dark:border-slate-800 shrink-0">
             <DialogTitle className="text-2xl font-bold text-gray-900 dark:text-slate-100">{performanceFilter ? getPerformanceLabel(performanceFilter) : "Leads"}</DialogTitle>
             <DialogDescription>Showing {performanceFilteredLeads.length} lead{performanceFilteredLeads.length !== 1 ? "s" : ""}</DialogDescription>
           </DialogHeader>
@@ -1266,30 +1266,30 @@ export default function LeadsPage() {
               <div className="space-y-3 py-4">
                 {performanceFilteredLeads.map(l => (
                   <div key={l.opportunity_id}
-                    className="p-5 border border-gray-200 dark:border-slate-800 bg-white dark:bg-slate-900 rounded-xl hover:bg-gray-50 dark:hover:bg-slate-800/60 hover:shadow-sm cursor-pointer transition-all"
+                    className="p-4 sm:p-5 border border-gray-200 dark:border-slate-800 bg-white dark:bg-slate-900 rounded-xl hover:bg-gray-50 dark:hover:bg-slate-800/60 hover:shadow-sm cursor-pointer transition-all"
                     onClick={() => { setShowPerformanceModal(false); window.open(`/dashboard/leads/${l.opportunity_id}`, "_blank"); }}>
-                    <div className="flex items-start justify-between gap-4 mb-4">
+                    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-4">
                       <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-2">
-                          <h3 className="text-lg font-bold text-gray-900 dark:text-slate-100 truncate">{l.business_name}</h3>
+                        <div className="flex items-center gap-2 mb-2 flex-wrap">
+                          <h3 className="text-base sm:text-lg font-bold text-gray-900 dark:text-slate-100 truncate">{l.business_name}</h3>
                           {l.stage_name && (
-                            <Badge variant="outline" className={`text-xs flex-shrink-0 ${getStatusColor(l.stage_name)}`}>{getStatusLabel(l.stage_name)}</Badge>
+                            <Badge variant="outline" className={`text-xs shrink-0 ${getStatusColor(l.stage_name)}`}>{getStatusLabel(l.stage_name)}</Badge>
                           )}
                         </div>
-                        <p className="text-sm text-gray-600 dark:text-gray-400 truncate">{l.contact_person} · {l.tel_number}</p>
+                        <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400 truncate">{l.contact_person} · {l.tel_number}</p>
                       </div>
-                      <div className="text-right flex-shrink-0">
-                        {l.annual_usage && <p className="text-sm font-semibold text-gray-700 dark:text-gray-300">{formatUsage(l.annual_usage)}</p>}
+                      <div className="text-left sm:text-right shrink-0">
+                        {l.annual_usage && <p className="text-xs sm:text-sm font-semibold text-gray-700 dark:text-gray-300">{formatUsage(l.annual_usage)}</p>}
                         {l.end_date && <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">End: {formatDate(l.end_date)}</p>}
                       </div>
                     </div>
-                    <div className="grid grid-cols-4 gap-4 pt-3 border-t border-gray-100 dark:border-slate-800">
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 pt-3 border-t border-gray-100 dark:border-slate-800">
                       <div><p className="text-xs text-gray-500 dark:text-gray-400 uppercase mb-1">Supplier</p><p className="font-semibold text-sm text-gray-900 dark:text-slate-100 truncate">{l.supplier_name || getSupplierName(l.supplier_id)}</p></div>
                       <div><p className="text-xs text-gray-500 dark:text-gray-400 uppercase mb-1">MPAN</p><p className="font-semibold text-sm text-gray-900 dark:text-slate-100 font-mono truncate">{l.mpan_mpr || "—"}</p></div>
                       <div><p className="text-xs text-gray-500 dark:text-gray-400 uppercase mb-1">Annual Usage</p><p className="font-semibold text-sm text-gray-900 dark:text-slate-100">{l.annual_usage?.toLocaleString() || "—"} kWh</p></div>
                       <div><p className="text-xs text-gray-500 dark:text-gray-400 uppercase mb-1">Assigned To</p>
                         <p className="font-semibold text-sm text-purple-700 dark:text-purple-400 flex items-center gap-1 truncate">
-                          <Users className="h-3 w-3 flex-shrink-0" /><span className="truncate">{l.assigned_to_name || "Unassigned"}</span>
+                          <Users className="h-3 w-3 shrink-0" /><span className="truncate">{l.assigned_to_name || "Unassigned"}</span>
                         </p>
                       </div>
                     </div>
@@ -1298,7 +1298,7 @@ export default function LeadsPage() {
               </div>
             )}
           </div>
-          <div className="flex justify-end gap-2 pt-4 border-t border-gray-200 dark:border-slate-800">
+          <div className="flex justify-end gap-2 pt-4 border-t border-gray-200 dark:border-slate-800 shrink-0">
             <Button variant="outline" onClick={() => setShowPerformanceModal(false)}>Close</Button>
           </div>
         </DialogContent>
@@ -1306,7 +1306,7 @@ export default function LeadsPage() {
 
       {/* Search / Filter Bar */}
       <div className="mb-6 grid grid-cols-1 gap-3 xl:grid-cols-[minmax(0,1fr)_auto]">
-        <div className="grid min-w-0 grid-cols-[repeat(auto-fit,minmax(150px,1fr))] gap-3">
+        <div className="grid min-w-0 grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-3">
           <div className="relative min-w-0 sm:col-span-2 xl:col-span-1">
             <Search className="text-muted-foreground absolute top-2.5 left-2 h-4 w-4" />
             <Input placeholder="Search leads..." className="pl-8" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
@@ -1319,10 +1319,10 @@ export default function LeadsPage() {
 
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="outline" className="min-w-0 justify-between">
-                <Filter className="mr-2 h-4 w-4" />
+              <Button variant="outline" className="min-w-0 justify-between w-full">
+                <Filter className="mr-2 h-4 w-4 shrink-0" />
                 <span className="truncate">{supplierFilter === "All" ? "All Suppliers" : getSupplierName(supplierFilter as number)}</span>
-                <ChevronDown className="ml-1 h-3 w-3 flex-shrink-0" />
+                <ChevronDown className="ml-1 h-3 w-3 shrink-0" />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent>
@@ -1333,10 +1333,10 @@ export default function LeadsPage() {
 
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="outline" className="min-w-0 justify-between">
-                <Filter className="mr-2 h-4 w-4" />
+              <Button variant="outline" className="min-w-0 justify-between w-full">
+                <Filter className="mr-2 h-4 w-4 shrink-0" />
                 <span className="truncate">{statusFilter === "All" ? "All Status" : getStatusLabel(statusFilter as string)}</span>
-                <ChevronDown className="ml-1 h-3 w-3 flex-shrink-0" />
+                <ChevronDown className="ml-1 h-3 w-3 shrink-0" />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent>
@@ -1365,19 +1365,18 @@ export default function LeadsPage() {
               <SelectItem value="high-low">Usage: High to Low</SelectItem>
             </SelectContent>
           </Select>
+        </div>
 
-          <Button variant="outline" onClick={() => setShowFilterSidebar(true)} className="relative min-w-0">
+        <div className="flex flex-wrap items-center gap-2 xl:justify-end">
+          <Button variant="outline" onClick={() => setShowFilterSidebar(true)} className="flex-none whitespace-nowrap">
             <Filter className="mr-2 h-4 w-4" />
             All Filters
             {(isAdmin && salespersonFilter !== "All") && (
               <span className="absolute -top-1 -right-1 h-2.5 w-2.5 rounded-full bg-black dark:bg-white" />
             )}
           </Button>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-2 xl:justify-end">
           {isAdmin && (
-            <Button onClick={downloadLeadsCsv} variant="outline" disabled={filteredLeads.length === 0}>
+            <Button onClick={downloadLeadsCsv} variant="outline" disabled={filteredLeads.length === 0} className="flex-none whitespace-nowrap">
               <Download className="mr-2 h-4 w-4" />Download Leads
             </Button>
           )}
@@ -1390,14 +1389,14 @@ export default function LeadsPage() {
               setImportProgress(0);
               setBulkImporting(false);
               setShowImportModal(true);
-            }} variant="outline">
+            }} variant="outline" className="flex-none whitespace-nowrap">
             <Upload className="mr-2 h-4 w-4" />Bulk Import
           </Button>
-          <Button onClick={() => setShowAddLeadModal(true)}>
+          <Button onClick={() => setShowAddLeadModal(true)} className="w-full sm:w-auto">
             <Plus className="mr-2 h-4 w-4" />Add Lead
           </Button>
           {selectedLeads.length > 0 && (
-            <Button onClick={bulkDeleteLeads} variant="destructive">
+            <Button onClick={bulkDeleteLeads} variant="destructive" className="w-full sm:w-auto">
               <Trash2 className="mr-2 h-4 w-4" />Delete Selected ({selectedLeads.length})
             </Button>
           )}
@@ -1413,7 +1412,7 @@ export default function LeadsPage() {
           className={`w-80 bg-white dark:bg-slate-900 border-l border-gray-200 dark:border-slate-800 h-full shadow-2xl flex flex-col transition-transform duration-300 ease-in-out ${showFilterSidebar ? "translate-x-0" : "translate-x-full"}`}
           style={{ willChange: "transform" }}
         >
-          <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-slate-800 flex-shrink-0">
+          <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-slate-800 shrink-0">
             <h2 className="text-lg font-semibold text-gray-900 dark:text-slate-100">All Filters</h2>
             <button onClick={() => setShowFilterSidebar(false)} className="p-1 rounded hover:bg-gray-100 dark:hover:bg-slate-800">
               <X className="h-5 w-5 text-gray-500 dark:text-gray-400" />
@@ -1508,7 +1507,7 @@ export default function LeadsPage() {
             </div>
           </div>
 
-          <div className="px-6 py-4 border-t border-gray-200 dark:border-slate-800 flex-shrink-0 flex gap-2">
+          <div className="px-6 py-4 border-t border-gray-200 dark:border-slate-800 shrink-0 flex gap-2">
             <Button
               variant="outline"
               className="flex-1"
@@ -1535,10 +1534,10 @@ export default function LeadsPage() {
       {/* Table */}
       <div className="overflow-hidden rounded-lg border border-gray-200 dark:border-slate-800 bg-white dark:bg-slate-900">
         <div className="overflow-x-auto">
-          <table className="w-full divide-y divide-gray-200 dark:divide-slate-800 table-fixed">
+          <table className="w-full divide-y divide-gray-200 dark:divide-slate-800 min-w-[1000px]">
             <thead className="bg-gray-50 dark:bg-slate-800/50">
               <tr>
-                <th className="px-3 py-3 text-left w-8">
+                <th className="px-3 py-3 text-left w-10">
                   <input
                     type="checkbox"
                     className="rounded border-gray-300 dark:border-slate-700 dark:bg-slate-800"
@@ -1546,7 +1545,7 @@ export default function LeadsPage() {
                     onChange={handleSelectAll}
                   />
                 </th>
-                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 dark:text-gray-400 uppercase w-20 border-r-2 border-gray-300 dark:border-slate-700">
+                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 dark:text-gray-400 uppercase w-16 border-r-2 border-gray-300 dark:border-slate-700">
                   ID
                 </th>
                 <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 dark:text-gray-400 uppercase w-[9%]">
@@ -1809,7 +1808,7 @@ export default function LeadsPage() {
           }
         }}
       >
-        <DialogContent className="max-w-md max-h-[80vh] overflow-y-auto">
+        <DialogContent className="max-w-md w-[90vw] sm:w-full max-h-[80vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Bulk Import Leads</DialogTitle>
             <DialogDescription>
@@ -2010,7 +2009,7 @@ export default function LeadsPage() {
             )}
 
             {/* BUTTONS */}
-            <div className="flex justify-end gap-2 pt-4">
+            <div className="flex flex-col-reverse sm:flex-row justify-end gap-2 pt-4">
               <Button
                 variant="outline"
                 onClick={() => {
@@ -2037,8 +2036,8 @@ export default function LeadsPage() {
       </Dialog>
 
       <Dialog open={showAllDuplicates} onOpenChange={setShowAllDuplicates}>
-        <DialogContent className="max-w-lg max-h-[85vh] overflow-hidden flex flex-col">
-          <DialogHeader className="flex-shrink-0">
+        <DialogContent className="max-w-lg w-[90vw] sm:w-full max-h-[85vh] overflow-hidden flex flex-col">
+          <DialogHeader className="shrink-0">
             <DialogTitle className="text-lg font-semibold text-red-600 dark:text-red-400">
               Duplicate Records
             </DialogTitle>
@@ -2075,7 +2074,7 @@ export default function LeadsPage() {
             ))}
           </div>
 
-          <div className="flex justify-end pt-3 border-t border-gray-200 dark:border-slate-800 flex-shrink-0">
+          <div className="flex justify-end pt-3 border-t border-gray-200 dark:border-slate-800 shrink-0">
             <Button variant="outline" onClick={() => setShowAllDuplicates(false)}>
               Close
             </Button>
@@ -2085,7 +2084,7 @@ export default function LeadsPage() {
 
       {/* Callback Modal */}
       <Dialog open={showCallbackModal} onOpenChange={setShowCallbackModal}>
-        <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-md w-[90vw] sm:w-full max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{callbackStatus ? `Add ${callbackStatus}` : "Add Action"}</DialogTitle>
             <DialogDescription>Record lead interaction and set follow-up</DialogDescription>
@@ -2206,7 +2205,7 @@ export default function LeadsPage() {
               <Textarea placeholder={statusConfig[callbackStatus]?.requiresNotes ? "Enter required notes..." : "Add any additional notes..."} value={callbackNotes} onChange={e => setCallbackNotes(e.target.value)} rows={3} />
             </div>
           </div>
-          <div className="flex justify-end gap-2">
+          <div className="flex flex-col-reverse sm:flex-row justify-end gap-2">
             <Button variant="outline" onClick={() => setShowCallbackModal(false)} disabled={isSubmittingCallback}>Cancel</Button>
             <Button onClick={handleSubmitCallback} disabled={isSubmittingCallback}>
               {isSubmittingCallback ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Saving...</> : (callbackStatus ? `Save ${callbackStatus}` : "Save")}
@@ -2217,7 +2216,7 @@ export default function LeadsPage() {
 
       {/* Assign Modal */}
       <Dialog open={showAssignModal} onOpenChange={setShowAssignModal}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-md w-[90vw] sm:w-full">
           <DialogHeader><DialogTitle>Assign Salesperson</DialogTitle><DialogDescription>Add an optional note about this assignment</DialogDescription></DialogHeader>
           <div className="space-y-4">
             <div>
@@ -2235,7 +2234,7 @@ export default function LeadsPage() {
               <Textarea className="mt-1" placeholder="Why is this being assigned?" value={assignmentNotes} onChange={e => setAssignmentNotes(e.target.value)} rows={3} />
             </div>
           </div>
-          <div className="flex justify-end gap-2 mt-4">
+          <div className="flex flex-col-reverse sm:flex-row justify-end gap-2 mt-4">
             <Button variant="outline" onClick={() => { setShowAssignModal(false); setAssignToEmployeeId(""); setAssignmentNotes(""); setAssigningLeadId(null); }} disabled={isAssigning}>Cancel</Button>
             <Button onClick={handleAssignWithNotes} disabled={isAssigning}>
               {isAssigning ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Assigning...</> : "Assign"}
@@ -2259,7 +2258,7 @@ export default function LeadsPage() {
 
       {/* Bulk Assign Modal */}
       <Dialog open={showBulkAssignModal} onOpenChange={setShowBulkAssignModal}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-md w-[90vw] sm:w-full">
           <DialogHeader>
             <DialogTitle>Bulk Assign Leads</DialogTitle>
             <DialogDescription>
@@ -2269,7 +2268,7 @@ export default function LeadsPage() {
           <div className="space-y-4">
             <div className="p-3 bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-900 rounded-lg">
               <div className="flex items-center gap-2 mb-2">
-                <UserCheck className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                <UserCheck className="h-4 w-4 text-blue-600 dark:text-blue-400 shrink-0" />
                 <span className="text-sm font-medium text-blue-900 dark:text-blue-200">
                   {selectedLeads.length} lead{selectedLeads.length !== 1 ? "s" : ""} selected
                 </span>
@@ -2320,7 +2319,7 @@ export default function LeadsPage() {
               />
             </div>
           </div>
-          <div className="flex justify-end gap-2 mt-4">
+          <div className="flex flex-col-reverse sm:flex-row justify-end gap-2 mt-4">
             <Button
               variant="outline"
               onClick={() => {

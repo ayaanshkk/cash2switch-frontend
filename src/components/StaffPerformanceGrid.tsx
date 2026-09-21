@@ -38,7 +38,7 @@ interface StaffStat {
 
 interface StaffPerformanceGridProps {
   employeeId?: number;
-  isLeadsDashboard?: boolean; // ✅ ADD THIS
+  isLeadsDashboard?: boolean;
 }
 
 /* ─── Conversion color (original): green / amber / red / gray by band ─── */
@@ -216,7 +216,7 @@ function DetailCard({
 
   return (
     <div
-      className="group flex flex-col gap-5 rounded-2xl border border-stone-200 bg-white p-6 shadow-sm transition-all duration-300 ease-out hover:-translate-y-0.5 hover:border-stone-300 hover:shadow-md dark:border-slate-800 dark:bg-slate-900 dark:hover:border-slate-700"
+      className="group flex flex-col gap-5 rounded-2xl border border-stone-200 bg-white p-4 sm:p-6 shadow-sm transition-all duration-300 ease-out hover:-translate-y-0.5 hover:border-stone-300 hover:shadow-md dark:border-slate-800 dark:bg-slate-900 dark:hover:border-slate-700"
       style={{ animation: `cp-stagger-up 0.45s ${delay}ms cubic-bezier(0.22,1,0.36,1) both` }}
     >
       <div className="flex items-center gap-4">
@@ -279,9 +279,9 @@ function MemberSpotlight({
   delay: number;
   outcomeMeta: readonly { key: string; label: string; icon: any }[];
 }) {
-  const rate = useCountUp(stat.conversion_rate, 1100);  // ✅ ADD THIS
-  const [barOn, setBarOn] = useState(false);            // ✅ ADD THIS
-  const stroke = rateColor(stat.conversion_rate);       // ✅ ADD THIS
+  const rate = useCountUp(stat.conversion_rate, 1100);
+  const [barOn, setBarOn] = useState(false);
+  const stroke = rateColor(stat.conversion_rate);
 
   useEffect(() => {
     const t = requestAnimationFrame(() => setBarOn(true));
@@ -290,7 +290,7 @@ function MemberSpotlight({
 
   return (
     <div
-      className="cp-performance-modal-surface relative overflow-hidden rounded-2xl border border-stone-200 bg-white dark:border-slate-800 dark:bg-slate-900 p-8 shadow-md"
+      className="cp-performance-modal-surface relative overflow-hidden rounded-2xl border border-stone-200 bg-white dark:border-slate-800 dark:bg-slate-900 p-4 sm:p-8 shadow-md"
       style={{ animationDelay: `${delay}ms` }}
     >
       <div className="relative z-[1] flex flex-col gap-8 md:flex-row md:items-start md:gap-10">
@@ -375,7 +375,7 @@ function PeriodSelector({ period, onChange }: { period: Period; onChange: (p: Pe
           type="button"
           onClick={() => onChange(p)}
           className={cn(
-            "rounded-lg px-3 py-1 text-xs font-medium capitalize transition-all duration-150",
+            "rounded-lg px-2.5 sm:px-3 py-1 text-xs font-medium capitalize transition-all duration-150",
             period === p
               ? "bg-white dark:bg-slate-700 text-stone-900 dark:text-slate-100 shadow-sm"
               : "text-stone-500 dark:text-slate-400 hover:text-stone-700 dark:hover:text-slate-200"
@@ -389,7 +389,6 @@ function PeriodSelector({ period, onChange }: { period: Period; onChange: (p: Pe
 }
 
 /* ─── Main Component ─── */
-// ✅ FIX: Add isLeadsDashboard to props
 export function StaffPerformanceGrid({ employeeId, isLeadsDashboard = false }: StaffPerformanceGridProps) {
   const [staffStats, setStaffStats] = useState<StaffStat[]>([]);
   const [loading, setLoading] = useState(true);
@@ -401,16 +400,25 @@ export function StaffPerformanceGrid({ employeeId, isLeadsDashboard = false }: S
   const [visibleCount, setVisibleCount] = useState(10);
   const [period, setPeriod] = useState<Period>("daily");
 
-  // ✅ CONDITIONAL OUTCOME META - Changes label based on dashboard type
+  // State to track scroll position inside the modal body for dynamic shrinking header
+  const [isScrolled, setIsScrolled] = useState(false);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+
+  const handleScroll = () => {
+    if (scrollContainerRef.current) {
+      setIsScrolled(scrollContainerRef.current.scrollTop > 20);
+    }
+  };
+
   const outcomeMeta = isLeadsDashboard 
     ? [
-        { key: "renewed_count", label: "Converted", icon: CheckCircle2 },  // Shows "Converted" for Leads
+        { key: "renewed_count", label: "Converted", icon: CheckCircle2 },
         { key: "in_progress_count", label: "In progress", icon: TrendingUp },
         { key: "not_contacted_count", label: "Not contacted", icon: Clock },
         { key: "lost_count", label: "Lost", icon: TrendingDown },
       ] as const
     : [
-        { key: "renewed_count", label: "Renewed", icon: CheckCircle2 },    // Shows "Renewed" for Renewals
+        { key: "renewed_count", label: "Renewed", icon: CheckCircle2 },
         { key: "in_progress_count", label: "In progress", icon: TrendingUp },
         { key: "not_contacted_count", label: "Not contacted", icon: Clock },
         { key: "lost_count", label: "Lost", icon: TrendingDown },
@@ -441,7 +449,6 @@ export function StaffPerformanceGrid({ employeeId, isLeadsDashboard = false }: S
       const params = new URLSearchParams();
       if (employeeId) params.set("employee_id", String(employeeId));
       params.set("period", currentPeriod); 
-      console.log("🔍 period sent:", currentPeriod); 
 
       const endpoint = isLeadsDashboard
         ? `/api/crm/leads/staff-performance`
@@ -540,19 +547,21 @@ export function StaffPerformanceGrid({ employeeId, isLeadsDashboard = false }: S
 
   return (
     <>
-      <div className="crm-panel rounded-[28px] px-5 pb-5 pt-4">
-        <div className="mb-4 flex flex-wrap items-center gap-3">
-          <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-black dark:bg-slate-800 text-white shadow-sm">
-            <Users className="h-4 w-4" />
-          </div>
-          <div>
-            <p className="text-sm font-semibold text-stone-900 dark:text-slate-100">
-              {employeeId ? "My Performance" : "Team Performance"}
-            </p>
-            <p className="text-xs text-stone-500 dark:text-slate-400">{subtitle}</p>
+      <div className="crm-panel rounded-[28px] px-4 sm:px-5 pb-5 pt-4">
+        <div className="mb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-black dark:bg-slate-800 text-white shadow-sm shrink-0">
+              <Users className="h-4 w-4" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-sm font-semibold text-stone-900 dark:text-slate-100 truncate">
+                {employeeId ? "My Performance" : "Team Performance"}
+              </p>
+              <p className="text-xs text-stone-500 dark:text-slate-400 truncate">{subtitle}</p>
+            </div>
           </div>
 
-          <div className="ml-auto flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <PeriodSelector period={period} onChange={setPeriod} />
             <button
               type="button"
@@ -560,7 +569,7 @@ export function StaffPerformanceGrid({ employeeId, isLeadsDashboard = false }: S
                 setSelectedEmployeeId(null);
                 setOpen(true);
               }}
-              className="group inline-flex items-center gap-1.5 rounded-xl border border-stone-200/90 bg-white dark:border-slate-800 dark:bg-slate-900 px-3 py-1.5 text-xs font-medium text-stone-700 dark:text-slate-300 shadow-sm transition hover:border-stone-300 hover:bg-stone-50 hover:text-stone-900 dark:hover:bg-slate-800 dark:hover:text-white active:scale-[0.98]"
+              className="group inline-flex items-center justify-center gap-1.5 rounded-xl border border-stone-200/90 bg-white dark:border-slate-800 dark:bg-slate-900 px-3 py-1.5 text-xs font-medium text-stone-700 dark:text-slate-300 shadow-sm transition hover:border-stone-300 hover:bg-stone-50 hover:text-stone-900 dark:hover:bg-slate-800 dark:hover:text-white active:scale-[0.98] flex-1 sm:flex-none"
             >
               View all
               <ArrowRight className="h-3 w-3 transition-transform duration-200 group-hover:translate-x-0.5" />
@@ -571,7 +580,7 @@ export function StaffPerformanceGrid({ employeeId, isLeadsDashboard = false }: S
         {strip.length === 0 ? (
           <p className="py-4 text-center text-sm text-stone-400 dark:text-slate-500">No data found.</p>
         ) : (
-          <div ref={stripContainerRef} className="flex gap-6 pb-2">
+          <div ref={stripContainerRef} className="flex gap-6 pb-2 overflow-x-auto scrollbar-none">
             {strip.map((s, i) => (
               <StripCard
                 key={s.employee_id}
@@ -589,18 +598,17 @@ export function StaffPerformanceGrid({ employeeId, isLeadsDashboard = false }: S
         <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-stone-200/80 dark:border-slate-800 pt-3 text-[11px] text-stone-500 dark:text-slate-400">
           <span className="font-medium text-stone-600 dark:text-slate-300">Conversion bands</span>
           <span className="flex items-center gap-1.5">
-            <span className="inline-block h-2 w-2 rounded-full" style={{ background: "#16a34a" }} />
+            <span className="inline-block h-2 w-2 rounded-full shrink-0" style={{ background: "#16a34a" }} />
             ≥ 60% great
           </span>
           <span className="flex items-center gap-1.5">
-            <span className="inline-block h-2 w-2 rounded-full" style={{ background: "#d97706" }} />
+            <span className="inline-block h-2 w-2 rounded-full shrink-0" style={{ background: "#d97706" }} />
             35–59% good
           </span>
           <span className="flex items-center gap-1.5">
-            <span className="inline-block h-2 w-2 rounded-full" style={{ background: "#dc2626" }} />
+            <span className="inline-block h-2 w-2 rounded-full shrink-0" style={{ background: "#dc2626" }} />
             {"< 35%"} focus
           </span>
-
         </div>
       </div>
 
@@ -609,75 +617,94 @@ export function StaffPerformanceGrid({ employeeId, isLeadsDashboard = false }: S
           showCloseButton
           style={{ width: "min(1280px, 94vw)", maxWidth: "min(1280px, 94vw)" }}
           className={cn(
-            "max-h-[92vh] overflow-hidden border-0 bg-white dark:bg-slate-950 p-0 shadow-xl",
+            "max-h-[92vh] overflow-hidden border-0 bg-white dark:bg-slate-950 p-0 shadow-xl flex flex-col",
             "data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-[0.99] data-[state=open]:duration-300",
           )}
         >
-          <div className="cp-performance-modal-surface flex max-h-[92vh] flex-col overflow-hidden rounded-2xl border border-stone-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xl">
-            <div className="relative z-[1] border-b border-stone-200 dark:border-slate-800 bg-stone-50 dark:bg-slate-900/50 px-6 py-6 md:px-8">
-              <DialogHeader className="relative space-y-4">
-                <div className="flex flex-wrap items-center gap-3">
-                  {selectedStat && !employeeId && (
-                    <button
-                      type="button"
-                      onClick={() => setSelectedEmployeeId(null)}
-                      className="inline-flex items-center gap-1 rounded-full border border-stone-200 bg-white dark:border-slate-700 dark:bg-slate-800 px-3 py-1.5 text-xs font-medium text-stone-700 dark:text-slate-200 shadow-sm transition hover:border-stone-300 hover:bg-stone-50 hover:text-stone-900 dark:hover:bg-slate-700"
-                    >
-                      <ChevronLeft className="h-3.5 w-3.5" />
-                      All team
-                    </button>
-                  )}
-                  <DialogTitle className="flex flex-wrap items-center gap-3 text-xl font-bold tracking-tight text-stone-900 dark:text-slate-100">
-                    <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-black dark:bg-slate-800 text-white shadow-md">
-                      <Users className="h-5 w-5" />
-                    </span>
-                    {selectedStat
-                      ? `${selectedStat.employee_name}`
-                      : employeeId
-                        ? "My Performance Overview"
-                        : "Team Performance Hub"}
-                  </DialogTitle>
-                </div>
-                <p className="text-sm text-stone-500 dark:text-slate-400">
-                  {selectedStat
-                    ? "Detailed outcomes and conversion for this teammate."
-                    : employeeId
-                      ? "Your renewal activity and outcomes."
-                      : "Compare conversion and pipeline health across the team."}
-                </p>
-
-                {/* ✅ Period selector inside modal — leads dashboard only */}
-                <div className="flex items-center gap-2">
-                  <span className="text-xs font-medium text-stone-500 dark:text-slate-400">Period:</span>
-                  <PeriodSelector period={period} onChange={setPeriod} />
-                </div>
-
-                {!selectedStat && (
-                  <div className="grid grid-cols-2 gap-3 pt-2 sm:grid-cols-4">
-                    {[
-                      { label: "Members", val: stats.length, accent: "border-l-4 border-l-green-600 bg-green-50 dark:bg-green-950/20" },
-                      { label: "Avg conversion", val: `${avgRate}%`, accent: "border-l-4 border-l-indigo-600 bg-indigo-50 dark:bg-indigo-950/20" },
-                      { label: "Renewed (total)", val: totalConverted, accent: "border-l-4 border-l-emerald-600 bg-emerald-50 dark:bg-emerald-950/20" },
-                      { label: "Contacts (total)", val: totalContacts, accent: "border-l-4 border-l-sky-600 bg-sky-50 dark:bg-sky-950/20" },
-                    ].map(({ label, val, accent }, i) => (
-                      <div
-                        key={label}
-                        className={cn(
-                          "rounded-xl border border-stone-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-4 py-3 shadow-sm transition hover:shadow-md",
-                          accent,
-                        )}
-                        style={{ animation: `cp-stagger-up 0.4s ${80 + i * 50}ms cubic-bezier(0.22,1,0.36,1) both` }}
+          <div className="cp-performance-modal-surface flex flex-1 flex-col overflow-hidden rounded-2xl border border-stone-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xl">
+            
+            {/* DYNAMIC COLLAPSING HEADER: Shrinks padding & hides overview stats smoothly on scroll */}
+            <div className={cn(
+              "sticky top-0 z-20 border-b border-stone-200 dark:border-slate-800 bg-stone-50/95 dark:bg-slate-900/95 backdrop-blur-md px-4 sm:px-6 md:px-8 transition-all duration-300 shadow-sm",
+              isScrolled ? "py-3" : "py-6"
+            )}>
+              <DialogHeader className="relative space-y-3">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-3 min-w-0">
+                    {selectedStat && !employeeId && (
+                      <button
+                        type="button"
+                        onClick={() => setSelectedEmployeeId(null)}
+                        className="inline-flex items-center gap-1 rounded-full border border-stone-200 bg-white dark:border-slate-700 dark:bg-slate-800 px-3 py-1.5 text-xs font-medium text-stone-700 dark:text-slate-200 shadow-sm transition hover:border-stone-300 hover:bg-stone-50 hover:text-stone-900 dark:hover:bg-slate-700 shrink-0"
                       >
-                        <p className="text-2xl font-bold tabular-nums text-stone-900 dark:text-slate-100">{val}</p>
-                        <p className="mt-1 text-[11px] font-medium uppercase tracking-wide text-stone-600 dark:text-slate-400">{label}</p>
-                      </div>
-                    ))}
+                        <ChevronLeft className="h-3.5 w-3.5" />
+                        All team
+                      </button>
+                    )}
+                    <DialogTitle className="flex items-center gap-2.5 text-base sm:text-lg font-bold tracking-tight text-stone-900 dark:text-slate-100 truncate">
+                      <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-black dark:bg-slate-800 text-white shadow-sm shrink-0">
+                        <Users className="h-4 w-4" />
+                      </span>
+                      <span className="truncate">
+                        {selectedStat
+                          ? `${selectedStat.employee_name}`
+                          : employeeId
+                            ? "My Performance Overview"
+                            : "Team Performance Hub"}
+                      </span>
+                    </DialogTitle>
                   </div>
-                )}
+                </div>
+
+                {/* Collapsible content section that smoothly hides when scrolled */}
+                <div className={cn(
+                  "space-y-3 overflow-hidden transition-all duration-300",
+                  isScrolled ? "max-h-0 opacity-0 pt-0" : "max-h-96 opacity-100 pt-1"
+                )}>
+                  <p className="text-xs sm:text-sm text-stone-500 dark:text-slate-400">
+                    {selectedStat
+                      ? "Detailed outcomes and conversion for this teammate."
+                      : employeeId
+                        ? "Your renewal activity and outcomes."
+                        : "Compare conversion and pipeline health across the team."}
+                  </p>
+
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-xs font-medium text-stone-500 dark:text-slate-400">Period:</span>
+                    <PeriodSelector period={period} onChange={setPeriod} />
+                  </div>
+
+                  {!selectedStat && (
+                    <div className="grid grid-cols-2 gap-3 pt-2 sm:grid-cols-4">
+                      {[
+                        { label: "Members", val: stats.length, accent: "border-l-4 border-l-green-600 bg-green-50 dark:bg-green-950/20" },
+                        { label: "Avg conversion", val: `${avgRate}%`, accent: "border-l-4 border-l-indigo-600 bg-indigo-50 dark:bg-indigo-950/20" },
+                        { label: "Renewed (total)", val: totalConverted, accent: "border-l-4 border-l-emerald-600 bg-emerald-50 dark:bg-emerald-950/20" },
+                        { label: "Contacts (total)", val: totalContacts, accent: "border-l-4 border-l-sky-600 bg-sky-50 dark:bg-sky-950/20" },
+                      ].map(({ label, val, accent }, i) => (
+                        <div
+                          key={label}
+                          className={cn(
+                            "rounded-xl border border-stone-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-3 sm:px-4 py-2.5 shadow-sm",
+                            accent,
+                          )}
+                        >
+                          <p className="text-xl sm:text-2xl font-bold tabular-nums text-stone-900 dark:text-slate-100">{val}</p>
+                          <p className="mt-0.5 text-[10px] sm:text-[11px] font-medium uppercase tracking-wide text-stone-600 dark:text-slate-400 truncate">{label}</p>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </DialogHeader>
             </div>
 
-            <div className="max-h-[calc(92vh-200px)] min-h-0 flex-1 overflow-y-auto bg-stone-50 dark:bg-slate-950 px-6 py-6 md:px-8">
+            {/* SCROLLABLE BODY CONTAINER: Fires handleScroll to trigger header shrinking */}
+            <div 
+              ref={scrollContainerRef}
+              onScroll={handleScroll}
+              className="flex-1 overflow-y-auto bg-stone-50 dark:bg-slate-950 px-4 sm:px-6 md:px-8 py-6"
+            >
               <div className="space-y-6">
                 {!selectedEmployeeId && !employeeId && (
                   <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -699,7 +726,7 @@ export function StaffPerformanceGrid({ employeeId, isLeadsDashboard = false }: S
                         </button>
                       ))}
                     </div>
-                    <div className="relative max-w-full sm:w-72">
+                    <div className="relative w-full sm:w-72">
                       <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-stone-400" />
                       <input
                         type="text"

@@ -304,13 +304,13 @@ export default function CleansingPage() {
   const PaginationControls = () => {
     if (totalPages <= 1) return null;
     return (
-      <div className="flex items-center justify-between py-3 px-4 bg-gray-50 border-t border-gray-200 dark:border-slate-800 dark:bg-slate-900">
+      <div className="flex flex-col sm:flex-row items-center justify-between gap-3 py-3 px-4 bg-gray-50 border-t border-gray-200 dark:border-slate-800 dark:bg-slate-900">
         <div className="text-sm text-gray-700 dark:text-slate-300">
           Showing <span className="font-medium text-gray-900 dark:text-white">{(currentPage - 1) * CUSTOMERS_PER_PAGE + 1}</span> to{" "}
           <span className="font-medium text-gray-900 dark:text-white">{Math.min(currentPage * CUSTOMERS_PER_PAGE, filteredRecords.length)}</span>{" "}
           of <span className="font-medium text-gray-900 dark:text-white">{filteredRecords.length}</span> records
         </div>
-        <div className="flex space-x-1">
+        <div className="flex flex-wrap items-center justify-center space-x-1">
           <Button
             variant="outline"
             size="icon"
@@ -359,9 +359,9 @@ export default function CleansingPage() {
   // RENDER
   // ================================================================
   return (
-    <div className="w-full max-w-full overflow-x-hidden p-6 text-slate-900 dark:bg-slate-950 dark:text-slate-100 min-h-screen">
+    <div className="w-full max-w-full overflow-x-hidden p-4 sm:p-6 text-slate-900 dark:bg-slate-950 dark:text-slate-100 min-h-screen">
       <Toaster position="top-right" />
-      <h1 className="mb-6 text-4xl font-semibold tracking-tight text-slate-900 dark:text-slate-50">Cleansing</h1>
+      <h1 className="mb-6 text-2xl sm:text-4xl font-semibold tracking-tight text-slate-900 dark:text-slate-50">Cleansing</h1>
 
       {/* Stats — same style as Team Overview in renewals */}
       <div className="mb-6">
@@ -408,7 +408,7 @@ export default function CleansingPage() {
 
       {error && (
         <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg flex items-start gap-3 dark:border-red-900/50 dark:bg-red-950/30">
-          <AlertCircle className="h-5 w-5 text-red-600 dark:text-red-400 flex-shrink-0 mt-0.5" />
+          <AlertCircle className="h-5 w-5 text-red-600 dark:text-red-400 shrink-0 mt-0.5" />
           <div className="flex-1">
             <h3 className="text-sm font-medium text-red-800 dark:text-red-300">Error Loading Records</h3>
             <p className="mt-1 text-sm text-red-700 dark:text-red-400">{error}</p>
@@ -422,9 +422,9 @@ export default function CleansingPage() {
       {/* Bulk selection bar — identical to renewals */}
       {selectedRecords.length > 0 && (
         <div className="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-lg dark:border-blue-900/40 dark:bg-blue-950/20">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
             <div className="flex items-center gap-3">
-              <UserCheck className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+              <UserCheck className="h-5 w-5 text-blue-600 dark:text-blue-400 shrink-0" />
               <div>
                 <h3 className="font-semibold text-blue-900 dark:text-blue-200">{selectedRecords.length} record(s) selected</h3>
                 <p className="text-sm text-blue-700 dark:text-blue-300">You can bulk delete the selected records</p>
@@ -444,8 +444,8 @@ export default function CleansingPage() {
 
       {/* Search & Filter Bar — same layout as renewals */}
       <div className="mb-6 grid grid-cols-1 gap-3 xl:grid-cols-[minmax(0,1fr)_auto]">
-        <div className="grid min-w-0 grid-cols-[repeat(auto-fit,minmax(150px,1fr))] gap-3">
-          <div className="relative min-w-0 sm:col-span-2 xl:col-span-1">
+        <div className="grid min-w-0 grid-cols-1 sm:grid-cols-2 xl:grid-cols-2 gap-3">
+          <div className="relative min-w-0">
             <Search className="text-muted-foreground absolute top-2.5 left-2 h-4 w-4 dark:text-slate-500" />
             <Input
               placeholder="Search records..."
@@ -457,10 +457,10 @@ export default function CleansingPage() {
 
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="outline" className="min-w-0 justify-between dark:border-slate-800 dark:bg-slate-900 dark:hover:bg-slate-800">
-                <Filter className="mr-2 h-4 w-4" />
+              <Button variant="outline" className="min-w-0 justify-between w-full dark:border-slate-800 dark:bg-slate-900 dark:hover:bg-slate-800">
+                <Filter className="mr-2 h-4 w-4 shrink-0" />
                 <span className="truncate">{reasonFilter === "All" ? "All Reasons" : reasonFilter}</span>
-                <ChevronDown className="ml-1 h-3 w-3 flex-shrink-0" />
+                <ChevronDown className="ml-1 h-3 w-3 shrink-0" />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent className="dark:border-slate-800 dark:bg-slate-900">
@@ -477,12 +477,12 @@ export default function CleansingPage() {
         </div>
 
         <div className="flex flex-wrap items-center gap-2 xl:justify-end">
-          <Button variant="outline" onClick={fetchRecords} className="dark:border-slate-800 dark:bg-slate-900 dark:hover:bg-slate-800">
+          <Button variant="outline" onClick={fetchRecords} className="flex-1 sm:flex-none dark:border-slate-800 dark:bg-slate-900 dark:hover:bg-slate-800">
             <RotateCcw className="mr-2 h-4 w-4" />
             Refresh
           </Button>
           {selectedRecords.length > 0 && (
-            <Button onClick={bulkDeleteRecords} variant="destructive">
+            <Button onClick={bulkDeleteRecords} variant="destructive" className="flex-1 sm:flex-none">
               <Trash2 className="mr-2 h-4 w-4" />
               Delete Selected ({selectedRecords.length})
             </Button>
@@ -493,10 +493,10 @@ export default function CleansingPage() {
       {/* Table — exact same structure/classes as renewals */}
       <div className="overflow-hidden rounded-lg border border-gray-200 bg-white dark:border-slate-800 dark:bg-slate-900">
         <div className="overflow-x-auto">
-          <table className="w-full divide-y divide-gray-200 dark:divide-slate-800 table-fixed">
+          <table className="w-full divide-y divide-gray-200 dark:divide-slate-800 min-w-[1100px]">
             <thead className="bg-gray-50 dark:bg-slate-800/60">
               <tr>
-                <th className="px-3 py-3 text-left w-8">
+                <th className="px-3 py-3 text-left w-10">
                   <input
                     type="checkbox"
                     className="rounded border-gray-300 dark:border-slate-700 dark:bg-slate-800 dark:checked:bg-primary"
@@ -505,7 +505,7 @@ export default function CleansingPage() {
                   />
                 </th>
                 {/* ID — same border-r-2 as renewals */}
-                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase w-20 border-r-2 border-gray-300 dark:border-slate-700 dark:text-slate-400">
+                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase w-16 border-r-2 border-gray-300 dark:border-slate-700 dark:text-slate-400">
                   ID
                 </th>
                 <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase w-[9%] dark:text-slate-400">
@@ -550,14 +550,14 @@ export default function CleansingPage() {
             <tbody className="divide-y divide-gray-200 dark:divide-slate-800 bg-white dark:bg-slate-900">
               {isLoading ? (
                 <tr>
-                  <td colSpan={13} className="px-6 py-12 text-center">
+                  <td colSpan={14} className="px-6 py-12 text-center">
                     <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-current border-r-transparent text-gray-600 dark:text-slate-400"></div>
                     <p className="mt-4 text-gray-500 dark:text-slate-400">Loading cleansing records...</p>
                   </td>
                 </tr>
               ) : error ? (
                 <tr>
-                  <td colSpan={13} className="px-6 py-12 text-center text-gray-500 dark:text-slate-400">
+                  <td colSpan={14} className="px-6 py-12 text-center text-gray-500 dark:text-slate-400">
                     <AlertCircle className="h-12 w-12 text-red-400 mx-auto mb-3" />
                     <p className="text-lg text-red-600 dark:text-red-400">Failed to load records</p>
                     <p className="mt-2 text-sm">{error}</p>
@@ -565,7 +565,7 @@ export default function CleansingPage() {
                 </tr>
               ) : paginatedRecords.length === 0 ? (
                 <tr>
-                  <td colSpan={13} className="px-6 py-12 text-center text-gray-500 dark:text-slate-400">
+                  <td colSpan={14} className="px-6 py-12 text-center text-gray-500 dark:text-slate-400">
                     <CheckCircle2 className="h-12 w-12 text-green-400 mx-auto mb-3" />
                     <p className="text-lg text-slate-700 dark:text-slate-300">
                       {searchTerm || reasonFilter !== "All" ? "No matching records found" : "All clean!"}
@@ -773,7 +773,7 @@ export default function CleansingPage() {
 
       {/* ────────────── Fix & Restore Modal ────────────── */}
       <Dialog open={showFixModal} onOpenChange={setShowFixModal}>
-        <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto dark:border-slate-800 dark:bg-slate-950">
+        <DialogContent className="max-w-md w-[90vw] sm:w-full max-h-[90vh] overflow-y-auto dark:border-slate-800 dark:bg-slate-950">
           <DialogHeader>
             <DialogTitle className="dark:text-slate-50">Fix & Restore Record</DialogTitle>
             <DialogDescription className="dark:text-slate-400">
@@ -869,7 +869,7 @@ export default function CleansingPage() {
               </Alert>
             </div>
           )}
-          <div className="flex justify-end gap-2">
+          <div className="flex flex-col-reverse sm:flex-row justify-end gap-2">
             <Button
               variant="outline"
               onClick={() => setShowFixModal(false)}
@@ -887,5 +887,5 @@ export default function CleansingPage() {
         </DialogContent>
       </Dialog>
     </div>
-  );
+  ); 
 }

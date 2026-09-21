@@ -212,7 +212,7 @@ export default function AgentCommissionsPage() {
 
   const renderAgentView = () => (
     <div className="space-y-4">
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-3">
         <Card className="border-slate-200 shadow-sm dark:border-slate-800 dark:bg-slate-900">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-slate-600 dark:text-slate-400">Total Due</CardTitle>
@@ -241,7 +241,7 @@ export default function AgentCommissionsPage() {
             <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Your commission items for the selected month.</p>
           </div>
           {batches[0] && (
-            <Button variant="outline" onClick={() => downloadStatement(batches[0].id)} className="dark:border-slate-700 dark:hover:bg-slate-800">
+            <Button variant="outline" onClick={() => downloadStatement(batches[0].id)} className="w-full sm:w-auto dark:border-slate-700 dark:hover:bg-slate-800">
               <Download className="mr-2 h-4 w-4" />
               Download Statement
             </Button>
@@ -288,7 +288,7 @@ export default function AgentCommissionsPage() {
 
   const renderAdminView = () => (
     <div className="space-y-5">
-      <div className="grid gap-4 md:grid-cols-4">
+      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-4">
         <Card className="border-slate-200 shadow-sm dark:border-slate-800 dark:bg-slate-900">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-slate-600 dark:text-slate-400">Batches</CardTitle>
@@ -351,7 +351,7 @@ export default function AgentCommissionsPage() {
             </div>
           </CardHeader>
           <CardContent>
-            <div className="overflow-hidden rounded-lg border border-slate-200 dark:border-slate-800">
+            <div className="overflow-x-auto rounded-lg border border-slate-200 dark:border-slate-800">
               <table className="w-full min-w-[760px] text-sm">
                 <thead className="bg-slate-50 text-left text-xs font-semibold text-slate-500 uppercase dark:bg-slate-800/60 dark:text-slate-400">
                   <tr>
@@ -383,7 +383,7 @@ export default function AgentCommissionsPage() {
             <CardTitle className="text-slate-950 dark:text-slate-50">Awaiting Batch Generation</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="overflow-hidden rounded-lg border border-slate-200 dark:border-slate-800">
+            <div className="overflow-x-auto rounded-lg border border-slate-200 dark:border-slate-800">
               <table className="w-full min-w-[760px] text-sm">
                 <thead className="bg-slate-50 text-left text-xs font-semibold text-slate-500 uppercase dark:bg-slate-800/60 dark:text-slate-400">
                   <tr>
@@ -428,33 +428,33 @@ export default function AgentCommissionsPage() {
         <div className="flex flex-col gap-4 rounded-lg border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900 md:flex-row md:items-center md:justify-between">
           <div>
             <p className="text-sm font-medium text-slate-500 dark:text-slate-400">Payments</p>
-            <h1 className="mt-1 text-3xl font-semibold tracking-tight text-slate-950 dark:text-slate-50">Agent Commissions</h1>
+            <h1 className="mt-1 text-2xl sm:text-3xl font-semibold tracking-tight text-slate-950 dark:text-slate-50">Agent Commissions</h1>
             <p className="mt-2 max-w-3xl text-sm text-slate-600 dark:text-slate-400">
               Review monthly agent commission batches, generate payouts, and download statements.
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <div className="relative">
+            <div className="relative w-full sm:w-auto">
               <Search className="pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-slate-400 dark:text-slate-500" />
               <Input
-                className="w-72 pl-9 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-100 dark:placeholder:text-slate-500"
+                className="w-full sm:w-72 pl-9 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-100 dark:placeholder:text-slate-500"
                 placeholder="Search agent, client, status..."
                 value={searchTerm}
                 onChange={(event) => setSearchTerm(event.target.value)}
               />
             </div>
             <Input
-              className="w-48 pr-4 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-100 dark:[color-scheme:dark] [&::-webkit-calendar-picker-indicator]:mr-1"
+              className="w-full sm:w-48 pr-4 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-100 dark:[color-scheme:dark] [&::-webkit-calendar-picker-indicator]:mr-1"
               type="month"
               value={month}
               onChange={(event) => setMonth(event.target.value)}
             />
-            <Button variant="outline" onClick={loadCommissions} disabled={loading} className="dark:border-slate-800 dark:hover:bg-slate-800">
+            <Button variant="outline" onClick={loadCommissions} disabled={loading} className="w-full sm:w-auto dark:border-slate-800 dark:hover:bg-slate-800">
               {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCcw className="mr-2 h-4 w-4" />}
               Refresh
             </Button>
             {isAdmin && (
-              <Button onClick={generateBatches} disabled={saving === "generate"}>
+              <Button onClick={generateBatches} disabled={saving === "generate"} className="w-full sm:w-auto">
                 {saving === "generate" ? (
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 ) : (

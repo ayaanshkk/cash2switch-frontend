@@ -14,7 +14,10 @@ import {
   Mail,
   Trash2,
   Link as LinkIcon,
+  Search,
+  Info,
 } from "lucide-react";
+
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -47,6 +50,16 @@ interface TeamMember {
   role_id: number | null;
   is_invite_pending: boolean;
   invite_link: string | null;
+}
+
+interface SearchPermissionUser {
+  user_id: number;
+  employee_id: number;
+  employee_name: string;
+  username: string | null;
+  role: string | null;
+  can_search_all_leads: boolean;
+  can_search_all_renewals: boolean;
 }
 
 interface InviteFormData {
@@ -84,6 +97,18 @@ export default function SettingsPage() {
   const [deletingEmployeeId, setDeletingEmployeeId] = useState<number | null>(null);
   const [updatingRoleEmployeeId, setUpdatingRoleEmployeeId] = useState<number | null>(null);
 
+   // Search Permissions state
+  const [searchPermissionUsers, setSearchPermissionUsers] = useState<SearchPermissionUser[]>([]);
+  const [searchPermissionSearch, setSearchPermissionSearch] = useState("");
+  const [searchPermissionDraft, setSearchPermissionDraft] = useState<
+    Record<number, { leads: boolean; renewals: boolean }>
+  >({});
+  const [searchPermissionOriginal, setSearchPermissionOriginal] = useState<
+    Record<number, { leads: boolean; renewals: boolean }>
+  >({});
+  const [isLoadingSearchPermissions, setIsLoadingSearchPermissions] = useState(false);
+  const [isSavingSearchPermissions, setIsSavingSearchPermissions] = useState(false);
+
   // ── Bootstrap ───────────────────────────────────────────────────────────────
 
   useEffect(() => {
@@ -91,8 +116,11 @@ export default function SettingsPage() {
   }, []);
 
   useEffect(() => {
-    if (currentUserRole === "Platform Admin" || currentUserRole === "Tenant Super Admin") {
-      loadMembers();
+    if (
+      currentUserRole === "Platform Admin" ||
+      currentUserRole === "Tenant Super Admin"
+    ) {
+      loadSearchPermissions();
     }
   }, [currentUserRole]);
 
@@ -119,14 +147,74 @@ export default function SettingsPage() {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (!res.ok) throw new Error("Failed to load team");
+
       const data = await res.json();
-      setMembers(data.members || []);
+      const mappedMembers = (data.members || []).map((m: any) => ({
+        ...m,
+      }));
+
+      setMembers(mappedMembers);
+
     } catch (err: any) {
       alert(err.message || "Failed to load team members");
     } finally {
       setIsLoadingMembers(false);
     }
   };
+
+  const loadSearchPermissions = async () => {
+  setIsLoadingSearchPermissions(true);
+
+  try {
+    const token = localStorage.getItem("auth_token");
+
+    if (!token) {
+      throw new Error("Not authenticated");
+    }
+
+    const res = await fetch(
+      `${API_BASE_URL}/auth/search-permissions/users`,
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      }
+    );
+
+    const data = await res.json();
+
+    if (!res.ok) {
+      throw new Error(data.error || "Failed to load search permissions");
+    }
+
+    const users: SearchPermissionUser[] = (data.users || []).filter(
+      (user: SearchPermissionUser) =>
+        user.role !== "Platform Admin" &&
+        user.role !== "Tenant Super Admin"
+    );
+
+    setSearchPermissionUsers(users);
+
+    const permissions: Record<
+      number,
+      { leads: boolean; renewals: boolean }
+    > = {};
+
+    users.forEach((user) => {
+      permissions[user.user_id] = {
+        leads: Boolean(user.can_search_all_leads),
+        renewals: Boolean(user.can_search_all_renewals),
+      };
+    });
+
+    setSearchPermissionDraft(permissions);
+    setSearchPermissionOriginal(structuredClone(permissions));
+  } catch (err: any) {
+    alert(err.message || "Failed to load search permissions");
+  } finally {
+    setIsLoadingSearchPermissions(false);
+  }
+};
 
   // ── Company ─────────────────────────────────────────────────────────────────
 
@@ -243,6 +331,98 @@ export default function SettingsPage() {
     }
   };
 
+  const updateSearchPermission = (
+  userId: number,
+  field: "leads" | "renewals",
+  value: boolean
+) => {
+  setSearchPermissionDraft((current) => ({
+    ...current,
+    [userId]: {
+      ...current[userId],
+      [field]: value,
+    },
+  }));
+};
+
+const hasSearchPermissionChanges = () => {
+  const userIds = Object.keys(searchPermissionDraft);
+
+  return userIds.some((id) => {
+    const userId = Number(id);
+
+    return (
+      searchPermissionDraft[userId]?.leads !==
+        searchPermissionOriginal[userId]?.leads ||
+      searchPermissionDraft[userId]?.renewals !==
+        searchPermissionOriginal[userId]?.renewals
+    );
+  });
+};
+
+const cancelSearchPermissionChanges = () => {
+  setSearchPermissionDraft(structuredClone(searchPermissionOriginal));
+};
+
+const saveSearchPermissions = async () => {
+  if (!hasSearchPermissionChanges()) return;
+
+  setIsSavingSearchPermissions(true);
+
+  try {
+    const token = localStorage.getItem("auth_token");
+
+    if (!token) {
+      throw new Error("Not authenticated");
+    }
+
+    const changedUsers = searchPermissionUsers.filter((user) => {
+      const current = searchPermissionDraft[user.user_id];
+      const original = searchPermissionOriginal[user.user_id];
+
+      return (
+        current?.leads !== original?.leads ||
+        current?.renewals !== original?.renewals
+      );
+    });
+
+    for (const user of changedUsers) {
+      const current = searchPermissionDraft[user.user_id];
+
+      const res = await fetch(
+        `${API_BASE_URL}/auth/search-permissions/users/${user.user_id}`,
+        {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            can_search_all_leads: current.leads,
+            can_search_all_renewals: current.renewals,
+          }),
+        }
+      );
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(
+          data.error || `Failed to update ${user.employee_name}`
+        );
+      }
+    }
+
+    setSearchPermissionOriginal(structuredClone(searchPermissionDraft));
+
+    alert("Search permissions saved successfully.");
+  } catch (err: any) {
+    alert(err.message || "Failed to save search permissions");
+  } finally {
+    setIsSavingSearchPermissions(false);
+  }
+};
+
   const handleDeleteMember = async (employeeId: number, employeeName: string) => {
     if (!confirm(`Are you sure you want to delete ${employeeName}? This cannot be undone.`)) return;
 
@@ -288,18 +468,19 @@ export default function SettingsPage() {
         {/* Invite Card */}
         <Card className="border-slate-200 dark:border-slate-800 dark:bg-slate-900">
           <CardHeader>
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div>
                 <CardTitle className="text-slate-950 dark:text-slate-50">Invite Team Member</CardTitle>
                 <CardDescription className="dark:text-slate-400">
                   Create a username for your team member and share the invite link so
                   they can set their password and log in.
                 </CardDescription>
+
               </div>
               {!showInviteForm && (
                 <Button
                   onClick={() => { setShowInviteForm(true); setGeneratedInviteLink(""); }}
-                  className="dark:bg-slate-100 dark:text-slate-950 dark:hover:bg-slate-200"
+                  className="w-full sm:w-auto dark:bg-slate-100 dark:text-slate-950 dark:hover:bg-slate-200"
                 >
                   <Plus className="mr-2 h-4 w-4" />
                   Invite Member
@@ -310,7 +491,7 @@ export default function SettingsPage() {
 
           {showInviteForm && (
             <CardContent className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label className="dark:text-slate-300">Full Name <span className="text-red-500">*</span></Label>
                   <Input
@@ -332,7 +513,7 @@ export default function SettingsPage() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label className="dark:text-slate-300">Email <span className="text-gray-400 dark:text-slate-500 font-normal">(optional)</span></Label>
                   <Input
@@ -354,7 +535,7 @@ export default function SettingsPage() {
                 </div>
               </div>
 
-              <div className="space-y-2 max-w-xs">
+              <div className="space-y-2 w-full sm:max-w-xs">
                 <Label className="dark:text-slate-300">Role <span className="text-red-500">*</span></Label>
                 <Select
                   value={inviteForm.role_id}
@@ -374,16 +555,16 @@ export default function SettingsPage() {
               {generatedInviteLink && (
                 <div className="rounded-lg bg-green-50 p-4 space-y-3 dark:border dark:border-green-900/50 dark:bg-green-950/30">
                   <div className="flex items-center gap-2 text-green-800 dark:text-green-300 font-medium">
-                    <Check className="h-5 w-5" />
+                    <Check className="h-5 w-5 shrink-0" />
                     Invite created! Share this link:
                   </div>
-                  <div className="flex gap-2">
+                  <div className="flex flex-col sm:flex-row gap-2">
                     <Input
                       value={generatedInviteLink}
                       readOnly
                       className="font-mono text-xs dark:border-slate-800 dark:bg-slate-950 dark:text-slate-100"
                     />
-                    <Button variant="outline" size="sm" onClick={() => copyInviteLink()} className="dark:border-slate-700 dark:hover:bg-slate-800">
+                    <Button variant="outline" size="sm" onClick={() => copyInviteLink()} className="self-end sm:self-auto dark:border-slate-700 dark:hover:bg-slate-800">
                       <Copy className="h-4 w-4" />
                     </Button>
                   </div>
@@ -393,7 +574,7 @@ export default function SettingsPage() {
                 </div>
               )}
 
-              <div className="flex gap-2 justify-end">
+              <div className="flex flex-col-reverse sm:flex-row gap-2 justify-end pt-2">
                 <Button
                   variant="outline"
                   onClick={() => {
@@ -402,14 +583,14 @@ export default function SettingsPage() {
                     setInviteForm({ employee_name: "", username: "", email: "", phone: "", role_id: "" });
                   }}
                   disabled={isSubmitting}
-                  className="dark:border-slate-700 dark:hover:bg-slate-800"
+                  className="w-full sm:w-auto dark:border-slate-700 dark:hover:bg-slate-800"
                 >
                   Cancel
                 </Button>
                 <Button
                   onClick={handleCreateInvite}
                   disabled={isSubmitting}
-                  className="dark:bg-slate-100 dark:text-slate-950 dark:hover:bg-slate-200"
+                  className="w-full sm:w-auto dark:bg-slate-100 dark:text-slate-950 dark:hover:bg-slate-200"
                 >
                   <Mail className="mr-2 h-4 w-4" />
                   {isSubmitting ? "Creating..." : "Create Invite"}
@@ -419,137 +600,217 @@ export default function SettingsPage() {
           )}
         </Card>
 
-        {/* Team Members List */}
-        <Card className="border-slate-200 dark:border-slate-800 dark:bg-slate-900">
-          <CardHeader>
-            <CardTitle className="text-slate-950 dark:text-slate-50">All Users</CardTitle>
-            <CardDescription className="dark:text-slate-400">Manage existing team members and permissions</CardDescription>
-          </CardHeader>
-          <CardContent>
-            {isLoadingMembers ? (
-              <div className="text-center py-8 text-gray-400 dark:text-slate-500">Loading members...</div>
-            ) : members.length === 0 ? (
-              <div className="text-center py-8 text-gray-500 dark:text-slate-400">
-                No team members yet. Invite your first member above.
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {members.map((member) => (
-                  <div key={member.employee_id} className="rounded-lg border border-slate-200 p-4 dark:border-slate-800 dark:bg-slate-950">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-6">
-                        <div className="min-w-[200px]">
-                          <div className="font-medium text-slate-950 dark:text-slate-50">{member.employee_name}</div>
-                          <div className="text-sm text-gray-600 dark:text-slate-400">
-                            {member.username
-                              ? `@${member.username}`
-                              : <span className="italic text-gray-400 dark:text-slate-500">No username</span>}
-                            {member.email && <span className="ml-2">· {member.email}</span>}
-                          </div>
-                        </div>
+        {/* Search Permissions */}
+<Card className="border-slate-200 dark:border-slate-800 dark:bg-slate-900">
+  <CardHeader>
+    <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+      <div>
+        <CardTitle className="text-slate-950 dark:text-slate-50">
+          Search Permissions Control
+        </CardTitle>
 
-                        <div className="w-44">
-                          <Select
-                            value={member.role_id ? String(member.role_id) : ""}
-                            onValueChange={(roleId) => handleUpdateMemberRole(member, roleId)}
-                            disabled={!member.user_id || updatingRoleEmployeeId === member.employee_id}
-                          >
-                            <SelectTrigger className="h-9 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100">
-                              <SelectValue placeholder={member.role || "Select role"} />
-                            </SelectTrigger>
-                            <SelectContent className="dark:border-slate-800 dark:bg-slate-900">
-                              <SelectItem value="2" className="dark:hover:bg-slate-800">Platform Admin</SelectItem>
-                              <SelectItem value="3" className="dark:hover:bg-slate-800">Salesperson</SelectItem>
-                              <SelectItem value="5" className="dark:hover:bg-slate-800">Leads Offshore</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </div>
-
-                        {member.is_invite_pending ? (
-                          <span className="inline-flex rounded-full bg-orange-100 px-3 py-1 text-xs font-semibold text-orange-800 dark:bg-orange-950/60 dark:text-orange-300">
-                            Pending Registration
-                          </span>
-                        ) : member.user_id ? (
-                          <span className="inline-flex rounded-full bg-green-100 px-3 py-1 text-xs font-semibold text-green-800 dark:bg-green-950/60 dark:text-green-300">
-                            Active
-                          </span>
-                        ) : (
-                          <span className="inline-flex rounded-full bg-gray-100 px-3 py-1 text-xs font-semibold text-gray-500 dark:bg-slate-800 dark:text-slate-400">
-                            No account
-                          </span>
-                        )}
-                      </div>
-
-                      <div className="flex items-center gap-2">
-                        {member.is_invite_pending && member.invite_link && (
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => copyInviteLink(member.invite_link!)}
-                            title="Copy invite link"
-                            className="dark:border-slate-700 dark:hover:bg-slate-800"
-                          >
-                            <Copy className="h-4 w-4 mr-1" />
-                            Copy Link
-                          </Button>
-                        )}
-                        {member.is_invite_pending && member.user_id && (
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => handleResendInvite(member.user_id!)}
-                            disabled={resendingUserId === member.user_id}
-                            title="Generate new invite link"
-                            className="dark:border-slate-700 dark:hover:bg-slate-800"
-                          >
-                            <LinkIcon className="h-4 w-4 mr-1" />
-                            {resendingUserId === member.user_id ? "..." : "New Link"}
-                          </Button>
-                        )}
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => handleDeleteMember(member.employee_id, member.employee_name)}
-                          disabled={deletingEmployeeId === member.employee_id}
-                          title="Delete team member"
-                          className="text-red-600 border-red-200 hover:bg-red-50 dark:border-red-900/50 dark:hover:bg-red-950/40 dark:text-red-400"
-                        >
-                          <Trash2 className="h-4 w-4 mr-1" />
-                          {deletingEmployeeId === member.employee_id ? "..." : "Delete"}
-                        </Button>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
+        <CardDescription className="dark:text-slate-400">
+          Configure whether team members can search all records across the
+          tenant or only their own assigned items.
+        </CardDescription>
       </div>
+
+      <div className="relative w-full lg:w-64">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+
+        <Input
+          value={searchPermissionSearch}
+          onChange={(e) => setSearchPermissionSearch(e.target.value)}
+          placeholder="Search team member..."
+          className="pl-9 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-100"
+        />
+      </div>
+    </div>
+  </CardHeader>
+
+  <CardContent>
+    {isLoadingSearchPermissions ? (
+      <div className="py-10 text-center text-gray-500 dark:text-slate-400">
+        Loading search permissions...
+      </div>
+    ) : (
+      <>
+        <div className="overflow-x-auto rounded-lg border border-slate-200 dark:border-slate-800">
+          <table className="w-full min-w-[650px]">
+            <thead className="bg-slate-50 dark:bg-slate-900">
+              <tr className="border-b border-slate-200 dark:border-slate-800">
+                <th className="px-5 py-4 text-left text-xs font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-400">
+                  Team Member
+                </th>
+
+                <th className="px-5 py-4 text-center text-xs font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-400">
+                  <div>Leads</div>
+                  <div className="normal-case font-normal text-slate-400">
+                    (search all)
+                  </div>
+                </th>
+
+                <th className="px-5 py-4 text-center text-xs font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-400">
+                  <div>Renewals</div>
+                  <div className="normal-case font-normal text-slate-400">
+                    (search all)
+                  </div>
+                </th>
+              </tr>
+            </thead>
+
+            <tbody>
+              {searchPermissionUsers
+                .filter((user) => {
+                  const search = searchPermissionSearch
+                    .trim()
+                    .toLowerCase();
+
+                  if (!search) return true;
+
+                  return (
+                    user.employee_name.toLowerCase().includes(search) ||
+                    (user.username || "").toLowerCase().includes(search) ||
+                    (user.role || "").toLowerCase().includes(search)
+                  );
+                })
+                .map((user) => {
+                  const permissions =
+                    searchPermissionDraft[user.user_id] || {
+                      leads: false,
+                      renewals: false,
+                    };
+
+                  return (
+                    <tr
+                      key={user.user_id}
+                      className="border-b border-slate-100 last:border-b-0 dark:border-slate-800"
+                    >
+                      <td className="px-5 py-4">
+                        <div className="font-medium text-slate-950 dark:text-slate-50">
+                          {user.employee_name}
+                        </div>
+
+                        <div className="text-sm text-slate-500 dark:text-slate-400">
+                          {user.role || "User"}
+                          {user.username && ` · ${user.username}`}
+                        </div>
+                      </td>
+
+                      <td className="px-5 py-4 text-center">
+                        <input
+                          type="checkbox"
+                          checked={permissions.leads}
+                          onChange={(e) =>
+                            updateSearchPermission(
+                              user.user_id,
+                              "leads",
+                              e.target.checked
+                            )
+                          }
+                          className="h-4 w-4 cursor-pointer accent-blue-600"
+                        />
+                      </td>
+
+                      <td className="px-5 py-4 text-center">
+                        <input
+                          type="checkbox"
+                          checked={permissions.renewals}
+                          onChange={(e) =>
+                            updateSearchPermission(
+                              user.user_id,
+                              "renewals",
+                              e.target.checked
+                            )
+                          }
+                          className="h-4 w-4 cursor-pointer accent-blue-600"
+                        />
+                      </td>
+                    </tr>
+                  );
+                })}
+
+              {searchPermissionUsers.length === 0 && (
+                <tr>
+                  <td
+                    colSpan={3}
+                    className="px-5 py-8 text-center text-sm text-slate-500"
+                  >
+                    No team members found.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+
+        <div className="mt-5 flex gap-3 rounded-lg border border-blue-100 bg-blue-50 p-4 dark:border-blue-900/50 dark:bg-blue-950/30">
+          <Info className="mt-0.5 h-4 w-4 shrink-0 text-blue-600 dark:text-blue-400" />
+
+          <p className="text-sm text-blue-700 dark:text-blue-300">
+            Enabling checkboxes allows team members to look up records across
+            the entire tenant. When disabled, searches are restricted strictly
+            to items assigned to that specific user. Normal list pages remain
+            unchanged.
+          </p>
+        </div>
+
+        <div className="mt-5 flex justify-end gap-3">
+          <Button
+            variant="outline"
+            onClick={cancelSearchPermissionChanges}
+            disabled={
+              isSavingSearchPermissions || !hasSearchPermissionChanges()
+            }
+            className="dark:border-slate-700 dark:hover:bg-slate-800"
+          >
+            Cancel
+          </Button>
+
+          <Button
+            onClick={saveSearchPermissions}
+            disabled={
+              isSavingSearchPermissions || !hasSearchPermissionChanges()
+            }
+            className="dark:bg-slate-100 dark:text-slate-950 dark:hover:bg-slate-200"
+          >
+            <Save className="mr-2 h-4 w-4" />
+
+            {isSavingSearchPermissions
+              ? "Saving..."
+              : "Save Changes"}
+          </Button>
+        </div>
+      </>
+    )}
+  </CardContent>
+</Card>
+
+ </div>
     );
   };
 
   // ── Main Render ─────────────────────────────────────────────────────────────
 
   return (
-    <div className="w-full p-6 text-slate-900 dark:text-slate-100">
+    <div className="w-full max-w-7xl mx-auto p-4 sm:p-6 text-slate-900 dark:text-slate-100">
       <div className="mb-6 flex items-center gap-3">
-        <Settings className="h-8 w-8 text-slate-950 dark:text-slate-50" />
-        <h1 className="text-3xl font-bold text-slate-950 dark:text-slate-50">Settings</h1>
+        <Settings className="h-8 w-8 text-slate-950 dark:text-slate-50 shrink-0" />
+        <h1 className="text-2xl sm:text-3xl font-bold text-slate-950 dark:text-slate-50">Settings</h1>
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-        <TabsList className="grid w-full grid-cols-3 bg-slate-100 dark:border dark:border-slate-800 dark:bg-slate-900">
-          <TabsTrigger value="company" className="flex items-center gap-2 dark:data-[state=active]:bg-slate-800 dark:data-[state=active]:text-slate-100">
-            <Building2 className="h-4 w-4" />
+        <TabsList className="grid w-full grid-cols-3 h-auto p-1 bg-slate-100 dark:border dark:border-slate-800 dark:bg-slate-900">
+          <TabsTrigger value="company" className="py-2.5 flex items-center justify-center gap-2 text-xs sm:text-sm dark:data-[state=active]:bg-slate-800 dark:data-[state=active]:text-slate-100">
+            <Building2 className="h-4 w-4 shrink-0" />
             Company
           </TabsTrigger>
-          <TabsTrigger value="users" className="flex items-center gap-2 dark:data-[state=active]:bg-slate-800 dark:data-[state=active]:text-slate-100">
-            <Users className="h-4 w-4" />
-            Users
+          <TabsTrigger value="users" className="py-2.5 flex items-center justify-center gap-2 text-xs sm:text-sm dark:data-[state=active]:bg-slate-800 dark:data-[state=active]:text-slate-100">
+            <Users className="h-4 w-4 shrink-0" />
+            Users & Search Permissions
           </TabsTrigger>
-          <TabsTrigger value="system" className="flex items-center gap-2 dark:data-[state=active]:bg-slate-800 dark:data-[state=active]:text-slate-100">
-            <Database className="h-4 w-4" />
+          <TabsTrigger value="system" className="py-2.5 flex items-center justify-center gap-2 text-xs sm:text-sm dark:data-[state=active]:bg-slate-800 dark:data-[state=active]:text-slate-100">
+            <Database className="h-4 w-4 shrink-0" />
             System
           </TabsTrigger>
         </TabsList>
@@ -562,7 +823,7 @@ export default function SettingsPage() {
               <CardDescription className="dark:text-slate-400">Update your company details and branding information</CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
-              <div className="grid grid-cols-2 gap-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                 <div className="space-y-2">
                   <Label htmlFor="company-name" className="dark:text-slate-300">Company Name</Label>
                   <Input
@@ -583,7 +844,7 @@ export default function SettingsPage() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                 <div className="space-y-2">
                   <Label htmlFor="company-website" className="dark:text-slate-300">Website</Label>
                   <Input
@@ -616,7 +877,7 @@ export default function SettingsPage() {
               </div>
 
               <div className="flex justify-end">
-                <Button onClick={saveCompanySettings} className="dark:bg-slate-100 dark:text-slate-950 dark:hover:bg-slate-200">
+                <Button onClick={saveCompanySettings} className="w-full sm:w-auto dark:bg-slate-100 dark:text-slate-950 dark:hover:bg-slate-200">
                   <Save className="mr-2 h-4 w-4" />
                   Save Address
                 </Button>
@@ -639,22 +900,22 @@ export default function SettingsPage() {
                 <CardDescription className="dark:text-slate-400">Backup and data management options</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div className="flex items-center justify-between">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                   <div>
                     <h4 className="font-medium text-slate-900 dark:text-slate-100">Database Backup</h4>
                     <p className="text-sm text-gray-500 dark:text-slate-400">Create a backup of all customer and project data</p>
                   </div>
-                  <Button variant="outline" className="dark:border-slate-700 dark:hover:bg-slate-800">
+                  <Button variant="outline" className="w-full sm:w-auto dark:border-slate-700 dark:hover:bg-slate-800">
                     <Database className="mr-2 h-4 w-4" />
                     Create Backup
                   </Button>
                 </div>
-                <div className="flex items-center justify-between">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                   <div>
                     <h4 className="font-medium text-slate-900 dark:text-slate-100">Export Customer Data</h4>
                     <p className="text-sm text-gray-500 dark:text-slate-400">Export customer data as CSV file</p>
                   </div>
-                  <Button variant="outline" className="dark:border-slate-700 dark:hover:bg-slate-800">
+                  <Button variant="outline" className="w-full sm:w-auto dark:border-slate-700 dark:hover:bg-slate-800">
                     <FileText className="mr-2 h-4 w-4" />
                     Export CSV
                   </Button>
@@ -668,26 +929,26 @@ export default function SettingsPage() {
                 <CardDescription className="dark:text-slate-400">Configure security and access control settings</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between gap-4">
                   <div className="space-y-0.5">
                     <Label className="dark:text-slate-200">Require Two-Factor Authentication</Label>
                     <p className="text-sm text-gray-500 dark:text-slate-400">Require 2FA for all user accounts</p>
                   </div>
-                  <Switch />
+                  <Switch className="shrink-0" />
                 </div>
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between gap-4">
                   <div className="space-y-0.5">
                     <Label className="dark:text-slate-200">Auto-logout after inactivity</Label>
                     <p className="text-sm text-gray-500 dark:text-slate-400">Automatically log out users after 30 minutes</p>
                   </div>
-                  <Switch defaultChecked />
+                  <Switch defaultChecked className="shrink-0" />
                 </div>
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between gap-4">
                   <div className="space-y-0.5">
                     <Label className="dark:text-slate-200">Password Complexity Requirements</Label>
                     <p className="text-sm text-gray-500 dark:text-slate-400">Enforce strong password policies</p>
                   </div>
-                  <Switch defaultChecked />
+                  <Switch defaultChecked className="shrink-0" />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="session-timeout" className="dark:text-slate-300">Session Timeout (minutes)</Label>
@@ -695,11 +956,11 @@ export default function SettingsPage() {
                     id="session-timeout"
                     type="number"
                     defaultValue="30"
-                    className="w-32 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-100"
+                    className="w-full sm:w-32 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-100"
                   />
                 </div>
                 <div className="flex justify-end">
-                  <Button className="dark:bg-slate-100 dark:text-slate-950 dark:hover:bg-slate-200">
+                  <Button className="w-full sm:w-auto dark:bg-slate-100 dark:text-slate-950 dark:hover:bg-slate-200">
                     <Shield className="mr-2 h-4 w-4" />
                     Save Security Settings
                   </Button>

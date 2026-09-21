@@ -1294,10 +1294,10 @@ export default function EnergyCustomerDetailsPage() {
   const agentOptionHelp = callbackStatus === "Sold" ? "Sold by an agent" : "Counts as Renewed";
 
   return (
-    <div className="min-h-screen bg-gray-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100">
+    <div className="min-h-screen bg-gray-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100 pb-16 lg:pb-0">
       {/* Header */}
-      <div className="border-b border-gray-200 bg-white px-6 py-4 pr-[440px] dark:border-slate-800 dark:bg-slate-950">
-        <div className="flex items-center justify-between">
+      <div className="border-b border-gray-200 bg-white px-4 sm:px-6 py-4 lg:pr-[440px] dark:border-slate-800 dark:bg-slate-950">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="flex items-center space-x-3">
             <button
               onClick={() =>
@@ -1309,13 +1309,13 @@ export default function EnergyCustomerDetailsPage() {
                       : "/dashboard/renewals",
                 )
               }
-              className="rounded-lg p-2 hover:bg-gray-100 dark:hover:bg-slate-800"
+              className="rounded-lg p-2 hover:bg-gray-100 dark:hover:bg-slate-800 shrink-0"
             >
               <ArrowLeft className="h-5 w-5 text-gray-600 dark:text-slate-400" />
             </button>
             <div>
-              <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">Consumer Details</h1>
-              <p className="text-sm text-gray-500 dark:text-slate-400">
+              <h1 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-slate-100">Consumer Details</h1>
+              <p className="text-xs sm:text-sm text-gray-500 dark:text-slate-400">
                 ID: {(customer as any).display_order || (customer as any).display_id || customer.client_id}
               </p>
             </div>
@@ -1324,14 +1324,14 @@ export default function EnergyCustomerDetailsPage() {
           <div className="flex items-center space-x-3">
             {isEditing ? (
               <>
-                <Button onClick={handleCancel} variant="outline" disabled={isSaving} className="dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700">
+                <Button onClick={handleCancel} variant="outline" disabled={isSaving} className="w-full sm:w-auto dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700">
                   <X className="mr-2 h-4 w-4" />
                   Cancel
                 </Button>
               </>
             ) : (
               <>
-                <Button onClick={() => setIsEditing(true)} variant="outline" className="dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700">
+                <Button onClick={() => setIsEditing(true)} variant="outline" className="w-full sm:w-auto dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700">
                   <Edit className="mr-2 h-4 w-4" />
                   Edit
                 </Button>
@@ -1341,20 +1341,20 @@ export default function EnergyCustomerDetailsPage() {
         </div>
 
         {/* Tabs */}
-        <div className="mt-4 flex w-full items-end space-x-1 overflow-x-auto border-b border-gray-200 pb-0 dark:border-slate-800">
+        <div className="customer-tabs-scroll mt-4 flex w-full items-end space-x-1 overflow-x-auto border-b border-gray-200 pb-3 dark:border-slate-800">
           {TABS.filter((tab) => tab.id !== "payments" || isAdmin).map((tab) => {
             const Icon = tab.icon;
             return (
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`flex items-center space-x-2 px-3 py-3 text-sm font-medium transition-colors ${
+                className={`flex items-center space-x-2 px-3 py-3 text-xs sm:text-sm font-medium transition-colors whitespace-nowrap ${
                   activeTab === tab.id
-                      ? "border-b-2 border-black text-black dark:border-white dark:text-white"
-                      : "text-black hover:text-black dark:text-white dark:hover:text-white"
+                    ? "border-b-2 border-black text-black dark:border-white dark:text-white"
+                    : "text-gray-500 hover:text-black dark:text-slate-400 dark:hover:text-white"
                 }`}
               >
-                <Icon className="h-4 w-4" />
+                <Icon className="h-4 w-4 shrink-0" />
                 <span>{tab.label}</span>
               </button>
             );
@@ -1363,8 +1363,8 @@ export default function EnergyCustomerDetailsPage() {
       </div>
 
       {/* Content */}
-      <div className="p-6 pr-[440px]">
-        <div className="rounded-lg bg-white p-6 shadow-sm dark:border dark:border-slate-800 dark:bg-slate-900">
+      <div className="p-4 sm:p-6 lg:pr-[440px]">
+        <div className="rounded-lg bg-white p-4 sm:p-6 shadow-sm dark:border dark:border-slate-800 dark:bg-slate-900">
           {/* Contact Information Tab */}
           {activeTab === "contact" && (
             <div className="space-y-6">
@@ -1723,7 +1723,7 @@ export default function EnergyCustomerDetailsPage() {
 
                 {/* Documents Section */}
                 <div className="mt-6 border-t border-gray-200 pt-6 md:col-span-2 dark:border-slate-800">
-                  <div className="mb-4 flex items-center justify-between">
+                  <div className="mb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                     <label className="text-sm font-medium text-gray-700 dark:text-slate-300">Documents</label>
                     <div>
                       <input
@@ -1741,7 +1741,7 @@ export default function EnergyCustomerDetailsPage() {
                         size="sm"
                         onClick={() => document.getElementById("document-upload")?.click()}
                         disabled={isUploadingDocument}
-                        className="dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+                        className="w-full sm:w-auto dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
                       >
                         {isUploadingDocument ? (
                           <>
@@ -1796,7 +1796,7 @@ export default function EnergyCustomerDetailsPage() {
                     <div className="rounded-lg border-2 border-dashed border-gray-200 bg-gray-50 p-6 text-center dark:border-slate-800 dark:bg-slate-800/40">
                       <File className="mx-auto mb-2 h-8 w-8 text-gray-400 dark:text-slate-500" />
                       <p className="text-sm text-gray-500 dark:text-slate-400">No documents uploaded yet</p>
-                      <p className="mt-1 text-xs text-gray-400 dark:text-slate-500">Click "Upload Documents" to add files</p>
+                      <p className="mt-1 text-xs text-gray-400 dark:text-slate-500">Click &quot;Upload Documents&quot; to add files</p>
                     </div>
                   )}
                 </div>
@@ -1819,7 +1819,7 @@ export default function EnergyCustomerDetailsPage() {
                   variant="outline"
                   onClick={() => loadPaymentLog(displayCustomer.client_id)}
                   disabled={loadingPaymentLog}
-                  className="dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+                  className="w-full md:w-auto dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
                 >
                   {loadingPaymentLog ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                   Refresh
@@ -2522,12 +2522,12 @@ export default function EnergyCustomerDetailsPage() {
           )}
 
           {isEditing && (
-            <div className="mt-8 flex items-center justify-end gap-3 border-t border-gray-200 pt-5 dark:border-slate-800">
-              <Button onClick={handleCancel} variant="outline" disabled={isSaving} className="dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700">
+            <div className="mt-8 flex flex-col sm:flex-row items-center justify-end gap-3 border-t border-gray-200 pt-5 dark:border-slate-800">
+              <Button onClick={handleCancel} variant="outline" disabled={isSaving} className="w-full sm:w-auto dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700">
                 <X className="mr-2 h-4 w-4" />
                 Cancel
               </Button>
-              <Button onClick={handleSave} disabled={isSaving} className="bg-black hover:bg-gray-800 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-slate-200">
+              <Button onClick={handleSave} disabled={isSaving} className="w-full sm:w-auto bg-black hover:bg-gray-800 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-slate-200">
                 {isSaving ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -2547,7 +2547,7 @@ export default function EnergyCustomerDetailsPage() {
 
       {/* CALLBACK MODAL */}
       <Dialog open={showCallbackModal} onOpenChange={setShowCallbackModal}>
-        <DialogContent className="max-h-[90vh] max-w-md overflow-y-auto dark:border-slate-800 dark:bg-slate-900">
+        <DialogContent className="max-h-[90vh] max-w-md w-[90vw] sm:w-full overflow-y-auto dark:border-slate-800 dark:bg-slate-900">
           <DialogHeader>
             <DialogTitle className="dark:text-slate-100">Add Callback</DialogTitle>
             <DialogDescription className="dark:text-slate-400">Record customer interaction and set follow-up</DialogDescription>
@@ -2751,7 +2751,7 @@ export default function EnergyCustomerDetailsPage() {
             </div>
           </div>
 
-          <div className="flex justify-end gap-2">
+          <div className="flex flex-col-reverse sm:flex-row justify-end gap-2">
             <Button variant="outline" onClick={() => setShowCallbackModal(false)} disabled={isSubmittingCallback} className="dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200">
               Cancel
             </Button>
@@ -2771,7 +2771,7 @@ export default function EnergyCustomerDetailsPage() {
 
       {/* ASSIGNMENT MODAL */}
       <Dialog open={showAssignmentModal} onOpenChange={setShowAssignmentModal}>
-        <DialogContent className="max-w-md dark:border-slate-800 dark:bg-slate-900">
+        <DialogContent className="max-w-md w-[90vw] sm:w-full dark:border-slate-800 dark:bg-slate-900">
           <DialogHeader>
             <DialogTitle className="dark:text-slate-100">Assign Salesperson</DialogTitle>
             <DialogDescription className="dark:text-slate-400">Add an optional note about this assignment</DialogDescription>
@@ -2807,7 +2807,7 @@ export default function EnergyCustomerDetailsPage() {
             </div>
           </div>
 
-          <div className="mt-4 flex justify-end gap-2">
+          <div className="mt-4 flex flex-col-reverse sm:flex-row justify-end gap-2">
             <Button
               variant="outline"
               onClick={() => {
@@ -2834,11 +2834,11 @@ export default function EnergyCustomerDetailsPage() {
         </DialogContent>
       </Dialog>
 
-      {/* ✅ SIMPLE ACTION PANEL (Right Side) - Direct Form, No Modal */}
-     <div className="fixed top-0 right-0 bottom-0 z-50 flex h-screen w-[440px] flex-col overflow-hidden border-l-2 border-slate-300 bg-slate-50 p-5 shadow-[-6px_0_16px_rgba(0,0,0,0.04)] dark:border-slate-700 dark:bg-slate-950 dark:shadow-[-6px_0_16px_rgba(0,0,0,0.25)]">
+      {/* ✅ SIMPLE ACTION PANEL (Right Side on Desktop, Stacks on Mobile) */}
+      <div className="lg:fixed lg:top-0 lg:right-0 lg:bottom-0 z-40 flex lg:h-screen w-full lg:w-[440px] flex-col overflow-y-auto border-t lg:border-t-0 lg:border-l-2 border-slate-300 bg-slate-50 p-4 sm:p-5 shadow-[-6px_0_16px_rgba(0,0,0,0.04)] dark:border-slate-700 dark:bg-slate-950 dark:shadow-[-6px_0_16px_rgba(0,0,0,0.25)]">
 
         {/* Log Interaction Card */}
-        <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+        <div className="rounded-xl border border-slate-200 bg-white p-4 sm:p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
 
           <div className="mb-4">
             <h3 className="text-base font-semibold text-slate-900 dark:text-slate-100">
@@ -3230,7 +3230,7 @@ export default function EnergyCustomerDetailsPage() {
         </div>
 
         {/* Interaction History Card */}
-        <div className="mt-3 flex min-h-0 flex-1 flex-col rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+        <div className="mt-3 flex min-h-0 lg:flex-1 flex-col rounded-xl border border-slate-200 bg-white p-4 sm:p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
 
           <div className="mb-4 flex items-start justify-between">
             <div>
@@ -3264,7 +3264,7 @@ export default function EnergyCustomerDetailsPage() {
               </p>
             </div>
           ) : (
-            <div className="space-y-3 overflow-y-auto">
+            <div className="space-y-3 overflow-y-auto max-h-[300px] lg:max-h-none">
               {history.map((interaction) => {
                 const rawNotes = interaction.notes || "";
                 const cleanNotes = rawNotes.replace(/^\[.*?\]\s*/, "");
@@ -3316,14 +3316,14 @@ export default function EnergyCustomerDetailsPage() {
                     )}
 
                     {cleanNotes && (
-                      <p className="mb-2 pr-8 text-xs text-slate-600 dark:text-slate-300">
+                      <p className="mb-2 pr-8 text-xs text-slate-600 dark:text-slate-300 break-words">
                         {cleanNotes}
                       </p>
                     )}
 
                     {hasCallback && (
                       <div className="mb-1 flex items-center gap-1 text-xs text-purple-700 dark:text-purple-400">
-                        <Calendar className="h-3 w-3" />
+                        <Calendar className="h-3 w-3 shrink-0" />
                         <span>
                           Callback:{" "}
                           {formatDate(interaction.reminder_date)}

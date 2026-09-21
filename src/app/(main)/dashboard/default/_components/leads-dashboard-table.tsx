@@ -208,22 +208,24 @@ export function LeadsDashboardTable({ employeeId }: LeadsDashboardTableProps) {
 
   return (
     <Card className="rounded-xl border-0 bg-white shadow-md shadow-slate-200/50 ring-1 ring-slate-100 dark:border dark:border-slate-800 dark:bg-slate-900 dark:shadow-none dark:ring-0">
-      <CardHeader>
-        <CardTitle className="text-lg font-bold text-slate-900 dark:text-slate-50">
-          {employeeId ? "My leads" : "Pipeline leads"}
-        </CardTitle>
-        <CardDescription className="dark:text-slate-400">
-          {employeeId
-            ? "Your active opportunities (Lost excluded)"
-            : "Active tenant pipeline — open a lead for full detail"}
-        </CardDescription>
+      <CardHeader className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <CardTitle className="text-lg font-bold text-slate-900 dark:text-slate-50">
+            {employeeId ? "My leads" : "Pipeline leads"}
+          </CardTitle>
+          <CardDescription className="dark:text-slate-400">
+            {employeeId
+              ? "Your active opportunities (Lost excluded)"
+              : "Active tenant pipeline — open a lead for full detail"}
+          </CardDescription>
+        </div>
         <CardAction>
           <div className="flex items-center gap-2">
             <DataTableViewOptions table={table} />
           </div>
         </CardAction>
       </CardHeader>
-      <CardContent className="flex size-full flex-col gap-4">
+      <CardContent className="flex size-full flex-col gap-4 p-4 sm:p-6">
         {leads.length === 0 ? (
           <div className="flex min-h-[200px] flex-col items-center justify-center rounded-lg border border-dashed border-slate-200 bg-slate-50/50 py-16 text-center dark:border-slate-800 dark:bg-slate-950/50">
             <p className="text-sm font-medium text-slate-600 dark:text-slate-400">No leads in pipeline</p>
@@ -233,7 +235,7 @@ export function LeadsDashboardTable({ employeeId }: LeadsDashboardTableProps) {
           </div>
         ) : (
           <>
-            <div className="overflow-hidden rounded-lg border border-slate-200/80 bg-slate-50/30 dark:border-slate-800 dark:bg-slate-950/40">
+            <div className="overflow-x-auto rounded-lg border border-slate-200/80 bg-slate-50/30 dark:border-slate-800 dark:bg-slate-950/40">
               <DataTable table={table} columns={columns} />
             </div>
             <DataTablePagination table={table} />
