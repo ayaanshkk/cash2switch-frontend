@@ -250,9 +250,17 @@ export default function LeadsPage() {
   const performanceCacheKey = `${LEADS_PERFORMANCE_CACHE_PREFIX}_${service}`;
 
   // ─── Derived ───────────────────────────────────────────────────────────────
-  const totalPages     = Math.ceil(serverTotal / CUSTOMERS_PER_PAGE);
-  const paginatedLeads = allLeads; // server already returns the right page
-  const filteredLeads  = allLeads; // alias kept for bulk-select / CSV compat
+  const totalPages = Math.ceil(serverTotal / CUSTOMERS_PER_PAGE);
+
+  const paginatedLeads = usageSort === "none"
+    ? allLeads
+    : [...allLeads].sort((a, b) => {
+        const aVal = a.annual_usage ?? 0;
+        const bVal = b.annual_usage ?? 0;
+        return usageSort === "low-high" ? aVal - bVal : bVal - aVal;
+      });
+
+  const filteredLeads = paginatedLeads;
 
   const getSupplierName = (id?: number | null) =>
     suppliers.find(s => s.supplier_id === id)?.supplier_name || "—";
