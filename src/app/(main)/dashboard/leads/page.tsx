@@ -541,14 +541,40 @@ export default function LeadsPage() {
   };
 
   const handleBulkAssignWithNotes = async () => {
-    if (!selectedLeads.length || !bulkAssignEmployeeId) {
-      toast.error("Please select leads and a salesperson"); return;
+    if (!bulkAssignEmployeeId) {
+      toast.error("Please select a salesperson"); return;
     }
     setIsBulkAssigning(true);
     try {
-      const leadsToAssign = bulkAssignCount ? selectedLeads.slice(0, bulkAssignCount) : selectedLeads;
+      const count = bulkAssignCount ? Number(bulkAssignCount) : null;
+
+      // If count exceeds current selection, fetch all leads and pick the first N
+      let leadsToAssign: number[] = selectedLeads;
+
+      if (count && count > selectedLeads.length) {
+        // Fetch all leads ignoring pagination to get enough IDs
+        const params = new URLSearchParams({
+          service,
+          exclude_stage: 'Lost',
+          page: '1',
+          page_size: String(count),
+        });
+        if (salespersonFilter !== "All") params.set('employee_id', String(salespersonFilter));
+
+        const resp = await fetchWithAuth(`${CRM_PROXY}/leads?${params.toString()}`);
+        const allData: LeadCustomer[] = Array.isArray(resp) ? resp : (resp?.data || []);
+        leadsToAssign = allData.slice(0, count).map(l => l.opportunity_id);
+      } else if (count && count < selectedLeads.length) {
+        leadsToAssign = selectedLeads.slice(0, count);
+      }
+
+      if (!leadsToAssign.length) {
+        toast.error("No leads to assign"); return;
+      }
+
       const payload: any = { lead_ids: leadsToAssign, employee_id: bulkAssignEmployeeId };
       if (bulkAssignmentNotes.trim()) payload.assignment_notes = bulkAssignmentNotes.trim();
+
       let response: any = null;
       try {
         response = await fetchWithAuth(`${CRM_PROXY}/leads/assign`, {
@@ -557,12 +583,15 @@ export default function LeadsPage() {
       } catch (fetchErr: any) {
         console.warn("Assign fetch error (may have succeeded in DB):", fetchErr);
       }
+
       if (response && response.error && !response.success) throw new Error(response.error);
+
       setAllLeads(prev => prev.filter(l => !leadsToAssign.includes(l.opportunity_id)));
-      setSelectedLeads(selectedLeads.filter(id => !leadsToAssign.includes(id)));
+      setSelectedLeads(prev => prev.filter(id => !leadsToAssign.includes(id)));
       setIsSelectAllChecked(false);
       setShowBulkAssignModal(false); setBulkAssignmentNotes(""); setBulkAssignCount("");
       toast.success(`✅ ${leadsToAssign.length} leads assigned to ${bulkAssignEmployeeName}`);
+      await fetchLeads(1);
     } catch (err: any) {
       toast.error(`❌ Error assigning leads: ${err.message || "Unknown error"}`);
     } finally { setIsBulkAssigning(false); }
