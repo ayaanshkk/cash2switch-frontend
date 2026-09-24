@@ -1527,14 +1527,14 @@ export default function LeadsPage() {
               <div className="text-sm text-blue-700">Assigning to: <strong>{bulkAssignEmployeeName}</strong></div>
             </div>
             <div>
-              <label className="text-sm font-medium text-gray-700">Number of Leads to Assign <span className="text-gray-400 font-normal">(max {selectedLeads.length})</span></label>
-              <Input type="number" min={1} max={selectedLeads.length} className="mt-1"
+              <label className="text-sm font-medium text-gray-700">Number of Leads to Assign</label>
+              <Input type="number" min={1} className="mt-1"
                 placeholder={`Enter a number (default: all ${selectedLeads.length})`}
                 value={bulkAssignCount}
                 onChange={e => {
                   const val = parseInt(e.target.value);
                   if (e.target.value === "") setBulkAssignCount("");
-                  else if (!isNaN(val) && val >= 1 && val <= selectedLeads.length) setBulkAssignCount(val);
+                  else if (!isNaN(val) && val >= 1) setBulkAssignCount(val);
                 }} />
               <p className="text-xs text-gray-500 mt-1">Leave blank to assign all selected leads.</p>
             </div>
