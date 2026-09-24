@@ -182,8 +182,7 @@ export default function LeadsPage() {
     return saved && saved !== "All" ? parseInt(saved) : "All";
   });
   const [statusFilter, setStatusFilter] = useState<string | "All">(() => sessionStorage.getItem('leads_status') || "All");
-  const [endDateFilter, setEndDateFilter] = useState<"all" | "expired" | "30" | "60" | "90" | "90+">(() => (sessionStorage.getItem('leads_end_date') as any) || "all");
-  const [usageSort, setUsageSort] = useState<"none" | "low-high" | "high-low">(() => (sessionStorage.getItem('leads_usage_sort') as any) || "none");
+  const [endDateFilter, setEndDateFilter] = useState<"all" | "expired" | "365" | "30" | "60" | "90" | "90+">(() => (sessionStorage.getItem('leads_end_date') as any) || "all");  const [usageSort, setUsageSort] = useState<"none" | "low-high" | "high-low">(() => (sessionStorage.getItem('leads_usage_sort') as any) || "none");
   const [salespersonFilter, setSalespersonFilter] = useState<number | "All">(() => {
     const saved = sessionStorage.getItem('leads_salesperson');
     return saved && saved !== "All" ? parseInt(saved) : "All";
@@ -1001,6 +1000,7 @@ export default function LeadsPage() {
             <SelectTrigger className="w-full min-w-0"><SelectValue /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Contracts</SelectItem>
+              <SelectItem value="365">Ending in 0–365 days</SelectItem>
               <SelectItem value="30">Ending in 30 days</SelectItem>
               <SelectItem value="60">Ending in 31–60 days</SelectItem>
               <SelectItem value="90">Ending in 61–90 days</SelectItem>
@@ -1098,6 +1098,7 @@ export default function LeadsPage() {
                 <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
                 <SelectContent position="popper" side="bottom" sideOffset={4} className="w-72 z-[60]">
                   <SelectItem value="all">All Contracts</SelectItem>
+                  <SelectItem value="365">Ending in 0–365 days</SelectItem>
                   <SelectItem value="30">Ending in 30 days</SelectItem>
                   <SelectItem value="60">Ending in 31–60 days</SelectItem>
                   <SelectItem value="90">Ending in 61–90 days</SelectItem>
