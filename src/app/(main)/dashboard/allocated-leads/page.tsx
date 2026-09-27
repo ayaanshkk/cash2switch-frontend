@@ -27,9 +27,12 @@ import { Badge } from "@/components/ui/badge";
 const LEADS_PER_PAGE = 25;
 
 const STATUS_OPTIONS = [
+  { value: "Not Called",         label: "Not Called" },
   { value: "Callback",           label: "Callback" },
   { value: "Not Answered",       label: "Not Answered" },
+  { value: "Dead",               label: "Dead" },
   { value: "Priced",             label: "Priced" },
+  { value: "Sold",               label: "Sold" },
   { value: "Won",                label: "Won" },
   { value: "Converted",          label: "Converted" },
   { value: "Already Renewed",    label: "Already Renewed" },
@@ -43,6 +46,8 @@ const STATUS_OPTIONS = [
   { value: "End Date Changed",   label: "End Date Changed" },
   { value: "Complaint",          label: "Complaint" },
   { value: "Email Only",         label: "Email Only" },
+  { value: "Duplicate",          label: "Duplicate" },
+  { value: "No Contact",         label: "No Contact" },
 ];
 
 const statusConfig: Record<string, {
@@ -50,22 +55,27 @@ const statusConfig: Record<string, {
   requiresNotes: boolean; requiresNewEndDate: boolean;
   requiresSupplierChange: boolean; requiresAddressChange: boolean;
 }> = {
-  "Callback":          { requiresDate: true,  requiresSold: false, deletesRecord: false, requiresNotes: false, requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
-  "Not Answered":      { requiresDate: true,  requiresSold: false, deletesRecord: false, requiresNotes: false, requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
-  "Priced":            { requiresDate: false, requiresSold: true,  deletesRecord: false, requiresNotes: false, requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
-  "Lost":              { requiresDate: true,  requiresSold: false, deletesRecord: true,  requiresNotes: true,  requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
-  "Lost COT":          { requiresDate: false, requiresSold: false, deletesRecord: true,  requiresNotes: true,  requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
-  "Already Renewed":   { requiresDate: true,  requiresSold: false, deletesRecord: false, requiresNotes: false, requiresNewEndDate: true,  requiresSupplierChange: true,  requiresAddressChange: true  },
-  "Invalid Number":    { requiresDate: false, requiresSold: false, deletesRecord: true,  requiresNotes: false, requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
-  "Meter De-energised":{ requiresDate: false, requiresSold: false, deletesRecord: true,  requiresNotes: false, requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
-  "Broker in Place":   { requiresDate: true,  requiresSold: false, deletesRecord: false, requiresNotes: false, requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
-  "End Date Changed":  { requiresDate: true,  requiresSold: false, deletesRecord: false, requiresNotes: false, requiresNewEndDate: true,  requiresSupplierChange: false, requiresAddressChange: false },
-  "Complaint":         { requiresDate: true,  requiresSold: false, deletesRecord: false, requiresNotes: true,  requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
-  "Email Only":        { requiresDate: true,  requiresSold: false, deletesRecord: false, requiresNotes: false, requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
-  "Renewed Directly":  { requiresDate: true,  requiresSold: false, deletesRecord: false, requiresNotes: true,  requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
-  "Incorrect Supplier":{ requiresDate: false, requiresSold: false, deletesRecord: false, requiresNotes: true,  requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
-  "Won":               { requiresDate: false, requiresSold: false, deletesRecord: false, requiresNotes: false, requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
-  "Converted":         { requiresDate: false, requiresSold: false, deletesRecord: false, requiresNotes: false, requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
+  "No Contact":         { requiresDate: false, requiresSold: false, deletesRecord: false, requiresNotes: false, requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
+  "Not Called":         { requiresDate: false, requiresSold: false, deletesRecord: false, requiresNotes: false, requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
+  "Callback":           { requiresDate: true,  requiresSold: false, deletesRecord: false, requiresNotes: false, requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
+  "Not Answered":       { requiresDate: true,  requiresSold: false, deletesRecord: false, requiresNotes: false, requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
+  "Dead":               { requiresDate: false, requiresSold: false, deletesRecord: false, requiresNotes: false, requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
+  "Priced":             { requiresDate: false, requiresSold: true,  deletesRecord: false, requiresNotes: false, requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
+  "Sold":               { requiresDate: true,  requiresSold: false, deletesRecord: false, requiresNotes: false, requiresNewEndDate: true,  requiresSupplierChange: true,  requiresAddressChange: true  },
+  "Won":                { requiresDate: false, requiresSold: false, deletesRecord: false, requiresNotes: false, requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
+  "Converted":          { requiresDate: false, requiresSold: false, deletesRecord: false, requiresNotes: false, requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
+  "Already Renewed":    { requiresDate: true,  requiresSold: false, deletesRecord: false, requiresNotes: false, requiresNewEndDate: true,  requiresSupplierChange: true,  requiresAddressChange: true  },
+  "Renewed Directly":   { requiresDate: true,  requiresSold: false, deletesRecord: false, requiresNotes: true,  requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
+  "Lost":               { requiresDate: true,  requiresSold: false, deletesRecord: true,  requiresNotes: true,  requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
+  "Lost COT":           { requiresDate: false, requiresSold: false, deletesRecord: true,  requiresNotes: true,  requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
+  "Invalid Number":     { requiresDate: false, requiresSold: false, deletesRecord: true,  requiresNotes: false, requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
+  "Incorrect Supplier": { requiresDate: false, requiresSold: false, deletesRecord: false, requiresNotes: true,  requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
+  "Meter De-energised": { requiresDate: false, requiresSold: false, deletesRecord: true,  requiresNotes: false, requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
+  "Broker in Place":    { requiresDate: true,  requiresSold: false, deletesRecord: false, requiresNotes: false, requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
+  "End Date Changed":   { requiresDate: true,  requiresSold: false, deletesRecord: false, requiresNotes: false, requiresNewEndDate: true,  requiresSupplierChange: false, requiresAddressChange: false },
+  "Complaint":          { requiresDate: true,  requiresSold: false, deletesRecord: false, requiresNotes: true,  requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
+  "Email Only":         { requiresDate: true,  requiresSold: false, deletesRecord: false, requiresNotes: false, requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
+  "Duplicate":          { requiresDate: false, requiresSold: false, deletesRecord: true,  requiresNotes: false, requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
 };
 
 
@@ -169,7 +179,7 @@ export default function AllocatedLeadsPage() {
   const [newSupplier, setNewSupplier]                               = useState("");
   const [newAddress, setNewAddress]                                 = useState("");
   const [calledDate, setCalledDate]                                 = useState(() => new Date().toISOString().split("T")[0]);
-  const [renewedBy, setRenewedBy]                                   = useState<"customer" | "agent" | "">("");
+    const [renewedBy, setRenewedBy]                                 = useState<"customer" | "supplier" | "agent" | "">("");
 
   // Assign modal
   const [showAssignModal, setShowAssignModal]       = useState(false);
@@ -358,7 +368,11 @@ export default function AllocatedLeadsPage() {
     const cfg = statusConfig[callbackStatus];
     if (cfg?.requiresSold && !isSold) { setCallbackError("Please select if the contract was sold"); return; }
     if (cfg?.requiresNotes && !callbackNotes.trim()) { setCallbackError("Please enter the reason for this status"); return; }
-    if (callbackStatus === "Already Renewed" && !renewedBy) { setCallbackError("Please select if renewed by customer or agent"); return; }
+    const isRenewalOrSoldAction = callbackStatus === "Already Renewed" || callbackStatus === "Sold";
+    if (isRenewalOrSoldAction && !renewedBy) {
+      setCallbackError(callbackStatus === "Sold" ? "Please select if sold by supplier or agent" : "Please select if renewed by customer or agent");
+      return;
+    }
     if (callbackStatus === "End Date Changed" && !newEndDate) { setCallbackError("Please enter the new contract end date"); return; }
 
     setIsSubmittingCallback(true);
@@ -869,20 +883,22 @@ export default function AllocatedLeadsPage() {
               </div>
             )}
 
-            {callbackStatus === "Already Renewed" && (
+            {(callbackStatus === "Already Renewed" || callbackStatus === "Sold") && (
               <div className="space-y-2">
-                <label className="text-sm font-medium">Renewed By <span className="text-red-500">*</span></label>
+                <label className="text-sm font-medium">
+                  {callbackStatus === "Sold" ? "Sold By" : "Renewed By"} <span className="text-red-500">*</span>
+                </label>
                 <div className="flex flex-col gap-2 p-3 border rounded-lg bg-gray-50">
-                  {(["customer", "agent"] as const).map(val => (
+                  {(callbackStatus === "Sold" ? (["supplier", "agent"] as const) : (["customer", "agent"] as const)).map(val => (
                     <label key={val} className="flex items-center gap-3 cursor-pointer">
                       <input type="radio" name="renewedBy" value={val} checked={renewedBy === val}
-                        onChange={() => setRenewedBy(val)} className="w-4 h-4 accent-black" />
+                        onChange={() => setRenewedBy(val as any)} className="w-4 h-4 accent-black" />
                       <div>
                         <span className="text-sm font-medium text-gray-900">
-                          Renewed by {val.charAt(0).toUpperCase() + val.slice(1)}
+                          {callbackStatus === "Sold" ? `Sold by ${val.charAt(0).toUpperCase() + val.slice(1)}` : `Renewed by ${val.charAt(0).toUpperCase() + val.slice(1)}`}
                         </span>
                         <p className="text-xs text-gray-500">
-                          {val === "customer" ? "Customer renewed directly without agent" : "Agent successfully renewed the contract"}
+                          {val === "agent" ? "Counts for agent commission" : callbackStatus === "Sold" ? "Sold directly by supplier" : "Customer renewed directly without agent"}
                         </p>
                       </div>
                     </label>

@@ -52,6 +52,7 @@ const STATUS_OPTIONS = [
   { value: "Complaint",          label: "Complaint" },
   { value: "Email Only",         label: "Email Only" },
   { value: "Duplicate",          label: "Duplicate" },
+  { value: "No Contact",         label: "No Contact" },
 ];
 
 const statusConfig: Record<string, {
@@ -59,6 +60,7 @@ const statusConfig: Record<string, {
   requiresNotes: boolean; requiresNewEndDate: boolean;
   requiresSupplierChange: boolean; requiresAddressChange: boolean;
 }> = {
+  "No Contact":         { requiresDate: false, requiresSold: false, deletesRecord: false, requiresNotes: false, requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
   "Callback":           { requiresDate: true,  requiresSold: false, deletesRecord: false, requiresNotes: false, requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
   "Not Answered":       { requiresDate: true,  requiresSold: false, deletesRecord: false, requiresNotes: false, requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
   "Priced":             { requiresDate: false, requiresSold: true,  deletesRecord: false, requiresNotes: false, requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
@@ -548,11 +550,9 @@ export default function LeadsPage() {
     try {
       const count = bulkAssignCount ? Number(bulkAssignCount) : null;
 
-      // If count exceeds current selection, fetch all leads and pick the first N
       let leadsToAssign: number[] = selectedLeads;
 
       if (count && count > selectedLeads.length) {
-        // Fetch all leads ignoring pagination to get enough IDs
         const params = new URLSearchParams({
           service,
           exclude_stage: 'Lost',
@@ -586,10 +586,11 @@ export default function LeadsPage() {
 
       if (response && response.error && !response.success) throw new Error(response.error);
 
-      setAllLeads(prev => prev.filter(l => !leadsToAssign.includes(l.opportunity_id)));
-      setSelectedLeads(prev => prev.filter(id => !leadsToAssign.includes(id)));
+      setSelectedLeads([]);
       setIsSelectAllChecked(false);
-      setShowBulkAssignModal(false); setBulkAssignmentNotes(""); setBulkAssignCount("");
+      setShowBulkAssignModal(false);
+      setBulkAssignmentNotes("");
+      setBulkAssignCount("");
       toast.success(`✅ ${leadsToAssign.length} leads assigned to ${bulkAssignEmployeeName}`);
       await fetchLeads(1);
     } catch (err: any) {

@@ -455,7 +455,7 @@ export default function CalendarPage() {
         ? true 
         : rescheduleDate !== existingCallbackDate
     );
-    const isLeadEvent = renewalSnapshot.id.startsWith("lead-callback-");
+    const isLeadEvent = renewalSnapshot.id.startsWith("lead-callback-") || renewalSnapshot.id.startsWith("lead-enddate-");
     const endDateChanged = !isLeadEvent && Boolean(contractEndDateInput) && contractEndDateInput !== existingEndDate;
     const notesChanged = rescheduleNotes.trim() !== (renewalSnapshot.notes || "").trim();
 
