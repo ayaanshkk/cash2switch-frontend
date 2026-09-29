@@ -560,21 +560,39 @@ export default function LeadsPage() {
     try {
       const count = bulkAssignCount ? Number(bulkAssignCount) : null;
 
-      let leadsToAssign: number[] = selectedLeads;
-
       if (count && count > selectedLeads.length) {
-        const params = new URLSearchParams({
+        // Server-side assign-by-filter: no need to pre-fetch all IDs
+        const payload: any = {
+          employee_id: bulkAssignEmployeeId,
+          count,
           service,
           exclude_stage: 'Lost',
-          page: '1',
-          page_size: String(count),
-        });
-        if (salespersonFilter !== "All") params.set('employee_id', String(salespersonFilter));
+        };
+        if (salespersonFilter !== "All") payload.salesperson_filter = salespersonFilter;
+        if (bulkAssignmentNotes.trim()) payload.assignment_notes = bulkAssignmentNotes.trim();
 
-        const resp = await fetchWithAuth(`${CRM_PROXY}/leads?${params.toString()}`);
-        const allData: LeadCustomer[] = Array.isArray(resp) ? resp : (resp?.data || []);
-        leadsToAssign = allData.slice(0, count).map(l => l.opportunity_id);
-      } else if (count && count < selectedLeads.length) {
+        const response = await fetchWithAuth(`${CRM_PROXY}/leads/assign-by-filter`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+        if (response.success) {
+          setAllLeads(prev => prev.filter(l => !selectedLeads.includes(l.opportunity_id)));
+          setSelectedLeads([]);
+          setIsSelectAllChecked(false);
+          setShowBulkAssignModal(false);
+          setBulkAssignmentNotes("");
+          setBulkAssignEmployeeId(null);
+          setBulkAssignEmployeeName("");
+          toast.success(`✅ ${response.assigned_count} leads assigned to ${response.employee_name}`);
+        } else {
+          toast.error(response.error || "Assignment failed");
+        }
+        return;
+      }
+
+      let leadsToAssign: number[] = selectedLeads;
+      if (count && count < selectedLeads.length) {
         leadsToAssign = selectedLeads.slice(0, count);
       }
 
