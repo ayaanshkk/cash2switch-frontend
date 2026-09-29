@@ -678,7 +678,7 @@ export default function EnergyCustomersPage() {
 
       if (!response || response.error) throw new Error(response?.error || "Failed to save callback");
 
-      if (response.display_only || callbackStatus === "Dead") {
+      if (response.display_only) {
         await fetchCustomers();
         await fetchPerformanceStats();
         toast.success(`Status set to ${callbackStatus}`);

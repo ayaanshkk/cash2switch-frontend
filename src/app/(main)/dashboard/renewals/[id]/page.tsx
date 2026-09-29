@@ -931,7 +931,7 @@ export default function EnergyCustomerDetailsPage() {
         throw new Error(data.error || "Failed to save callback");
       }
 
-      if (data.display_only || callbackStatus === "Dead") {
+      if (data.display_only) {
         await loadCustomerData(true);  // ✅ preserve form state
         setCallbackStatus(callbackStatus);
         alert(`✅ Status set to ${callbackStatus}`);
