@@ -61,6 +61,7 @@ type CommissionPayment = {
   status: PaymentStatus;
   last_checked_at: string | null;
   next_follow_up_date: string | null;
+  follow_up_count?: number | null;
   is_archived?: boolean;
   is_deleted?: boolean;
 };
@@ -198,6 +199,7 @@ export default function PaymentCheckerPage() {
     aggregator: "all",
     due_from: "",
     due_to: "",
+    needs_chasing: "",
   });
   const [searchTerm, setSearchTerm] = useState("");
   const [pagination, setPagination] = useState<PaymentPagination>({
@@ -233,6 +235,22 @@ export default function PaymentCheckerPage() {
     date_received: "",
     notes: "",
   });
+  const [followUpDate, setFollowUpDate] = useState(() => {
+    const d = new Date();
+    d.setDate(d.getDate() + 14);
+    return d.toISOString().slice(0, 10);
+  });
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  type ChasingSummaryRow = { supplier_id: number | null; supplier_name: string; overdue_count: number; total_outstanding: string };
+  const [chasingSummary, setChasingSummary] = useState<ChasingSummaryRow[]>([]);
+
+  useEffect(() => {
+    fetchWithAuth('/api/commission/chasing-summary')
+      .then((data) => setChasingSummary(data.suppliers || []))
+      .catch(() => {/* non-fatal */});
+  }, []);
 
   const filteredPayments = useMemo(() => {
     const query = searchTerm.trim().toLowerCase();
@@ -341,6 +359,7 @@ export default function PaymentCheckerPage() {
     if (nextFilters.aggregator !== "all") params.set("aggregator", nextFilters.aggregator);
     if (nextFilters.due_from) params.set("due_from", nextFilters.due_from);
     if (nextFilters.due_to) params.set("due_to", nextFilters.due_to);
+    if (nextFilters.needs_chasing) params.set("needs_chasing", nextFilters.needs_chasing);
     if (nextSearchTerm.trim()) params.set("search", nextSearchTerm.trim());
     return params.toString();
   };
@@ -364,6 +383,7 @@ export default function PaymentCheckerPage() {
       if (nextFilters.aggregator !== "all") params.set("aggregator", nextFilters.aggregator);
       if (nextFilters.due_from) params.set("due_from", nextFilters.due_from);
       if (nextFilters.due_to) params.set("due_to", nextFilters.due_to);
+      if (nextFilters.needs_chasing) params.set("needs_chasing", nextFilters.needs_chasing);
       if (nextSearchTerm.trim()) params.set("search", nextSearchTerm.trim());
 
       const data = await fetchWithAuth(`/api/commission/clients-with-payments?${params.toString()}`);
@@ -691,9 +711,11 @@ export default function PaymentCheckerPage() {
     setSuccessMessage(null);
 
     try {
+      const body: Record<string, string> = { status };
+      if (status === "Chasing Supplier" && followUpDate) body.next_follow_up_date = followUpDate;
       const data = await fetchWithAuth(`/api/commission/payments/${selectedPayment.id}/status`, {
         method: "PATCH",
-        body: JSON.stringify({ status }),
+        body: JSON.stringify(body),
       });
       updatePaymentInList(data.payment);
       setSuccessMessage(status === "Closed" ? "Payment closed." : "Marked as chasing supplier.");
@@ -762,6 +784,95 @@ export default function PaymentCheckerPage() {
           </Card>
         </div>
 
+        {/* Supplier chase summary — real totals from all data, hidden when already filtered */}
+        {filters.supplier === "all" && chasingSummary.length > 0 && (
+          <div className="rounded-lg border border-red-200 bg-red-50 p-4">
+            <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-red-800">⚠ Overdue payments — needs chasing</p>
+            <div className="flex flex-wrap gap-3">
+              {chasingSummary.map((row) => (
+                <button
+                  key={row.supplier_id ?? "unknown"}
+                  type="button"
+                  onClick={() => {
+                    const next = {
+                      ...filters,
+                      supplier: row.supplier_id ? String(row.supplier_id) : "all",
+                      needs_chasing: "true",
+                    };
+                    const nextPag = { ...pagination, page: 1 };
+                    setFilters(next);
+                    setPagination(nextPag);
+                    loadPayments(next, searchTerm, nextPag);
+                  }}
+                  className="rounded-lg border border-red-200 bg-white px-3 py-2 text-left shadow-sm hover:shadow-md transition-shadow"
+                >
+                  <p className="text-xs font-semibold text-slate-800 truncate max-w-[160px]">{row.supplier_name}</p>
+                  <p className="text-lg font-bold text-red-700">{formatMoney(row.total_outstanding)}</p>
+                  <p className="text-xs text-slate-500">{row.overdue_count} contract{row.overdue_count !== 1 ? "s" : ""} overdue</p>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Quick filter chips */}
+        <div className="flex flex-wrap gap-2">
+          {[
+            { label: "Overdue", due_to: new Date().toISOString().slice(0, 10), status: "Due" },
+            { label: "Due This Week", due_from: new Date().toISOString().slice(0, 10), due_to: new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10) },
+            { label: "Due This Month", due_from: new Date().toISOString().slice(0, 10), due_to: new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10) },
+            { label: "Chasing Supplier", status: "Chasing Supplier" },
+            { label: "Partially Paid", status: "Partially Paid" },
+          ].map((chip) => {
+            const isActive =
+              (chip.status ? filters.status === chip.status : true) &&
+              (chip.due_from ? filters.due_from === chip.due_from : true) &&
+              (chip.due_to ? filters.due_to === chip.due_to : true) &&
+              (chip.status || chip.due_from || chip.due_to ? true : false);
+            return (
+              <button
+                key={chip.label}
+                type="button"
+                onClick={() => {
+                  const nextFilters = {
+                    ...filters,
+                    status: chip.status || "all",
+                    due_from: chip.due_from || "",
+                    due_to: chip.due_to || "",
+                    needs_chasing: "",
+                  };
+                  const nextPagination = { ...pagination, page: 1 };
+                  setFilters(nextFilters);
+                  setPagination(nextPagination);
+                  loadPayments(nextFilters, searchTerm, nextPagination);
+                }}
+                className={`rounded-full px-3 py-1 text-xs font-medium border transition-colors ${
+                  isActive
+                    ? "bg-slate-900 text-white border-slate-900"
+                    : "bg-white text-slate-600 border-slate-200 hover:border-slate-400"
+                }`}
+              >
+                {chip.label}
+              </button>
+            );
+          })}
+          {(filters.status !== "all" || filters.due_from || filters.due_to || filters.needs_chasing || filters.supplier !== "all") && (
+            <button
+              type="button"
+              onClick={() => {
+                const next = { ...filters, status: "all", due_from: "", due_to: "", needs_chasing: "", supplier: "all" };
+                const nextPag = { ...pagination, page: 1 };
+                setFilters(next);
+                setPagination(nextPag);
+                loadPayments(next, searchTerm, nextPag);
+              }}
+              className="rounded-full px-3 py-1 text-xs font-medium border border-slate-200 text-slate-400 hover:text-slate-700 bg-white"
+            >
+              ✕ Clear all filters
+            </button>
+          )}
+        </div>
+
         <Card className="border-slate-200 shadow-sm">
           <CardHeader className="pb-3">
             <CardTitle className="text-base">Filters</CardTitle>
@@ -803,7 +914,7 @@ export default function PaymentCheckerPage() {
             <Select
               value={filters.supplier}
               onValueChange={(supplier) => {
-                const nextFilters = { ...filters, supplier };
+                const nextFilters = { ...filters, supplier, needs_chasing: "" };
                 const nextPagination = { ...pagination, page: 1 };
                 setFilters(nextFilters);
                 setPagination(nextPagination);
@@ -1059,7 +1170,17 @@ export default function PaymentCheckerPage() {
                                           <td className="px-4 py-2 text-right">{formatMoney(payment.amount_received)}</td>
                                           <td className="px-4 py-2 text-right">{formatMoney(payment.outstanding_amount)}</td>
                                           <td className="px-4 py-2">
-                                            <Badge className={statusTone[payment.status]}>{payment.status}</Badge>
+                                            <div className="flex flex-col gap-1">
+                                              <Badge className={statusTone[payment.status]}>{payment.status}</Badge>
+                                              {Number(payment.outstanding_amount) > 0 &&
+                                                payment.due_date &&
+                                                new Date(payment.due_date) < today &&
+                                                !["Received", "Closed"].includes(payment.status) && (
+                                                  <span className="text-xs font-semibold text-red-600">
+                                                    {Math.floor((today.getTime() - new Date(payment.due_date).getTime()) / 86400000)}d overdue
+                                                  </span>
+                                                )}
+                                            </div>
                                           </td>
                                         </tr>
                                       ))}
@@ -1172,6 +1293,18 @@ export default function PaymentCheckerPage() {
                       <p className="text-slate-500">Last checked</p>
                       <p className="font-semibold">{formatDateTime(selectedPayment.last_checked_at)}</p>
                     </div>
+                    {selectedPayment.next_follow_up_date && (
+                      <div>
+                        <p className="text-slate-500">Next follow-up</p>
+                        <p className="font-semibold text-amber-700">{formatDate(selectedPayment.next_follow_up_date)}</p>
+                      </div>
+                    )}
+                    {selectedPayment.follow_up_count != null && selectedPayment.follow_up_count > 0 && (
+                      <div>
+                        <p className="text-slate-500">Times chased</p>
+                        <p className="font-semibold">{selectedPayment.follow_up_count}</p>
+                      </div>
+                    )}
                   </div>
                 </div>
 
@@ -1246,17 +1379,43 @@ export default function PaymentCheckerPage() {
                 </div>
 
                 {/* Actions */}
-                <div className="rounded-lg border p-4">
-                  <div className="mb-3 text-sm font-semibold text-slate-950">Actions</div>
-                  <div className="flex flex-wrap gap-2">
-                    <Button variant="outline" onClick={() => patchStatus("Chasing Supplier")} disabled={saving}>
-                      <CalendarCheck className="mr-2 h-4 w-4" />
-                      Mark as Chasing Supplier
-                    </Button>
-                    <Button variant="destructive" onClick={() => patchStatus("Closed")} disabled={saving}>
-                      <XCircle className="mr-2 h-4 w-4" />
-                      Close
-                    </Button>
+                <div className="rounded-lg border p-4 space-y-3">
+                  <div className="text-sm font-semibold text-slate-950">Actions</div>
+
+                  {/* Follow-up info */}
+                  {(selectedPayment.follow_up_count != null && selectedPayment.follow_up_count > 0 || selectedPayment.next_follow_up_date) && (
+                    <div className="rounded-md bg-amber-50 border border-amber-200 px-3 py-2 text-xs text-amber-800 space-y-0.5">
+                      {selectedPayment.follow_up_count != null && selectedPayment.follow_up_count > 0 && (
+                        <p>Chased <strong>{selectedPayment.follow_up_count}</strong> time{selectedPayment.follow_up_count !== 1 ? "s" : ""}</p>
+                      )}
+                      {selectedPayment.next_follow_up_date && (
+                        <p>Next follow-up: <strong>{formatDate(selectedPayment.next_follow_up_date)}</strong></p>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Chasing Supplier — with follow-up date picker */}
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2 text-xs text-slate-500">
+                      <CalendarCheck className="h-3.5 w-3.5" />
+                      <span>Follow up on</span>
+                      <Input
+                        type="date"
+                        className="h-7 text-xs w-36 py-0"
+                        value={followUpDate}
+                        onChange={(e) => setFollowUpDate(e.target.value)}
+                      />
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <Button variant="outline" onClick={() => patchStatus("Chasing Supplier")} disabled={saving}>
+                        <CalendarCheck className="mr-2 h-4 w-4" />
+                        Mark as Chasing Supplier
+                      </Button>
+                      <Button variant="destructive" onClick={() => patchStatus("Closed")} disabled={saving}>
+                        <XCircle className="mr-2 h-4 w-4" />
+                        Close
+                      </Button>
+                    </div>
                   </div>
                 </div>
 

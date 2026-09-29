@@ -189,6 +189,9 @@ export default function LeadsPage() {
     const saved = sessionStorage.getItem('leads_salesperson');
     return saved && saved !== "All" ? parseInt(saved) : "All";
   });
+  const [uploadSort,   setUploadSort]   = useState<"none" | "newest" | "oldest" | "custom">("none");
+  const [uploadedFrom, setUploadedFrom] = useState("");
+  const [uploadedTo,   setUploadedTo]   = useState("");
 
   // ── Selection ──────────────────────────────────────────────────────────────
   const [selectedLeads, setSelectedLeads]           = useState<number[]>([]);
@@ -290,6 +293,13 @@ export default function LeadsPage() {
       if (statusFilter !== "All")         params.set('status',          statusFilter);
       if (endDateFilter !== "all")        params.set('end_date_filter', endDateFilter);
       if (salespersonFilter !== "All")    params.set('employee_id',     String(salespersonFilter));
+      if (uploadSort === "newest")          params.set('upload_sort', 'desc');
+      if (uploadSort === "oldest")          params.set('upload_sort', 'asc');
+      if (uploadSort === "custom") {
+        params.set('upload_sort', 'desc');
+        if (uploadedFrom)                 params.set('uploaded_from', uploadedFrom);
+        if (uploadedTo)                   params.set('uploaded_to',   uploadedTo);
+      }
 
       const [leadsResult, suppResult, empResult, stagesResult] = await Promise.allSettled([
         fetchWithAuth(`${CRM_PROXY}/leads?${params.toString()}`),
@@ -370,7 +380,7 @@ export default function LeadsPage() {
   useEffect(() => {
     const tid = setTimeout(() => fetchLeads(1), searchTerm ? 400 : 0);
     return () => clearTimeout(tid);
-  }, [service, searchTerm, supplierFilter, statusFilter, endDateFilter, salespersonFilter]);
+  }, [service, searchTerm, supplierFilter, statusFilter, endDateFilter, salespersonFilter, uploadSort, uploadedFrom, uploadedTo]);
 
   // Performance stats — staggered so it doesn't race with leads
   useEffect(() => {
@@ -1050,7 +1060,7 @@ export default function LeadsPage() {
 
           <Button variant="outline" onClick={() => setShowFilterSidebar(true)} className="relative min-w-0">
             <Filter className="mr-2 h-4 w-4" />All Filters
-            {(isAdmin && salespersonFilter !== "All") && (
+            {((isAdmin && salespersonFilter !== "All") || uploadSort !== "none") && (
               <span className="absolute -top-1 -right-1 h-2.5 w-2.5 rounded-full bg-black" />
             )}
           </Button>
@@ -1148,10 +1158,46 @@ export default function LeadsPage() {
                 </SelectContent>
               </Select>
             </div>
+
+            {/* Recently Uploaded */}
+            <div>
+              <label className="block text-sm font-semibold text-gray-800 mb-2">Recently Uploaded</label>
+              <Select value={uploadSort} onValueChange={(v: any) => { setUploadSort(v); if (v !== "custom") { setUploadedFrom(""); setUploadedTo(""); } }}>
+                <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
+                <SelectContent position="popper" side="bottom" sideOffset={4} className="w-72 z-[60]">
+                  <SelectItem value="none">None</SelectItem>
+                  <SelectItem value="newest">Newest to Oldest</SelectItem>
+                  <SelectItem value="oldest">Oldest to Newest</SelectItem>
+                  <SelectItem value="custom">Custom Date Range</SelectItem>
+                </SelectContent>
+              </Select>
+              {uploadSort === "custom" && (
+                <div className="mt-3 space-y-2">
+                  <div>
+                    <label className="text-xs text-gray-500 mb-1 block">From</label>
+                    <input
+                      type="date"
+                      value={uploadedFrom}
+                      onChange={e => setUploadedFrom(e.target.value)}
+                      className="w-full border border-gray-200 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-black"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs text-gray-500 mb-1 block">To</label>
+                    <input
+                      type="date"
+                      value={uploadedTo}
+                      onChange={e => setUploadedTo(e.target.value)}
+                      className="w-full border border-gray-200 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-black"
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
           <div className="px-6 py-4 border-t flex-shrink-0 flex gap-2">
             <Button variant="outline" className="flex-1"
-              onClick={() => { setSupplierFilter("All"); setStatusFilter("All"); setEndDateFilter("all"); setUsageSort("none"); setSalespersonFilter("All"); }}>
+              onClick={() => { setSupplierFilter("All"); setStatusFilter("All"); setEndDateFilter("all"); setUsageSort("none"); setSalespersonFilter("All"); setUploadSort("none"); setUploadedFrom(""); setUploadedTo(""); }}>
               Clear All
             </Button>
             <Button className="flex-1 bg-black hover:bg-gray-800" onClick={() => setShowFilterSidebar(false)}>Done</Button>

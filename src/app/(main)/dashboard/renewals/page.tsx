@@ -332,6 +332,9 @@ export default function EnergyCustomersPage() {
     return saved && saved !== "All" ? parseInt(saved) : "All";
   });
   const [performancePeriod, setPerformancePeriod] = useState<'daily' | 'weekly' | 'monthly' | 'alltime'>('alltime');
+  const [uploadSort,   setUploadSort]   = useState<"none" | "newest" | "oldest" | "custom">("none");
+  const [uploadedFrom, setUploadedFrom] = useState("");
+  const [uploadedTo,   setUploadedTo]   = useState("");
 
   const router = useRouter();
   const { user } = useAuth();
@@ -559,8 +562,35 @@ export default function EnergyCustomersPage() {
       const matchesSalesperson = !isAdmin || salespersonFilter === "All" ||
         Number(customer.assigned_to_id) === Number(salespersonFilter);
 
-      return matchesSearch && matchesSupplier && matchesStatus && matchesEndDate && matchesSalesperson;
+      let matchesUploaded = true;
+      if (uploadSort === "custom" && (uploadedFrom || uploadedTo)) {
+        const created = customer.created_at ? new Date(customer.created_at) : null;
+        if (!created || isNaN(created.getTime())) {
+          matchesUploaded = false;
+        } else {
+          if (uploadedFrom) matchesUploaded = matchesUploaded && created >= new Date(uploadedFrom);
+          if (uploadedTo) {
+            const toEnd = new Date(uploadedTo);
+            toEnd.setHours(23, 59, 59, 999);
+            matchesUploaded = matchesUploaded && created <= toEnd;
+          }
+        }
+      }
+
+      return matchesSearch && matchesSupplier && matchesStatus && matchesEndDate && matchesSalesperson && matchesUploaded;
     });
+
+    // Upload sort overrides display_order when active and no usage sort is selected
+    if (uploadSort !== "none" && usageSort === "none") {
+      return [...filtered].sort((a, b) => {
+        const diff = new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime();
+        if (diff !== 0) return uploadSort === "oldest" ? -diff : diff;
+        // Stable tiebreaker: sort by client_id so equal timestamps always produce the same order
+        const idA = a.client_id ?? 0;
+        const idB = b.client_id ?? 0;
+        return uploadSort === "oldest" ? idA - idB : idB - idA;
+      });
+    }
 
     if (usageSort !== "none") {
       filtered = [...filtered].sort((a, b) => {
@@ -571,7 +601,7 @@ export default function EnergyCustomersPage() {
     }
 
     return filtered;
-  }, [sortedCustomers, searchTerm, supplierFilter, statusFilter, endDateFilter, usageSort, salespersonFilter]);
+  }, [sortedCustomers, searchTerm, supplierFilter, statusFilter, endDateFilter, usageSort, salespersonFilter, uploadSort, uploadedFrom, uploadedTo]);
 
   const isFromSearch = (customer: EnergyCustomer) => {
     if (isAdmin) return false;
@@ -1561,7 +1591,7 @@ export default function EnergyCustomersPage() {
           <Button variant="outline" onClick={() => setShowFilterSidebar(true)} className="relative min-w-0">
             <Filter className="mr-2 h-4 w-4" />
             All Filters
-            {(isAdmin && salespersonFilter !== "All") && (
+            {((isAdmin && salespersonFilter !== "All") || uploadSort !== "none") && (
               <span className="absolute -top-1 -right-1 h-2.5 w-2.5 rounded-full bg-black" />
             )}
           </Button>
@@ -1694,6 +1724,42 @@ export default function EnergyCustomersPage() {
                 </SelectContent>
               </Select>
             </div>
+
+            {/* Recently Uploaded */}
+            <div>
+              <label className="block text-sm font-semibold text-gray-800 mb-2">Recently Uploaded</label>
+              <Select value={uploadSort} onValueChange={(v: any) => { setUploadSort(v); if (v !== "custom") { setUploadedFrom(""); setUploadedTo(""); } }}>
+                <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
+                <SelectContent position="popper" side="bottom" sideOffset={4} className="w-72 z-[60]">
+                  <SelectItem value="none">None</SelectItem>
+                  <SelectItem value="newest">Newest to Oldest</SelectItem>
+                  <SelectItem value="oldest">Oldest to Newest</SelectItem>
+                  <SelectItem value="custom">Custom Date Range</SelectItem>
+                </SelectContent>
+              </Select>
+              {uploadSort === "custom" && (
+                <div className="mt-3 space-y-2">
+                  <div>
+                    <label className="text-xs text-gray-500 mb-1 block">From</label>
+                    <input
+                      type="date"
+                      value={uploadedFrom}
+                      onChange={e => setUploadedFrom(e.target.value)}
+                      className="w-full border border-gray-200 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-black"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs text-gray-500 mb-1 block">To</label>
+                    <input
+                      type="date"
+                      value={uploadedTo}
+                      onChange={e => setUploadedTo(e.target.value)}
+                      className="w-full border border-gray-200 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-black"
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
 
           <div className="px-6 py-4 border-t flex-shrink-0 flex gap-2">
@@ -1706,6 +1772,9 @@ export default function EnergyCustomersPage() {
                 setEndDateFilter("all");
                 setUsageSort("none");
                 setSalespersonFilter("All");
+                setUploadSort("none");
+                setUploadedFrom("");
+                setUploadedTo("");
               }}
             >
               Clear All

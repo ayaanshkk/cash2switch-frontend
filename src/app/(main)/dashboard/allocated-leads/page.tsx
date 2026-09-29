@@ -165,6 +165,9 @@ export default function AllocatedLeadsPage() {
   const [salespersonFilter, setSalespersonFilter] = useState<number | "All">("All");
   const [endDateFilter, setEndDateFilter]       = useState<"all" | "expired" | "30" | "60" | "90" | "90+">("all");
   const [usageSort, setUsageSort]               = useState<"none" | "low-high" | "high-low">("none");
+  const [allocSort, setAllocSort]               = useState<"none" | "newest" | "oldest" | "custom">("none");
+  const [allocFrom, setAllocFrom]               = useState("");
+  const [allocTo,   setAllocTo]                 = useState("");
 
   // Callback modal
   const [showCallbackModal, setShowCallbackModal]                   = useState(false);
@@ -196,7 +199,7 @@ export default function AllocatedLeadsPage() {
     if (isAdmin) fetchEmployees();
   }, [service, isAdmin]);
 
-  useEffect(() => { setCurrentPage(1); }, [searchTerm, supplierFilter, statusFilter, salespersonFilter, endDateFilter, usageSort]);
+  useEffect(() => { setCurrentPage(1); }, [searchTerm, supplierFilter, statusFilter, salespersonFilter, endDateFilter, usageSort, allocSort, allocFrom, allocTo]);
 
   // ---------------- Fetch ----------------
   /**
@@ -309,8 +312,31 @@ export default function AllocatedLeadsPage() {
         else if (endDateFilter === "90+")     matchEndDate = days > 90 && days <= 365;
       }
 
-      return matchSearch && matchSupplier && matchStatus && matchSalesperson && matchEndDate;
+      let matchAlloc = true;
+      if (allocSort === "custom" && (allocFrom || allocTo)) {
+        const created = l.created_at ? new Date(l.created_at) : null;
+        if (!created || isNaN(created.getTime())) {
+          matchAlloc = false;
+        } else {
+          if (allocFrom) matchAlloc = matchAlloc && created >= new Date(allocFrom);
+          if (allocTo) {
+            const toEnd = new Date(allocTo);
+            toEnd.setHours(23, 59, 59, 999);
+            matchAlloc = matchAlloc && created <= toEnd;
+          }
+        }
+      }
+
+      return matchSearch && matchSupplier && matchStatus && matchSalesperson && matchEndDate && matchAlloc;
     });
+
+    if (allocSort !== "none" && usageSort === "none") {
+      return [...list].sort((a, b) => {
+        const diff = new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime();
+        if (diff !== 0) return allocSort === "oldest" ? -diff : diff;
+        return allocSort === "oldest" ? a.opportunity_id - b.opportunity_id : b.opportunity_id - a.opportunity_id;
+      });
+    }
 
     if (usageSort !== "none") {
       list = [...list].sort((a, b) =>
@@ -321,7 +347,7 @@ export default function AllocatedLeadsPage() {
     }
 
     return list;
-  }, [allLeads, searchTerm, supplierFilter, statusFilter, salespersonFilter, endDateFilter, usageSort, isAdmin]);
+  }, [allLeads, searchTerm, supplierFilter, statusFilter, salespersonFilter, endDateFilter, usageSort, allocSort, allocFrom, allocTo, isAdmin]);
 
   // ---------------- Pagination ----------------
   const totalPages     = Math.ceil(filteredLeads.length / LEADS_PER_PAGE);
@@ -643,6 +669,24 @@ export default function AllocatedLeadsPage() {
             <SelectItem value="high-low">Usage: High to Low</SelectItem>
           </SelectContent>
         </Select>
+
+        {/* Recently Allocated sort */}
+        <Select value={allocSort} onValueChange={(v: any) => { setAllocSort(v); if (v !== "custom") { setAllocFrom(""); setAllocTo(""); } }}>
+          <SelectTrigger className="w-full min-w-0"><SelectValue placeholder="Recently Allocated" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="none">Allocated: Default</SelectItem>
+            <SelectItem value="newest">Newest to Oldest</SelectItem>
+            <SelectItem value="oldest">Oldest to Newest</SelectItem>
+            <SelectItem value="custom">Custom Date Range</SelectItem>
+          </SelectContent>
+        </Select>
+
+        {allocSort === "custom" && (
+          <>
+            <Input type="date" className="w-full min-w-0" placeholder="From" value={allocFrom} onChange={e => setAllocFrom(e.target.value)} />
+            <Input type="date" className="w-full min-w-0" placeholder="To"   value={allocTo}   onChange={e => setAllocTo(e.target.value)} />
+          </>
+        )}
       </div>
 
       {/* Table */}
