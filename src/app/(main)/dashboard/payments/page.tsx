@@ -829,6 +829,8 @@ export default function PaymentCheckerPage() {
   const isColumnVisible = (key: PaymentColumnKey) => visiblePaymentColumns[key];
   const visibleColumnCount = 1 + paymentColumnOptions.filter((column) => isColumnVisible(column.key)).length;
 
+  const selectedIsClosed = selectedPayment?.status === "Closed";
+
   return (
     <div className="min-h-screen bg-transparent px-4 py-6 text-slate-900 dark:bg-transparent dark:text-slate-100 sm:px-6 lg:px-8">
       <div className="space-y-6">
