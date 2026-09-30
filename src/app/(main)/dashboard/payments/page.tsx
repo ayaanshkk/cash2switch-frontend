@@ -139,13 +139,13 @@ const paymentColumnOptions: Array<{ key: PaymentColumnKey; label: string; defaul
 ];
 
 const statusTone: Record<PaymentStatus, string> = {
-  Scheduled: "bg-slate-100 text-slate-700 hover:bg-slate-100",
-  Pending: "bg-blue-100 text-blue-700 hover:bg-blue-100",
-  Due: "bg-orange-100 text-orange-800 hover:bg-orange-100",
-  Received: "bg-emerald-100 text-emerald-700 hover:bg-emerald-100",
-  "Partially Paid": "bg-orange-100 text-orange-800 hover:bg-orange-100",
-  "Chasing Supplier": "bg-red-100 text-red-700 hover:bg-red-100",
-  Closed: "bg-zinc-200 text-zinc-700 hover:bg-zinc-200",
+  Scheduled: "bg-slate-100 text-slate-700 hover:bg-slate-100 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-800",
+  Pending: "bg-blue-100 text-blue-700 hover:bg-blue-100 dark:bg-blue-950/60 dark:text-blue-300 dark:hover:bg-blue-950/60",
+  Due: "bg-orange-100 text-orange-800 hover:bg-orange-100 dark:bg-orange-950/60 dark:text-orange-300 dark:hover:bg-orange-950/60",
+  Received: "bg-emerald-100 text-emerald-700 hover:bg-emerald-100 dark:bg-emerald-950/60 dark:text-emerald-300 dark:hover:bg-emerald-950/60",
+  "Partially Paid": "bg-orange-100 text-orange-800 hover:bg-orange-100 dark:bg-orange-950/60 dark:text-orange-300 dark:hover:bg-orange-950/60",
+  "Chasing Supplier": "bg-red-100 text-red-700 hover:bg-red-100 dark:bg-red-950/60 dark:text-red-300 dark:hover:bg-red-950/60",
+  Closed: "bg-zinc-200 text-zinc-700 hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-800",
 };
 
 const moneyFormatter = new Intl.NumberFormat("en-GB", {
@@ -388,7 +388,6 @@ export default function PaymentCheckerPage() {
 
       const data = await fetchWithAuth(`/api/commission/clients-with-payments?${params.toString()}`);
 
-      // Map to CommissionPayment shape for existing rendering
       const mappedPayments: CommissionPayment[] = [];
       for (const client of data.clients || []) {
         if (client.payments.length > 0) {
@@ -413,7 +412,6 @@ export default function PaymentCheckerPage() {
             });
           }
         } else {
-          // Client has no commission payments — show as a stub row
           mappedPayments.push({
             id: `stub-${client.contract_id}`,
             client_id: client.client_id,
@@ -423,7 +421,7 @@ export default function PaymentCheckerPage() {
             employee_id: null,
             instalment_year: 0,
             payment_policy_type: null,
-            payment_period_label: 'No commission record',
+            payment_period_label: "No commission record",
             payment_period_start: null,
             payment_period_end: null,
             customer_name: client.business_name,
@@ -437,11 +435,11 @@ export default function PaymentCheckerPage() {
             service_id: client.service_id,
             service_title: client.service_title,
             aggregator: client.aggregator,
-            expected_net_amount: '0.00',
+            expected_net_amount: "0.00",
             due_date: null,
-            amount_received: '0.00',
-            outstanding_amount: '0.00',
-            status: 'Pending' as PaymentStatus,
+            amount_received: "0.00",
+            outstanding_amount: "0.00",
+            status: "Pending" as PaymentStatus,
             last_checked_at: null,
             next_follow_up_date: null,
             is_archived: client.is_archived,
@@ -493,7 +491,7 @@ export default function PaymentCheckerPage() {
 
   const openCustomerDetails = (clientId: number | null) => {
     if (!clientId) return;
-    window.open(`/dashboard/renewals/${clientId}`, '_blank');
+    window.open(`/dashboard/renewals/${clientId}`, "_blank");
   };
 
   const openPaymentHistory = (clientId: number | null) => {
@@ -525,14 +523,14 @@ export default function PaymentCheckerPage() {
       const nextPagination = { ...pagination, page: 1 };
       setPagination(nextPagination);
       loadPayments(filters, searchTerm, nextPagination);
-    }, 500); // 500ms debounce
+    }, 500);
 
     return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchTerm]);
 
   const openPayment = async (payment: CommissionPayment) => {
-    if (String(payment.id).startsWith('stub-')) return;
+    if (String(payment.id).startsWith("stub-")) return;
     setSelectedPayment(payment);
     setReceipts([]);
     setDetailLoading(true);
@@ -730,64 +728,77 @@ export default function PaymentCheckerPage() {
   const visibleColumnCount = 1 + paymentColumnOptions.filter((column) => isColumnVisible(column.key)).length;
 
   return (
-    <div className="min-h-screen bg-slate-50/50 px-4 py-6">
+    <div className="min-h-screen bg-transparent px-4 py-6 text-slate-900 dark:bg-transparent dark:text-slate-100 sm:px-6 lg:px-8">
       <div className="space-y-6">
-        <div className="flex flex-col gap-4 rounded-lg border bg-white p-5 shadow-sm md:flex-row md:items-center md:justify-between">
+        <div className="flex flex-col gap-4 rounded-lg border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900 md:flex-row md:items-center md:justify-between">
           <div>
-            <p className="text-sm font-medium text-slate-500">Payments</p>
-            <h1 className="mt-1 text-3xl font-semibold tracking-tight text-slate-950">
+            <p className="text-sm font-medium text-slate-500 dark:text-slate-400">Payments</p>
+            <h1 className="mt-1 text-3xl font-semibold tracking-tight text-slate-950 dark:text-slate-50">
               Payment Checker
             </h1>
-            <p className="mt-2 max-w-3xl text-sm text-slate-600">
+            <p className="mt-2 max-w-3xl text-sm text-slate-600 dark:text-slate-400">
               Track all renewal commission receipts, outstanding balances, and follow-up actions.
             </p>
           </div>
         </div>
 
         {error && (
-          <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>
+          <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-400">
+            {error}
+          </div>
         )}
 
         {successMessage && (
-          <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+          <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700 dark:border-emerald-900/50 dark:bg-emerald-950/30 dark:text-emerald-400">
             {successMessage}
           </div>
         )}
 
         <div className="grid gap-4 md:grid-cols-3">
-          <Card className="border-slate-200 shadow-sm">
+          <Card className="border-slate-200 shadow-sm dark:border-slate-800 dark:bg-slate-900">
             <CardHeader className="pb-2">
-              <CardTitle className="flex items-center gap-2 text-sm font-medium text-slate-600">
-                <CircleDollarSign className="h-4 w-4 text-slate-900" />
+              <CardTitle className="flex items-center gap-2 text-sm font-medium text-slate-600 dark:text-slate-400">
+                <CircleDollarSign className="h-4 w-4 text-slate-900 dark:text-slate-100" />
                 Expected
               </CardTitle>
             </CardHeader>
-            <CardContent className="text-2xl font-semibold">{formatMoney(totals.expected)}</CardContent>
+            <CardContent className="text-2xl font-semibold text-slate-950 dark:text-slate-50">{formatMoney(totals.expected)}</CardContent>
           </Card>
-          <Card className="border-slate-200 shadow-sm">
+          <Card
+            className="cursor-pointer border-slate-200 shadow-sm transition-colors hover:border-emerald-300 hover:bg-emerald-50/40 dark:border-slate-800 dark:bg-slate-900 dark:hover:border-emerald-700 dark:hover:bg-emerald-950/20"
+            role="button"
+            tabIndex={0}
+            onClick={() => applyStatusShortcut("Received")}
+            onKeyDown={(event) => {
+              if (event.key === "Enter" || event.key === " ") {
+                event.preventDefault();
+                applyStatusShortcut("Received");
+              }
+            }}
+          >
             <CardHeader className="pb-2">
-              <CardTitle className="flex items-center gap-2 text-sm font-medium text-slate-600">
-                <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+              <CardTitle className="flex items-center gap-2 text-sm font-medium text-slate-600 dark:text-slate-400">
+                <CheckCircle2 className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
                 Received
               </CardTitle>
             </CardHeader>
-            <CardContent className="text-2xl font-semibold">{formatMoney(totals.received)}</CardContent>
+            <CardContent className="text-2xl font-semibold text-slate-950 dark:text-slate-50">{formatMoney(totals.received)}</CardContent>
           </Card>
-          <Card className="border-slate-200 shadow-sm">
+          <Card className="border-slate-200 shadow-sm dark:border-slate-800 dark:bg-slate-900">
             <CardHeader className="pb-2">
-              <CardTitle className="flex items-center gap-2 text-sm font-medium text-slate-600">
-                <CalendarCheck className="h-4 w-4 text-orange-600" />
+              <CardTitle className="flex items-center gap-2 text-sm font-medium text-slate-600 dark:text-slate-400">
+                <CalendarCheck className="h-4 w-4 text-orange-600 dark:text-orange-400" />
                 Outstanding
               </CardTitle>
             </CardHeader>
-            <CardContent className="text-2xl font-semibold">{formatMoney(totals.outstanding)}</CardContent>
+            <CardContent className="text-2xl font-semibold text-slate-950 dark:text-slate-50">{formatMoney(totals.outstanding)}</CardContent>
           </Card>
         </div>
 
         {/* Supplier chase summary — real totals from all data, hidden when already filtered */}
         {filters.supplier === "all" && chasingSummary.length > 0 && (
-          <div className="rounded-lg border border-red-200 bg-red-50 p-4">
-            <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-red-800">⚠ Overdue payments — needs chasing</p>
+          <div className="rounded-lg border border-red-200 bg-red-50 p-4 dark:border-red-900 dark:bg-red-950/30">
+            <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-red-800 dark:text-red-300">Overdue payments — needs chasing</p>
             <div className="flex flex-wrap gap-3">
               {chasingSummary.map((row) => (
                 <button
@@ -804,11 +815,11 @@ export default function PaymentCheckerPage() {
                     setPagination(nextPag);
                     loadPayments(next, searchTerm, nextPag);
                   }}
-                  className="rounded-lg border border-red-200 bg-white px-3 py-2 text-left shadow-sm hover:shadow-md transition-shadow"
+                  className="rounded-lg border border-red-200 bg-white px-3 py-2 text-left shadow-sm hover:shadow-md transition-shadow dark:border-red-800 dark:bg-slate-900"
                 >
-                  <p className="text-xs font-semibold text-slate-800 truncate max-w-[160px]">{row.supplier_name}</p>
-                  <p className="text-lg font-bold text-red-700">{formatMoney(row.total_outstanding)}</p>
-                  <p className="text-xs text-slate-500">{row.overdue_count} contract{row.overdue_count !== 1 ? "s" : ""} overdue</p>
+                  <p className="text-xs font-semibold text-slate-800 truncate max-w-[160px] dark:text-slate-200">{row.supplier_name}</p>
+                  <p className="text-lg font-bold text-red-700 dark:text-red-400">{formatMoney(row.total_outstanding)}</p>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">{row.overdue_count} contract{row.overdue_count !== 1 ? "s" : ""} overdue</p>
                 </button>
               ))}
             </div>
@@ -848,8 +859,8 @@ export default function PaymentCheckerPage() {
                 }}
                 className={`rounded-full px-3 py-1 text-xs font-medium border transition-colors ${
                   isActive
-                    ? "bg-slate-900 text-white border-slate-900"
-                    : "bg-white text-slate-600 border-slate-200 hover:border-slate-400"
+                    ? "bg-slate-900 text-white border-slate-900 dark:bg-slate-100 dark:text-slate-900"
+                    : "bg-white text-slate-600 border-slate-200 hover:border-slate-400 dark:bg-slate-900 dark:text-slate-300 dark:border-slate-700"
                 }`}
               >
                 {chip.label}
@@ -866,22 +877,22 @@ export default function PaymentCheckerPage() {
                 setPagination(nextPag);
                 loadPayments(next, searchTerm, nextPag);
               }}
-              className="rounded-full px-3 py-1 text-xs font-medium border border-slate-200 text-slate-400 hover:text-slate-700 bg-white"
+              className="rounded-full px-3 py-1 text-xs font-medium border border-slate-200 text-slate-400 hover:text-slate-700 bg-white dark:border-slate-700 dark:bg-slate-900 dark:text-slate-500 dark:hover:text-slate-300"
             >
               ✕ Clear all filters
             </button>
           )}
         </div>
 
-        <Card className="border-slate-200 shadow-sm">
+        <Card className="border-slate-200 shadow-sm dark:border-slate-800 dark:bg-slate-900">
           <CardHeader className="pb-3">
-            <CardTitle className="text-base">Filters</CardTitle>
+            <CardTitle className="text-base text-slate-950 dark:text-slate-50">Filters</CardTitle>
           </CardHeader>
           <CardContent className="flex flex-wrap items-center gap-2">
             <div className="relative">
-              <Search className="pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-slate-400" />
+              <Search className="pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-slate-400 dark:text-slate-500" />
               <Input
-                className="pl-9 w-64"
+                className="pl-9 w-64 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-100 dark:placeholder:text-slate-500"
                 placeholder="Search..."
                 value={searchTerm}
                 onChange={(event) => setSearchTerm(event.target.value)}
@@ -898,13 +909,13 @@ export default function PaymentCheckerPage() {
                 loadPayments(nextFilters, searchTerm, nextPagination);
               }}
             >
-              <SelectTrigger className="min-w-0 [&>span]:truncate">
+              <SelectTrigger className="min-w-0 [&>span]:truncate dark:border-slate-800 dark:bg-slate-950 dark:text-slate-100">
                 <SelectValue placeholder="Status" />
               </SelectTrigger>
-              <SelectContent className="max-w-80">
-                <SelectItem value="all">All statuses</SelectItem>
+              <SelectContent className="max-w-80 dark:border-slate-800 dark:bg-slate-900">
+                <SelectItem value="all" className="dark:hover:bg-slate-800">All statuses</SelectItem>
                 {statuses.map((status) => (
-                  <SelectItem key={status} value={status}>
+                  <SelectItem key={status} value={status} className="dark:hover:bg-slate-800">
                     {status}
                   </SelectItem>
                 ))}
@@ -921,13 +932,13 @@ export default function PaymentCheckerPage() {
                 loadPayments(nextFilters, searchTerm, nextPagination);
               }}
             >
-              <SelectTrigger className="min-w-0 [&>span]:truncate">
+              <SelectTrigger className="min-w-0 [&>span]:truncate dark:border-slate-800 dark:bg-slate-950 dark:text-slate-100">
                 <SelectValue placeholder="Supplier" />
               </SelectTrigger>
-              <SelectContent className="max-w-96">
-                <SelectItem value="all">All suppliers</SelectItem>
+              <SelectContent className="max-w-96 dark:border-slate-800 dark:bg-slate-900">
+                <SelectItem value="all" className="dark:hover:bg-slate-800">All suppliers</SelectItem>
                 {suppliers.map((supplier) => (
-                  <SelectItem key={supplier.supplier_id} value={String(supplier.supplier_id)}>
+                  <SelectItem key={supplier.supplier_id} value={String(supplier.supplier_id)} className="dark:hover:bg-slate-800">
                     {supplier.supplier_name || `Supplier #${supplier.supplier_id}`}
                   </SelectItem>
                 ))}
@@ -944,13 +955,13 @@ export default function PaymentCheckerPage() {
                 loadPayments(nextFilters, searchTerm, nextPagination);
               }}
             >
-              <SelectTrigger className="min-w-0 [&>span]:truncate">
+              <SelectTrigger className="min-w-0 [&>span]:truncate dark:border-slate-800 dark:bg-slate-950 dark:text-slate-100">
                 <SelectValue placeholder="Agent" />
               </SelectTrigger>
-              <SelectContent className="max-w-80">
-                <SelectItem value="all">All agents</SelectItem>
+              <SelectContent className="max-w-80 dark:border-slate-800 dark:bg-slate-900">
+                <SelectItem value="all" className="dark:hover:bg-slate-800">All agents</SelectItem>
                 {agents.map((agent) => (
-                  <SelectItem key={agent.employee_id} value={String(agent.employee_id)}>
+                  <SelectItem key={agent.employee_id} value={String(agent.employee_id)} className="dark:hover:bg-slate-800">
                     {agent.employee_name || `Agent #${agent.employee_id}`}
                   </SelectItem>
                 ))}
@@ -967,13 +978,13 @@ export default function PaymentCheckerPage() {
                 loadPayments(nextFilters, searchTerm, nextPagination);
               }}
             >
-              <SelectTrigger className="min-w-0 [&>span]:truncate">
+              <SelectTrigger className="min-w-0 [&>span]:truncate dark:border-slate-800 dark:bg-slate-950 dark:text-slate-100">
                 <SelectValue placeholder="Aggregator" />
               </SelectTrigger>
-              <SelectContent className="max-w-80">
-                <SelectItem value="all">All aggregators</SelectItem>
+              <SelectContent className="max-w-80 dark:border-slate-800 dark:bg-slate-900">
+                <SelectItem value="all" className="dark:hover:bg-slate-800">All aggregators</SelectItem>
                 {aggregators.filter((item): item is FilterOption & { aggregator: string } => Boolean(item.aggregator)).map((item) => (
-                  <SelectItem key={item.aggregator} value={String(item.aggregator)}>
+                  <SelectItem key={item.aggregator} value={String(item.aggregator)} className="dark:hover:bg-slate-800">
                     {item.aggregator}
                   </SelectItem>
                 ))}
@@ -982,45 +993,45 @@ export default function PaymentCheckerPage() {
 
             <Input
               type="date"
-              className="w-36"
+              className="w-36 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-100 dark:[color-scheme:dark]"
               value={filters.due_from}
               onChange={(event) => setFilters((current) => ({ ...current, due_from: event.target.value }))}
             />
             <Input
               type="date"
-              className="w-36"
+              className="w-36 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-100 dark:[color-scheme:dark]"
               value={filters.due_to}
               onChange={(event) => setFilters((current) => ({ ...current, due_to: event.target.value }))}
             />
           </CardContent>
         </Card>
 
-        <Card className="border-slate-200 shadow-sm">
+        <Card className="border-slate-200 shadow-sm dark:border-slate-800 dark:bg-slate-900">
           <CardHeader className="pb-3">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <CardTitle className="flex items-center gap-2 text-base">
+              <CardTitle className="flex items-center gap-2 text-base text-slate-950 dark:text-slate-50">
                 <Layers3 className="h-4 w-4" />
                 Commission Payments
               </CardTitle>
-              <div className="flex flex-wrap items-center gap-2 text-sm text-slate-500">
+              <div className="flex flex-wrap items-center gap-2 text-sm text-slate-500 dark:text-slate-400">
                 <span>
                   Showing {paymentGroups.length} of {pagination.total} renewals
                 </span>
                 <div className="flex items-center gap-2">
-                  <span className="text-sm text-slate-500">Rows per page</span>
+                  <span className="text-sm text-slate-500 dark:text-slate-400">Rows per page</span>
                   <Select
                     value={String(pagination.page_size)}
                     onValueChange={(value) =>
                       setPagination((current) => ({ ...current, page: 1, page_size: Number(value) }))
                     }
                   >
-                    <SelectTrigger className="h-8 w-24">
+                    <SelectTrigger className="h-8 w-24 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-100">
                       <SelectValue />
                     </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="10">10</SelectItem>
-                      <SelectItem value="25">25</SelectItem>
-                      <SelectItem value="50">50</SelectItem>
+                    <SelectContent className="dark:border-slate-800 dark:bg-slate-900">
+                      <SelectItem value="10" className="dark:hover:bg-slate-800">10</SelectItem>
+                      <SelectItem value="25" className="dark:hover:bg-slate-800">25</SelectItem>
+                      <SelectItem value="50" className="dark:hover:bg-slate-800">50</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -1029,15 +1040,15 @@ export default function PaymentCheckerPage() {
           </CardHeader>
           <CardContent className="p-0">
             {loading ? (
-              <div className="flex min-h-64 items-center justify-center text-slate-500">
+              <div className="flex min-h-64 items-center justify-center text-slate-500 dark:text-slate-400">
                 <Loader2 className="mr-2 h-5 w-5 animate-spin" />
                 Loading commission payments...
               </div>
             ) : (
-              <div className="border-t">
+              <div className="border-t border-slate-200 dark:border-slate-800">
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm">
-                    <thead className="bg-slate-50 text-left text-xs font-semibold tracking-wide text-slate-500 uppercase border-b">
+                    <thead className="bg-slate-50 text-left text-xs font-semibold tracking-wide text-slate-500 uppercase border-b border-slate-200 dark:border-slate-800 dark:bg-slate-800/60 dark:text-slate-400">
                       <tr>
                         <th className="px-3 py-2">Customer</th>
                         <th className="px-3 py-2">Supplier</th>
@@ -1054,7 +1065,7 @@ export default function PaymentCheckerPage() {
                         <th className="px-3 py-2"></th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y bg-white">
+                    <tbody className="divide-y divide-slate-200 bg-white dark:divide-slate-800 dark:bg-slate-900">
                       {paymentGroups.map((group, index) => {
                         const expanded = expandedGroups[group.key] ?? false;
                         const orderedPayments = group.payments
@@ -1064,13 +1075,11 @@ export default function PaymentCheckerPage() {
                         return (
                           <React.Fragment key={group.key}>
                             <tr
-                              className={`cursor-pointer transition-colors hover:bg-slate-50 ${
-                                group.needsChasing
-                                  ? "bg-amber-50 border-l-4 border-l-amber-400"
-                                  : group.isDeleted
-                                  ? "bg-red-50/40"
+                              className={`cursor-pointer transition-colors hover:bg-slate-50 dark:hover:bg-slate-800/50 ${
+                                group.isDeleted
+                                  ? "bg-red-50/40 dark:bg-red-950/20"
                                   : group.isArchived
-                                  ? "bg-amber-50/40"
+                                  ? "bg-amber-50/40 dark:bg-amber-950/20"
                                   : ""
                               }`}
                               onClick={() => togglePaymentGroup(group.key)}
@@ -1079,43 +1088,41 @@ export default function PaymentCheckerPage() {
                                 <div className="flex items-center gap-2">
                                   <button
                                     type="button"
-                                    className="rounded border bg-slate-50 p-0.5 shrink-0"
+                                    className="rounded border border-slate-200 bg-slate-50 p-0.5 shrink-0 dark:border-slate-700 dark:bg-slate-800"
                                     onClick={(e) => { e.stopPropagation(); togglePaymentGroup(group.key); }}
                                   >
                                     {expanded
-                                      ? <ChevronDown className="h-3 w-3 text-slate-600" />
-                                      : <ChevronRight className="h-3 w-3 text-slate-600" />}
+                                      ? <ChevronDown className="h-3 w-3 text-slate-600 dark:text-slate-300" />
+                                      : <ChevronRight className="h-3 w-3 text-slate-600 dark:text-slate-300" />}
                                   </button>
                                   <div>
                                     <button
                                       type="button"
-                                      className="font-semibold text-slate-950 hover:underline text-left"
+                                      className="font-semibold text-slate-950 hover:underline text-left dark:text-slate-100"
                                       onClick={(e) => { e.stopPropagation(); openCustomerDetails(group.clientId); }}
                                     >
                                       {group.title}
                                     </button>
                                     <div className="flex gap-1 mt-0.5 flex-wrap">
-                                      {group.needsChasing && (
-                                        <Badge className="bg-amber-500 text-white hover:bg-amber-500 text-xs animate-pulse">
-                                          Needs Chasing
-                                        </Badge>
-                                      )}
-                                      {group.isArchived && <Badge className="bg-amber-100 text-amber-700 hover:bg-amber-100 text-xs">Archived</Badge>}
-                                      {group.isDeleted && <Badge className="bg-red-100 text-red-700 hover:bg-red-100 text-xs">Deleted</Badge>}
+                                      <Badge className="bg-slate-900 text-white hover:bg-slate-900 text-xs dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-slate-100">
+                                        {group.payments.length} instalment{group.payments.length === 1 ? "" : "s"}
+                                      </Badge>
+                                      {group.isArchived && <Badge className="bg-amber-100 text-amber-700 hover:bg-amber-100 text-xs dark:bg-amber-950/60 dark:text-amber-300">Archived</Badge>}
+                                      {group.isDeleted && <Badge className="bg-red-100 text-red-700 hover:bg-red-100 text-xs dark:bg-red-950/60 dark:text-red-300">Deleted</Badge>}
                                     </div>
                                   </div>
                                 </div>
                               </td>
-                              <td className="px-3 py-2 text-slate-700">{group.payments[0]?.supplier_name || '-'}</td>
-                              <td className="px-3 py-2 text-slate-700">{group.payments[0]?.aggregator || '-'}</td>
-                              <td className="px-3 py-2 text-slate-700">{group.payments[0]?.agent_name || '-'}</td>
-                              <td className="px-3 py-2 font-mono text-xs text-slate-700">{group.mpan || '-'}</td>
-                              <td className="px-3 py-2 text-slate-700 whitespace-nowrap">{formatDate(group.contractStartDate)}</td>
-                              <td className="px-3 py-2 text-slate-700 whitespace-nowrap">{formatDate(group.contractEndDate)}</td>
-                              <td className="px-3 py-2 text-right font-medium">{formatMoney(group.expected)}</td>
-                              <td className="px-3 py-2 text-right text-emerald-700 font-medium">{formatMoney(group.received)}</td>
-                              <td className="px-3 py-2 text-right text-orange-700 font-medium">{formatMoney(group.outstanding)}</td>
-                              <td className="px-3 py-2 text-slate-700 whitespace-nowrap">{formatDate(group.nextDue)}</td>
+                              <td className="px-3 py-2 text-slate-700 dark:text-slate-300">{group.payments[0]?.supplier_name || "-"}</td>
+                              <td className="px-3 py-2 text-slate-700 dark:text-slate-300">{group.payments[0]?.aggregator || "-"}</td>
+                              <td className="px-3 py-2 text-slate-700 dark:text-slate-300">{group.payments[0]?.agent_name || "-"}</td>
+                              <td className="px-3 py-2 font-mono text-xs text-slate-700 dark:text-slate-300">{group.mpan || "-"}</td>
+                              <td className="px-3 py-2 text-slate-700 whitespace-nowrap dark:text-slate-300">{formatDate(group.contractStartDate)}</td>
+                              <td className="px-3 py-2 text-slate-700 whitespace-nowrap dark:text-slate-300">{formatDate(group.contractEndDate)}</td>
+                              <td className="px-3 py-2 text-right font-medium text-slate-900 dark:text-slate-100">{formatMoney(group.expected)}</td>
+                              <td className="px-3 py-2 text-right text-emerald-700 font-medium dark:text-emerald-400">{formatMoney(group.received)}</td>
+                              <td className="px-3 py-2 text-right text-orange-700 font-medium dark:text-orange-400">{formatMoney(group.outstanding)}</td>
+                              <td className="px-3 py-2 text-slate-700 whitespace-nowrap dark:text-slate-300">{formatDate(group.nextDue)}</td>
                               <td className="px-3 py-2">
                                 <div className="flex flex-wrap gap-1">
                                   {group.statuses.map((status) => (
@@ -1125,10 +1132,10 @@ export default function PaymentCheckerPage() {
                               </td>
                               <td className="px-3 py-2">
                                 <div className="flex gap-1" onClick={(e) => e.stopPropagation()}>
-                                  <Button size="sm" variant="outline" className="h-7 px-2 text-xs" onClick={() => openPaymentHistory(group.clientId)}>
+                                  <Button size="sm" variant="outline" className="h-7 px-2 text-xs dark:border-slate-700 dark:hover:bg-slate-800" onClick={() => openPaymentHistory(group.clientId)}>
                                     <ReceiptText className="h-3 w-3" />
                                   </Button>
-                                  <Button size="sm" variant="outline" className="h-7 px-2 text-xs" onClick={() => openCustomerDetails(group.clientId)}>
+                                  <Button size="sm" variant="outline" className="h-7 px-2 text-xs dark:border-slate-700 dark:hover:bg-slate-800" onClick={() => openCustomerDetails(group.clientId)}>
                                     <ExternalLink className="h-3 w-3" />
                                   </Button>
                                 </div>
@@ -1137,9 +1144,9 @@ export default function PaymentCheckerPage() {
 
                             {expanded && (
                               <tr key={`${group.key}-expanded`}>
-                                <td colSpan={13} className="p-0 bg-slate-50">
-                                  <table className="w-full text-sm border-t border-b border-slate-200">
-                                    <thead className="bg-slate-100 text-left text-xs font-semibold tracking-wide text-slate-500 uppercase">
+                                <td colSpan={13} className="p-0 bg-slate-50 dark:bg-slate-950/60">
+                                  <table className="w-full text-sm border-t border-b border-slate-200 dark:border-slate-800">
+                                    <thead className="bg-slate-100 text-left text-xs font-semibold tracking-wide text-slate-500 uppercase dark:bg-slate-800/80 dark:text-slate-400">
                                       <tr>
                                         <th className="px-8 py-2">Instalment</th>
                                         <th className="px-4 py-2">Payment Period</th>
@@ -1150,25 +1157,25 @@ export default function PaymentCheckerPage() {
                                         <th className="px-4 py-2">Status</th>
                                       </tr>
                                     </thead>
-                                    <tbody className="divide-y bg-white">
+                                    <tbody className="divide-y divide-slate-200 bg-white dark:divide-slate-800 dark:bg-slate-900">
                                       {orderedPayments.map((payment) => (
                                         <tr
                                           key={payment.id}
-                                          className={`transition-colors hover:bg-slate-50 ${String(payment.id).startsWith('stub-') ? 'opacity-50 cursor-default' : 'cursor-pointer'}`}
-                                          onClick={() => !String(payment.id).startsWith('stub-') && openPayment(payment)}
+                                          className={`transition-colors hover:bg-slate-50 dark:hover:bg-slate-800/50 ${String(payment.id).startsWith("stub-") ? "opacity-50 cursor-default" : "cursor-pointer"}`}
+                                          onClick={() => !String(payment.id).startsWith("stub-") && openPayment(payment)}
                                         >
-                                          <td className="px-8 py-2 font-medium text-slate-900">
+                                          <td className="px-8 py-2 font-medium text-slate-900 dark:text-slate-100">
                                             {payment.payment_period_label || `Year ${payment.instalment_year}`}
                                           </td>
-                                          <td className="px-4 py-2 text-slate-700">
+                                          <td className="px-4 py-2 text-slate-700 dark:text-slate-300">
                                             {formatDate(payment.payment_period_start || payment.contract_start_date)}
-                                            {' – '}
+                                            {" – "}
                                             {formatDate(payment.payment_period_end || payment.contract_end_date)}
                                           </td>
-                                          <td className="px-4 py-2 text-right font-medium">{formatMoney(payment.expected_net_amount)}</td>
-                                          <td className="px-4 py-2 text-slate-700">{formatDate(payment.due_date)}</td>
-                                          <td className="px-4 py-2 text-right">{formatMoney(payment.amount_received)}</td>
-                                          <td className="px-4 py-2 text-right">{formatMoney(payment.outstanding_amount)}</td>
+                                          <td className="px-4 py-2 text-right font-medium text-slate-900 dark:text-slate-100">{formatMoney(payment.expected_net_amount)}</td>
+                                          <td className="px-4 py-2 text-slate-700 dark:text-slate-300">{formatDate(payment.due_date)}</td>
+                                          <td className="px-4 py-2 text-right text-slate-900 dark:text-slate-100">{formatMoney(payment.amount_received)}</td>
+                                          <td className="px-4 py-2 text-right text-slate-900 dark:text-slate-100">{formatMoney(payment.outstanding_amount)}</td>
                                           <td className="px-4 py-2">
                                             <div className="flex flex-col gap-1">
                                               <Badge className={statusTone[payment.status]}>{payment.status}</Badge>
@@ -1186,7 +1193,7 @@ export default function PaymentCheckerPage() {
                                       ))}
                                       {orderedPayments.length === 0 && (
                                         <tr>
-                                          <td colSpan={7} className="px-8 py-4 text-center text-slate-500">
+                                          <td colSpan={7} className="px-8 py-4 text-center text-slate-500 dark:text-slate-400">
                                             No payment rows for this renewal.
                                           </td>
                                         </tr>
@@ -1201,7 +1208,7 @@ export default function PaymentCheckerPage() {
                       })}
                       {paymentGroups.length === 0 && (
                         <tr>
-                          <td colSpan={13} className="px-4 py-12 text-center text-slate-500">
+                          <td colSpan={13} className="px-4 py-12 text-center text-slate-500 dark:text-slate-400">
                             No commission payments match the current filters.
                           </td>
                         </tr>
@@ -1210,11 +1217,11 @@ export default function PaymentCheckerPage() {
                   </table>
                 </div>
 
-                <div className="flex flex-col gap-3 border-t bg-white px-4 py-3 text-sm text-slate-600 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex flex-col gap-3 border-t border-slate-200 bg-white px-4 py-3 text-sm text-slate-600 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-400 sm:flex-row sm:items-center sm:justify-between">
                   <span>Page {pagination.page} of {pagination.total_pages || 1}</span>
                   <div className="flex gap-2">
-                    <Button variant="outline" size="sm" onClick={() => changePage(pagination.page - 1)} disabled={loading || pagination.page <= 1}>Previous</Button>
-                    <Button variant="outline" size="sm" onClick={() => changePage(pagination.page + 1)} disabled={loading || pagination.page >= (pagination.total_pages || 1)}>Next</Button>
+                    <Button variant="outline" size="sm" onClick={() => changePage(pagination.page - 1)} disabled={loading || pagination.page <= 1} className="dark:border-slate-800 dark:hover:bg-slate-800">Previous</Button>
+                    <Button variant="outline" size="sm" onClick={() => changePage(pagination.page + 1)} disabled={loading || pagination.page >= (pagination.total_pages || 1)} className="dark:border-slate-800 dark:hover:bg-slate-800">Next</Button>
                   </div>
                 </div>
               </div>
@@ -1222,37 +1229,28 @@ export default function PaymentCheckerPage() {
           </CardContent>
         </Card>
 
-        <Sheet
-          open={Boolean(selectedPayment)}
-          onOpenChange={(open) => {
-            if (!open) {
-              setSelectedPayment(null);
-              setNotesDraft("");
-            }
-          }}
-        >
-          <SheetContent className="w-full overflow-y-auto p-0 sm:max-w-2xl">
-            <SheetHeader className="border-b px-6 py-5 pr-12">
-              <SheetTitle>Commission Payment</SheetTitle>
+        <Sheet open={Boolean(selectedPayment)} onOpenChange={(open) => !open && setSelectedPayment(null)}>
+          <SheetContent className="w-full overflow-y-auto p-0 sm:max-w-2xl dark:border-slate-800 dark:bg-slate-950">
+            <SheetHeader className="border-b border-slate-200 px-6 py-5 pr-12 dark:border-slate-800">
+              <SheetTitle className="text-slate-950 dark:text-slate-50">Commission Payment</SheetTitle>
             </SheetHeader>
 
             {selectedPayment && (
               <div className="space-y-6 px-6 py-6">
-                {/* Payment Summary */}
-                <div className="rounded-lg border p-4">
+                <div className="rounded-lg border border-slate-200 p-4 dark:border-slate-800 dark:bg-slate-900">
                   <div className="flex items-start justify-between gap-4">
                     <div className="min-w-0">
                       <button
                         type="button"
-                        className="pr-2 text-left text-lg font-semibold break-words text-slate-950 hover:underline"
+                        className="pr-2 text-left text-lg font-semibold break-words text-slate-950 hover:underline dark:text-slate-50"
                         onClick={() => openCustomerDetails(selectedPayment.client_id)}
                       >
                         {selectedPayment.business_name || selectedPayment.customer_name || "Customer"}
                       </button>
-                      <p className="mt-1 text-sm break-words text-slate-500">
+                      <p className="mt-1 text-sm break-words text-slate-500 dark:text-slate-400">
                         {selectedPayment.supplier_name || "Supplier"} · {selectedPayment.agent_name || "Unassigned"}
                       </p>
-                      <p className="mt-2 text-sm font-medium text-slate-700">
+                      <p className="mt-2 text-sm font-medium text-slate-700 dark:text-slate-300">
                         {selectedPayment.payment_period_label || `Year ${selectedPayment.instalment_year}`}
                       </p>
                     </div>
@@ -1260,38 +1258,38 @@ export default function PaymentCheckerPage() {
                   </div>
                   <div className="mt-4 grid grid-cols-2 gap-3 text-sm">
                     <div>
-                      <p className="text-slate-500">Service</p>
-                      <p className="font-semibold">{selectedPayment.service_title || "-"}</p>
+                      <p className="text-slate-500 dark:text-slate-400">Service</p>
+                      <p className="font-semibold text-slate-900 dark:text-slate-100">{selectedPayment.service_title || "-"}</p>
                     </div>
                     <div>
-                      <p className="text-slate-500">MPAN/MPR</p>
-                      <p className="font-mono text-xs font-semibold break-words">
+                      <p className="text-slate-500 dark:text-slate-400">MPAN/MPR</p>
+                      <p className="font-mono text-xs font-semibold break-words text-slate-900 dark:text-slate-100">
                         {selectedPayment.mpan_number || selectedPayment.mpan_bottom || "-"}
                       </p>
                     </div>
                     <div>
-                      <p className="text-slate-500">Contract start</p>
-                      <p className="font-semibold">{formatDate(selectedPayment.contract_start_date)}</p>
+                      <p className="text-slate-500 dark:text-slate-400">Contract start</p>
+                      <p className="font-semibold text-slate-900 dark:text-slate-100">{formatDate(selectedPayment.contract_start_date)}</p>
                     </div>
                     <div>
-                      <p className="text-slate-500">Contract end</p>
-                      <p className="font-semibold">{formatDate(selectedPayment.contract_end_date)}</p>
+                      <p className="text-slate-500 dark:text-slate-400">Contract end</p>
+                      <p className="font-semibold text-slate-900 dark:text-slate-100">{formatDate(selectedPayment.contract_end_date)}</p>
                     </div>
                     <div>
-                      <p className="text-slate-500">Expected</p>
-                      <p className="font-semibold">{formatMoney(selectedPayment.expected_net_amount)}</p>
+                      <p className="text-slate-500 dark:text-slate-400">Expected</p>
+                      <p className="font-semibold text-slate-900 dark:text-slate-100">{formatMoney(selectedPayment.expected_net_amount)}</p>
                     </div>
                     <div>
-                      <p className="text-slate-500">Outstanding</p>
-                      <p className="font-semibold">{formatMoney(selectedPayment.outstanding_amount)}</p>
+                      <p className="text-slate-500 dark:text-slate-400">Outstanding</p>
+                      <p className="font-semibold text-slate-900 dark:text-slate-100">{formatMoney(selectedPayment.outstanding_amount)}</p>
                     </div>
                     <div>
-                      <p className="text-slate-500">Due date</p>
-                      <p className="font-semibold">{formatDate(selectedPayment.due_date)}</p>
+                      <p className="text-slate-500 dark:text-slate-400">Due date</p>
+                      <p className="font-semibold text-slate-900 dark:text-slate-100">{formatDate(selectedPayment.due_date)}</p>
                     </div>
                     <div>
-                      <p className="text-slate-500">Last checked</p>
-                      <p className="font-semibold">{formatDateTime(selectedPayment.last_checked_at)}</p>
+                      <p className="text-slate-500 dark:text-slate-400">Last checked</p>
+                      <p className="font-semibold text-slate-900 dark:text-slate-100">{formatDateTime(selectedPayment.last_checked_at)}</p>
                     </div>
                     {selectedPayment.next_follow_up_date && (
                       <div>
@@ -1308,25 +1306,80 @@ export default function PaymentCheckerPage() {
                   </div>
                 </div>
 
-                {/* Log Payment — amount + date only, no notes */}
-                <form onSubmit={submitReceipt} className="space-y-4 rounded-lg border p-4">
-                  <div className="flex items-center gap-2 text-sm font-semibold">
-                    <Banknote className="h-4 w-4" />
-                    Log Payment
+                {selectedIsClosed ? (
+                  <div className="rounded-lg border border-zinc-200 bg-zinc-50 px-4 py-3 text-sm text-zinc-700 dark:border-zinc-800 dark:bg-zinc-900/60 dark:text-zinc-300">
+                    This payment is closed. Receipts and chasing actions are no longer available.
                   </div>
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    <div className="space-y-2">
-                      <Label htmlFor="amount_received">Amount received</Label>
-                      <Input
-                        id="amount_received"
-                        step="0.01"
-                        type="number"
-                        value={receiptDraft.amount_received}
-                        onChange={(event) =>
-                          setReceiptDraft((current) => ({ ...current, amount_received: event.target.value }))
-                        }
-                        required
-                      />
+                ) : (
+                  <>
+                    <form onSubmit={submitReceipt} className="space-y-4 rounded-lg border border-slate-200 p-4 dark:border-slate-800 dark:bg-slate-900">
+                      <div className="flex items-center gap-2 text-sm font-semibold text-slate-950 dark:text-slate-50">
+                        <Banknote className="h-4 w-4" />
+                        Log Payment
+                      </div>
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        <div className="space-y-2">
+                          <Label htmlFor="amount_received" className="dark:text-slate-300">Amount received</Label>
+                          <Input
+                            id="amount_received"
+                            min="0.01"
+                            step="0.01"
+                            type="number"
+                            value={receiptDraft.amount_received}
+                            onChange={(event) =>
+                              setReceiptDraft((current) => ({ ...current, amount_received: event.target.value }))
+                            }
+                            required
+                            className="dark:border-slate-800 dark:bg-slate-950 dark:text-slate-100"
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="date_received" className="dark:text-slate-300">Date received</Label>
+                          <Input
+                            id="date_received"
+                            type="date"
+                            value={receiptDraft.date_received}
+                            onChange={(event) =>
+                              setReceiptDraft((current) => ({ ...current, date_received: event.target.value }))
+                            }
+                            className="dark:border-slate-800 dark:bg-slate-950 dark:text-slate-100 dark:[color-scheme:dark]"
+                          />
+                        </div>
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="notes" className="dark:text-slate-300">Notes</Label>
+                        <Textarea
+                          id="notes"
+                          value={receiptDraft.notes}
+                          onChange={(event) =>
+                            setReceiptDraft((current) => ({ ...current, notes: event.target.value }))
+                          }
+                          rows={3}
+                          className="resize-none dark:border-slate-800 dark:bg-slate-950 dark:text-slate-100 dark:placeholder:text-slate-500"
+                        />
+                      </div>
+                      <Button type="submit" disabled={saving}>
+                        {saving ? (
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        ) : (
+                          <Banknote className="mr-2 h-4 w-4" />
+                        )}
+                        Log Payment
+                      </Button>
+                    </form>
+
+                    <div className="rounded-lg border border-slate-200 p-4 dark:border-slate-800 dark:bg-slate-900">
+                      <div className="mb-3 text-sm font-semibold text-slate-950 dark:text-slate-50">Actions</div>
+                      <div className="flex flex-wrap gap-2">
+                        <Button variant="outline" onClick={() => patchStatus("Chasing Supplier")} disabled={saving} className="dark:border-slate-700 dark:hover:bg-slate-800">
+                          <CalendarCheck className="mr-2 h-4 w-4" />
+                          Mark as Chasing Supplier
+                        </Button>
+                        <Button variant="destructive" onClick={() => patchStatus("Closed")} disabled={saving}>
+                          <XCircle className="mr-2 h-4 w-4" />
+                          Close
+                        </Button>
+                      </div>
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="date_received">Date received</Label>
@@ -1421,20 +1474,20 @@ export default function PaymentCheckerPage() {
 
                 {/* Payment History */}
                 <div className="space-y-3">
-                  <h3 className="text-sm font-semibold text-slate-950">Payment history</h3>
+                  <h3 className="text-sm font-semibold text-slate-950 dark:text-slate-50">Receipt history</h3>
                   {detailLoading ? (
-                    <div className="flex items-center text-sm text-slate-500">
+                    <div className="flex items-center text-sm text-slate-500 dark:text-slate-400">
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                       Loading receipts...
                     </div>
                   ) : receipts.length > 0 ? (
                     receipts.map((receipt) => (
-                      <div key={receipt.id} className="rounded-lg border p-3 text-sm">
+                      <div key={receipt.id} className="rounded-lg border border-slate-200 p-3 text-sm dark:border-slate-800 dark:bg-slate-900">
                         {editingReceiptId === receipt.id ? (
                           <form onSubmit={submitReceiptEdit} className="space-y-3">
                             <div className="grid gap-3 sm:grid-cols-2">
                               <div className="space-y-2">
-                                <Label htmlFor={`edit_amount_${receipt.id}`}>Amount received</Label>
+                                <Label htmlFor={`edit_amount_${receipt.id}`} className="dark:text-slate-300">Amount received</Label>
                                 <Input
                                   id={`edit_amount_${receipt.id}`}
                                   step="0.01"
@@ -1447,10 +1500,11 @@ export default function PaymentCheckerPage() {
                                     }))
                                   }
                                   required
+                                  className="dark:border-slate-800 dark:bg-slate-950 dark:text-slate-100"
                                 />
                               </div>
                               <div className="space-y-2">
-                                <Label htmlFor={`edit_date_${receipt.id}`}>Date received</Label>
+                                <Label htmlFor={`edit_date_${receipt.id}`} className="dark:text-slate-300">Date received</Label>
                                 <Input
                                   id={`edit_date_${receipt.id}`}
                                   type="date"
@@ -1458,11 +1512,12 @@ export default function PaymentCheckerPage() {
                                   onChange={(event) =>
                                     setReceiptEditDraft((current) => ({ ...current, date_received: event.target.value }))
                                   }
+                                  className="dark:border-slate-800 dark:bg-slate-950 dark:text-slate-100 dark:[color-scheme:dark]"
                                 />
                               </div>
                             </div>
                             <div className="space-y-2">
-                              <Label htmlFor={`edit_notes_${receipt.id}`}>Notes</Label>
+                              <Label htmlFor={`edit_notes_${receipt.id}`} className="dark:text-slate-300">Notes</Label>
                               <Textarea
                                 id={`edit_notes_${receipt.id}`}
                                 value={receiptEditDraft.notes}
@@ -1470,6 +1525,7 @@ export default function PaymentCheckerPage() {
                                   setReceiptEditDraft((current) => ({ ...current, notes: event.target.value }))
                                 }
                                 rows={2}
+                                className="resize-none dark:border-slate-800 dark:bg-slate-950 dark:text-slate-100 dark:placeholder:text-slate-500"
                               />
                             </div>
                             <div className="flex flex-wrap gap-2">
@@ -1477,92 +1533,37 @@ export default function PaymentCheckerPage() {
                                 {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                                 Save
                               </Button>
-                              <Button type="button" size="sm" variant="outline" onClick={cancelEditingReceipt}>
+                              <Button type="button" size="sm" variant="outline" onClick={cancelEditingReceipt} className="dark:border-slate-700 dark:hover:bg-slate-800">
                                 Cancel
                               </Button>
                             </div>
                           </form>
                         ) : (
                           <>
-                            {Number(receipt.amount_received || 0) === 0 && receipt.notes ? (
-                              /* ── Note-only entry ── */
-                              <div className="flex items-start gap-2">
-                                <ReceiptText className="h-4 w-4 text-slate-400 mt-0.5 shrink-0" />
-                                <div className="flex-1 min-w-0">
-                                  <p className="text-slate-700 whitespace-pre-wrap break-words">{receipt.notes}</p>
-                                  <p className="mt-1 text-xs text-slate-400">
-                                    {receipt.logged_by_name || "Note"} · {formatDateTime(receipt.created_at)}
-                                  </p>
-                                  <div className="flex gap-2 mt-2">
-                                    <Button
-                                      type="button"
-                                      size="sm"
-                                      variant="outline"
-                                      onClick={() => startEditingReceipt(receipt)}
-                                    >
-                                      <Edit className="mr-2 h-3 w-3" />
-                                      Edit Note
-                                    </Button>
-                                    <Button
-                                      type="button"
-                                      size="sm"
-                                      variant="outline"
-                                      className="text-red-600 border-red-200 hover:bg-red-50 hover:border-red-300"
-                                      disabled={saving}
-                                      onClick={() => deleteReceipt(receipt.id)}
-                                    >
-                                      <XCircle className="mr-2 h-3 w-3" />
-                                      Delete
-                                    </Button>
-                                  </div>
-                                </div>
-                              </div>
-                            ) : (
-                              /* ── Payment receipt entry ── */
-                              <>
-                                <div className="flex items-center justify-between gap-3">
-                                  <div className="flex items-center gap-2">
-                                    <Banknote className="h-4 w-4 text-emerald-600 shrink-0" />
-                                    <p className="font-semibold text-emerald-700">{formatMoney(receipt.amount_received)}</p>
-                                  </div>
-                                  <p className="text-slate-500 text-xs">{formatDate(receipt.date_received)}</p>
-                                </div>
-                                <p className="mt-1 text-xs text-slate-400">
-                                  {receipt.logged_by_name || "Logged"} · {formatDateTime(receipt.created_at)}
-                                </p>
-                                {receipt.notes && (
-                                  <p className="mt-2 text-slate-600 text-xs border-t pt-2">{receipt.notes}</p>
-                                )}
-                                <div className="flex gap-2 mt-3">
-                                  <Button
-                                    type="button"
-                                    size="sm"
-                                    variant="outline"
-                                    onClick={() => startEditingReceipt(receipt)}
-                                  >
-                                    <Edit className="mr-2 h-3 w-3" />
-                                    Edit Receipt
-                                  </Button>
-                                  <Button
-                                    type="button"
-                                    size="sm"
-                                    variant="outline"
-                                    className="text-red-600 border-red-200 hover:bg-red-50 hover:border-red-300"
-                                    disabled={saving}
-                                    onClick={() => deleteReceipt(receipt.id)}
-                                  >
-                                    <XCircle className="mr-2 h-3 w-3" />
-                                    Delete
-                                  </Button>
-                                </div>
-                              </>
-                            )}
+                            <div className="flex items-center justify-between gap-3">
+                              <p className="font-semibold text-slate-900 dark:text-slate-100">{formatMoney(receipt.amount_received)}</p>
+                              <p className="text-slate-500 dark:text-slate-400">{formatDate(receipt.date_received)}</p>
+                            </div>
+                            <p className="mt-1 text-slate-500 dark:text-slate-400">
+                              {receipt.logged_by_name || "Logged"} · {formatDateTime(receipt.created_at)}
+                            </p>
+                            {receipt.notes && <p className="mt-2 text-slate-700 dark:text-slate-300">{receipt.notes}</p>}
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="outline"
+                              className="mt-3 dark:border-slate-700 dark:hover:bg-slate-800"
+                              onClick={() => startEditingReceipt(receipt)}
+                            >
+                              <Edit className="mr-2 h-4 w-4" />
+                              Edit Receipt
+                            </Button>
                           </>
                         )}
                       </div>
                     ))
                   ) : (
-                    <div className="rounded-lg border border-dashed p-4 text-sm text-slate-500">
+                    <div className="rounded-lg border border-dashed border-slate-200 p-4 text-sm text-slate-500 dark:border-slate-800 dark:text-slate-400">
                       No receipts logged for this payment.
                     </div>
                   )}

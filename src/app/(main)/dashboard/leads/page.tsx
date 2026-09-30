@@ -30,29 +30,6 @@ const API_BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:50
 const CRM_PROXY = `${API_BASE_URL}/api/crm`;
 const BACKEND_PROXY = API_BASE_URL;
 const LEADS_PERFORMANCE_CACHE_PREFIX = "cash2switch_leads_performance_cache";
-
-const STATUS_OPTIONS = [
-  { value: "Not Called",         label: "Not Called" },
-  { value: "Callback",           label: "Callback" },
-  { value: "Not Answered",       label: "Not Answered" },
-  { value: "Dead",               label: "Dead" },
-  { value: "Priced",             label: "Priced" },
-  { value: "Sold",               label: "Sold" },
-  { value: "Won",                label: "Won" },
-  { value: "Converted",          label: "Converted" },
-  { value: "Already Renewed",    label: "Already Renewed" },
-  { value: "Renewed Directly",   label: "Renewed Directly" },
-  { value: "Lost",               label: "Lost" },
-  { value: "Lost COT",           label: "Lost COT" },
-  { value: "Invalid Number",     label: "Invalid Number" },
-  { value: "Incorrect Supplier", label: "Incorrect Supplier" },
-  { value: "Meter De-energised", label: "Meter De-energised" },
-  { value: "Broker in Place",    label: "Broker in Place" },
-  { value: "End Date Changed",   label: "End Date Changed" },
-  { value: "Complaint",          label: "Complaint" },
-  { value: "Email Only",         label: "Email Only" },
-  { value: "Duplicate",          label: "Duplicate" },
-  { value: "No Contact",         label: "No Contact" },
 ];
 
 const statusConfig: Record<string, {
@@ -60,7 +37,6 @@ const statusConfig: Record<string, {
   requiresNotes: boolean; requiresNewEndDate: boolean;
   requiresSupplierChange: boolean; requiresAddressChange: boolean;
 }> = {
-  "No Contact":         { requiresDate: false, requiresSold: false, deletesRecord: false, requiresNotes: false, requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
   "Callback":           { requiresDate: true,  requiresSold: false, deletesRecord: false, requiresNotes: false, requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
   "Not Answered":       { requiresDate: true,  requiresSold: false, deletesRecord: false, requiresNotes: false, requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
   "Priced":             { requiresDate: false, requiresSold: true,  deletesRecord: false, requiresNotes: false, requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
@@ -79,7 +55,7 @@ const statusConfig: Record<string, {
   "Won":                { requiresDate: false, requiresSold: false, deletesRecord: false, requiresNotes: false, requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
   "Converted":          { requiresDate: false, requiresSold: false, deletesRecord: false, requiresNotes: false, requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
   "Not Called":         { requiresDate: false, requiresSold: false, deletesRecord: false, requiresNotes: false, requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
-  "Dead":               { requiresDate: false, requiresSold: false, deletesRecord: true,  requiresNotes: true,  requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
+  "Dead":               { requiresDate: false, requiresSold: false, deletesRecord: false, requiresNotes: false, requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
   "Duplicate":          { requiresDate: false, requiresSold: false, deletesRecord: true,  requiresNotes: false, requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
 };
 
@@ -131,14 +107,14 @@ const formatDate = (d: string | null | undefined) => {
 const formatUsage = (u: number | null | undefined) => u ? `${u.toLocaleString()} kWh` : "—";
 
 const getStatusColor = (s?: string | null) => {
-  if (!s) return "bg-gray-100 text-gray-800";
+  if (!s) return "bg-gray-100 text-gray-800 dark:bg-slate-800 dark:text-slate-300";
   const l = s.toLowerCase();
-  if (l === "lead" || l === "not called") return "bg-gray-100 text-gray-500";
-  if (["callback", "priced", "called", "converted", "won"].includes(l)) return "bg-green-100 text-green-800";
-  if (l === "not answered") return "bg-yellow-100 text-yellow-800";
-  if (["lost", "lost cot"].includes(l)) return "bg-red-100 text-red-800";
-  if (l === "dead") return "bg-red-200 text-red-900";
-  return "bg-gray-100 text-gray-800";
+  if (l === "lead" || l === "not called") return "bg-gray-100 text-gray-500 dark:bg-slate-800 dark:text-slate-400";
+  if (["callback", "priced", "called", "converted", "won"].includes(l)) return "bg-green-100 text-green-800 dark:bg-green-950/50 dark:text-green-300";
+  if (l === "not answered") return "bg-yellow-100 text-yellow-800 dark:bg-yellow-950/50 dark:text-yellow-300";
+  if (["lost", "lost cot"].includes(l)) return "bg-red-100 text-red-800 dark:bg-red-950/50 dark:text-red-300";
+  if (l === "dead") return "bg-red-200 text-red-900 dark:bg-red-900/60 dark:text-red-200";
+  return "bg-gray-100 text-gray-800 dark:bg-slate-800 dark:text-slate-300";
 };
 
 const getStatusLabel = (s?: string | null) => {
@@ -168,7 +144,12 @@ export default function LeadsPage() {
   const [stages, setStages]               = useState<Stage[]>([]);
   const [employeeStats, setEmployeeStats] = useState<TeamStat[]>([]);
 
-  // ── Server-side pagination ─────────────────────────────────────────────────
+  // ── Loading / error ────────────────────────────────────────────────        
+  const [isLoading, setIsLoading]     = useState(true);
+  const [isSearching, setIsSearching] = useState(false);
+  const [error, setError]             = useState<string | null>(null);
+
+  // ── Filters / pagination ───────────────────────────────────────────────────
   const [currentPage, setCurrentPage] = useState(1);
   const [serverTotal, setServerTotal] = useState(0);
 
@@ -194,16 +175,23 @@ export default function LeadsPage() {
   const [uploadedTo,   setUploadedTo]   = useState("");
 
   // ── Selection ──────────────────────────────────────────────────────────────
-  const [selectedLeads, setSelectedLeads]           = useState<number[]>([]);
+  const [selectedLeads, setSelectedLeads]            = useState<number[]>([]);
   const [isSelectAllChecked, setIsSelectAllChecked] = useState(false);
 
   // ── Import modal ───────────────────────────────────────────────────────────
-  const [showImportModal, setShowImportModal]   = useState(false);
-  const [bulkImportFile, setBulkImportFile]     = useState<File | null>(null);
-  const [bulkImporting, setBulkImporting]       = useState(false);
+  const [showImportModal, setShowImportModal] = useState(false);
+  const [bulkImportFile, setBulkImportFile] = useState<File | null>(null);
+  const [bulkImporting, setBulkImporting] = useState(false);
+  const [importProgress, setImportProgress] = useState(0);
+  const [duplicateDetails, setDuplicateDetails] = useState<any[]>([]);
+  const [showAllDuplicates, setShowAllDuplicates] = useState(false);
   const [assignToEmployee, setAssignToEmployee] = useState<number | null>(null);
   const [bulkImportResult, setBulkImportResult] = useState<{
-    success: boolean; successful: number; duplicates?: number; errors: string[]; assigned_to?: string;
+    success: boolean;
+    successful: number;
+    duplicates?: number;
+    errors: string[];
+    assigned_to?: string;
     duplicate_report?: string[];
   } | null>(null);
   const [bulkAssignCount, setBulkAssignCount] = useState<number | "">("");
@@ -225,18 +213,18 @@ export default function LeadsPage() {
   const [renewedBy, setRenewedBy]   = useState<"customer" | "supplier" | "agent" | "">("");
 
   // ── Assign modal ───────────────────────────────────────────────────────────
-  const [showAssignModal, setShowAssignModal]       = useState(false);
-  const [assigningLeadId, setAssigningLeadId]       = useState<number | null>(null);
+  const [showAssignModal, setShowAssignModal]        = useState(false);
+  const [assigningLeadId, setAssigningLeadId]        = useState<number | null>(null);
   const [assignToEmployeeId, setAssignToEmployeeId] = useState("");
-  const [assignmentNotes, setAssignmentNotes]       = useState("");
-  const [isAssigning, setIsAssigning]               = useState(false);
+  const [assignmentNotes, setAssignmentNotes]        = useState("");
+  const [isAssigning, setIsAssigning]                = useState(false);
 
   // ── Bulk assign modal ──────────────────────────────────────────────────────
   const [showBulkAssignModal, setShowBulkAssignModal]   = useState(false);
   const [bulkAssignEmployeeId, setBulkAssignEmployeeId] = useState<number | null>(null);
   const [bulkAssignEmployeeName, setBulkAssignEmployeeName] = useState("");
-  const [bulkAssignmentNotes, setBulkAssignmentNotes]   = useState("");
-  const [isBulkAssigning, setIsBulkAssigning]           = useState(false);
+  const [bulkAssignmentNotes, setBulkAssignmentNotes]       = useState("");
+  const [isBulkAssigning, setIsBulkAssigning]               = useState(false);
 
   // ── Performance ────────────────────────────────────────────────────────────
   const [performanceStats, setPerformanceStats] = useState({
@@ -251,10 +239,19 @@ export default function LeadsPage() {
   const [performanceModalLoading, setPerformanceModalLoading]   = useState(false);
   const [performancePeriod, setPerformancePeriod] = useState<'daily' | 'weekly' | 'monthly' | 'alltime'>('alltime');
 
+  useEffect(() => { setCurrentPage(1); }, [searchTerm, supplierFilter, statusFilter, usageSort, endDateFilter, salespersonFilter]);
+
+  const leadsCacheKey = `${LEADS_CACHE_PREFIX}_${service}`;
   const performanceCacheKey = `${LEADS_PERFORMANCE_CACHE_PREFIX}_${service}`;
 
-  // ─── Derived ───────────────────────────────────────────────────────────────
-  const totalPages = Math.ceil(serverTotal / CUSTOMERS_PER_PAGE);
+  const saveLeadsCache = (leads: LeadCustomer[], teamStats: TeamStat[]) => {
+    if (leads.length > MAX_CACHED_LEADS) return;
+    try {
+      sessionStorage.setItem(leadsCacheKey, JSON.stringify({ leads, teamStats }));
+    } catch (e) {
+      console.warn("Leads cache skipped (storage quota/availability):", e);
+    }
+  };
 
   const paginatedLeads = usageSort === "none"
     ? allLeads
@@ -278,28 +275,18 @@ export default function LeadsPage() {
   };
 
   // ─── Fetch helpers ──────────────────────────────────────────────────────────
-  const fetchLeads = async (page = 1) => {
-    setIsLoading(true);
+  const fetchLeads = async (showLoader = true) => {
+    if (showLoader) setIsLoading(true);
     setError(null);
     try {
-      const params = new URLSearchParams({
-        service:       service,
-        exclude_stage: 'Lost',
-        page:          String(page),
-        page_size:     String(CUSTOMERS_PER_PAGE),
-      });
-      if (searchTerm.trim().length >= 2) params.set('search',          searchTerm.trim());
-      if (supplierFilter !== "All")       params.set('supplier_id',     String(supplierFilter));
-      if (statusFilter !== "All")         params.set('status',          statusFilter);
-      if (endDateFilter !== "all")        params.set('end_date_filter', endDateFilter);
-      if (salespersonFilter !== "All")    params.set('employee_id',     String(salespersonFilter));
-      if (uploadSort === "newest")          params.set('upload_sort', 'desc');
-      if (uploadSort === "oldest")          params.set('upload_sort', 'asc');
-      if (uploadSort === "custom") {
-        params.set('upload_sort', 'desc');
-        if (uploadedFrom)                 params.set('uploaded_from', uploadedFrom);
-        if (uploadedTo)                   params.set('uploaded_to',   uploadedTo);
-      }
+      const [leadsResult, suppResult, empResult, stagesResult] = await Promise.allSettled([
+        fetchWithAuth(`${CRM_PROXY}/leads?exclude_stage=Lost&service=${encodeURIComponent(service)}`),
+        fetchWithAuth(`${BACKEND_PROXY}/suppliers`),
+        fetchWithAuth(`${BACKEND_PROXY}/employees`),
+        fetchWithAuth(`${CRM_PROXY}/stages`),
+      ]);
+
+      if (leadsResult.status === "rejected") throw leadsResult.reason;
 
       const [leadsResult, suppResult, empResult, stagesResult] = await Promise.allSettled([
         fetchWithAuth(`${CRM_PROXY}/leads?${params.toString()}`),
@@ -315,7 +302,7 @@ export default function LeadsPage() {
       const empResp    = empResult.status    === "fulfilled" ? empResult.value    : null;
       const stagesResp = stagesResult.status === "fulfilled" ? stagesResult.value : null;
 
-      const incoming: LeadCustomer[] = Array.isArray(leadsResp)
+      const active: LeadCustomer[] = Array.isArray(leadsResp)
         ? leadsResp
         : (leadsResp?.data || []);
 
@@ -341,7 +328,7 @@ export default function LeadsPage() {
       setError(err?.message || "Failed to load leads");
       setAllLeads([]);
     } finally {
-      setIsLoading(false);
+      if (showLoader) setIsLoading(false);
     }
   };
 
@@ -394,14 +381,122 @@ export default function LeadsPage() {
     return () => window.removeEventListener('focus', handleFocus);
   }, [performancePeriod, service]);
 
-  // Persist filters
-  useEffect(() => { sessionStorage.setItem('leads_search',      searchTerm); },                  [searchTerm]);
-  useEffect(() => { sessionStorage.setItem('leads_supplier',    supplierFilter.toString()); },    [supplierFilter]);
-  useEffect(() => { sessionStorage.setItem('leads_status',      statusFilter.toString()); },      [statusFilter]);
-  useEffect(() => { sessionStorage.setItem('leads_service',     service); },                      [service]);
-  useEffect(() => { sessionStorage.setItem('leads_usage_sort',  usageSort); },                    [usageSort]);
-  useEffect(() => { sessionStorage.setItem('leads_end_date',    endDateFilter); },                [endDateFilter]);
+  useEffect(() => {
+    Promise.all([
+      fetchLeads(),
+      fetchPerformanceStats(),
+    ]);
+  }, [service]);
+
+  useEffect(() => { sessionStorage.setItem('leads_search', searchTerm); }, [searchTerm]);
+  useEffect(() => { sessionStorage.setItem('leads_supplier', supplierFilter.toString()); }, [supplierFilter]);
+  useEffect(() => { sessionStorage.setItem('leads_status', statusFilter.toString()); }, [statusFilter]);
+  useEffect(() => { sessionStorage.setItem('leads_service', service); }, [service]);
+  useEffect(() => { sessionStorage.setItem('leads_usage_sort', usageSort); }, [usageSort]);
+  useEffect(() => { sessionStorage.setItem('leads_end_date', endDateFilter); }, [endDateFilter]);
   useEffect(() => { sessionStorage.setItem('leads_salesperson', salespersonFilter.toString()); }, [salespersonFilter]);
+
+  useEffect(() => {
+    if (!searchTerm || searchTerm.length < 2) { setSearchResults([]); return; }
+    const tid = setTimeout(async () => {
+      setIsSearching(true);
+      try {
+        const resp = await fetchWithAuth(
+          `${CRM_PROXY}/leads/search-all?q=${encodeURIComponent(searchTerm)}&service=${encodeURIComponent(service)}`
+        );
+        setSearchResults(Array.isArray(resp) ? resp : (resp?.data || []));
+      } catch { setSearchResults([]); }
+      finally { setIsSearching(false); }
+    }, 300);
+    return () => clearTimeout(tid);
+  }, [searchTerm, service]);
+
+  // ── Derived lists ──────────────────────────────────────────────────────────
+  const sortedLeads = useMemo(() => {
+    const leadsToShow = searchTerm.trim() 
+      ? allLeads  
+      : allLeads.filter(l => !l.is_archived && !l.is_allocated);
+      
+    if (searchTerm && searchResults.length > 0) {
+      const assignedIds = new Set(leadsToShow.map(l => l.opportunity_id));
+      const uniqueSearchResults = searchResults.filter(l => !assignedIds.has(l.opportunity_id));
+      return [...leadsToShow, ...uniqueSearchResults].sort((a, b) => {
+        const dateA = new Date(a.created_at || 0).getTime();
+        const dateB = new Date(b.created_at || 0).getTime();
+        if (dateB !== dateA) return dateB - dateA;
+        return (a.display_order ?? 9999) - (b.display_order ?? 9999);
+      });
+    }
+      
+    return [...leadsToShow].sort((a, b) => {
+      const dateA = new Date(a.created_at || 0).getTime();
+      const dateB = new Date(b.created_at || 0).getTime();
+      if (dateB !== dateA) return dateB - dateA;
+      return (a.display_order ?? 9999) - (b.display_order ?? 9999);
+    });
+  }, [allLeads, searchResults, searchTerm]);
+
+  const filteredLeads = useMemo(() => {
+    let list = sortedLeads.filter(l => {
+      const term = searchTerm.toLowerCase();
+      const matchSearch =
+        (l.business_name  || "").toLowerCase().includes(term) ||
+        (l.contact_person || "").toLowerCase().includes(term) ||
+        (l.email          || "").toLowerCase().includes(term) ||
+        (l.tel_number     || "").toLowerCase().includes(term) ||
+        (l.mpan_mpr       || "").toLowerCase().includes(term);
+      const matchSupplier = supplierFilter === "All" || l.supplier_id === supplierFilter;
+      const normaliseStage = (s: string | null | undefined) => {
+        if (!s || s.toLowerCase() === 'lead') return 'Not Called';
+        return s;
+      };
+      const matchStatus = statusFilter === "All" || normaliseStage(l.stage_name) === statusFilter;
+      let matchEndDate = true;
+      if (endDateFilter !== "all" && l.end_date) {
+        const today = new Date();
+        const end   = new Date(l.end_date);
+        const days  = Math.ceil((end.getTime() - today.getTime()) / 86400000);
+        if      (endDateFilter === "expired") matchEndDate = days < 0;
+        else if (endDateFilter === "30")     matchEndDate = days >= 0 && days <= 30;
+        else if (endDateFilter === "60")     matchEndDate = days > 30 && days <= 60;
+        else if (endDateFilter === "90")     matchEndDate = days > 60 && days <= 90;
+        else if (endDateFilter === "90+")     matchEndDate = days > 90 && days <= 365;
+      }
+      const matchSalesperson = !isAdmin || salespersonFilter === "All" ||
+        Number(l.opportunity_owner_employee_id) === Number(salespersonFilter);
+
+      return matchSearch && matchSupplier && matchStatus && matchEndDate && matchSalesperson;
+    });
+    if (usageSort !== "none") {
+      list = [...list].sort((a, b) => {
+        const au = a.annual_usage || 0, bu = b.annual_usage || 0;
+        return usageSort === "low-high" ? au - bu : bu - au;
+      });
+    }
+    return list;
+  }, [sortedLeads, searchTerm, supplierFilter, statusFilter, endDateFilter, usageSort, salespersonFilter]);
+
+  const totalPages    = Math.ceil(filteredLeads.length / CUSTOMERS_PER_PAGE);
+  const paginatedLeads = useMemo(() => {
+    const s = (currentPage - 1) * CUSTOMERS_PER_PAGE;
+    return filteredLeads.slice(s, s + CUSTOMERS_PER_PAGE);
+  }, [filteredLeads, currentPage]);
+
+  const isFromSearch = (lead: LeadCustomer) => {
+    if (isAdmin) return false;
+    return lead.opportunity_owner_employee_id !== user?.employee_id;
+  };
+
+  const getSupplierName = (id?: number | null) =>
+    suppliers.find(s => s.supplier_id === id)?.supplier_name || "—";
+
+  const isDateRequired = () => {
+    if (!callbackStatus) return false;
+    const cfg = statusConfig[callbackStatus];
+    if (!cfg) return false;
+    if (cfg.requiresSold) return isSold === "yes";
+    return cfg.requiresDate;
+  };
 
   // ── Status / callback ──────────────────────────────────────────────────────
   const updateLeadStatus = (leadId: number, newStatus: string) => {
@@ -413,12 +508,8 @@ export default function LeadsPage() {
       })
       .then((response) => {
         setAllLeads(prev => prev.map(l =>
-          l.opportunity_id === leadId
-            ? {
-                ...l,
-                stage_name: response.stage_name || 'Not Called',
-                stage_id:   response.stage_id   || null,
-              }
+          l.opportunity_id === leadId 
+            ? { ...l, stage_name: null, stage_id: null } 
             : l
         ));
         toast.success("✅ Status reset to Not Called");
@@ -428,64 +519,12 @@ export default function LeadsPage() {
       });
       return;
     }
-    setSelectedLeadForCallback(leadId);
-    setCallbackStatus(newStatus);
-    setCallbackDate(""); setCallbackNotes(""); setIsSold("");
-    setNewStartDate(""); setNewEndDate(""); setNewSupplier(""); setNewAddress("");
-    setCalledDate(new Date().toISOString().split("T")[0]);
-    setCallbackError(""); setRenewedBy(""); setAssignToEmployeeId("");
-    setShowCallbackModal(true);
-  };
-
-  const handleSubmitCallback = async () => {
-    setCallbackError("");
-    if (!callbackStatus || !selectedLeadForCallback) {
-      setCallbackError("Please select a status"); return;
-    }
-    const cfg = statusConfig[callbackStatus];
-    if (cfg?.requiresSold && !isSold) {
-      setCallbackError("Please select if the contract was sold"); return;
-    }
-    if (cfg?.requiresNotes && !callbackNotes.trim()) {
-      setCallbackError("Please enter the reason for this status"); return;
-    }
-    const isRenewalOrSoldAction = callbackStatus === "Already Renewed" || callbackStatus === "Sold";
-    if (isRenewalOrSoldAction && !renewedBy) {
-      setCallbackError(callbackStatus === "Sold" ? "Please select if sold by supplier or agent" : "Please select if renewed by customer or agent"); return;
-    }
-    if (isRenewalOrSoldAction && renewedBy === "agent" && !newStartDate) {
-      setCallbackError("Please enter the contract start date"); return;
-    }
-    if (callbackStatus === "End Date Changed" && !newEndDate) {
-      setCallbackError("Please enter the new contract end date"); return;
-    }
-
-    setIsSubmittingCallback(true);
-    try {
-      const stageId = getStageIdFromStatus(callbackStatus, stages.length ? stages : undefined);
-      const payload: any = { status: callbackStatus, notes: callbackNotes };
-      if (stageId) payload.stage_id = stageId;
-      if (calledDate) payload.called_date = calledDate;
-      if (isDateRequired() && callbackDate) payload.callback_date = callbackDate;
-      if (cfg?.requiresSold) payload.is_sold = isSold === "yes";
-      if (isRenewalOrSoldAction && newStartDate) payload.new_start_date = newStartDate;
-      if (cfg?.requiresNewEndDate && newEndDate) payload.new_end_date = newEndDate;
-      if (isRenewalOrSoldAction && renewedBy) payload.renewed_by = renewedBy;
-      if ((callbackStatus === "Converted" || callbackStatus === "Won") && assignToEmployeeId && assignToEmployeeId !== "0") {
-        payload.assigned_to = parseInt(assignToEmployeeId);
+      if (!response || response.error) {
+        throw new Error(response?.error || "Failed to save");
       }
-      if (cfg?.requiresSupplierChange && newSupplier.trim()) payload.new_supplier = newSupplier.trim();
-      if (cfg?.requiresAddressChange && newAddress.trim()) payload.new_address = newAddress.trim();
 
-      const response = await fetchWithAuth(
-        `${CRM_PROXY}/leads/${selectedLeadForCallback}/callback`,
-        { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) }
-      );
-
-      if (!response || response.error) throw new Error(response?.error || "Failed to save");
-
-      if (response.display_only) {
-        await fetchLeads(currentPage);
+      if (response.display_only || callbackStatus === "Dead") {
+        await fetchLeads();
         await fetchPerformanceStats();
         toast.success(`Status set to ${callbackStatus}`);
         setShowCallbackModal(false);
@@ -514,7 +553,12 @@ export default function LeadsPage() {
         setAllLeads(prev =>
           prev.map(l =>
             l.opportunity_id === selectedLeadForCallback
-              ? { ...l, stage_name: response.lead?.stage_name || callbackStatus, stage_id: response.lead?.stage_id || stageId || l.stage_id, ...(response.lead || {}) }
+              ? { 
+                  ...l,
+                  stage_name: response.lead?.stage_name || callbackStatus,
+                  stage_id: response.lead?.stage_id || stageId || l.stage_id,
+                  ...(response.lead || {}),
+                }
               : l
           )
         );
@@ -543,78 +587,13 @@ export default function LeadsPage() {
       await fetchWithAuth(`${CRM_PROXY}/leads/assign`, {
         method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload),
       });
-      setAllLeads(prev => prev.filter(l => l.opportunity_id !== assigningLeadId));
-      setSelectedLeads(prev => prev.filter(id => id !== assigningLeadId));
-      toast.success("✅ Salesperson assigned successfully");
-      setShowAssignModal(false);
-      setAssignToEmployeeId(""); setAssignmentNotes(""); setAssigningLeadId(null);
-    } catch { toast.error("Failed to assign salesperson"); }
-    finally { setIsAssigning(false); }
-  };
-
-  const handleBulkAssignWithNotes = async () => {
-    if (!bulkAssignEmployeeId) {
-      toast.error("Please select a salesperson"); return;
-    }
-    setIsBulkAssigning(true);
-    try {
-      const count = bulkAssignCount ? Number(bulkAssignCount) : null;
-
-      if (count && count > selectedLeads.length) {
-        // Server-side assign-by-filter: no need to pre-fetch all IDs
-        const payload: any = {
-          employee_id: bulkAssignEmployeeId,
-          count,
-          service,
-          exclude_stage: 'Lost',
-        };
-        if (salespersonFilter !== "All") payload.salesperson_filter = salespersonFilter;
-        if (bulkAssignmentNotes.trim()) payload.assignment_notes = bulkAssignmentNotes.trim();
-
-        const response = await fetchWithAuth(`${CRM_PROXY}/leads/assign-by-filter`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload),
-        });
-        if (response.success) {
-          setAllLeads(prev => prev.filter(l => !selectedLeads.includes(l.opportunity_id)));
-          setSelectedLeads([]);
-          setIsSelectAllChecked(false);
-          setShowBulkAssignModal(false);
-          setBulkAssignmentNotes("");
-          setBulkAssignEmployeeId(null);
-          setBulkAssignEmployeeName("");
-          toast.success(`✅ ${response.assigned_count} leads assigned to ${response.employee_name}`);
-        } else {
-          toast.error(response.error || "Assignment failed");
-        }
-        return;
+      if (response && response.error && !response.success) {
+        throw new Error(response.error);
       }
 
-      let leadsToAssign: number[] = selectedLeads;
-      if (count && count < selectedLeads.length) {
-        leadsToAssign = selectedLeads.slice(0, count);
-      }
-
-      if (!leadsToAssign.length) {
-        toast.error("No leads to assign"); return;
-      }
-
-      const payload: any = { lead_ids: leadsToAssign, employee_id: bulkAssignEmployeeId };
-      if (bulkAssignmentNotes.trim()) payload.assignment_notes = bulkAssignmentNotes.trim();
-
-      let response: any = null;
-      try {
-        response = await fetchWithAuth(`${CRM_PROXY}/leads/assign`, {
-          method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload),
-        });
-      } catch (fetchErr: any) {
-        console.warn("Assign fetch error (may have succeeded in DB):", fetchErr);
-      }
-
-      if (response && response.error && !response.success) throw new Error(response.error);
-
-      setSelectedLeads([]);
+      setAllLeads(prev => prev.filter(l => !leadsToAssign.includes(l.opportunity_id)));
+      const remaining = selectedLeads.filter(id => !leadsToAssign.includes(id));
+      setSelectedLeads(remaining);
       setIsSelectAllChecked(false);
       setShowBulkAssignModal(false);
       setBulkAssignmentNotes("");
@@ -642,13 +621,19 @@ export default function LeadsPage() {
     if (!window.confirm(`Delete ${selectedLeads.length} lead(s)? This cannot be undone.`)) return;
     try {
       const response = await fetchWithAuth(`${CRM_PROXY}/leads/bulk-delete`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ opportunity_ids: selectedLeads }),
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ opportunity_ids: selectedLeads })
       });
-      if (!response || response.error) throw new Error(response?.error || 'Failed to delete leads');
+
+      if (!response || response.error) {
+        throw new Error(response?.error || 'Failed to delete leads');
+      }
+
       setAllLeads(prev => prev.filter(l => !selectedLeads.includes(l.opportunity_id)));
-      setSelectedLeads([]); setIsSelectAllChecked(false);
-      toast.success(`✅ Deleted ${response.deleted || selectedLeads.length} lead(s)`);
+      setSelectedLeads([]); 
+      setIsSelectAllChecked(false);
+      
     } catch (error: any) {
       toast.error(`❌ Error deleting leads: ${error.message}`);
     }
@@ -685,74 +670,171 @@ export default function LeadsPage() {
   };
 
   const handleBulkImport = async () => {
-    if (!bulkImportFile) { alert("Please select a file"); return; }
-    setBulkImporting(true); setBulkImportResult(null);
+    if (!bulkImportFile) {
+      alert("Please select a file");
+      return;
+    }
+
+    setBulkImporting(true);
+    setBulkImportResult(null);
+    setDuplicateDetails([]);
+    setShowAllDuplicates(false);
+    setImportProgress(5);
+
     try {
-      const token    = localStorage.getItem("auth_token");
+      const token = localStorage.getItem("auth_token");
       const tenantId = localStorage.getItem("tenant_id") || "";
+
       const fd = new FormData();
       fd.append("file", bulkImportFile);
-      if (assignToEmployee) fd.append("assigned_employee_id", assignToEmployee.toString());
+
+      if (assignToEmployee) {
+        fd.append("assigned_employee_id", assignToEmployee.toString());
+      }
+
+      setImportProgress(10);
 
       const res = await fetch(
         `${BACKEND_PROXY}/import/leads?service=${encodeURIComponent(service)}`,
         { method: "POST", headers: { Authorization: `Bearer ${token}`, "X-Tenant-ID": tenantId }, body: fd }
       );
+
+      setImportProgress(30);
+
       const data = await res.json();
 
       if (!res.ok) {
-        setBulkImportResult({ success: false, successful: 0, errors: [data.error || "Import failed"] });
-        toast.error(data.error || "Import failed"); return;
+        setBulkImportResult({
+          success: false,
+          successful: 0,
+          duplicates: data.duplicates || 0,
+          errors: [data.error || data.message || "Import failed"],
+        });
+
+        setImportProgress(100);
+        toast.error(data.error || data.message || "Import failed");
+        return;
       }
 
       if (data.job_id) {
         const jobId = data.job_id;
-        toast.success("⏳ Import started, processing in background...");
+
         const poll = async (): Promise<void> => {
-          await new Promise(r => setTimeout(r, 2000));
+          await new Promise((resolve) => setTimeout(resolve, 2000));
+
           try {
-            const statusRes = await fetch(`${BACKEND_PROXY}/import/status/${jobId}`, {
-              headers: { Authorization: `Bearer ${token}`, "X-Tenant-ID": tenantId },
-            });
+            const statusRes = await fetch(
+              `${BACKEND_PROXY}/import/status/${jobId}`,
+              {
+                headers: {
+                  Authorization: `Bearer ${token}`,
+                  "X-Tenant-ID": tenantId,
+                },
+              }
+            );
+
             const statusData = await statusRes.json();
-            if (statusData.status === "done") {
-              const successful = statusData.successful || 0;
+              const duplicates = statusData.duplicates || 0;
+              const errors: string[] = statusData.errors || [];
+              const details = statusData.duplicate_details || [];
+
+              setDuplicateDetails(details);
+
               setBulkImportResult({
-                success: successful > 0, successful, duplicates: statusData.duplicates || 0,
-                errors: statusData.errors || [],
-                assigned_to: assignToEmployee ? employees.find(e => e.employee_id === assignToEmployee)?.employee_name : "You",
+                success: successful > 0,
+                successful,
+                duplicates,
+                errors,
+                assigned_to: assignToEmployee
+                  ? employees.find((e) => e.employee_id === assignToEmployee)?.employee_name
+                  : "You",
+                duplicate_report: statusData.duplicate_report || [],
               });
+
+              setImportProgress(100);
+
               if (successful > 0) {
-                toast.success(`✅ Imported ${successful} leads!`);
-                await fetchLeads(1); setBulkImportFile(null); setAssignToEmployee(null);
-              } else { toast.error("Import completed but no leads were inserted."); }
+                await fetchLeads(false);
+                setBulkImportFile(null);
+                setAssignToEmployee(null);
+              } else if (duplicates > 0) {
+                toast.error("Import completed but all records were duplicates.");
+              } else {
+                toast.error("Import completed but no leads were inserted.");
+              }
               return;
             }
             if (statusData.status === "failed") {
-              setBulkImportResult({ success: false, successful: 0, errors: statusData.errors || ["Import failed"] });
-              toast.error("Import failed"); return;
+              const errors: string[] = statusData.errors || ["Import failed"];
+              setBulkImportResult({
+                success: false,
+                successful: 0,
+                duplicates: statusData.duplicates || 0,
+                errors,
+              });
+
+              setImportProgress(100);
+              toast.error("Import failed");
+              return;
             }
+
             return poll();
           } catch {
-            setBulkImportResult({ success: false, successful: 0, errors: ["Network error while polling"] });
+            setBulkImportResult({
+              success: false,
+              successful: 0,
+              errors: ["Network error while polling"],
+            });
+
+            setImportProgress(100);
             toast.error("Network error");
           }
         };
         await poll(); return;
       }
 
-      if (res.ok && data.success) {
-        setBulkImportResult({ success: true, successful: data.successful, duplicates: data.duplicates, errors: data.errors || [], assigned_to: data.assigned_to, duplicate_report: data.duplicate_report });
-        toast.success(`✅ Imported ${data.successful} leads!`);
-        await fetchLeads(1); setBulkImportFile(null); setAssignToEmployee(null);
+      if (data.success) {
+        const details = data.duplicate_details || [];
+        setDuplicateDetails(details);
+
+        setBulkImportResult({
+          success: true,
+          successful: data.successful || 0,
+          duplicates: data.duplicates || 0,
+          errors: data.errors || [],
+          assigned_to: data.assigned_to,
+          duplicate_report: data.duplicate_report || [],
+        });
+
+        setImportProgress(100);
+        toast.success(`Imported ${data.successful || 0} leads!`);
+
+        await fetchLeads(false);
+        setBulkImportFile(null);
+        setAssignToEmployee(null);
       } else {
-        setBulkImportResult({ success: false, successful: data.successful || 0, errors: data.errors || [data.error || "Import failed"] });
-        toast.error(data.error || "Import failed");
+        setBulkImportResult({
+          success: false,
+          successful: data.successful || 0,
+          duplicates: data.duplicates || 0,
+          errors: data.errors || [data.error || "Import failed"],
+        });
+
+        setImportProgress(100);
+        toast.error(data.error || data.message || "Import failed");
       }
     } catch {
+      setBulkImportResult({
+        success: false,
+        successful: 0,
+        errors: ["Network error"],
+      });
+
+      setImportProgress(100);
       toast.error("Network error");
-      setBulkImportResult({ success: false, successful: 0, errors: ["Network error"] });
-    } finally { setBulkImporting(false); }
+    } finally {
+      setBulkImporting(false);
+    }
   };
 
   // ── Performance modal ──────────────────────────────────────────────────────
@@ -811,18 +893,18 @@ export default function LeadsPage() {
     const start = (currentPage - 1) * CUSTOMERS_PER_PAGE + 1;
     const end   = Math.min(currentPage * CUSTOMERS_PER_PAGE, serverTotal);
     return (
-      <div className="flex items-center justify-between py-3 px-4 bg-gray-50 border-t">
-        <div className="text-sm text-gray-700">
-          Showing <span className="font-medium">{start}</span> to{" "}
-          <span className="font-medium">{end}</span> of{" "}
-          <span className="font-medium">{serverTotal.toLocaleString()}</span> leads
+      <div className="flex flex-col sm:flex-row items-center justify-between gap-3 py-3 px-4 bg-gray-50 dark:bg-slate-900 border-t border-gray-200 dark:border-slate-800">
+        <div className="text-sm text-gray-700 dark:text-gray-300">
+          Showing <span className="font-medium">{(currentPage - 1) * CUSTOMERS_PER_PAGE + 1}</span> to{" "}
+          <span className="font-medium">{Math.min(currentPage * CUSTOMERS_PER_PAGE, filteredLeads.length)}</span>{" "}
+          of <span className="font-medium">{filteredLeads.length}</span> leads
         </div>
-        <div className="flex space-x-1">
-          <Button variant="outline" size="icon" onClick={() => fetchLeads(1)} disabled={currentPage === 1 || isLoading}><ChevronFirst className="h-4 w-4" /></Button>
-          <Button variant="outline" size="icon" onClick={() => fetchLeads(currentPage - 1)} disabled={currentPage === 1 || isLoading}><ChevronLeft className="h-4 w-4" /></Button>
-          <div className="flex items-center px-3 text-sm text-gray-700">Page {currentPage} of {totalPages}</div>
-          <Button variant="outline" size="icon" onClick={() => fetchLeads(currentPage + 1)} disabled={currentPage === totalPages || isLoading}><ChevronRight className="h-4 w-4" /></Button>
-          <Button variant="outline" size="icon" onClick={() => fetchLeads(totalPages)} disabled={currentPage === totalPages || isLoading}><ChevronLast className="h-4 w-4" /></Button>
+        <div className="flex flex-wrap items-center justify-center space-x-1">
+          <Button variant="outline" size="icon" onClick={() => setCurrentPage(1)} disabled={currentPage === 1}><ChevronFirst className="h-4 w-4" /></Button>
+          <Button variant="outline" size="icon" onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1}><ChevronLeft className="h-4 w-4" /></Button>
+          <div className="flex items-center px-3 text-sm text-gray-700 dark:text-gray-300">Page {currentPage} of {totalPages}</div>
+          <Button variant="outline" size="icon" onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages}><ChevronRight className="h-4 w-4" /></Button>
+          <Button variant="outline" size="icon" onClick={() => setCurrentPage(totalPages)} disabled={currentPage === totalPages}><ChevronLast className="h-4 w-4" /></Button>
         </div>
       </div>
     );
@@ -830,16 +912,20 @@ export default function LeadsPage() {
 
   // ─── Render ─────────────────────────────────────────────────────────────────
   return (
-    <div className="w-full max-w-full overflow-x-hidden p-6">
+    <div className="w-full max-w-full overflow-x-hidden p-4 sm:p-6 text-slate-900 dark:text-slate-100">
       <Toaster position="top-right" />
-      <h1 className="mb-6 text-4xl font-semibold tracking-tight text-slate-900">Leads</h1>
+      <h1 className="mb-6 text-2xl sm:text-4xl font-semibold tracking-tight text-slate-900 dark:text-slate-100">Leads</h1>
 
       {/* Service Tabs */}
       <div className="mb-6 flex justify-center">
-        <div className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white/80 p-1 shadow-sm backdrop-blur">
+        <div className="inline-flex items-center gap-2 rounded-full border border-slate-200 dark:border-slate-800 bg-white/80 dark:bg-slate-900/80 p-1 shadow-sm backdrop-blur w-full sm:w-auto">
           {["utilities", "water"].map(svc => (
             <button key={svc} type="button" onClick={() => setService(svc)}
-              className={`px-8 py-3 rounded-full text-base font-semibold transition-all capitalize ${service === svc ? "bg-slate-900 text-white shadow" : "text-slate-700 hover:bg-slate-100"}`}>
+              className={`flex-1 sm:flex-initial px-6 sm:px-8 py-2.5 sm:py-3 rounded-full text-sm sm:text-base font-semibold transition-all capitalize ${
+                service === svc 
+                  ? "bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900 shadow" 
+                  : "text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
+              }`}>
               {svc.charAt(0).toUpperCase() + svc.slice(1)}
             </button>
           ))}
@@ -849,17 +935,17 @@ export default function LeadsPage() {
       {/* Team Overview (admin only) */}
       {isAdmin && employeeStats.length > 0 && (
         <div className="mb-6">
-          <h2 className="text-sm font-medium text-gray-700 mb-3">Team Overview</h2>
+          <h2 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">Team Overview</h2>
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
             {employeeStats.map(stat => (
-              <div key={stat.employee_id ?? "unassigned"} className="bg-white border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow">
+              <div key={stat.employee_id ?? "unassigned"} className="bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-800 rounded-lg p-4 hover:shadow-md transition-shadow">
                 <div className="flex items-center gap-2 mb-2">
-                  <Users className="h-4 w-4 text-blue-600" />
-                  <span className="text-xs font-medium text-gray-500 truncate">{stat.employee_name}</span>
+                  <Users className="h-4 w-4 text-blue-600 dark:text-blue-400 shrink-0" />
+                  <span className="text-xs font-medium text-gray-500 dark:text-gray-400 truncate">{stat.employee_name}</span>
                 </div>
                 <div className="flex items-baseline gap-2">
-                  <span className="text-2xl font-bold text-gray-900">{stat.count ?? stat.lead_count ?? 0}</span>
-                  <span className="text-xs text-gray-500">lead{(stat.count ?? 0) !== 1 ? "s" : ""}</span>
+                  <span className="text-2xl font-bold text-gray-900 dark:text-slate-100">{stat.count ?? stat.lead_count ?? 0}</span>
+                  <span className="text-xs text-gray-500 dark:text-gray-400">lead{(stat.count ?? 0) !== 1 ? "s" : ""}</span>
                 </div>
               </div>
             ))}
@@ -870,12 +956,12 @@ export default function LeadsPage() {
       {/* My Leads count (non-admin) */}
       {!isAdmin && (
         <div className="mb-6">
-          <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-lg p-4">
+          <div className="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-950/40 dark:to-indigo-950/40 border border-blue-200 dark:border-blue-900 rounded-lg p-4">
             <div className="flex items-center gap-3">
-              <div className="bg-blue-600 p-2 rounded-lg"><Users className="h-5 w-5 text-white" /></div>
+              <div className="bg-blue-600 dark:bg-blue-500 p-2 rounded-lg shrink-0"><Users className="h-5 w-5 text-white" /></div>
               <div>
-                <p className="text-sm text-gray-600">Your Leads</p>
-                <p className="text-2xl font-bold text-gray-900">{serverTotal.toLocaleString()}</p>
+                <p className="text-sm text-gray-600 dark:text-gray-400">Your Leads</p>
+                <p className="text-2xl font-bold text-gray-900 dark:text-slate-100">{allLeads.length}</p>
               </div>
             </div>
           </div>
@@ -883,32 +969,32 @@ export default function LeadsPage() {
       )}
 
       {error && (
-        <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg flex items-start gap-3">
-          <AlertCircle className="h-5 w-5 text-red-600 flex-shrink-0 mt-0.5" />
+        <div className="mb-6 p-4 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900 rounded-lg flex items-start gap-3">
+          <AlertCircle className="h-5 w-5 text-red-600 dark:text-red-400 shrink-0 mt-0.5" />
           <div className="flex-1">
-            <h3 className="text-sm font-medium text-red-800">Error Loading Leads</h3>
-            <p className="mt-1 text-sm text-red-700">{error}</p>
-            <Button onClick={() => fetchLeads(1)} variant="outline" size="sm" className="mt-3">Try Again</Button>
+            <h3 className="text-sm font-medium text-red-800 dark:text-red-300">Error Loading Leads</h3>
+            <p className="mt-1 text-sm text-red-700 dark:text-red-400">{error}</p>
+            <Button onClick={() => { fetchLeads(); fetchPerformanceStats(); }} variant="outline" size="sm" className="mt-3">Try Again</Button>
           </div>
         </div>
       )}
 
       {/* Bulk selection bar */}
       {selectedLeads.length > 0 && (
-        <div className="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-          <div className="flex items-center justify-between">
+        <div className="mb-4 p-4 bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-900 rounded-lg">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
             <div className="flex items-center gap-3">
-              <UserCheck className="h-5 w-5 text-blue-600" />
+              <UserCheck className="h-5 w-5 text-blue-600 dark:text-blue-400 shrink-0" />
               <div>
-                <h3 className="font-semibold text-blue-900">{selectedLeads.length} lead(s) selected</h3>
-                <p className="text-sm text-blue-700">Click a salesperson to assign</p>
+                <h3 className="font-semibold text-blue-900 dark:text-blue-200">{selectedLeads.length} lead(s) selected</h3>
+                <p className="text-sm text-blue-700 dark:text-blue-400">Click a salesperson to assign</p>
               </div>
             </div>
             <Button variant="ghost" size="sm" onClick={() => { setSelectedLeads([]); setIsSelectAllChecked(false); }}>Clear Selection</Button>
           </div>
           <div className="mt-4 flex flex-wrap gap-2">
             {employees.map(emp => (
-              <Button key={emp.employee_id} variant="outline" size="sm" className="hover:bg-blue-100 hover:border-blue-400"
+              <Button key={emp.employee_id} variant="outline" size="sm" className="hover:bg-blue-100 dark:hover:bg-blue-900/50 hover:border-blue-400 dark:hover:border-blue-600"
                 onClick={() => { setBulkAssignEmployeeId(emp.employee_id); setBulkAssignEmployeeName(emp.employee_name); setBulkAssignmentNotes(""); setShowBulkAssignModal(true); }}>
                 <Users className="h-4 w-4 mr-2" />Assign to {emp.employee_name}
               </Button>
@@ -919,17 +1005,27 @@ export default function LeadsPage() {
 
       {/* Performance Metrics */}
       <div className="mb-6">
-        <div className="bg-white rounded-lg border border-gray-200 p-6">
+        <div className="bg-white dark:bg-slate-900 rounded-lg border border-gray-200 dark:border-slate-800 p-4 sm:p-6">
           <div className="mb-4">
-            <h2 className="text-xl font-semibold text-gray-900">Lead Performance</h2>
-            <p className="text-sm text-gray-600">{isAdmin ? "Overall lead success metrics" : "Your lead success metrics"}</p>
+            <h2 className="text-xl font-semibold text-gray-900 dark:text-slate-100">Lead Performance</h2>
+            <p className="text-sm text-gray-600 dark:text-gray-400">{isAdmin ? "Overall lead success metrics" : "Your lead success metrics"}</p>
           </div>
-          <div className="flex items-center gap-2 mb-4">
-            <span className="text-xs font-medium text-gray-500">Period:</span>
-            <div className="flex items-center gap-1 rounded-xl border border-gray-200 bg-gray-50 p-1">
+
+          {/* Period selector */}
+          <div className="flex items-center gap-2 mb-4 overflow-x-auto pb-2">
+            <span className="text-xs font-medium text-gray-500 dark:text-gray-400 shrink-0">Period:</span>
+            <div className="flex items-center gap-1 rounded-xl border border-gray-200 dark:border-slate-800 bg-gray-50 dark:bg-slate-800/60 p-1 shrink-0">
               {(['daily', 'weekly', 'monthly', 'alltime'] as const).map((p) => (
-                <button key={p} type="button" onClick={() => setPerformancePeriod(p)}
-                  className={`rounded-lg px-3 py-1 text-xs font-medium capitalize transition-all duration-150 ${performancePeriod === p ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
+                <button
+                  key={p}
+                  type="button"
+                  onClick={() => setPerformancePeriod(p)}
+                  className={`rounded-lg px-3 py-1 text-xs font-medium capitalize transition-all duration-150 ${
+                    performancePeriod === p
+                      ? 'bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-100 shadow-sm'
+                      : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
+                  }`}
+                >
                   {p === 'alltime' ? 'All Time' : p}
                 </button>
               ))}
@@ -937,26 +1033,27 @@ export default function LeadsPage() {
           </div>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
             {[
-              { key: "converted",        label: "Converted",        color: "emerald", icon: <CheckCircle2 className="h-6 w-6 text-emerald-600 mx-auto" />, val: performanceStats.converted },
-              { key: "renewed",          label: "Renewed",          color: "green",   icon: <CheckCircle2 className="h-6 w-6 text-green-600 mx-auto" />,   val: performanceStats.renewed },
-              { key: "in_progress",      label: "In Progress",      color: "blue",    icon: <TrendingUp className="h-6 w-6 text-blue-600 mx-auto" />,      val: performanceStats.in_progress },
-              { key: "renewed_directly", label: "Renewed Directly", color: "teal",    icon: <CheckCircle2 className="h-6 w-6 text-teal-600 mx-auto" />,    val: performanceStats.renewed_directly },
-              { key: "end_date_changed", label: "End Date Changed", color: "purple",  icon: <Calendar className="h-6 w-6 text-purple-600 mx-auto" />,      val: performanceStats.end_date_changed },
-              { key: "priced",           label: "Priced",           color: "yellow",  icon: <TrendingUp className="h-6 w-6 text-yellow-600 mx-auto" />,    val: performanceStats.priced },
-              { key: "not_contacted",    label: "Not Contacted",    color: "orange",  icon: <AlertTriangle className="h-6 w-6 text-orange-600 mx-auto" />, val: performanceStats.not_contacted },
-              { key: "lost",             label: "Lost",             color: "red",     icon: <TrendingDown className="h-6 w-6 text-red-600 mx-auto" />,     val: performanceStats.lost },
-            ].map(({ key, label, color, icon, val }) => (
-              <div key={key} className={`text-center p-6 border rounded-lg bg-${color}-50 cursor-pointer hover:shadow-md transition-shadow`}
+              { key: "converted",        label: "Converted",        cardBg: "bg-emerald-50 dark:bg-emerald-950/30 border-emerald-200 dark:border-emerald-900/60", numColor: "text-emerald-700 dark:text-emerald-300", labelColor: "text-emerald-600 dark:text-emerald-400", icon: <CheckCircle2 className="h-6 w-6 text-emerald-600 dark:text-emerald-400 mx-auto" />, val: performanceStats.converted },
+              { key: "renewed",          label: "Renewed",          cardBg: "bg-green-50 dark:bg-green-950/30 border-green-200 dark:border-green-900/60", numColor: "text-green-700 dark:text-green-300", labelColor: "text-green-600 dark:text-green-400", icon: <CheckCircle2 className="h-6 w-6 text-green-600 dark:text-green-400 mx-auto" />, val: performanceStats.renewed },
+              { key: "in_progress",      label: "In Progress",      cardBg: "bg-blue-50 dark:bg-blue-950/30 border-blue-200 dark:border-blue-900/60", numColor: "text-blue-700 dark:text-blue-300", labelColor: "text-blue-600 dark:text-blue-400", icon: <TrendingUp className="h-6 w-6 text-blue-600 dark:text-blue-400 mx-auto" />, val: performanceStats.in_progress },
+              { key: "renewed_directly", label: "Renewed Directly", cardBg: "bg-teal-50 dark:bg-teal-950/30 border-teal-200 dark:border-teal-900/60", numColor: "text-teal-700 dark:text-teal-300", labelColor: "text-teal-600 dark:text-teal-400", icon: <CheckCircle2 className="h-6 w-6 text-teal-600 dark:text-teal-400 mx-auto" />, val: performanceStats.renewed_directly },
+              { key: "end_date_changed", label: "End Date Changed", cardBg: "bg-purple-50 dark:bg-purple-950/30 border-purple-200 dark:border-purple-900/60", numColor: "text-purple-700 dark:text-purple-300", labelColor: "text-purple-600 dark:text-purple-400", icon: <Calendar className="h-6 w-6 text-purple-600 dark:text-purple-400 mx-auto" />, val: performanceStats.end_date_changed },
+              { key: "priced",           label: "Priced",           cardBg: "bg-yellow-50 dark:bg-yellow-950/30 border-yellow-200 dark:border-yellow-900/60", numColor: "text-yellow-700 dark:text-yellow-300", labelColor: "text-yellow-600 dark:text-yellow-400", icon: <TrendingUp className="h-6 w-6 text-yellow-600 dark:text-yellow-400 mx-auto" />, val: performanceStats.priced },
+              { key: "not_contacted",    label: "Not Contacted",    cardBg: "bg-orange-50 dark:bg-orange-950/30 border-orange-200 dark:border-orange-900/60", numColor: "text-orange-700 dark:text-orange-300", labelColor: "text-orange-600 dark:text-orange-400", icon: <AlertTriangle className="h-6 w-6 text-orange-600 dark:text-orange-400 mx-auto" />, val: performanceStats.not_contacted },
+              { key: "lost",             label: "Lost",             cardBg: "bg-red-50 dark:bg-red-950/30 border-red-200 dark:border-red-900/60", numColor: "text-red-700 dark:text-red-300", labelColor: "text-red-600 dark:text-red-400", icon: <TrendingDown className="h-6 w-6 text-red-600 dark:text-red-400 mx-auto" />, val: performanceStats.lost },
+            ].map(({ key, label, cardBg, numColor, labelColor, icon, val }) => (
+              <div key={key}
+                className={`text-center p-4 sm:p-6 border rounded-lg ${cardBg} cursor-pointer hover:shadow-md transition-shadow`}
                 onClick={() => handlePerformanceClick(key)}>
-                <div className={`text-4xl font-bold text-${color}-700`}>{val}</div>
-                <div className={`text-sm text-${color}-600 mt-2 font-medium`}>{label}</div>
+                <div className={`text-3xl sm:text-4xl font-bold ${numColor}`}>{val}</div>
+                <div className={`text-xs sm:text-sm ${labelColor} mt-2 font-medium`}>{label}</div>
                 <div className="mt-3">{icon}</div>
               </div>
             ))}
           </div>
-          <div className="mt-4 text-center border-t pt-4">
-            <div className="text-sm text-gray-600">
-              Success rate: <span className="font-semibold text-gray-900">{performanceStats.success_rate}%</span>
+          <div className="mt-4 text-center border-t border-gray-200 dark:border-slate-800 pt-4">
+            <div className="text-sm text-gray-600 dark:text-gray-400">
+              Success rate: <span className="font-semibold text-gray-900 dark:text-slate-100">{performanceStats.success_rate}%</span>
             </div>
           </div>
         </div>
@@ -965,45 +1062,48 @@ export default function LeadsPage() {
       {/* Performance Modal */}
       <Dialog open={showPerformanceModal} onOpenChange={setShowPerformanceModal}>
         <DialogContent className="max-w-[95vw] w-[95vw] max-h-[90vh] overflow-hidden flex flex-col">
-          <DialogHeader className="pb-4 border-b flex-shrink-0">
-            <DialogTitle className="text-2xl font-bold">{performanceFilter ? getPerformanceLabel(performanceFilter) : "Leads"}</DialogTitle>
+          <DialogHeader className="pb-4 border-b border-gray-200 dark:border-slate-800 shrink-0">
+            <DialogTitle className="text-2xl font-bold text-gray-900 dark:text-slate-100">{performanceFilter ? getPerformanceLabel(performanceFilter) : "Leads"}</DialogTitle>
             <DialogDescription>Showing {performanceFilteredLeads.length} lead{performanceFilteredLeads.length !== 1 ? "s" : ""}</DialogDescription>
           </DialogHeader>
           <div className="flex-1 overflow-y-auto pr-2">
             {performanceModalLoading ? (
-              <div className="flex min-h-64 items-center justify-center text-slate-500">
-                <Loader2 className="mr-2 h-5 w-5 animate-spin" />Loading leads...
+              <div className="flex min-h-64 items-center justify-center text-slate-500 dark:text-slate-400">
+                <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                Loading leads...
               </div>
             ) : performanceFilteredLeads.length === 0 ? (
-              <div className="text-center py-16 text-gray-500"><p className="text-lg">No leads in this category</p></div>
+              <div className="text-center py-16 text-gray-500 dark:text-gray-400">
+                <p className="text-lg">No leads in this category</p>
+              </div>
             ) : (
               <div className="space-y-3 py-4">
                 {performanceFilteredLeads.map(l => (
                   <div key={l.opportunity_id}
-                    className="p-5 border rounded-xl hover:bg-gray-50 hover:shadow-sm cursor-pointer transition-all"
+                    className="p-4 sm:p-5 border border-gray-200 dark:border-slate-800 bg-white dark:bg-slate-900 rounded-xl hover:bg-gray-50 dark:hover:bg-slate-800/60 hover:shadow-sm cursor-pointer transition-all"
                     onClick={() => { setShowPerformanceModal(false); window.open(`/dashboard/leads/${l.opportunity_id}`, "_blank"); }}>
-                    <div className="flex items-start justify-between gap-4 mb-4">
+                    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-4">
                       <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-2">
-                          <h3 className="text-lg font-bold text-gray-900 truncate">{l.business_name}</h3>
+                        <div className="flex items-center gap-2 mb-2 flex-wrap">
+                          <h3 className="text-base sm:text-lg font-bold text-gray-900 dark:text-slate-100 truncate">{l.business_name}</h3>
                           {l.stage_name && (
-                            <Badge variant="outline" className={`text-xs flex-shrink-0 ${getStatusColor(l.stage_name)}`}>{getStatusLabel(l.stage_name)}</Badge>
+                            <Badge variant="outline" className={`text-xs shrink-0 ${getStatusColor(l.stage_name)}`}>{getStatusLabel(l.stage_name)}</Badge>
                           )}
                         </div>
-                        <p className="text-sm text-gray-600 truncate">{l.contact_person} · {l.tel_number}</p>
+                        <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400 truncate">{l.contact_person} · {l.tel_number}</p>
                       </div>
-                      <div className="text-right flex-shrink-0">
-                        {l.annual_usage && <p className="text-sm font-semibold text-gray-700">{formatUsage(l.annual_usage)}</p>}
-                        {l.end_date && <p className="text-xs text-gray-500 mt-1">End: {formatDate(l.end_date)}</p>}
+                      <div className="text-left sm:text-right shrink-0">
+                        {l.annual_usage && <p className="text-xs sm:text-sm font-semibold text-gray-700 dark:text-gray-300">{formatUsage(l.annual_usage)}</p>}
+                        {l.end_date && <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">End: {formatDate(l.end_date)}</p>}
                       </div>
                     </div>
-                    <div className="grid grid-cols-4 gap-4 pt-3 border-t border-gray-100">
-                      <div><p className="text-xs text-gray-500 uppercase mb-1">Supplier</p><p className="font-semibold text-sm text-gray-900 truncate">{l.supplier_name || getSupplierName(l.supplier_id)}</p></div>
-                      <div><p className="text-xs text-gray-500 uppercase mb-1">MPAN</p><p className="font-semibold text-sm text-gray-900 font-mono truncate">{l.mpan_mpr || "—"}</p></div>
-                      <div><p className="text-xs text-gray-500 uppercase mb-1">Annual Usage</p><p className="font-semibold text-sm text-gray-900">{l.annual_usage?.toLocaleString() || "—"} kWh</p></div>
-                      <div><p className="text-xs text-gray-500 uppercase mb-1">Assigned To</p>
-                        <p className="font-semibold text-sm text-purple-700 flex items-center gap-1 truncate">
-                          <Users className="h-3 w-3 flex-shrink-0" /><span className="truncate">{l.assigned_to_name || "Unassigned"}</span>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 pt-3 border-t border-gray-100 dark:border-slate-800">
+                      <div><p className="text-xs text-gray-500 dark:text-gray-400 uppercase mb-1">Supplier</p><p className="font-semibold text-sm text-gray-900 dark:text-slate-100 truncate">{l.supplier_name || getSupplierName(l.supplier_id)}</p></div>
+                      <div><p className="text-xs text-gray-500 dark:text-gray-400 uppercase mb-1">MPAN</p><p className="font-semibold text-sm text-gray-900 dark:text-slate-100 font-mono truncate">{l.mpan_mpr || "—"}</p></div>
+                      <div><p className="text-xs text-gray-500 dark:text-gray-400 uppercase mb-1">Annual Usage</p><p className="font-semibold text-sm text-gray-900 dark:text-slate-100">{l.annual_usage?.toLocaleString() || "—"} kWh</p></div>
+                      <div><p className="text-xs text-gray-500 dark:text-gray-400 uppercase mb-1">Assigned To</p>
+                        <p className="font-semibold text-sm text-purple-700 dark:text-purple-400 flex items-center gap-1 truncate">
+                          <Users className="h-3 w-3 shrink-0" /><span className="truncate">{l.assigned_to_name || "Unassigned"}</span>
                         </p>
                       </div>
                     </div>
@@ -1012,7 +1112,7 @@ export default function LeadsPage() {
               </div>
             )}
           </div>
-          <div className="flex justify-end gap-2 pt-4 border-t">
+          <div className="flex justify-end gap-2 pt-4 border-t border-gray-200 dark:border-slate-800 shrink-0">
             <Button variant="outline" onClick={() => setShowPerformanceModal(false)}>Close</Button>
           </div>
         </DialogContent>
@@ -1020,7 +1120,7 @@ export default function LeadsPage() {
 
       {/* Search / Filter Bar */}
       <div className="mb-6 grid grid-cols-1 gap-3 xl:grid-cols-[minmax(0,1fr)_auto]">
-        <div className="grid min-w-0 grid-cols-[repeat(auto-fit,minmax(150px,1fr))] gap-3">
+        <div className="grid min-w-0 grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-3">
           <div className="relative min-w-0 sm:col-span-2 xl:col-span-1">
             <Search className="text-muted-foreground absolute top-2.5 left-2 h-4 w-4" />
             <Input placeholder="Search leads..." className="pl-8" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
@@ -1028,10 +1128,10 @@ export default function LeadsPage() {
 
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="outline" className="min-w-0 justify-between">
-                <Filter className="mr-2 h-4 w-4" />
+              <Button variant="outline" className="min-w-0 justify-between w-full">
+                <Filter className="mr-2 h-4 w-4 shrink-0" />
                 <span className="truncate">{supplierFilter === "All" ? "All Suppliers" : getSupplierName(supplierFilter as number)}</span>
-                <ChevronDown className="ml-1 h-3 w-3 flex-shrink-0" />
+                <ChevronDown className="ml-1 h-3 w-3 shrink-0" />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent>
@@ -1042,10 +1142,10 @@ export default function LeadsPage() {
 
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="outline" className="min-w-0 justify-between">
-                <Filter className="mr-2 h-4 w-4" />
+              <Button variant="outline" className="min-w-0 justify-between w-full">
+                <Filter className="mr-2 h-4 w-4 shrink-0" />
                 <span className="truncate">{statusFilter === "All" ? "All Status" : getStatusLabel(statusFilter as string)}</span>
-                <ChevronDown className="ml-1 h-3 w-3 flex-shrink-0" />
+                <ChevronDown className="ml-1 h-3 w-3 shrink-0" />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent>
@@ -1075,29 +1175,38 @@ export default function LeadsPage() {
               <SelectItem value="high-low">Usage: High to Low</SelectItem>
             </SelectContent>
           </Select>
-
-          <Button variant="outline" onClick={() => setShowFilterSidebar(true)} className="relative min-w-0">
-            <Filter className="mr-2 h-4 w-4" />All Filters
-            {((isAdmin && salespersonFilter !== "All") || uploadSort !== "none") && (
-              <span className="absolute -top-1 -right-1 h-2.5 w-2.5 rounded-full bg-black" />
-            )}
-          </Button>
         </div>
 
         <div className="flex flex-wrap items-center gap-2 xl:justify-end">
+          <Button variant="outline" onClick={() => setShowFilterSidebar(true)} className="flex-none whitespace-nowrap">
+            <Filter className="mr-2 h-4 w-4" />
+            All Filters
+            {(isAdmin && salespersonFilter !== "All") && (
+              <span className="absolute -top-1 -right-1 h-2.5 w-2.5 rounded-full bg-black dark:bg-white" />
+            )}
+          </Button>
           {isAdmin && (
-            <Button onClick={downloadLeadsCsv} variant="outline" disabled={serverTotal === 0}>
+            <Button onClick={downloadLeadsCsv} variant="outline" disabled={filteredLeads.length === 0} className="flex-none whitespace-nowrap">
               <Download className="mr-2 h-4 w-4" />Download Leads
             </Button>
           )}
-          <Button onClick={() => setShowImportModal(true)} variant="outline">
+          <Button onClick={() => {
+              setBulkImportResult(null);
+              setDuplicateDetails([]);
+              setShowAllDuplicates(false);
+              setBulkImportFile(null);
+              setAssignToEmployee(null);
+              setImportProgress(0);
+              setBulkImporting(false);
+              setShowImportModal(true);
+            }} variant="outline" className="flex-none whitespace-nowrap">
             <Upload className="mr-2 h-4 w-4" />Bulk Import
           </Button>
-          <Button onClick={() => setShowAddLeadModal(true)}>
+          <Button onClick={() => setShowAddLeadModal(true)} className="w-full sm:w-auto">
             <Plus className="mr-2 h-4 w-4" />Add Lead
           </Button>
           {selectedLeads.length > 0 && (
-            <Button onClick={bulkDeleteLeads} variant="destructive">
+            <Button onClick={bulkDeleteLeads} variant="destructive" className="w-full sm:w-auto">
               <Trash2 className="mr-2 h-4 w-4" />Delete Selected ({selectedLeads.length})
             </Button>
           )}
@@ -1105,21 +1214,31 @@ export default function LeadsPage() {
       </div>
 
       {/* Filter Sidebar */}
-      <div className={`fixed inset-0 z-50 flex transition-opacity duration-300 ${showFilterSidebar ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"}`}>
-        <div className="flex-1 bg-black/30" onClick={() => setShowFilterSidebar(false)} />
-        <div className={`w-80 bg-white h-full shadow-2xl flex flex-col transition-transform duration-300 ease-in-out ${showFilterSidebar ? "translate-x-0" : "translate-x-full"}`} style={{ willChange: "transform" }}>
-          <div className="flex items-center justify-between px-6 py-4 border-b flex-shrink-0">
-            <h2 className="text-lg font-semibold text-gray-900">All Filters</h2>
-            <button onClick={() => setShowFilterSidebar(false)} className="p-1 rounded hover:bg-gray-100">
-              <X className="h-5 w-5 text-gray-500" />
+      <div
+        className={`fixed inset-0 z-50 flex transition-opacity duration-300 ${showFilterSidebar ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"}`}
+      >
+        <div className="flex-1 bg-black/30 dark:bg-black/60" onClick={() => setShowFilterSidebar(false)} />
+        <div
+          className={`w-80 bg-white dark:bg-slate-900 border-l border-gray-200 dark:border-slate-800 h-full shadow-2xl flex flex-col transition-transform duration-300 ease-in-out ${showFilterSidebar ? "translate-x-0" : "translate-x-full"}`}
+          style={{ willChange: "transform" }}
+        >
+          <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-slate-800 shrink-0">
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-slate-100">All Filters</h2>
+            <button onClick={() => setShowFilterSidebar(false)} className="p-1 rounded hover:bg-gray-100 dark:hover:bg-slate-800">
+              <X className="h-5 w-5 text-gray-500 dark:text-gray-400" />
             </button>
           </div>
           <div className="flex-1 overflow-y-auto px-6 py-6 space-y-6 min-h-0">
             {isAdmin && (
               <div>
-                <label className="block text-sm font-semibold text-gray-800 mb-2">Salesperson</label>
-                <Select value={salespersonFilter.toString()} onValueChange={v => setSalespersonFilter(v === "All" ? "All" : parseInt(v))}>
-                  <SelectTrigger className="w-full"><SelectValue placeholder="All Salespersons" /></SelectTrigger>
+                <label className="block text-sm font-semibold text-gray-800 dark:text-gray-200 mb-2">Salesperson</label>
+                <Select
+                  value={salespersonFilter.toString()}
+                  onValueChange={v => setSalespersonFilter(v === "All" ? "All" : parseInt(v))}
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="All Salespersons" />
+                  </SelectTrigger>
                   <SelectContent position="popper" side="bottom" sideOffset={4} className="w-72 z-[60]">
                     <SelectItem value="All">All Salespersons</SelectItem>
                     {employees.map(e => <SelectItem key={e.employee_id} value={e.employee_id.toString()}>{e.employee_name}</SelectItem>)}
@@ -1127,12 +1246,16 @@ export default function LeadsPage() {
                 </Select>
               </div>
             )}
-            <div className="border-t pt-6">
-              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-4">Quick Filters</p>
+
+            <div className="border-t border-gray-200 dark:border-slate-800 pt-6">
+              <p className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-4">Quick Filters</p>
             </div>
             <div>
-              <label className="block text-sm font-semibold text-gray-800 mb-2">Supplier</label>
-              <Select value={supplierFilter.toString()} onValueChange={v => setSupplierFilter(v === "All" ? "All" : parseInt(v))}>
+              <label className="block text-sm font-semibold text-gray-800 dark:text-gray-200 mb-2">Supplier</label>
+              <Select
+                value={supplierFilter.toString()}
+                onValueChange={v => setSupplierFilter(v === "All" ? "All" : parseInt(v))}
+              >
                 <SelectTrigger className="w-full"><SelectValue placeholder="All Suppliers" /></SelectTrigger>
                 <SelectContent position="popper" side="bottom" sideOffset={4} className="w-72 z-[60]">
                   <SelectItem value="All">All Suppliers</SelectItem>
@@ -1141,7 +1264,7 @@ export default function LeadsPage() {
               </Select>
             </div>
             <div>
-              <label className="block text-sm font-semibold text-gray-800 mb-2">Status</label>
+              <label className="block text-sm font-semibold text-gray-800 dark:text-gray-200 mb-2">Status</label>
               <Select value={statusFilter.toString()} onValueChange={v => setStatusFilter(v)}>
                 <SelectTrigger className="w-full"><SelectValue placeholder="All Status" /></SelectTrigger>
                 <SelectContent position="popper" side="bottom" sideOffset={4} className="w-72 z-[60]">
@@ -1151,7 +1274,7 @@ export default function LeadsPage() {
               </Select>
             </div>
             <div>
-              <label className="block text-sm font-semibold text-gray-800 mb-2">Contract End Date</label>
+              <label className="block text-sm font-semibold text-gray-800 dark:text-gray-200 mb-2">Contract End Date</label>
               <Select value={endDateFilter} onValueChange={(v: any) => setEndDateFilter(v)}>
                 <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
                 <SelectContent position="popper" side="bottom" sideOffset={4} className="w-72 z-[60]">
@@ -1166,7 +1289,7 @@ export default function LeadsPage() {
               </Select>
             </div>
             <div>
-              <label className="block text-sm font-semibold text-gray-800 mb-2">Annual Usage Sort</label>
+              <label className="block text-sm font-semibold text-gray-800 dark:text-gray-200 mb-2">Annual Usage Sort</label>
               <Select value={usageSort} onValueChange={(v: any) => setUsageSort(v)}>
                 <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
                 <SelectContent position="popper" side="bottom" sideOffset={4} className="w-72 z-[60]">
@@ -1177,62 +1300,79 @@ export default function LeadsPage() {
               </Select>
             </div>
 
-            {/* Recently Uploaded */}
-            <div>
-              <label className="block text-sm font-semibold text-gray-800 mb-2">Recently Uploaded</label>
-              <Select value={uploadSort} onValueChange={(v: any) => { setUploadSort(v); if (v !== "custom") { setUploadedFrom(""); setUploadedTo(""); } }}>
-                <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
-                <SelectContent position="popper" side="bottom" sideOffset={4} className="w-72 z-[60]">
-                  <SelectItem value="none">None</SelectItem>
-                  <SelectItem value="newest">Newest to Oldest</SelectItem>
-                  <SelectItem value="oldest">Oldest to Newest</SelectItem>
-                  <SelectItem value="custom">Custom Date Range</SelectItem>
-                </SelectContent>
-              </Select>
-              {uploadSort === "custom" && (
-                <div className="mt-3 space-y-2">
-                  <div>
-                    <label className="text-xs text-gray-500 mb-1 block">From</label>
-                    <input
-                      type="date"
-                      value={uploadedFrom}
-                      onChange={e => setUploadedFrom(e.target.value)}
-                      className="w-full border border-gray-200 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-black"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-xs text-gray-500 mb-1 block">To</label>
-                    <input
-                      type="date"
-                      value={uploadedTo}
-                      onChange={e => setUploadedTo(e.target.value)}
-                      className="w-full border border-gray-200 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-black"
-                    />
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-          <div className="px-6 py-4 border-t flex-shrink-0 flex gap-2">
-            <Button variant="outline" className="flex-1"
-              onClick={() => { setSupplierFilter("All"); setStatusFilter("All"); setEndDateFilter("all"); setUsageSort("none"); setSalespersonFilter("All"); setUploadSort("none"); setUploadedFrom(""); setUploadedTo(""); }}>
+          <div className="px-6 py-4 border-t border-gray-200 dark:border-slate-800 shrink-0 flex gap-2">
+            <Button
+              variant="outline"
+              className="flex-1"
+              onClick={() => {
+                setSupplierFilter("All");
+                setStatusFilter("All");
+                setEndDateFilter("all");
+                setUsageSort("none");
+                setSalespersonFilter("All");
+              }}
+            >
               Clear All
             </Button>
-            <Button className="flex-1 bg-black hover:bg-gray-800" onClick={() => setShowFilterSidebar(false)}>Done</Button>
+            <Button
+              className="flex-1 bg-black text-white hover:bg-gray-800 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-slate-200"
+              onClick={() => setShowFilterSidebar(false)}
+            >
+              Done
+            </Button>
           </div>
         </div>
       </div>
 
       {/* Table */}
-      <div className="overflow-hidden rounded-lg border border-gray-200 bg-white">
+      <div className="overflow-hidden rounded-lg border border-gray-200 dark:border-slate-800 bg-white dark:bg-slate-900">
         <div className="overflow-x-auto">
-          <table className="w-full divide-y divide-gray-200 table-fixed">
-            <thead className="bg-gray-50">
+          <table className="w-full divide-y divide-gray-200 dark:divide-slate-800 min-w-[1000px]">
+            <thead className="bg-gray-50 dark:bg-slate-800/50">
               <tr>
-                <th className="px-3 py-3 text-left w-8">
-                  <input type="checkbox" className="rounded border-gray-300"
+                <th className="px-3 py-3 text-left w-10">
+                  <input
+                    type="checkbox"
+                    className="rounded border-gray-300 dark:border-slate-700 dark:bg-slate-800"
                     checked={selectedLeads.length === paginatedLeads.length && paginatedLeads.length > 0}
-                    onChange={handleSelectAll} />
+                    onChange={handleSelectAll}
+                  />
+                </th>
+                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 dark:text-gray-400 uppercase w-16 border-r-2 border-gray-300 dark:border-slate-700">
+                  ID
+                </th>
+                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 dark:text-gray-400 uppercase w-[9%]">
+                  Client Name
+                </th>
+                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 dark:text-gray-400 uppercase w-[11%]">
+                  Trading Name
+                </th>
+                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 dark:text-gray-400 uppercase w-[8%] overflow-hidden">
+                  Tel No
+                </th>
+                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 dark:text-gray-400 uppercase w-[8%] overflow-hidden">
+                  Mobile No
+                </th>
+                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 dark:text-gray-400 uppercase w-[10%]">
+                  MPAN Top
+                </th>
+                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 dark:text-gray-400 uppercase w-[9%]">
+                  Supplier
+                </th>
+                <th className="px-3 py-3 text-right text-xs font-medium tracking-wider text-gray-500 dark:text-gray-400 uppercase w-[9%] whitespace-nowrap">
+                  Annual Usage
+                </th>
+                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 dark:text-gray-400 uppercase w-[9%] whitespace-nowrap">
+                  Start Date
+                </th>
+                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 dark:text-gray-400 uppercase w-[9%] whitespace-nowrap">
+                  Contract End
+                </th>
+                <th className="px-3 py-3 text-center text-xs font-medium tracking-wider text-gray-500 dark:text-gray-400 uppercase w-[12%]">
+                  Status
+                </th>
+                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 dark:text-gray-400 uppercase w-[9%]">
+                  Assigned To
                 </th>
                 <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase w-20 border-r-2 border-gray-300">ID</th>
                 <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase w-[9%]">Client Name</th>
@@ -1248,22 +1388,22 @@ export default function LeadsPage() {
                 <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase w-[9%]">Assigned To</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-200 bg-white">
+            <tbody className="divide-y divide-gray-200 dark:divide-slate-800 bg-white dark:bg-slate-900">
               {isLoading ? (
                 <tr><td colSpan={13} className="px-6 py-12 text-center">
-                  <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-current border-r-transparent text-gray-600" />
-                  <p className="mt-4 text-gray-500">Loading leads...</p>
+                  <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-current border-r-transparent text-gray-600 dark:text-gray-400" />
+                  <p className="mt-4 text-gray-500 dark:text-gray-400">Loading leads...</p>
                 </td></tr>
               ) : error ? (
                 <tr><td colSpan={13} className="px-6 py-12 text-center">
                   <AlertCircle className="h-12 w-12 text-red-400 mx-auto mb-3" />
-                  <p className="text-lg text-red-600">Failed to load leads</p>
-                  <p className="mt-2 text-sm">{error}</p>
+                  <p className="text-lg text-red-600 dark:text-red-400">Failed to load leads</p>
+                  <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">{error}</p>
                 </td></tr>
               ) : paginatedLeads.length === 0 ? (
-                <tr><td colSpan={13} className="px-6 py-12 text-center text-gray-500">
-                  <Upload className="h-12 w-12 text-gray-400 mx-auto mb-3" />
-                  <p className="text-lg">No leads found.</p>
+                <tr><td colSpan={13} className="px-6 py-12 text-center text-gray-500 dark:text-gray-400">
+                  <Upload className="h-12 w-12 text-gray-400 dark:text-gray-600 mx-auto mb-3" />
+                  <p className="text-lg text-gray-700 dark:text-gray-200 font-medium">No leads found.</p>
                   <p className="mt-2 text-sm">{searchTerm || statusFilter !== "All" ? "Try adjusting your filters." : "Use Bulk Import to add leads."}</p>
                 </td></tr>
               ) : paginatedLeads.map(lead => {
@@ -1271,41 +1411,66 @@ export default function LeadsPage() {
                 const displayId  = lead.display_order ?? lead.tenant_lead_id ?? lead.opportunity_id;
                 return (
                   <tr key={lead.opportunity_id}
-                    className={`hover:bg-gray-50 transition-colors cursor-pointer ${isSelected ? "bg-blue-50" : ""}`}
+                    className={`hover:bg-gray-50 dark:hover:bg-slate-800/60 transition-colors cursor-pointer ${
+                      isSelected 
+                        ? "bg-blue-50 dark:bg-blue-950/40" 
+                        : fromSearch 
+                          ? "bg-amber-50 dark:bg-amber-950/30" 
+                          : ""
+                    }`}
                     onClick={() => window.open(`/dashboard/leads/${lead.opportunity_id}`, "_blank")}
                     onContextMenu={e => {
                       e.preventDefault();
                       const menu = document.createElement("div");
-                      menu.className = "fixed bg-white border border-gray-300 rounded-md shadow-lg z-50 py-1";
+                      menu.className = "fixed bg-white dark:bg-slate-900 border border-gray-300 dark:border-slate-700 rounded-md shadow-lg z-50 py-1";
                       menu.style.left = `${e.pageX}px`; menu.style.top = `${e.pageY}px`;
                       const del = document.createElement("button");
-                      del.className = "w-full px-4 py-2 text-left text-sm hover:bg-red-50 text-red-600 flex items-center gap-2";
+                      del.className = "w-full px-4 py-2 text-left text-sm hover:bg-red-50 dark:hover:bg-red-950/40 text-red-600 dark:text-red-400 flex items-center gap-2";
                       del.innerHTML = `<svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg> Delete`;
-                      del.onclick = () => { deleteLead(lead.opportunity_id); document.body.removeChild(menu); };
+                      del.onclick = () => { 
+                        deleteLead(lead.opportunity_id);  
+                        document.body.removeChild(menu); 
+                      };
                       menu.appendChild(del); document.body.appendChild(menu);
                       const close = (ev: MouseEvent) => { if (!menu.contains(ev.target as Node)) { try { document.body.removeChild(menu); } catch {} document.removeEventListener("click", close); } };
                       setTimeout(() => document.addEventListener("click", close), 0);
                     }}>
 
                     <td className="px-3 py-3 align-top" onClick={e => e.stopPropagation()}>
-                      <input type="checkbox" className="rounded border-gray-300 mt-1"
-                        checked={isSelected} onChange={() => handleSelectLead(lead.opportunity_id)} />
+                      <input type="checkbox" className="rounded border-gray-300 dark:border-slate-700 dark:bg-slate-800 mt-1"
+                        checked={isSelected}
+                        onChange={() => handleSelectLead(lead.opportunity_id)}
+                        disabled={fromSearch} />
                     </td>
 
-                    <td className="px-3 py-3 text-sm font-medium text-gray-900 border-r-2 border-gray-300 align-top">
-                      <div className="whitespace-nowrap">{displayId}</div>
+                    {/* ID */}
+                    <td className="px-3 py-3 text-sm font-medium text-gray-900 dark:text-slate-100 border-r-2 border-gray-300 dark:border-slate-700 align-top">
+                      <div className="flex items-center gap-1 whitespace-nowrap">
+                        {displayId}
+                        {fromSearch && <span title="From team search" className="inline-flex"><Info className="h-3 w-3 text-amber-600 dark:text-amber-400" /></span>}
+                      </div>
                     </td>
 
-                    <td className="px-3 py-3 text-sm text-gray-700 align-top overflow-hidden">
-                      <div className="whitespace-normal break-words">{lead.contact_person || "—"}</div>
+                    {/* Client Name */}
+                    <td className="px-3 py-3 text-sm text-gray-700 dark:text-gray-300 align-top overflow-hidden">
+                      <div className="leading-tight">
+                        <div className="whitespace-normal break-words">{lead.contact_person || "—"}</div>
+                        {fromSearch && (
+                          <Badge variant="outline" className="mt-1 text-xs bg-amber-100 text-amber-800 border-amber-300 dark:bg-amber-950/50 dark:text-amber-300 dark:border-amber-800">
+                            {lead.assigned_to_name || "Other team"}
+                          </Badge>
+                        )}
+                      </div>
                     </td>
 
-                    <td className="px-3 py-3 text-sm text-gray-900 align-top overflow-hidden">
+                    {/* Trading Name */}
+                    <td className="px-3 py-3 text-sm text-gray-900 dark:text-slate-100 align-top overflow-hidden">
                       <div className="leading-tight">
                         <div className="whitespace-normal break-words">{lead.business_name || "—"}</div>
                         {lead.is_cleansed && (
-                          <Badge variant="outline"
-                            className="mt-1 text-xs bg-green-100 text-green-800 border-green-300 whitespace-nowrap animate-pulse cursor-pointer hover:animate-none"
+                          <Badge 
+                            variant="outline" 
+                            className="mt-1 text-xs bg-green-100 text-green-800 border-green-300 dark:bg-green-950/50 dark:text-green-300 dark:border-green-800 whitespace-nowrap animate-pulse cursor-pointer hover:animate-none"
                             onClick={async (e) => {
                               e.stopPropagation();
                               try {
@@ -1323,37 +1488,59 @@ export default function LeadsPage() {
                       </div>
                     </td>
 
-                    <td className="px-3 py-3 text-sm text-gray-900 align-top overflow-hidden">
-                      <div className="truncate max-w-[100px]">{lead.tel_number ? String(lead.tel_number).replace(/\.0$/, "") : "—"}</div>
+                    {/* Tel No */}
+                    <td className="px-3 py-3 text-sm text-gray-900 dark:text-slate-200 align-top overflow-hidden">
+                      <div className="truncate max-w-[100px]" title={lead.tel_number ? String(lead.tel_number).replace(/\.0$/, "") : ""}>
+                        {lead.tel_number ? String(lead.tel_number).replace(/\.0$/, "") : "—"}
+                      </div>
                     </td>
 
-                    <td className="px-3 py-3 text-sm text-gray-900 align-top overflow-hidden">
-                      <div className="truncate max-w-[100px]">{lead.mobile_no ? String(lead.mobile_no).replace(/\.0$/, "") : "—"}</div>
+                    {/* Mobile No */}
+                    <td className="px-3 py-3 text-sm text-gray-900 dark:text-slate-200 align-top overflow-hidden">
+                      <div className="truncate max-w-[100px]" title={lead.mobile_no ? String(lead.mobile_no).replace(/\.0$/, "") : ""}>
+                        {lead.mobile_no ? String(lead.mobile_no).replace(/\.0$/, "") : "—"}
+                      </div>
                     </td>
 
-                    <td className="px-3 py-3 text-sm text-gray-900 align-top overflow-hidden">
-                      <div className="truncate">{lead.mpan_mpr || "—"}</div>
+                    {/* MPAN Top */}
+                    <td className="px-3 py-3 text-sm text-gray-900 dark:text-slate-200 align-top overflow-hidden">
+                      <div className="truncate" title={lead.mpan_mpr || ""}>{lead.mpan_mpr || "—"}</div>
                     </td>
 
-                    <td className="px-3 py-3 text-sm text-gray-900 align-top overflow-hidden">
-                      <div className="truncate">{lead.supplier_name || getSupplierName(lead.supplier_id)}</div>
+                    {/* Supplier */}
+                    <td className="px-3 py-3 text-sm text-gray-900 dark:text-slate-200 align-top overflow-hidden">
+                      <div className="truncate" title={lead.supplier_name || ""}>
+                        {lead.supplier_name || getSupplierName(lead.supplier_id)}
+                      </div>
                     </td>
 
-                    <td className="px-3 py-3 text-sm text-gray-900 text-right align-top">
+                    {/* Annual Usage */}
+                    <td className="px-3 py-3 text-sm text-gray-900 dark:text-slate-200 text-right align-top">
                       <div className="whitespace-nowrap">{lead.annual_usage ? lead.annual_usage.toLocaleString() : "—"}</div>
                     </td>
 
-                    <td className="px-3 py-3 text-sm text-gray-900 align-top">
+                    {/* Start Date */}
+                    <td className="px-3 py-3 text-sm text-gray-900 dark:text-slate-200 align-top">
                       <div className="whitespace-nowrap">{formatDate(lead.start_date)}</div>
                     </td>
 
-                    <td className="px-3 py-3 text-sm text-gray-900 align-top">
+                    {/* Contract End */}
+                    <td className="px-3 py-3 text-sm text-gray-900 dark:text-slate-200 align-top">
                       <div className="whitespace-nowrap">{formatDate(lead.end_date)}</div>
                     </td>
 
-                    <td className="px-3 py-3 align-top" onClick={e => e.stopPropagation()}>
-                      <Select value={lead.stage_name || ""}
-                        onValueChange={value => updateLeadStatus(lead.opportunity_id, value === "CLEAR_STATUS" ? "" : value)}>
+                    {/* Status */}
+                    <td className="px-3 py-3 align-top" onClick={(e) => e.stopPropagation()}>
+                      <Select
+                        value={lead.stage_name || ""}
+                        onValueChange={(value) => {
+                          if (value === "CLEAR_STATUS") {
+                            updateLeadStatus(lead.opportunity_id, "");
+                          } else {
+                            updateLeadStatus(lead.opportunity_id, value);
+                          }
+                        }}
+                      >
                         <SelectTrigger className="h-7 text-xs w-full max-w-[150px]">
                           <SelectValue placeholder="Set status">
                             {lead.stage_name ? (
@@ -1361,15 +1548,19 @@ export default function LeadsPage() {
                                 {getStatusLabel(lead.stage_name)}
                               </span>
                             ) : (
-                              <span className="text-gray-500">Set status</span>
+                              <span className="text-gray-500 dark:text-gray-400">Set status</span>
                             )}
                           </SelectValue>
                         </SelectTrigger>
                         <SelectContent>
-                          {STATUS_OPTIONS.map(option => <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>)}
+                          {STATUS_OPTIONS.map((option) => (
+                            <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+                          ))}
                           {lead.stage_name && (
-                            <><div className="border-t my-1"></div>
-                            <SelectItem value="CLEAR_STATUS" className="text-red-600 font-medium">✕ Clear Status</SelectItem></>
+                            <>
+                              <div className="border-t border-gray-200 dark:border-slate-800 my-1"></div>
+                              <SelectItem value="CLEAR_STATUS" className="text-red-600 dark:text-red-400 font-medium">✕ Clear Status</SelectItem>
+                            </>
                           )}
                         </SelectContent>
                       </Select>
@@ -1396,72 +1587,299 @@ export default function LeadsPage() {
         {!isLoading && !error && serverTotal > 0 && <PaginationControls />}
       </div>
 
-      {/* Bulk Import Modal */}
-      <Dialog open={showImportModal} onOpenChange={setShowImportModal}>
-        <DialogContent className="max-w-2xl">
+      {/* ── Bulk Import Modal ─────────────────────────────────────────────────── */}
+      <Dialog
+        open={showImportModal}
+        onOpenChange={(open) => {
+          setShowImportModal(open);
+          if (!open) {
+            setBulkImportResult(null);
+            setDuplicateDetails([]);
+            setShowAllDuplicates(false);
+            setBulkImportFile(null);
+            setAssignToEmployee(null);
+            setImportProgress(0);
+            setBulkImporting(false);
+          }
+        }}
+      >
+        <DialogContent className="max-w-md w-[90vw] sm:w-full max-h-[80vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Bulk Import Leads</DialogTitle>
-            <DialogDescription>Upload an Excel or CSV file. Leads will be assigned to <strong>you</strong> by default unless you select someone else below.</DialogDescription>
+            <DialogDescription>
+              Upload an Excel or CSV file. Leads will be assigned to{" "}
+              <strong>you</strong> by default unless you select someone
+              else below.
+            </DialogDescription>
           </DialogHeader>
+
           <div className="space-y-4">
+            {/* FILE */}
             <div>
-              <label className="block text-sm font-medium mb-2">Select File (.xlsx, .xls, .csv)</label>
-              <input type="file" accept=".xlsx,.xls,.csv" onChange={e => setBulkImportFile(e.target.files?.[0] || null)} className="block w-full text-sm border rounded-md p-2" />
+              <label className="block text-sm font-medium text-gray-900 dark:text-slate-100 mb-2">
+                Select File (.xlsx, .xls, .csv)
+              </label>
+              <input
+                type="file"
+                accept=".xlsx,.xls,.csv"
+                onChange={(e) =>
+                  setBulkImportFile(e.target.files?.[0] || null)
+                }
+                className="block w-full text-sm border border-gray-300 dark:border-slate-700 dark:bg-slate-800 text-gray-900 dark:text-slate-100 rounded-md p-2"
+                disabled={bulkImporting}
+              />
             </div>
+
+            {/* ASSIGN */}
             {isAdmin && (
               <div>
-                <label className="block text-sm font-medium mb-2">Assign To <span className="text-gray-400 font-normal">(optional — defaults to your account)</span></label>
-                <Select value={assignToEmployee?.toString() || "0"} onValueChange={v => setAssignToEmployee(v === "0" ? null : Number(v))}>
-                  <SelectTrigger className="w-full"><SelectValue placeholder="Assign to myself (default)" /></SelectTrigger>
+                <label className="block text-sm font-medium text-gray-900 dark:text-slate-100 mb-2">
+                  Assign To{" "}
+                  <span className="text-gray-400 dark:text-gray-500 font-normal">
+                    (optional — defaults to your account)
+                  </span>
+                </label>
+                <Select
+                  value={assignToEmployee?.toString() || "0"}
+                  onValueChange={(v) =>
+                    setAssignToEmployee(v === "0" ? null : Number(v))
+                  }
+                  disabled={bulkImporting}
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Assign to myself (default)" />
+                  </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="0">Assign to myself (default)</SelectItem>
-                    {employees.map(e => <SelectItem key={e.employee_id} value={e.employee_id.toString()}>{e.employee_name}</SelectItem>)}
+                    <SelectItem value="0">
+                      Assign to myself (default)
+                    </SelectItem>
+                    {employees.map((e) => (
+                      <SelectItem
+                        key={e.employee_id}
+                        value={e.employee_id.toString()}
+                      >
+                        {e.employee_name}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
             )}
-            <div className="bg-blue-50 border border-blue-200 rounded-md p-4">
-              <h4 className="font-medium text-sm mb-2">📥 Download Template</h4>
-              <p className="text-xs text-blue-700 mb-2">Same format as the Renewals import template.</p>
-              <Button variant="outline" size="sm" onClick={downloadTemplate}>Download Template</Button>
+
+            {/* TEMPLATE */}
+            <div className="bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-900 rounded-md p-4">
+              <h4 className="font-medium text-sm text-blue-900 dark:text-blue-200 mb-2">
+                Download Template
+              </h4>
+              <p className="text-xs text-blue-700 dark:text-blue-300 mb-2">
+                Same format as the Renewals import template.
+              </p>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={downloadTemplate}
+                disabled={bulkImporting}
+              >
+                Download Template
+              </Button>
             </div>
+
+            {/* PROGRESS */}
+            {bulkImporting && (
+              <div className="border border-gray-200 dark:border-slate-800 rounded-md p-4 bg-gray-50 dark:bg-slate-800/50">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-sm font-medium text-gray-900 dark:text-slate-100">
+                    Importing Leads...
+                  </span>
+                  <span className="text-sm font-semibold text-gray-900 dark:text-slate-100">
+                    {importProgress}%
+                  </span>
+                </div>
+                <div className="w-full h-2 bg-gray-200 dark:bg-slate-700 rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-blue-600 transition-all duration-500"
+                    style={{ width: `${importProgress}%` }}
+                  />
+                </div>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+                  Processing your file. Please wait...
+                </p>
+              </div>
+            )}
+
+            {/* RESULT */}
             {bulkImportResult && (
-              <div className={`rounded-md p-4 ${bulkImportResult.success ? "bg-green-50 border border-green-200" : "bg-red-50 border border-red-200"}`}>
-                <h4 className="font-medium text-sm mb-2">{bulkImportResult.success ? "✅ Import Successful" : "❌ Import Failed"}</h4>
-                <p className="text-sm">Imported: <strong>{bulkImportResult.successful}</strong> leads</p>
-                {(bulkImportResult.duplicates ?? 0) > 0 && <p className="text-sm text-orange-700 mt-1">⚠️ Duplicates skipped: <strong>{bulkImportResult.duplicates}</strong></p>}
-                {bulkImportResult.assigned_to && <p className="text-sm text-green-700 mt-1">✅ Assigned to: <strong>{bulkImportResult.assigned_to}</strong></p>}
-                {bulkImportResult.duplicate_report && bulkImportResult.duplicate_report.length > 0 && (
-                  <details className="mt-2">
-                    <summary className="text-xs cursor-pointer text-orange-700 font-medium">View duplicate report</summary>
-                    <ul className="list-none text-xs mt-1 max-h-32 overflow-y-auto space-y-0.5">
-                      {bulkImportResult.duplicate_report.map((line, i) => <li key={i} className="text-gray-600">{line}</li>)}
-                    </ul>
-                  </details>
+              <div
+                className={`rounded-md p-4 border ${
+                  bulkImportResult.success
+                    ? "bg-green-50 dark:bg-green-950/40 border-green-200 dark:border-green-900 text-green-900 dark:text-green-200"
+                    : "bg-red-50 dark:bg-red-950/40 border-red-200 dark:border-red-900 text-red-900 dark:text-red-200"
+                }`}
+              >
+                <h4 className="font-medium text-sm mb-2">
+                  {bulkImportResult.success ? "Import Successful" : "Import Failed"}
+                </h4>
+                <p className="text-sm">
+                  Imported:{" "}
+                  <strong>{bulkImportResult.successful}</strong> leads
+                </p>
+
+                {bulkImportResult.duplicates != null && bulkImportResult.duplicates > 0 && (
+                  <p className="text-sm text-red-600 dark:text-red-400 mt-1">
+                    Duplicates skipped:{" "}
+                    <strong>{bulkImportResult.duplicates}</strong>
+                  </p>
                 )}
+
+                {/* FIRST 5 DUPLICATES */}
+                {duplicateDetails.length > 0 && (
+                  <div className="mt-3">
+                    <p className="text-sm font-medium text-red-600 dark:text-red-400 mb-2">
+                      Duplicate Records
+                    </p>
+                    <div className="space-y-2">
+                      {duplicateDetails.slice(0, 5).map((duplicate, index) => (
+                        <div
+                          key={index}
+                          className="border border-red-200 dark:border-red-900/60 bg-red-50/50 dark:bg-red-950/30 rounded-md p-2 text-xs"
+                        >
+                          <div className="font-medium text-red-700 dark:text-red-300">
+                            Row {duplicate.row}
+                            {duplicate.company ? ` — ${duplicate.company}` : ""}
+                          </div>
+                          {duplicate.mpan && (
+                            <div className="text-gray-600 dark:text-gray-400">
+                              MPAN: {duplicate.mpan}
+                            </div>
+                          )}
+                          {duplicate.action && (
+                            <div className="text-red-600 dark:text-red-400">
+                              {duplicate.action}
+                            </div>
+                          )}
+                          {duplicate.assigned_to && (
+                            <div className="text-gray-600 dark:text-gray-400">
+                              Assigned to: {duplicate.assigned_to}
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+
+                    {duplicateDetails.length > 5 && (
+                      <div className="flex justify-end mt-2">
+                        <Button
+                          variant="link"
+                          size="sm"
+                          className="text-red-600 dark:text-red-400 px-0"
+                          onClick={() => setShowAllDuplicates(true)}
+                        >
+                          See More
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {bulkImportResult.assigned_to && (
+                  <p className="text-sm text-green-700 dark:text-green-300 mt-2">
+                    Assigned to: <strong>{bulkImportResult.assigned_to}</strong>
+                  </p>
+                )}
+
                 {bulkImportResult.errors.length > 0 && (
-                  <div className="mt-2"><p className="text-sm font-medium">Errors:</p>
-                    <ul className="list-disc list-inside text-xs mt-1 max-h-40 overflow-y-auto">
-                      {bulkImportResult.errors.slice(0, 5).map((e, i) => <li key={i}>{e}</li>)}
-                      {bulkImportResult.errors.length > 5 && <li>... and {bulkImportResult.errors.length - 5} more</li>}
+                  <div className="mt-3">
+                    <p className="text-sm font-medium">Errors:</p>
+                    <ul className="list-disc list-inside text-xs mt-1 max-h-32 overflow-y-auto">
+                      {bulkImportResult.errors.slice(0, 5).map((err, index) => (
+                        <li key={index}>{err}</li>
+                      ))}
+                      {bulkImportResult.errors.length > 5 && (
+                        <li>... and {bulkImportResult.errors.length - 5} more</li>
+                      )}
                     </ul>
                   </div>
                 )}
               </div>
             )}
-            <div className="flex justify-end gap-2 pt-4">
-              <Button variant="outline" onClick={() => { setShowImportModal(false); setBulkImportFile(null); setAssignToEmployee(null); setBulkImportResult(null); }} disabled={bulkImporting}>Cancel</Button>
-              <Button onClick={handleBulkImport} disabled={!bulkImportFile || bulkImporting}>
-                {bulkImporting ? <><div className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />Importing...</> : "Import Leads"}
+
+            {/* BUTTONS */}
+            <div className="flex flex-col-reverse sm:flex-row justify-end gap-2 pt-4">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setShowImportModal(false);
+                  setBulkImportFile(null);
+                  setAssignToEmployee(null);
+                  setBulkImportResult(null);
+                  setDuplicateDetails([]);
+                  setShowAllDuplicates(false);
+                  setImportProgress(0);
+                }}
+                disabled={bulkImporting}
+              >
+                Close
               </Button>
+              {!bulkImporting && !bulkImportResult?.success && (
+                <Button onClick={handleBulkImport} disabled={!bulkImportFile}>
+                  Import Leads
+                </Button>
+              )}
             </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showAllDuplicates} onOpenChange={setShowAllDuplicates}>
+        <DialogContent className="max-w-lg w-[90vw] sm:w-full max-h-[85vh] overflow-hidden flex flex-col">
+          <DialogHeader className="shrink-0">
+            <DialogTitle className="text-lg font-semibold text-red-600 dark:text-red-400">
+              Duplicate Records
+            </DialogTitle>
+            <DialogDescription>
+              {duplicateDetails.length} duplicate records were skipped during this import.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="flex-1 min-h-0 overflow-y-auto pr-2 space-y-2">
+            {duplicateDetails.map((duplicate, index) => (
+              <div
+                key={index}
+                className="rounded-md border border-red-200 dark:border-red-900 bg-red-50 dark:bg-red-950/40 p-3 text-sm"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="font-semibold text-gray-800 dark:text-gray-200">
+                      Row {duplicate.row} — {duplicate.company || "—"}
+                    </p>
+                    {duplicate.mpan && (
+                      <p className="text-gray-600 dark:text-gray-400 mt-1">
+                        MPAN: {duplicate.mpan}
+                      </p>
+                    )}
+                    <p className="text-red-600 dark:text-red-400 mt-1">
+                      {duplicate.action || "Duplicate - skipped"}
+                    </p>
+                    <p className="text-gray-500 dark:text-gray-400 mt-1">
+                      Assigned to: {duplicate.assigned_to || "Unassigned"}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div className="flex justify-end pt-3 border-t border-gray-200 dark:border-slate-800 shrink-0">
+            <Button variant="outline" onClick={() => setShowAllDuplicates(false)}>
+              Close
+            </Button>
           </div>
         </DialogContent>
       </Dialog>
 
       {/* Callback Modal */}
       <Dialog open={showCallbackModal} onOpenChange={setShowCallbackModal}>
-        <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-md w-[90vw] sm:w-full max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{callbackStatus ? `Add ${callbackStatus}` : "Add Action"}</DialogTitle>
             <DialogDescription>Record lead interaction and set follow-up</DialogDescription>
@@ -1469,18 +1887,18 @@ export default function LeadsPage() {
           <div className="space-y-4 py-4">
             {callbackError && <Alert variant="destructive"><AlertCircle className="h-4 w-4" /><AlertDescription>{callbackError}</AlertDescription></Alert>}
             <div className="space-y-2">
-              <label className="text-sm font-medium">Status</label>
-              <div className="p-2 bg-gray-50 rounded border">
+              <label className="text-sm font-medium text-gray-900 dark:text-slate-100">Status</label>
+              <div className="p-2 bg-gray-50 dark:bg-slate-900 rounded border border-gray-200 dark:border-slate-800">
                 <span className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${getStatusColor(callbackStatus)}`}>{getStatusLabel(callbackStatus)}</span>
               </div>
             </div>
             <div className="space-y-2">
-              <label className="text-sm font-medium">Called Date</label>
+              <label className="text-sm font-medium text-gray-900 dark:text-slate-100">Called Date</label>
               <Input type="date" value={calledDate} onChange={e => setCalledDate(e.target.value)} />
             </div>
             {statusConfig[callbackStatus]?.requiresSold && (
               <div className="space-y-2">
-                <label className="text-sm font-medium">Was it sold? *</label>
+                <label className="text-sm font-medium text-gray-900 dark:text-slate-100">Was it sold? *</label>
                 <Select value={isSold} onValueChange={setIsSold}>
                   <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
                   <SelectContent>
@@ -1492,33 +1910,43 @@ export default function LeadsPage() {
             )}
             {isDateRequired() && (
               <div className="space-y-2">
-                <label className="text-sm font-medium">{callbackStatus === "Already Renewed" || callbackStatus === "Sold" ? "Action Date" : "Callback Date"}</label>
+                <label className="text-sm font-medium text-gray-900 dark:text-slate-100">
+                  {callbackStatus === "Already Renewed" || callbackStatus === "Sold" ? "Action Date" : "Callback Date"}
+                </label>
                 <Input type="date" value={callbackDate} onChange={e => setCallbackDate(e.target.value)} />
               </div>
             )}
             {(callbackStatus === "Already Renewed" || callbackStatus === "Sold") && renewedBy === "agent" && (
               <div className="space-y-2">
-                <label className="text-sm font-medium">Contract Start Date <span className="text-red-500">*</span></label>
+                <label className="text-sm font-medium text-gray-900 dark:text-slate-100">
+                  Contract Start Date <span className="text-red-500">*</span>
+                </label>
                 <Input type="date" value={newStartDate} onChange={e => setNewStartDate(e.target.value)} />
               </div>
             )}
             {statusConfig[callbackStatus]?.requiresNewEndDate && (
               <div className="space-y-2">
-                <label className="text-sm font-medium">New Contract End Date {callbackStatus === "End Date Changed" ? "*" : ""}</label>
+                <label className="text-sm font-medium text-gray-900 dark:text-slate-100">New Contract End Date {callbackStatus === "End Date Changed" ? "*" : ""}</label>
                 <Input type="date" value={newEndDate} onChange={e => setNewEndDate(e.target.value)} />
-                <p className="text-xs text-gray-500">{callbackStatus === "Already Renewed" || callbackStatus === "Sold" ? "Update if the contract end date has changed" : "The contract end date will be updated to this new date"}</p>
+                <p className="text-xs text-gray-500 dark:text-gray-400">{callbackStatus === "Already Renewed" || callbackStatus === "Sold" ? "Update if the contract end date has changed" : "The contract end date will be updated to this new date"}</p>
               </div>
             )}
             {(callbackStatus === "Already Renewed" || callbackStatus === "Sold") && (
               <div className="space-y-2">
-                <label className="text-sm font-medium">{callbackStatus === "Sold" ? "Sold By" : "Renewed By"} <span className="text-red-500">*</span></label>
-                <div className="flex flex-col gap-2 p-3 border rounded-lg bg-gray-50">
+                <label className="text-sm font-medium text-gray-900 dark:text-slate-100">
+                  {callbackStatus === "Sold" ? "Sold By" : "Renewed By"} <span className="text-red-500">*</span>
+                </label>
+                <div className="flex flex-col gap-2 p-3 border border-gray-200 dark:border-slate-800 rounded-lg bg-gray-50 dark:bg-slate-900">
                   {(callbackStatus === "Sold" ? (["supplier", "agent"] as const) : (["customer", "agent"] as const)).map(v => (
                     <label key={v} className="flex items-center gap-3 cursor-pointer">
-                      <input type="radio" name="renewedBy" value={v} checked={renewedBy === v} onChange={() => setRenewedBy(v)} className="w-4 h-4 accent-black" />
+                      <input type="radio" name="renewedBy" value={v} checked={renewedBy === v} onChange={() => setRenewedBy(v)} className="w-4 h-4 accent-black dark:accent-white" />
                       <div>
-                        <span className="text-sm font-medium text-gray-900">{callbackStatus === "Sold" ? `Sold by ${v.charAt(0).toUpperCase() + v.slice(1)}` : `Renewed by ${v.charAt(0).toUpperCase() + v.slice(1)}`}</span>
-                        <p className="text-xs text-gray-500">{v === "agent" ? "Counts for agent commission" : callbackStatus === "Sold" ? "Sold directly by supplier" : "Customer renewed directly without agent"}</p>
+                        <span className="text-sm font-medium text-gray-900 dark:text-slate-100">
+                          {callbackStatus === "Sold" ? `Sold by ${v.charAt(0).toUpperCase() + v.slice(1)}` : `Renewed by ${v.charAt(0).toUpperCase() + v.slice(1)}`}
+                        </span>
+                        <p className="text-xs text-gray-500 dark:text-gray-400">
+                          {v === "agent" ? "Counts for agent commission" : callbackStatus === "Sold" ? "Sold directly by supplier" : "Customer renewed directly without agent"}
+                        </p>
                       </div>
                     </label>
                   ))}
@@ -1527,38 +1955,47 @@ export default function LeadsPage() {
             )}
             {(callbackStatus === "Already Renewed" || callbackStatus === "Sold") && (
               <div className="space-y-2">
-                <label className="text-sm font-medium">New Supplier (Optional)</label>
+                <label className="text-sm font-medium text-gray-900 dark:text-slate-100">New Supplier (Optional)</label>
                 <Input type="text" placeholder="Enter new supplier name" value={newSupplier} onChange={e => setNewSupplier(e.target.value)} />
               </div>
             )}
             {(callbackStatus === "Already Renewed" || callbackStatus === "Sold") && (
               <div className="space-y-2">
-                <label className="text-sm font-medium">New Address (Optional)</label>
+                <label className="text-sm font-medium text-gray-900 dark:text-slate-100">New Address (Optional)</label>
                 <Textarea placeholder="Enter new address if changed" value={newAddress} onChange={e => setNewAddress(e.target.value)} rows={2} />
               </div>
             )}
             {callbackStatus === "Converted" && (
               <div className="space-y-2">
-                <label className="text-sm font-medium">Assign To <span className="text-gray-500">(Optional)</span></label>
-                <Select value={assignToEmployeeId || "0"} onValueChange={setAssignToEmployeeId}>
-                  <SelectTrigger><SelectValue placeholder="Keep current assignment" /></SelectTrigger>
+                <label className="text-sm font-medium text-gray-900 dark:text-slate-100">
+                  Assign To <span className="text-gray-500 dark:text-gray-400">(Optional)</span>
+                </label>
+                <Select 
+                  value={assignToEmployeeId || "0"} 
+                  onValueChange={setAssignToEmployeeId}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Keep current assignment" />
+                  </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="0">Keep current assignment</SelectItem>
                     {employees.map(e => <SelectItem key={e.employee_id} value={e.employee_id.toString()}>{e.employee_name}</SelectItem>)}
                   </SelectContent>
                 </Select>
-                <p className="text-xs text-gray-500">Optionally reassign this converted lead to another team member</p>
+                <p className="text-xs text-gray-500 dark:text-gray-400">
+                  Optionally reassign this converted lead to another team member
+                </p>
               </div>
             )}
             {statusConfig[callbackStatus]?.deletesRecord && (
               <Alert><AlertCircle className="h-4 w-4" /><AlertDescription><strong>Warning:</strong> This will move the record to the recycle bin.</AlertDescription></Alert>
             )}
             <div className="space-y-2">
-              <label className="text-sm font-medium">Notes {statusConfig[callbackStatus]?.requiresNotes && <span className="text-red-500">*</span>}</label>
+              <label className="text-sm font-medium text-gray-900 dark:text-slate-100">Notes {statusConfig[callbackStatus]?.requiresNotes && <span className="text-red-500">*</span>}</label>
               <Textarea placeholder={statusConfig[callbackStatus]?.requiresNotes ? "Enter required notes..." : "Add any additional notes..."} value={callbackNotes} onChange={e => setCallbackNotes(e.target.value)} rows={3} />
             </div>
           </div>
-          <div className="flex justify-end gap-2">
+          <div className="flex flex-col-reverse sm:flex-row justify-end gap-2">
             <Button variant="outline" onClick={() => setShowCallbackModal(false)} disabled={isSubmittingCallback}>Cancel</Button>
             <Button onClick={handleSubmitCallback} disabled={isSubmittingCallback}>
               {isSubmittingCallback ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Saving...</> : (callbackStatus ? `Save ${callbackStatus}` : "Save")}
@@ -1569,11 +2006,11 @@ export default function LeadsPage() {
 
       {/* Assign Modal */}
       <Dialog open={showAssignModal} onOpenChange={setShowAssignModal}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-md w-[90vw] sm:w-full">
           <DialogHeader><DialogTitle>Assign Salesperson</DialogTitle><DialogDescription>Add an optional note about this assignment</DialogDescription></DialogHeader>
           <div className="space-y-4">
             <div>
-              <label className="text-sm font-medium text-gray-700">Assigned To</label>
+              <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Assigned To</label>
               <Select value={assignToEmployeeId} onValueChange={setAssignToEmployeeId}>
                 <SelectTrigger className="mt-1"><SelectValue placeholder="Select salesperson" /></SelectTrigger>
                 <SelectContent>
@@ -1583,11 +2020,11 @@ export default function LeadsPage() {
               </Select>
             </div>
             <div>
-              <label className="text-sm font-medium text-gray-700">Assignment Notes (Optional)</label>
+              <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Assignment Notes (Optional)</label>
               <Textarea className="mt-1" placeholder="Why is this being assigned?" value={assignmentNotes} onChange={e => setAssignmentNotes(e.target.value)} rows={3} />
             </div>
           </div>
-          <div className="flex justify-end gap-2 mt-4">
+          <div className="flex flex-col-reverse sm:flex-row justify-end gap-2 mt-4">
             <Button variant="outline" onClick={() => { setShowAssignModal(false); setAssignToEmployeeId(""); setAssignmentNotes(""); setAssigningLeadId(null); }} disabled={isAssigning}>Cancel</Button>
             <Button onClick={handleAssignWithNotes} disabled={isAssigning}>
               {isAssigning ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Assigning...</> : "Assign"}
@@ -1608,38 +2045,78 @@ export default function LeadsPage() {
 
       {/* Bulk Assign Modal */}
       <Dialog open={showBulkAssignModal} onOpenChange={setShowBulkAssignModal}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-md w-[90vw] sm:w-full">
           <DialogHeader>
             <DialogTitle>Bulk Assign Leads</DialogTitle>
             <DialogDescription>Assign leads from your selection to {bulkAssignEmployeeName}</DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
-            <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+            <div className="p-3 bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-900 rounded-lg">
               <div className="flex items-center gap-2 mb-2">
-                <UserCheck className="h-4 w-4 text-blue-600" />
-                <span className="text-sm font-medium text-blue-900">{selectedLeads.length} lead{selectedLeads.length !== 1 ? "s" : ""} selected</span>
+                <UserCheck className="h-4 w-4 text-blue-600 dark:text-blue-400 shrink-0" />
+                <span className="text-sm font-medium text-blue-900 dark:text-blue-200">
+                  {selectedLeads.length} lead{selectedLeads.length !== 1 ? "s" : ""} selected
+                </span>
+              </div>
+              <div className="text-sm text-blue-700 dark:text-blue-300">
+                Assigning to: <strong>{bulkAssignEmployeeName}</strong>
               </div>
               <div className="text-sm text-blue-700">Assigning to: <strong>{bulkAssignEmployeeName}</strong></div>
             </div>
             <div>
-              <label className="text-sm font-medium text-gray-700">Number of Leads to Assign</label>
-              <Input type="number" min={1} className="mt-1"
+              <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                Number of Leads to Assign{" "}
+                <span className="text-gray-400 dark:text-gray-500 font-normal">
+                  (max {selectedLeads.length})
+                </span>
+              </label>
+              <Input
+                type="number"
+                min={1}
+                max={selectedLeads.length}
+                className="mt-1"
                 placeholder={`Enter a number (default: all ${selectedLeads.length})`}
                 value={bulkAssignCount}
                 onChange={e => {
                   const val = parseInt(e.target.value);
-                  if (e.target.value === "") setBulkAssignCount("");
-                  else if (!isNaN(val) && val >= 1) setBulkAssignCount(val);
-                }} />
-              <p className="text-xs text-gray-500 mt-1">Leave blank to assign all selected leads.</p>
+                  if (e.target.value === "") {
+                    setBulkAssignCount("");
+                  } else if (!isNaN(val) && val >= 1 && val <= selectedLeads.length) {
+                    setBulkAssignCount(val);
+                  }
+                }}
+              />
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                Leave blank to assign all selected leads.
+              </p>
             </div>
             <div>
-              <label className="text-sm font-medium text-gray-700">Assignment Notes (Optional)</label>
-              <Textarea className="mt-1" placeholder="Why are these being assigned?" value={bulkAssignmentNotes} onChange={e => setBulkAssignmentNotes(e.target.value)} rows={3} />
+              <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                Assignment Notes (Optional)
+              </label>
+              <Textarea
+                className="mt-1"
+                placeholder="Why are these being assigned?"
+                value={bulkAssignmentNotes}
+                onChange={e => setBulkAssignmentNotes(e.target.value)}
+                rows={3}
+              />
             </div>
           </div>
-          <div className="flex justify-end gap-2 mt-4">
-            <Button variant="outline" onClick={() => { setShowBulkAssignModal(false); setBulkAssignmentNotes(""); setBulkAssignEmployeeId(null); setBulkAssignEmployeeName(""); setBulkAssignCount(""); }} disabled={isBulkAssigning}>Cancel</Button>
+          <div className="flex flex-col-reverse sm:flex-row justify-end gap-2 mt-4">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowBulkAssignModal(false);
+                setBulkAssignmentNotes("");
+                setBulkAssignEmployeeId(null);
+                setBulkAssignEmployeeName("");
+                setBulkAssignCount("");
+              }}
+              disabled={isBulkAssigning}
+            >
+              Cancel
+            </Button>
             <Button onClick={handleBulkAssignWithNotes} disabled={isBulkAssigning}>
               {isBulkAssigning ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Assigning...</> : `Assign ${bulkAssignCount || selectedLeads.length} Lead${(bulkAssignCount || selectedLeads.length) !== 1 ? "s" : ""}`}
             </Button>

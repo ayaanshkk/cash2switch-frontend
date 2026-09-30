@@ -178,92 +178,155 @@ export default function PricedPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 p-6">
+    <div className="min-h-screen bg-gray-50 p-6 text-slate-900 dark:bg-slate-950 dark:text-slate-100">
       <Toaster position="top-right" />
       <div className="mb-6">
-        <h1 className="text-3xl font-bold text-black">Priced</h1>
-        <p className="text-gray-600 mt-1">Review priced leads and renewals before onboarding or moving to lost.</p>
+        <h1 className="text-3xl font-bold text-black dark:text-slate-50">Priced</h1>
+        <p className="text-gray-600 dark:text-slate-400 mt-1">Review priced leads and renewals before onboarding or moving to lost.</p>
       </div>
+
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-        <div className="bg-white rounded-lg shadow p-6 border border-gray-200">
-          <div className="text-sm text-gray-600 mb-1">Total Priced {activeTab === "leads" ? "Leads" : "Renewals"}</div>
-          <div className="text-3xl font-bold text-black">{statsRecords.length}</div>
+        <div className="bg-white rounded-lg shadow p-6 border border-gray-200 dark:border-slate-800 dark:bg-slate-900">
+          <div className="text-sm text-gray-600 dark:text-slate-400 mb-1">Total Priced {activeTab === "leads" ? "Leads" : "Renewals"}</div>
+          <div className="text-3xl font-bold text-black dark:text-slate-50">{statsRecords.length}</div>
         </div>
-        <div className="bg-white rounded-lg shadow p-6 border border-gray-200">
-          <div className="text-sm text-gray-600 mb-1">Total AQ (kWh)</div>
-          <div className="text-3xl font-bold text-black">{totalAq.toLocaleString()}</div>
+        <div className="bg-white rounded-lg shadow p-6 border border-gray-200 dark:border-slate-800 dark:bg-slate-900">
+          <div className="text-sm text-gray-600 dark:text-slate-400 mb-1">Total AQ (kWh)</div>
+          <div className="text-3xl font-bold text-black dark:text-slate-50">{totalAq.toLocaleString()}</div>
         </div>
       </div>
-      <div className="bg-white rounded-lg shadow p-4 mb-6 border border-gray-200">
+
+      <div className="bg-white rounded-lg shadow p-4 mb-6 border border-gray-200 dark:border-slate-800 dark:bg-slate-900">
         <div className="flex flex-wrap items-center gap-3">
-          <div className="flex rounded-lg border border-gray-200 bg-gray-50 p-1">
-            <button onClick={() => setActiveTab("leads")} className={`px-4 py-2 rounded-md text-sm font-medium ${activeTab === "leads" ? "bg-black text-white" : "text-black hover:bg-gray-100"}`}>
+          <div className="flex rounded-lg border border-gray-200 bg-gray-50 p-1 dark:border-slate-800 dark:bg-slate-950">
+            <button
+              onClick={() => setActiveTab("leads")}
+              className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                activeTab === "leads"
+                  ? "bg-black text-white dark:bg-slate-100 dark:text-slate-950"
+                  : "text-black hover:bg-gray-100 dark:text-slate-300 dark:hover:bg-slate-800"
+              }`}
+            >
               Leads ({leads.length})
             </button>
-            <button onClick={() => setActiveTab("renewals")} className={`px-4 py-2 rounded-md text-sm font-medium ${activeTab === "renewals" ? "bg-black text-white" : "text-black hover:bg-gray-100"}`}>
+            <button
+              onClick={() => setActiveTab("renewals")}
+              className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                activeTab === "renewals"
+                  ? "bg-black text-white dark:bg-slate-100 dark:text-slate-950"
+                  : "text-black hover:bg-gray-100 dark:text-slate-300 dark:hover:bg-slate-800"
+              }`}
+            >
               Renewals ({renewals.length})
             </button>
           </div>
-          <input type="text" placeholder={`Search priced ${activeTab}...`} value={searchTerm} onChange={(event) => setSearchTerm(event.target.value)} className="min-w-[260px] flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-black focus:border-black" />
-          <button onClick={fetchPriced} className="inline-flex items-center gap-2 px-4 py-2 bg-black text-white rounded-lg hover:bg-gray-800 transition-colors">
+          <input
+            type="text"
+            placeholder={`Search priced ${activeTab}...`}
+            value={searchTerm}
+            onChange={(event) => setSearchTerm(event.target.value)}
+            className="min-w-[260px] flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-black focus:border-black dark:border-slate-800 dark:bg-slate-950 dark:text-slate-100 dark:placeholder:text-slate-500 dark:focus:border-slate-700 dark:focus:ring-slate-700"
+          />
+          <button
+            onClick={fetchPriced}
+            className="inline-flex items-center gap-2 px-4 py-2 bg-black text-white rounded-lg hover:bg-gray-800 transition-colors dark:bg-slate-100 dark:text-slate-950 dark:hover:bg-slate-200"
+          >
             <RefreshCw className="h-4 w-4" />
             Refresh
           </button>
         </div>
       </div>
+
       {isAdmin && employees.length > 0 && (
-        <div className="bg-white rounded-lg shadow p-4 mb-6 border border-gray-200">
+        <div className="bg-white rounded-lg shadow p-4 mb-6 border border-gray-200 dark:border-slate-800 dark:bg-slate-900">
           <div className="flex items-center gap-2 mb-3">
-            <Users className="h-5 w-5 text-black" />
-            <span className="text-sm font-medium text-black">Filter by Salesperson</span>
+            <Users className="h-5 w-5 text-black dark:text-slate-100" />
+            <span className="text-sm font-medium text-black dark:text-slate-100">Filter by Salesperson</span>
           </div>
           <div className="flex flex-wrap gap-2">
-            <button onClick={() => setSelectedEmployee("all")} className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${selectedEmployee === "all" ? "bg-black text-white" : "bg-gray-100 text-black hover:bg-gray-200"}`}>All Salespeople</button>
+            <button
+              onClick={() => setSelectedEmployee("all")}
+              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                selectedEmployee === "all"
+                  ? "bg-black text-white dark:bg-slate-100 dark:text-slate-950"
+                  : "bg-gray-100 text-black hover:bg-gray-200 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
+              }`}
+            >
+              All Salespeople
+            </button>
             {employees.map((employee) => (
-              <button key={employee.employee_id} onClick={() => setSelectedEmployee(employee.employee_id)} className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${selectedEmployee === employee.employee_id ? "bg-black text-white" : "bg-gray-100 text-black hover:bg-gray-200"}`}>
+              <button
+                key={employee.employee_id}
+                onClick={() => setSelectedEmployee(employee.employee_id)}
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  selectedEmployee === employee.employee_id
+                    ? "bg-black text-white dark:bg-slate-100 dark:text-slate-950"
+                    : "bg-gray-100 text-black hover:bg-gray-200 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
+                }`}
+              >
                 {employee.employee_name}
               </button>
             ))}
           </div>
         </div>
       )}
-      <div className="bg-white rounded-lg shadow overflow-hidden border border-gray-200">
+
+      <div className="bg-white rounded-lg shadow overflow-hidden border border-gray-200 dark:border-slate-800 dark:bg-slate-900">
         {loading ? (
-          <div className="flex justify-center items-center h-64"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-black" /></div>
+          <div className="flex justify-center items-center h-64">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-black dark:border-slate-100" />
+          </div>
         ) : filteredRecords.length === 0 ? (
           <div className="text-center py-12">
-            <div className="text-gray-400 text-xl mb-2">No priced {activeTab} found</div>
-            <p className="text-gray-500">Records with Priced status will appear here.</p>
+            <div className="text-gray-400 dark:text-slate-500 text-xl mb-2">No priced {activeTab} found</div>
+            <p className="text-gray-500 dark:text-slate-400">Records with Priced status will appear here.</p>
           </div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full">
-              <thead className="bg-gray-50 border-b border-gray-200">
+              <thead className="bg-gray-50 border-b border-gray-200 dark:bg-slate-800/60 dark:border-slate-800">
                 <tr>
                   {["ID", "Business Name", "Contact Person", "Phone", "Email", "MPAN/MPR", "Supplier", "Annual Usage", "Assigned To", "Date", "Actions"].map((heading) => (
-                    <th key={heading} className={`px-4 py-3 text-xs font-medium text-black uppercase tracking-wider ${heading === "Actions" ? "text-center" : "text-left"}`}>{heading}</th>
+                    <th
+                      key={heading}
+                      className={`px-4 py-3 text-xs font-medium text-black uppercase tracking-wider dark:text-slate-400 ${
+                        heading === "Actions" ? "text-center" : "text-left"
+                      }`}
+                    >
+                      {heading}
+                    </th>
                   ))}
                 </tr>
               </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
+              <tbody className="bg-white divide-y divide-gray-200 dark:bg-slate-900 dark:divide-slate-800">
                 {filteredRecords.map((record) => (
-                  <tr key={`${record.source}-${record.id}`} className="hover:bg-gray-50">
-                    <td className="px-4 py-4 text-sm text-black">{record.display_id || record.id}</td>
-                    <td className="px-4 py-4 text-sm font-medium text-black">{record.business_name || "-"}</td>
-                    <td className="px-4 py-4 text-sm text-black">{record.contact_person || "-"}</td>
-                    <td className="px-4 py-4 text-sm text-black">{record.phone || "-"}</td>
-                    <td className="px-4 py-4 text-sm text-black">{record.email || "-"}</td>
-                    <td className="px-4 py-4 text-sm text-black">{record.mpan_mpr || "-"}</td>
-                    <td className="px-4 py-4 text-sm text-black">{record.supplier_name || "-"}</td>
-                    <td className="px-4 py-4 text-sm text-black">{record.annual_usage ? `${Number(record.annual_usage).toLocaleString()} kWh` : "-"}</td>
-                    <td className="px-4 py-4 text-sm text-black">{record.assigned_to_name || "Unassigned"}</td>
-                    <td className="px-4 py-4 text-sm text-gray-600">{formatDate(record.created_at)}</td>
+                  <tr key={`${record.source}-${record.id}`} className="hover:bg-gray-50 dark:hover:bg-slate-800/50">
+                    <td className="px-4 py-4 text-sm text-black dark:text-slate-200">{record.display_id || record.id}</td>
+                    <td className="px-4 py-4 text-sm font-medium text-black dark:text-slate-100">{record.business_name || "-"}</td>
+                    <td className="px-4 py-4 text-sm text-black dark:text-slate-300">{record.contact_person || "-"}</td>
+                    <td className="px-4 py-4 text-sm text-black dark:text-slate-300">{record.phone || "-"}</td>
+                    <td className="px-4 py-4 text-sm text-black dark:text-slate-300">{record.email || "-"}</td>
+                    <td className="px-4 py-4 text-sm font-mono text-black dark:text-slate-300">{record.mpan_mpr || "-"}</td>
+                    <td className="px-4 py-4 text-sm text-black dark:text-slate-200">{record.supplier_name || "-"}</td>
+                    <td className="px-4 py-4 text-sm font-mono text-black dark:text-slate-300">{record.annual_usage ? `${Number(record.annual_usage).toLocaleString()} kWh` : "-"}</td>
+                    <td className="px-4 py-4 text-sm text-black dark:text-slate-200">{record.assigned_to_name || "Unassigned"}</td>
+                    <td className="px-4 py-4 text-sm text-gray-600 dark:text-slate-400">{formatDate(record.created_at)}</td>
                     <td className="px-4 py-4 text-sm">
                       <div className="flex items-center justify-center gap-2">
-                        <button onClick={() => completePricedRecord(record, "accept")} disabled={busyKey === `${record.source}-${record.id}-accept`} className="p-2 bg-black text-white rounded-lg hover:bg-gray-800 transition-colors disabled:opacity-50" title="Onboard and move to renewals">
+                        <button
+                          onClick={() => completePricedRecord(record, "accept")}
+                          disabled={busyKey === `${record.source}-${record.id}-accept`}
+                          className="p-2 bg-black text-white rounded-lg hover:bg-gray-800 transition-colors disabled:opacity-50 dark:bg-slate-100 dark:text-slate-950 dark:hover:bg-slate-200"
+                          title="Onboard and move to renewals"
+                        >
                           <Check className="h-4 w-4" />
                         </button>
-                        <button onClick={() => completePricedRecord(record, "reject")} disabled={busyKey === `${record.source}-${record.id}-reject`} className="p-2 bg-gray-200 text-black rounded-lg hover:bg-gray-300 transition-colors disabled:opacity-50" title="Move to lost">
+                        <button
+                          onClick={() => completePricedRecord(record, "reject")}
+                          disabled={busyKey === `${record.source}-${record.id}-reject`}
+                          className="p-2 bg-gray-200 text-black rounded-lg hover:bg-gray-300 transition-colors disabled:opacity-50 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+                          title="Move to lost"
+                        >
                           <X className="h-4 w-4" />
                         </button>
                       </div>

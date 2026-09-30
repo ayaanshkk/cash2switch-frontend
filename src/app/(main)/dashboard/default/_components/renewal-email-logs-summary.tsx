@@ -77,22 +77,24 @@ export function RenewalEmailLogsSummary() {
   }, []);
 
   return (
-    <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+    <section className="rounded-lg border border-slate-200 bg-white p-4 sm:p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-widest text-slate-500">
+          <p className="text-xs font-semibold uppercase tracking-widest text-slate-500 dark:text-slate-400">
             Renewal email automation
           </p>
-          <h2 className="mt-1 text-xl font-semibold text-slate-950">Email logs</h2>
+          <h2 className="mt-1 text-xl font-semibold text-slate-950 dark:text-slate-100">
+            Email logs
+          </h2>
         </div>
-        <div className="flex gap-2">
-          <Button variant="outline" size="sm" onClick={loadSummary} disabled={loading}>
-            <RefreshCw className={loading ? "animate-spin" : ""} />
+        <div className="flex flex-wrap gap-2">
+          <Button variant="outline" size="sm" onClick={loadSummary} disabled={loading} className="flex-1 sm:flex-none dark:border-slate-700 dark:hover:bg-slate-800">
+            <RefreshCw className={`mr-1.5 h-4 w-4 shrink-0 ${loading ? "animate-spin" : ""}`} />
             Refresh
           </Button>
-          <Button asChild size="sm">
+          <Button asChild size="sm" className="flex-1 sm:flex-none">
             <Link href="/dashboard/email-logs">
-              <MailCheck />
+              <MailCheck className="mr-1.5 h-4 w-4 shrink-0" />
               View all
             </Link>
           </Button>
@@ -100,51 +102,77 @@ export function RenewalEmailLogsSummary() {
       </div>
 
       {error ? (
-        <div className="mt-4 flex items-center gap-2 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-          <AlertTriangle className="size-4" />
+        <div className="mt-4 flex items-center gap-2 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-900/60 dark:bg-red-950/30 dark:text-red-300">
+          <AlertTriangle className="size-4 shrink-0" />
           {error}
         </div>
       ) : null}
 
-      <div className="mt-5 grid gap-3 sm:grid-cols-4">
+      <div className="mt-5 grid gap-3 grid-cols-2 sm:grid-cols-4">
         {[
           ["Sent today", summary.sent_today],
           ["Sent 7 days", summary.sent_last_7_days],
           ["Failed 7 days", summary.failed_last_7_days],
           ["Total sent", summary.total_sent],
         ].map(([label, value]) => (
-          <div key={label} className="rounded-md border border-slate-200 bg-slate-50 px-4 py-3">
-            <p className="text-xs font-medium text-slate-500">{label}</p>
-            <p className="mt-1 text-2xl font-semibold text-slate-950">
+          <div
+            key={label as string}
+            className="rounded-md border border-slate-200 bg-slate-50 px-3 sm:px-4 py-3 dark:border-slate-700 dark:bg-slate-800"
+          >
+            <p className="text-xs font-medium text-slate-500 dark:text-slate-400 truncate">
+              {label}
+            </p>
+            <p className="mt-1 text-xl sm:text-2xl font-semibold text-slate-950 dark:text-slate-100">
               {loading ? "-" : value}
             </p>
           </div>
         ))}
       </div>
 
-      <div className="mt-5 overflow-hidden rounded-md border border-slate-200">
-        <div className="grid grid-cols-[1.2fr_1fr_0.8fr_0.8fr] bg-slate-50 px-3 py-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+      <div className="mt-5 overflow-hidden rounded-md border border-slate-200 dark:border-slate-700">
+        <div className="hidden sm:grid grid-cols-[1.2fr_1fr_0.8fr_0.8fr] bg-slate-50 px-3 py-2 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:bg-slate-800 dark:text-slate-400">
           <span>Recipient</span>
           <span>Customer</span>
           <span>Status</span>
           <span>Sent</span>
         </div>
+
         {summary.latest.length === 0 ? (
-          <div className="px-3 py-5 text-sm text-slate-500">
+          <div className="px-3 py-5 text-sm text-slate-500 dark:text-slate-400">
             {loading ? "Loading recent emails..." : "No renewal emails logged yet."}
           </div>
         ) : (
           summary.latest.map((log) => (
             <div
               key={log.id}
-              className="grid grid-cols-[1.2fr_1fr_0.8fr_0.8fr] items-center gap-3 border-t border-slate-100 px-3 py-3 text-sm"
+              className="flex flex-col sm:grid sm:grid-cols-[1.2fr_1fr_0.8fr_0.8fr] items-start sm:items-center gap-2 sm:gap-3 border-t border-slate-100 px-3 py-3 text-sm dark:border-slate-800"
             >
-              <span className="min-w-0 truncate font-medium text-slate-900">{log.recipient_email}</span>
-              <span className="min-w-0 truncate text-slate-600">
+              <div className="min-w-0 w-full sm:w-auto">
+                <span className="block truncate font-medium text-slate-900 dark:text-slate-100">
+                  {log.recipient_email}
+                </span>
+                <span className="block truncate text-xs text-slate-600 dark:text-slate-300 sm:hidden mt-0.5">
+                  {log.customer_name || log.business_name || "-"}
+                </span>
+              </div>
+
+              <span className="min-w-0 truncate text-slate-600 dark:text-slate-300 hidden sm:block">
                 {log.customer_name || log.business_name || "-"}
               </span>
-              <Badge variant={log.status === "sent" ? "secondary" : "outline"}>{log.status}</Badge>
-              <span className="text-slate-500">{formatDate(log.sent_at)}</span>
+
+              <div className="flex w-full items-center justify-between sm:justify-start mt-1 sm:mt-0">
+                <span className="text-xs text-slate-500 dark:text-slate-400 sm:hidden">Status:</span>
+                <Badge variant={log.status === "sent" ? "secondary" : "outline"} className="text-[10px] sm:text-xs">
+                  {log.status}
+                </Badge>
+              </div>
+
+              <div className="flex w-full items-center justify-between sm:justify-start">
+                <span className="text-xs text-slate-500 dark:text-slate-400 sm:hidden">Sent:</span>
+                <span className="text-xs sm:text-sm text-slate-500 dark:text-slate-400">
+                  {formatDate(log.sent_at)}
+                </span>
+              </div>
             </div>
           ))
         )}

@@ -173,14 +173,14 @@ export default function SupplierTermsPage() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50/50 px-4 py-6 sm:px-6 lg:px-8">
+    <div className="min-h-screen bg-transparent px-4 py-6 text-slate-900 dark:bg-transparent dark:text-slate-100 sm:px-6 lg:px-8">
       <div className="mx-auto max-w-[1500px] space-y-6">
-        <div className="rounded-lg border bg-white p-5 shadow-sm">
-          <p className="text-sm font-medium text-slate-500">Payments</p>
+        <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+          <p className="text-sm font-medium text-slate-500 dark:text-slate-400">Payments</p>
           <div className="mt-1 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
             <div>
-              <h1 className="text-3xl font-semibold text-slate-950">Supplier Payment Terms</h1>
-              <p className="mt-2 max-w-4xl text-sm text-slate-600">
+              <h1 className="text-3xl font-semibold text-slate-950 dark:text-slate-50">Supplier Payment Terms</h1>
+              <p className="mt-2 max-w-4xl text-sm text-slate-600 dark:text-slate-400">
                 Control when commission is expected. Client-approved suppliers are already configured for upfront,
                 monthly, or quarterly payment schedules.
               </p>
@@ -191,31 +191,42 @@ export default function SupplierTermsPage() {
           </div>
         </div>
 
-        {error && <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>}
+        {error && (
+          <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-400">
+            {error}
+          </div>
+        )}
         {successMessage && (
-          <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+          <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700 dark:border-emerald-900/50 dark:bg-emerald-950/30 dark:text-emerald-400">
             {successMessage}
           </div>
         )}
 
-        <Card className="border-slate-200 shadow-sm">
+        <Card className="border-slate-200 shadow-sm dark:border-slate-800 dark:bg-slate-900">
           <CardHeader>
             <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
               <div>
-                <CardTitle>Commission policies</CardTitle>
-                <CardDescription>Changes affect newly generated commission schedules only.</CardDescription>
+                <CardTitle className="text-slate-950 dark:text-slate-50">Commission policies</CardTitle>
+                <CardDescription className="dark:text-slate-400">Changes affect newly generated commission schedules only.</CardDescription>
               </div>
               <div className="flex flex-col gap-2 sm:flex-row">
                 <div className="relative">
-                  <Search className="pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-slate-400" />
-                  <Input className="w-full pl-9 sm:w-72" placeholder="Search suppliers..." value={searchTerm} onChange={(event) => setSearchTerm(event.target.value)} />
+                  <Search className="pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-slate-400 dark:text-slate-500" />
+                  <Input
+                    className="w-full pl-9 sm:w-72 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-100 dark:placeholder:text-slate-500"
+                    placeholder="Search suppliers..."
+                    value={searchTerm}
+                    onChange={(event) => setSearchTerm(event.target.value)}
+                  />
                 </div>
                 <Select value={statusFilter} onValueChange={(value: "all" | "missing" | "configured") => setStatusFilter(value)}>
-                  <SelectTrigger className="w-full sm:w-40"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All terms</SelectItem>
-                    <SelectItem value="missing">Missing</SelectItem>
-                    <SelectItem value="configured">Configured</SelectItem>
+                  <SelectTrigger className="w-full sm:w-40 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-100">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="dark:border-slate-800 dark:bg-slate-900">
+                    <SelectItem value="all" className="dark:hover:bg-slate-800">All terms</SelectItem>
+                    <SelectItem value="missing" className="dark:hover:bg-slate-800">Missing</SelectItem>
+                    <SelectItem value="configured" className="dark:hover:bg-slate-800">Configured</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -223,27 +234,30 @@ export default function SupplierTermsPage() {
           </CardHeader>
           <CardContent>
             {loading ? (
-              <div className="flex min-h-48 items-center justify-center text-slate-500"><Loader2 className="mr-2 h-5 w-5 animate-spin" />Loading supplier terms...</div>
+              <div className="flex min-h-48 items-center justify-center text-slate-500 dark:text-slate-400">
+                <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                Loading supplier terms...
+              </div>
             ) : (
               <div className="space-y-3">
                 {filteredSuppliers.map((supplier) => {
                   const draft = drafts[supplier.supplier_id] || emptyDraft;
                   const isUsageBased = draft.policy === "monthly_actual" || draft.policy === "quarterly_actual";
                   return (
-                    <div key={supplier.supplier_id} className="overflow-hidden rounded-lg border bg-white shadow-sm">
+                    <div key={supplier.supplier_id} className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900">
                       <div className="flex flex-col gap-3 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
                         <div className="min-w-0">
-                          <p className="break-words font-semibold text-slate-950">
+                          <p className="break-words font-semibold text-slate-950 dark:text-slate-50">
                             {supplier.supplier_company_name || `Supplier #${supplier.supplier_id}`}
                           </p>
-                          <p className="mt-1 break-words text-xs text-slate-500">
+                          <p className="mt-1 break-words text-xs text-slate-500 dark:text-slate-400">
                             ID {supplier.supplier_id}
                             {supplier.supplier_contact_name ? ` · ${supplier.supplier_contact_name}` : ""}
                           </p>
                         </div>
                         <div className="flex shrink-0 items-center gap-3 self-start sm:self-auto">
                           {supplier.terms_configured ? (
-                            <Badge className="gap-1 whitespace-nowrap bg-emerald-100 text-emerald-700 hover:bg-emerald-100">
+                            <Badge className="gap-1 whitespace-nowrap bg-emerald-100 text-emerald-700 hover:bg-emerald-100 dark:bg-emerald-950/60 dark:text-emerald-300 dark:hover:bg-emerald-950/60">
                               <CheckCircle2 className="h-3.5 w-3.5" />Configured
                             </Badge>
                           ) : (
@@ -257,33 +271,42 @@ export default function SupplierTermsPage() {
                         </div>
                       </div>
 
-                      <div className="grid gap-5 border-t bg-slate-50/70 p-4 lg:grid-cols-[minmax(220px,280px)_minmax(0,1fr)]">
+                      <div className="grid gap-5 border-t border-slate-200 bg-slate-50/70 p-4 dark:border-slate-800 dark:bg-slate-950/50 lg:grid-cols-[minmax(220px,280px)_minmax(0,1fr)]">
                         <div className="min-w-0">
-                          <Label className="mb-1.5 block text-xs text-slate-500">Payment policy</Label>
+                          <Label className="mb-1.5 block text-xs text-slate-500 dark:text-slate-400">Payment policy</Label>
                           <Select value={draft.policy || undefined} onValueChange={(value: Exclude<PaymentPolicy, "">) => updateDraft(supplier.supplier_id, { policy: value })}>
-                            <SelectTrigger className="w-full"><SelectValue placeholder="Select policy" /></SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="annual">Annual estimated</SelectItem>
-                              <SelectItem value="upfront">Full contract upfront</SelectItem>
-                              <SelectItem value="upfront_reconciliation">Upfront + reconciliation</SelectItem>
-                              <SelectItem value="monthly_actual">Monthly actual usage</SelectItem>
-                              <SelectItem value="quarterly_actual">Quarterly actual usage</SelectItem>
+                            <SelectTrigger className="w-full dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100">
+                              <SelectValue placeholder="Select policy" />
+                            </SelectTrigger>
+                            <SelectContent className="dark:border-slate-800 dark:bg-slate-900">
+                              <SelectItem value="annual" className="dark:hover:bg-slate-800">Annual estimated</SelectItem>
+                              <SelectItem value="upfront" className="dark:hover:bg-slate-800">Full contract upfront</SelectItem>
+                              <SelectItem value="upfront_reconciliation" className="dark:hover:bg-slate-800">Upfront + reconciliation</SelectItem>
+                              <SelectItem value="monthly_actual" className="dark:hover:bg-slate-800">Monthly actual usage</SelectItem>
+                              <SelectItem value="quarterly_actual" className="dark:hover:bg-slate-800">Quarterly actual usage</SelectItem>
                             </SelectContent>
                           </Select>
-                          {draft.policy && <p className="mt-2 text-xs font-medium text-slate-500">{policyLabel(draft.policy)}</p>}
+                          {draft.policy && <p className="mt-2 text-xs font-medium text-slate-500 dark:text-slate-400">{policyLabel(draft.policy)}</p>}
                         </div>
 
                         <div className="min-w-0">
                           {draft.policy === "upfront_reconciliation" ? (
                             <div className="grid gap-3 sm:grid-cols-[180px_minmax(0,1fr)] sm:items-end">
                               <div className="min-w-0">
-                                <Label className="mb-1.5 block text-xs text-slate-500">Upfront percentage</Label>
+                                <Label className="mb-1.5 block text-xs text-slate-500 dark:text-slate-400">Upfront percentage</Label>
                                 <div className="flex min-w-0">
-                                  <Input className="min-w-0 rounded-r-none" min={0} max={100} type="number" value={draft.upfrontPercentage} onChange={(event) => updateDraft(supplier.supplier_id, { upfrontPercentage: event.target.value })} />
-                                  <span className="flex h-9 w-11 shrink-0 items-center justify-center rounded-r-md border border-l-0 bg-white text-sm text-slate-500">%</span>
+                                  <Input
+                                    className="min-w-0 rounded-r-none dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100"
+                                    min={0}
+                                    max={100}
+                                    type="number"
+                                    value={draft.upfrontPercentage}
+                                    onChange={(event) => updateDraft(supplier.supplier_id, { upfrontPercentage: event.target.value })}
+                                  />
+                                  <span className="flex h-9 w-11 shrink-0 items-center justify-center rounded-r-md border border-l-0 border-slate-200 bg-white text-sm text-slate-500 dark:border-slate-800 dark:bg-slate-800 dark:text-slate-300">%</span>
                                 </div>
                               </div>
-                              <p className="pb-2 text-sm text-slate-600">The remaining balance is reconciled at contract end.</p>
+                              <p className="pb-2 text-sm text-slate-600 dark:text-slate-400">The remaining balance is reconciled at contract end.</p>
                             </div>
                           ) : isUsageBased ? (
                             <div className="grid gap-3 sm:grid-cols-3">
@@ -293,24 +316,36 @@ export default function SupplierTermsPage() {
                                 ["Grace period", "graceDays"],
                               ] as const).map(([label, field]) => (
                                 <div key={field} className="min-w-0">
-                                  <Label className="mb-1.5 block min-h-4 text-xs text-slate-500">{label}</Label>
+                                  <Label className="mb-1.5 block min-h-4 text-xs text-slate-500 dark:text-slate-400">{label}</Label>
                                   <div className="flex min-w-0">
-                                    <Input className="min-w-0 rounded-r-none" min={0} type="number" value={draft[field]} onChange={(event) => updateDraft(supplier.supplier_id, { [field]: event.target.value })} />
-                                    <span className="flex h-9 w-14 shrink-0 items-center justify-center rounded-r-md border border-l-0 bg-white text-xs text-slate-500">days</span>
+                                    <Input
+                                      className="min-w-0 rounded-r-none dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100"
+                                      min={0}
+                                      type="number"
+                                      value={draft[field]}
+                                      onChange={(event) => updateDraft(supplier.supplier_id, { [field]: event.target.value })}
+                                    />
+                                    <span className="flex h-9 w-14 shrink-0 items-center justify-center rounded-r-md border border-l-0 border-slate-200 bg-white text-xs text-slate-500 dark:border-slate-800 dark:bg-slate-800 dark:text-slate-300">days</span>
                                   </div>
                                 </div>
                               ))}
                             </div>
                           ) : draft.policy === "annual" || draft.policy === "upfront" ? (
                             <div className="max-w-60">
-                              <Label className="mb-1.5 block text-xs text-slate-500">Delay after live date</Label>
+                              <Label className="mb-1.5 block text-xs text-slate-500 dark:text-slate-400">Delay after live date</Label>
                               <div className="flex min-w-0">
-                                <Input className="min-w-0 rounded-r-none" min={0} type="number" value={draft.delayDays} onChange={(event) => updateDraft(supplier.supplier_id, { delayDays: event.target.value })} />
-                                <span className="flex h-9 w-14 shrink-0 items-center justify-center rounded-r-md border border-l-0 bg-white text-xs text-slate-500">days</span>
+                                <Input
+                                  className="min-w-0 rounded-r-none dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100"
+                                  min={0}
+                                  type="number"
+                                  value={draft.delayDays}
+                                  onChange={(event) => updateDraft(supplier.supplier_id, { delayDays: event.target.value })}
+                                />
+                                <span className="flex h-9 w-14 shrink-0 items-center justify-center rounded-r-md border border-l-0 border-slate-200 bg-white text-xs text-slate-500 dark:border-slate-800 dark:bg-slate-800 dark:text-slate-300">days</span>
                               </div>
                             </div>
                           ) : (
-                            <div className="flex min-h-16 items-center rounded-md border border-dashed bg-white px-4 text-sm text-slate-500">
+                            <div className="flex min-h-16 items-center rounded-md border border-dashed border-slate-300 bg-white px-4 text-sm text-slate-500 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-400">
                               Select how this supplier pays commission.
                             </div>
                           )}
@@ -319,7 +354,11 @@ export default function SupplierTermsPage() {
                     </div>
                   );
                 })}
-                {filteredSuppliers.length === 0 && <div className="rounded-lg border border-dashed px-4 py-12 text-center text-slate-500">No suppliers match the current filters.</div>}
+                {filteredSuppliers.length === 0 && (
+                  <div className="rounded-lg border border-dashed border-slate-300 px-4 py-12 text-center text-slate-500 dark:border-slate-800 dark:text-slate-400">
+                    No suppliers match the current filters.
+                  </div>
+                )}
               </div>
             )}
           </CardContent>

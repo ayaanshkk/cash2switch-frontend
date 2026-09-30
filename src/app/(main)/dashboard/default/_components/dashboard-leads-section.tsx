@@ -9,7 +9,7 @@ export function DashboardLeadsSection({ employeeId }: { employeeId?: number | nu
   const { user } = useAuth();
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 text-slate-900 dark:text-slate-100">
       {/* Team Performance Grid - Shows lead performance metrics */}
       <StaffPerformanceGrid 
         employeeId={employeeId ?? undefined} 
