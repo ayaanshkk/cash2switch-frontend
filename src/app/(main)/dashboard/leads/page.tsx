@@ -143,6 +143,7 @@ export default function LeadsPage() {
   const [employees, setEmployees]         = useState<Employee[]>([]);
   const [stages, setStages]               = useState<Stage[]>([]);
   const [employeeStats, setEmployeeStats] = useState<TeamStat[]>([]);
+  const [unallocatedCount, setUnallocatedCount] = useState<number>(0);
 
   // ── Loading / error ────────────────────────────────────────────────        
   const [isLoading, setIsLoading]     = useState(true);
@@ -225,6 +226,102 @@ export default function LeadsPage() {
   const [bulkAssignEmployeeName, setBulkAssignEmployeeName] = useState("");
   const [bulkAssignmentNotes, setBulkAssignmentNotes]       = useState("");
   const [isBulkAssigning, setIsBulkAssigning]               = useState(false);
+
+  // ── Unallocated modal ─────────────────────────────────────────────────────
+  type UnallocatedLead = { opportunity_id: number; business_name: string | null; contact_person: string | null; tel_number: string | null; supplier_name: string | null; end_date: string | null; mpan_mpr: string | null; };
+  const [showUnallocatedModal, setShowUnallocatedModal] = useState(false);
+  const [unallocatedLeads, setUnallocatedLeads]         = useState<UnallocatedLead[]>([]);
+  const [unallocatedModalLoading, setUnallocatedModalLoading] = useState(false);
+  const [unallocatedPage, setUnallocatedPage] = useState(1);
+  const [unallocatedTotal, setUnallocatedTotal] = useState(0);
+  const UNALLOC_PAGE_SIZE = 50;
+  const [assigningUnallocId, setAssigningUnallocId] = useState<number | null>(null);
+
+  const fetchUnallocatedLeads = async (page = 1) => {
+    setUnallocatedModalLoading(true);
+    try {
+      const params = new URLSearchParams({
+        unallocated: 'true',
+        service,
+        page: String(page),
+        page_size: String(UNALLOC_PAGE_SIZE),
+      });
+      const resp = await fetchWithAuth(`${CRM_PROXY}/leads?${params.toString()}`);
+      setUnallocatedLeads(resp?.data ?? []);
+      setUnallocatedTotal(resp?.total ?? 0);
+      setUnallocatedPage(page);
+    } catch { /* non-fatal */ } finally {
+      setUnallocatedModalLoading(false);
+    }
+  };
+
+  const openUnallocatedModal = () => {
+    setShowUnallocatedModal(true);
+    fetchUnallocatedLeads(1);
+  };
+
+  const assignUnallocatedLead = async (opportunityId: number, employeeId: string) => {
+    setAssigningUnallocId(opportunityId);
+    try {
+      const empId = employeeId === "0" ? null : parseInt(employeeId);
+      await fetchWithAuth(`${CRM_PROXY}/leads/assign`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ employee_id: empId, lead_ids: [opportunityId] }),
+      });
+      toast.success("Lead assigned");
+      // Remove from modal list and decrement total
+      setUnallocatedLeads((prev) => prev.filter((l) => l.opportunity_id !== opportunityId));
+      setUnallocatedTotal((prev) => Math.max(0, prev - 1));
+      setUnallocatedCount((prev) => Math.max(0, prev - 1));
+    } catch {
+      toast.error("Failed to assign lead");
+    } finally {
+      setAssigningUnallocId(null);
+    }
+  };
+
+  // ── Team member modal ──────────────────────────────────────────────────────
+  type TeamMemberStats = {
+    employee_id: number | null;
+    employee_name: string;
+    total: number;
+    converted: number; renewed: number; renewed_directly: number;
+    priced: number; in_progress: number; not_contacted: number; lost: number;
+  };
+  const [teamMemberModal, setTeamMemberModal] = useState<TeamMemberStats | null>(null);
+  const [teamMemberModalLoading, setTeamMemberModalLoading] = useState(false);
+
+  const openTeamMemberModal = async (stat: TeamStat) => {
+    const base: TeamMemberStats = {
+      employee_id: stat.employee_id,
+      employee_name: stat.employee_name,
+      total: stat.count ?? 0,
+      converted: 0, renewed: 0, renewed_directly: 0,
+      priced: 0, in_progress: 0, not_contacted: 0, lost: 0,
+    };
+    setTeamMemberModal(base);
+    setTeamMemberModalLoading(true);
+    try {
+      const params = new URLSearchParams({ service, period: 'alltime' });
+      if (stat.employee_id) params.set('employee_id', String(stat.employee_id));
+      const resp = await fetchWithAuth(`${CRM_PROXY}/leads/performance?${params.toString()}`);
+      if (resp && !resp.error) {
+        setTeamMemberModal({
+          ...base,
+          converted:        resp.converted_count        || 0,
+          renewed:          resp.renewed_count          || 0,
+          renewed_directly: resp.renewed_directly_count || 0,
+          priced:           resp.priced_count           || 0,
+          in_progress:      resp.contacted_count        || 0,
+          not_contacted:    resp.not_contacted_count    || 0,
+          lost:             resp.lost_count             || 0,
+        });
+      }
+    } catch { /* non-fatal */ } finally {
+      setTeamMemberModalLoading(false);
+    }
+  };
 
   // ── Performance ────────────────────────────────────────────────────────────
   const [performanceStats, setPerformanceStats] = useState({
@@ -322,6 +419,9 @@ export default function LeadsPage() {
             .map((s: any) => ({ employee_id: s.employee_id, employee_name: s.employee_name, count: s.count || 0 }))
             .filter((s: TeamStat) => (s.count ?? 0) > 0)
         );
+      }
+      if (typeof leadsResp?.unallocated_count === 'number') {
+        setUnallocatedCount(leadsResp.unallocated_count);
       }
     } catch (err: any) {
       console.error("❌ fetchLeads error:", err);
@@ -587,13 +687,78 @@ export default function LeadsPage() {
       await fetchWithAuth(`${CRM_PROXY}/leads/assign`, {
         method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload),
       });
-      if (response && response.error && !response.success) {
-        throw new Error(response.error);
+      setAllLeads(prev => prev.filter(l => l.opportunity_id !== assigningLeadId));
+      setSelectedLeads(prev => prev.filter(id => id !== assigningLeadId));
+      toast.success("✅ Salesperson assigned successfully");
+      setShowAssignModal(false);
+      setAssignToEmployeeId(""); setAssignmentNotes(""); setAssigningLeadId(null);
+    } catch { toast.error("Failed to assign salesperson"); }
+    finally { setIsAssigning(false); }
+  };
+
+  const handleBulkAssignWithNotes = async () => {
+    if (!bulkAssignEmployeeId) {
+      toast.error("Please select a salesperson"); return;
+    }
+    setIsBulkAssigning(true);
+    try {
+      const count = bulkAssignCount ? Number(bulkAssignCount) : null;
+
+      // Always use server-side assign-by-filter when a count is specified —
+      // avoids fetching records just to collect IDs, no memory blowup, no cap.
+      if (count) {
+        const payload: any = {
+          employee_id: bulkAssignEmployeeId,
+          count,
+          service,
+          exclude_stage: 'Lost',
+        };
+        if (salespersonFilter !== "All") payload.salesperson_filter = salespersonFilter;
+        if (bulkAssignmentNotes.trim()) payload.assignment_notes = bulkAssignmentNotes.trim();
+
+        const response = await fetchWithAuth(`${CRM_PROXY}/leads/assign-by-filter`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+        if (response.success) {
+          setAllLeads([]);
+          setSelectedLeads([]);
+          setIsSelectAllChecked(false);
+          setShowBulkAssignModal(false);
+          setBulkAssignmentNotes("");
+          setBulkAssignEmployeeId(null);
+          setBulkAssignEmployeeName("");
+          toast.success(`✅ ${response.assigned_count} leads assigned to ${response.employee_name}`);
+          await fetchLeads(1);
+        } else {
+          toast.error(response.error || "Assignment failed");
+        }
+        return;
       }
 
-      setAllLeads(prev => prev.filter(l => !leadsToAssign.includes(l.opportunity_id)));
-      const remaining = selectedLeads.filter(id => !leadsToAssign.includes(id));
-      setSelectedLeads(remaining);
+      // No count entered — assign only the explicitly checked leads
+      const leadsToAssign: number[] = selectedLeads;
+
+      if (!leadsToAssign.length) {
+        toast.error("No leads to assign"); return;
+      }
+
+      const payload: any = { lead_ids: leadsToAssign, employee_id: bulkAssignEmployeeId };
+      if (bulkAssignmentNotes.trim()) payload.assignment_notes = bulkAssignmentNotes.trim();
+
+      let response: any = null;
+      try {
+        response = await fetchWithAuth(`${CRM_PROXY}/leads/assign`, {
+          method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload),
+        });
+      } catch (fetchErr: any) {
+        console.warn("Assign fetch error (may have succeeded in DB):", fetchErr);
+      }
+
+      if (response && response.error && !response.success) throw new Error(response.error);
+
+      setSelectedLeads([]);
       setIsSelectAllChecked(false);
       setShowBulkAssignModal(false);
       setBulkAssignmentNotes("");
@@ -933,12 +1098,33 @@ export default function LeadsPage() {
       </div>
 
       {/* Team Overview (admin only) */}
-      {isAdmin && employeeStats.length > 0 && (
+      {isAdmin && (employeeStats.length > 0 || unallocatedCount > 0) && (
         <div className="mb-6">
           <h2 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">Team Overview</h2>
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
+            {unallocatedCount > 0 && (
+              <button
+                type="button"
+                onClick={openUnallocatedModal}
+                className="text-left bg-orange-50 border border-orange-300 rounded-lg p-4 hover:shadow-md transition-shadow cursor-pointer"
+              >
+                <div className="flex items-center gap-2 mb-2">
+                  <AlertCircle className="h-4 w-4 text-orange-600" />
+                  <span className="text-xs font-semibold text-orange-700 truncate">Unallocated</span>
+                </div>
+                <div className="flex items-baseline gap-2">
+                  <span className="text-2xl font-bold text-orange-700">{unallocatedCount.toLocaleString()}</span>
+                  <span className="text-xs text-orange-500">lead{unallocatedCount !== 1 ? "s" : ""}</span>
+                </div>
+              </button>
+            )}
             {employeeStats.map(stat => (
-              <div key={stat.employee_id ?? "unassigned"} className="bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-800 rounded-lg p-4 hover:shadow-md transition-shadow">
+              <button
+                key={stat.employee_id ?? "unassigned"}
+                type="button"
+                onClick={() => openTeamMemberModal(stat)}
+                className="text-left bg-white border border-gray-200 rounded-lg p-4 hover:shadow-md hover:border-blue-300 transition-all cursor-pointer"
+              >
                 <div className="flex items-center gap-2 mb-2">
                   <Users className="h-4 w-4 text-blue-600 dark:text-blue-400 shrink-0" />
                   <span className="text-xs font-medium text-gray-500 dark:text-gray-400 truncate">{stat.employee_name}</span>
@@ -947,8 +1133,168 @@ export default function LeadsPage() {
                   <span className="text-2xl font-bold text-gray-900 dark:text-slate-100">{stat.count ?? stat.lead_count ?? 0}</span>
                   <span className="text-xs text-gray-500 dark:text-gray-400">lead{(stat.count ?? 0) !== 1 ? "s" : ""}</span>
                 </div>
-              </div>
+              </button>
             ))}
+          </div>
+        </div>
+      )}
+
+      {/* Team member stats modal */}
+      {teamMemberModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 cursor-pointer" onClick={() => setTeamMemberModal(null)}>
+          <div className="relative w-full max-w-md rounded-xl bg-white shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            {/* Header */}
+            <div className="flex items-center justify-between px-6 py-4 border-b">
+              <div className="flex items-center gap-3">
+                <div className="bg-blue-600 p-2 rounded-lg"><Users className="h-5 w-5 text-white" /></div>
+                <div>
+                  <h2 className="text-lg font-semibold text-gray-900">{teamMemberModal.employee_name}</h2>
+                  <p className="text-xs text-gray-400">{service.charAt(0).toUpperCase() + service.slice(1)} leads</p>
+                </div>
+              </div>
+              <button type="button" onClick={() => setTeamMemberModal(null)} className="rounded-md p-1 hover:bg-gray-100 cursor-pointer">
+                <span className="text-gray-400 text-lg leading-none">✕</span>
+              </button>
+            </div>
+
+            {/* Body */}
+            <div className="px-6 py-5 space-y-4">
+              {/* Total */}
+              <div className="flex items-center justify-between rounded-lg bg-blue-50 border border-blue-100 px-4 py-3">
+                <span className="text-sm font-semibold text-blue-800">Total Leads</span>
+                <span className="text-2xl font-bold text-blue-900">{teamMemberModal.total.toLocaleString()}</span>
+              </div>
+
+              {/* Stage breakdown */}
+              {teamMemberModalLoading ? (
+                <div className="text-center text-sm text-gray-400 py-4">Loading breakdown…</div>
+              ) : (
+                <div className="grid grid-cols-2 gap-2">
+                  {[
+                    { label: "Not Contacted", value: teamMemberModal.not_contacted, color: "bg-gray-50 border-gray-200 text-gray-700" },
+                    { label: "In Progress",   value: teamMemberModal.in_progress,   color: "bg-blue-50 border-blue-100 text-blue-700" },
+                    { label: "Priced",        value: teamMemberModal.priced,        color: "bg-yellow-50 border-yellow-100 text-yellow-700" },
+                    { label: "Converted",     value: teamMemberModal.converted,     color: "bg-green-50 border-green-100 text-green-700" },
+                    { label: "Renewed",       value: teamMemberModal.renewed + teamMemberModal.renewed_directly, color: "bg-emerald-50 border-emerald-100 text-emerald-700" },
+                    { label: "Lost",          value: teamMemberModal.lost,          color: "bg-red-50 border-red-100 text-red-700" },
+                  ].map(({ label, value, color }) => (
+                    <div key={label} className={`rounded-lg border px-3 py-2 ${color}`}>
+                      <p className="text-xs font-medium opacity-70">{label}</p>
+                      <p className="text-xl font-bold">{value.toLocaleString()}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Filter button */}
+              <button
+                type="button"
+                onClick={() => {
+                  if (teamMemberModal.employee_id) setSalespersonFilter(teamMemberModal.employee_id);
+                  setTeamMemberModal(null);
+                }}
+                className="w-full rounded-lg border border-blue-300 bg-blue-50 py-2 text-sm font-medium text-blue-700 hover:bg-blue-100 transition-colors cursor-pointer"
+              >
+                View {teamMemberModal.employee_name}'s leads →
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Unallocated leads modal */}
+      {showUnallocatedModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 cursor-pointer" onClick={() => setShowUnallocatedModal(false)}>
+          <div className="relative w-full max-w-4xl max-h-[85vh] flex flex-col rounded-xl bg-white shadow-2xl cursor-default" onClick={(e) => e.stopPropagation()}>
+            {/* Header */}
+            <div className="flex items-center justify-between px-6 py-4 border-b rounded-t-xl bg-orange-50">
+              <div className="flex items-center gap-3">
+                <AlertCircle className="h-5 w-5 text-orange-600" />
+                <div>
+                  <h2 className="text-lg font-semibold text-orange-900">Unallocated Leads</h2>
+                  <p className="text-xs text-orange-600">{unallocatedTotal.toLocaleString()} leads not yet assigned to anyone</p>
+                </div>
+              </div>
+              <button type="button" onClick={() => setShowUnallocatedModal(false)} className="rounded-md p-1 hover:bg-orange-100 cursor-pointer">
+                <span className="text-orange-500 text-lg leading-none">✕</span>
+              </button>
+            </div>
+
+            {/* Body */}
+            <div className="overflow-y-auto flex-1">
+              {unallocatedModalLoading ? (
+                <div className="flex items-center justify-center py-16 text-gray-400">
+                  <span className="animate-spin mr-2 text-lg">⟳</span> Loading…
+                </div>
+              ) : unallocatedLeads.length === 0 ? (
+                <p className="text-center text-gray-400 py-12">No unallocated leads found.</p>
+              ) : (
+                <table className="w-full text-sm">
+                  <thead className="bg-gray-50 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 border-b sticky top-0">
+                    <tr>
+                      <th className="px-4 py-2">Business</th>
+                      <th className="px-4 py-2">Contact</th>
+                      <th className="px-4 py-2">Phone</th>
+                      <th className="px-4 py-2">Supplier</th>
+                      <th className="px-4 py-2">MPAN/MPR</th>
+                      <th className="px-4 py-2">End Date</th>
+                      <th className="px-4 py-2">Assign To</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y bg-white">
+                    {unallocatedLeads.map((lead) => (
+                      <tr key={lead.opportunity_id} className="hover:bg-gray-50">
+                        <td className="px-4 py-2 font-medium text-gray-900">{lead.business_name || '—'}</td>
+                        <td className="px-4 py-2 text-gray-600">{lead.contact_person || '—'}</td>
+                        <td className="px-4 py-2 text-gray-600">{lead.tel_number || '—'}</td>
+                        <td className="px-4 py-2 text-gray-600">{lead.supplier_name || '—'}</td>
+                        <td className="px-4 py-2 font-mono text-xs text-gray-600">{lead.mpan_mpr || '—'}</td>
+                        <td className="px-4 py-2 text-gray-600">{lead.end_date ? new Date(lead.end_date).toLocaleDateString('en-GB') : '—'}</td>
+                        <td className="px-4 py-2">
+                          {assigningUnallocId === lead.opportunity_id ? (
+                            <Loader2 className="h-4 w-4 animate-spin text-gray-400" />
+                          ) : (
+                            <Select onValueChange={(v) => assignUnallocatedLead(lead.opportunity_id, v)}>
+                              <SelectTrigger className="h-7 text-xs w-36 cursor-pointer">
+                                <SelectValue placeholder="Select…" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {employees.map((e) => (
+                                  <SelectItem key={e.employee_id} value={String(e.employee_id)} className="cursor-pointer">
+                                    {e.employee_name}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+
+            {/* Pagination */}
+            {!unallocatedModalLoading && unallocatedTotal > UNALLOC_PAGE_SIZE && (
+              <div className="flex items-center justify-between border-t px-6 py-3 text-sm text-gray-500">
+                <span>Page {unallocatedPage} of {Math.ceil(unallocatedTotal / UNALLOC_PAGE_SIZE)}</span>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    disabled={unallocatedPage <= 1}
+                    onClick={() => fetchUnallocatedLeads(unallocatedPage - 1)}
+                    className="px-3 py-1 rounded border border-gray-200 hover:bg-gray-50 disabled:opacity-40 cursor-pointer"
+                  >Previous</button>
+                  <button
+                    type="button"
+                    disabled={unallocatedPage >= Math.ceil(unallocatedTotal / UNALLOC_PAGE_SIZE)}
+                    onClick={() => fetchUnallocatedLeads(unallocatedPage + 1)}
+                    className="px-3 py-1 rounded border border-gray-200 hover:bg-gray-50 disabled:opacity-40 cursor-pointer"
+                  >Next</button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}

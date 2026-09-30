@@ -1,7 +1,7 @@
 "use client";
 
 import { createContext, useContext, useEffect, useState, ReactNode, useCallback, useRef } from "react";
-import { api } from "@/lib/api"; // ✅ Use centralized API
+import { api } from "@/lib/api";
 
 type Notification = {
   id: string;
@@ -19,6 +19,8 @@ type NotificationContextType = {
   notifications: Notification[];
   unreadCount: number;
   loading: boolean;
+  newToasts: Notification[];
+  dismissToast: (id: string) => void;
   fetchNotifications: () => Promise<void>;
   markAsRead: (id: string) => Promise<void>;
   markAllAsRead: () => Promise<void>;
@@ -36,8 +38,10 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [loading, setLoading] = useState(true);
-  
+  const [newToasts, setNewToasts] = useState<Notification[]>([]);
+
   const previousUnreadCountRef = useRef<number>(0);
+  const seenIdsRef = useRef<Set<string>>(new Set());
   const isFetchingRef = useRef(false);
   const consecutiveFailsRef = useRef(0);
   const hasInteractedRef = useRef(false);
@@ -75,6 +79,16 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
       setNotifications(newNotifications);
       setUnreadCount(newUnreadCount);
 
+      // Detect genuinely new notifications (not seen in a previous poll)
+      const isFirstPoll = seenIdsRef.current.size === 0;
+      const brandNew = newNotifications.filter((n) => !seenIdsRef.current.has(n.id) && !n.read);
+      newNotifications.forEach((n) => seenIdsRef.current.add(n.id));
+
+      if (!isFirstPoll && brandNew.length > 0) {
+        // Show at most the 3 newest as toasts
+        setNewToasts((prev) => [...brandNew.slice(0, 3), ...prev].slice(0, 5));
+      }
+
       // Play sound for new urgent notifications
       if (
         hasInteractedRef.current &&
@@ -89,13 +103,6 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
           const audio = new Audio(NOTIFICATION_SOUND_PATH);
           audio.volume = 1.0;
           audio.play().catch(() => {});
-
-          if ("Notification" in window && Notification.permission === "granted") {
-            new Notification("🚨 Urgent Contract Expiry!", {
-              body: "You have contracts expiring soon. Check notifications now!",
-              icon: "/favicon.ico",
-            });
-          }
         }
       }
 
@@ -136,12 +143,18 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
     return () => clearTimeout(timer);
   }, [fetchNotifications]);
 
+  const dismissToast = useCallback((id: string) => {
+    setNewToasts((prev) => prev.filter((n) => n.id !== id));
+  }, []);
+
   return (
     <NotificationContext.Provider
       value={{
         notifications,
         unreadCount,
         loading,
+        newToasts,
+        dismissToast,
         fetchNotifications,
         
         markAsRead: useCallback(async (id: string) => {

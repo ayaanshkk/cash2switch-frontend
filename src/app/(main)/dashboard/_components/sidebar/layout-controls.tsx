@@ -13,8 +13,8 @@ import { setValueToCookie } from "@/server/server-actions";
 import { usePreferencesStore } from "@/stores/preferences/preferences-provider";
 import type { SidebarVariant, SidebarCollapsible, ContentLayout } from "@/types/preferences/layout";
 import { THEME_PRESET_OPTIONS, type ThemePreset, type ThemeMode } from "@/types/preferences/theme";
-// ✅ CHANGED: Import NotificationSidebar instead of NotificationBell
 import { NotificationSidebar } from "@/components/NotificationSidebar";
+import { NotificationToastBanner } from "@/components/NotificationToastBanner";
 
 type LayoutControlsProps = {
   readonly variant: SidebarVariant;
@@ -49,7 +49,7 @@ export function LayoutControls(props: LayoutControlsProps) {
 
   return (
     <div className="flex items-center gap-2">
-      {/* ✅ CHANGED: Using NotificationSidebar component */}
+      <NotificationToastBanner />
       <NotificationSidebar />
       
       <Popover>

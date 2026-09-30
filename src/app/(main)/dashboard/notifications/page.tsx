@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { Bell, Check, CheckCheck, Filter, Search, Trash2, X, ExternalLink, AlertCircle } from 'lucide-react';
+import { Bell, Check, CheckCheck, Filter, Search, Trash2, X, ExternalLink, AlertCircle, UserCheck, Clock, FileText } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -29,23 +29,24 @@ interface Notification {
   priority: string;
 }
 
-// Extract display ID embedded in notification message (🆔 ID: 123)
 function extractDisplayId(message: string): string | null {
-  const match = message.match(/🆔 ID:\s*(\d+)/);
+  const match = message.match(/(?:🆔 )?ID:\s*(\d+)/);
   return match ? match[1] : null;
 }
 
-function getNotificationIcon(n: Notification) {
-  if (n.notification_type === 'assignment') return '📋';
-  if (n.priority === 'urgent') return '🚨';
-  if (n.notification_type?.includes('expiry')) return '⏰';
-  return '📌';
+function stripEmojis(text: string): string {
+  // Remove emoji characters and clean up leftover whitespace/colons
+  return text
+    .replace(/[\u{1F000}-\u{1FFFF}]|[\u{2600}-\u{26FF}]|[\u{2700}-\u{27BF}]|[\u{FE00}-\u{FE0F}]|[\u{1F900}-\u{1F9FF}]|[\u{1FA00}-\u{1FA6F}]|[\u{1FA70}-\u{1FAFF}]|\u{200D}|\u{FE0F}/gu, '')
+    .replace(/[ \t]+/g, ' ')
+    .replace(/^ /gm, '')
+    .trim();
 }
 
 function getNotificationLabel(n: Notification) {
-  if (n.notification_type === 'assignment') return { label: 'ASSIGNED', className: 'bg-blue-100 text-blue-800 border-blue-200 dark:bg-blue-950/60 dark:text-blue-300 dark:border-blue-800' };
-  if (n.notification_type === 'contract_expiry_0_30') return { label: '0-30 DAYS', className: 'bg-red-100 text-red-800 border-red-200 dark:bg-red-950/60 dark:text-red-300 dark:border-red-800' };
-  if (n.notification_type === 'contract_expiry_31_60') return { label: '31-60 DAYS', className: 'bg-orange-100 text-orange-800 border-orange-200 dark:bg-orange-950/60 dark:text-orange-300 dark:border-orange-800' };
+  if (n.notification_type === 'assignment') return { label: 'Assignment', className: 'bg-blue-50 text-blue-700 ring-1 ring-inset ring-blue-200' };
+  if (n.notification_type === 'contract_expiry_0_30') return { label: '0–30 days', className: 'bg-red-50 text-red-700 ring-1 ring-inset ring-red-200' };
+  if (n.notification_type === 'contract_expiry_31_60') return { label: '31–60 days', className: 'bg-amber-50 text-amber-700 ring-1 ring-inset ring-amber-200' };
   return null;
 }
 
@@ -93,13 +94,15 @@ const NotificationsPage = () => {
   };
 
   const handleClearAll = async () => {
-    if (!window.confirm('⚠️ PERMANENTLY DELETE ALL notifications? This cannot be undone.')) return;
+    if (!window.confirm('Permanently delete all notifications? This cannot be undone.')) return;
     await clearAllNotifications();
     setSelectedNotifications(new Set());
   };
 
-  const expiryCount = notifications.filter(n => n.notification_type?.includes('expiry')).length;
-  const assignmentCount = notifications.filter(n => n.notification_type === 'assignment').length;
+  const expiryCount = notifications.filter((n) => n.notification_type?.includes('expiry')).length;
+  const assignmentCount = notifications.filter((n) => n.notification_type === 'assignment').length;
+  // Backend returns newest 75; unread count is accurate from a separate DB count
+  const DISPLAY_LIMIT = 75;
 
   const filteredNotifications = notifications.filter((n: Notification) => {
     if (activeTab === 'unread') return !n.read;
@@ -121,8 +124,9 @@ const NotificationsPage = () => {
               <Bell className="h-7 w-7 sm:h-8 sm:w-8 shrink-0" />
               Notifications
             </h1>
-            <p className="text-sm sm:text-base text-muted-foreground mt-1 dark:text-slate-400">
-              Contract expiry reminders and assignment notifications
+            <p className="text-muted-foreground mt-1">
+              Showing the {DISPLAY_LIMIT} most recent — {unreadCount.toLocaleString()} unread in total.
+              Read notifications are automatically deleted after 30 days.
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -220,12 +224,15 @@ const NotificationsPage = () => {
         <ScrollArea className="h-[calc(100vh-340px)] pr-2">
           <div className="space-y-3">
             {filteredNotifications.map((notification: Notification) => {
-              const icon = getNotificationIcon(notification);
               const label = getNotificationLabel(notification);
               const isSelected = selectedNotifications.has(notification.id);
               const isUrgent = notification.priority === 'urgent';
               const isAssignment = notification.notification_type === 'assignment';
+              const isExpiry = notification.notification_type?.includes('expiry');
               const displayId = extractDisplayId(notification.message);
+              const IconComponent = isAssignment ? UserCheck : isExpiry ? Clock : FileText;
+              const iconColor = isAssignment ? 'text-blue-600' : isUrgent ? 'text-red-600' : 'text-gray-500';
+              const iconBg = isAssignment ? 'bg-blue-50' : isUrgent ? 'bg-red-50' : 'bg-gray-100';
 
               return (
                 <Card
@@ -244,8 +251,10 @@ const NotificationsPage = () => {
                         onChange={() => toggleSelect(notification.id)}
                         className="mt-1 h-4 w-4 shrink-0 rounded border-gray-300 cursor-pointer dark:border-slate-700 dark:bg-slate-800 dark:checked:bg-primary"
                       />
-                      <div className="text-2xl sm:text-3xl shrink-0">{icon}</div>
-                      <div className="flex-1 min-w-0 space-y-3">
+                      <div className={`mt-0.5 flex-shrink-0 rounded-md p-2 ${iconBg}`}>
+                        <IconComponent className={`h-5 w-5 ${iconColor}`} />
+                      </div>
+                      <div className="flex-1 space-y-3">
                         <div className="flex items-start justify-between gap-2">
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2 flex-wrap mb-1">
@@ -253,13 +262,13 @@ const NotificationsPage = () => {
                                 <Badge variant="destructive" className="text-xs">Urgent</Badge>
                               )}
                               {label && (
-                                <Badge variant="outline" className={`text-xs ${label.className}`}>
+                                <span className={`inline-flex items-center rounded px-1.5 py-0.5 text-xs font-medium ${label.className}`}>
                                   {label.label}
-                                </Badge>
+                                </span>
                               )}
                             </div>
-                            <p className={`text-sm whitespace-pre-line break-words text-slate-800 dark:text-slate-200 ${!notification.read ? 'font-semibold text-slate-950 dark:text-slate-50' : ''}`}>
-                              {notification.message}
+                            <p className={`text-sm whitespace-pre-line ${!notification.read ? 'font-semibold' : ''}`}>
+                              {stripEmojis(notification.message)}
                             </p>
                           </div>
                           {!notification.read && (

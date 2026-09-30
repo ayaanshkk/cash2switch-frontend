@@ -5,7 +5,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import {
   Upload, RefreshCw, Trash2, Zap,
   ChevronLeft, ChevronRight, ChevronFirst, ChevronLast,
-  Users, Search,
+  Users, Search, AlertCircle,
 } from "lucide-react";
 import { toast, Toaster } from "react-hot-toast";
 
@@ -225,6 +225,22 @@ export default function DraftsPage() {
     const start = (currentLeadsPage - 1) * DRAFTS_PER_PAGE;
     return draftLeads.slice(start, start + DRAFTS_PER_PAGE);
   }, [draftLeads, currentLeadsPage]);
+
+  // Per-supplier unallocated count — computed from all unfiltered draft leads
+  const supplierCounts = useMemo(() => {
+    const map = new Map<number, { name: string; count: number }>();
+    leads.forEach((l) => {
+      const sid = l.supplier_id;
+      if (!sid) return;
+      const sname = l.supplier_name || suppliers.find((s) => s.supplier_id === sid)?.supplier_name || `Supplier #${sid}`;
+      const entry = map.get(sid);
+      if (entry) entry.count++;
+      else map.set(sid, { name: sname, count: 1 });
+    });
+    return Array.from(map.entries())
+      .map(([id, d]) => ({ supplier_id: id, supplier_name: d.name, count: d.count }))
+      .sort((a, b) => b.count - a.count);
+  }, [leads, suppliers]);
 
   const selectedIds = selectedLeadIds;
 
@@ -575,6 +591,45 @@ export default function DraftsPage() {
           </SelectContent>
         </Select>
       </div>
+
+      {/* Supplier unallocated breakdown */}
+      {!loading && supplierCounts.length > 0 && (
+        <div className="mb-6">
+          <div className="flex items-center gap-2 mb-3">
+            <AlertCircle className="h-4 w-4 text-orange-500" />
+            <h2 className="text-sm font-medium text-gray-700">
+              Unallocated by Supplier
+              <span className="ml-2 text-gray-400 font-normal">
+                ({leads.length.toLocaleString()} total — click to filter)
+              </span>
+            </h2>
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
+            {supplierCounts.map((row) => (
+              <button
+                key={row.supplier_id}
+                type="button"
+                onClick={() => setSelectedSupplier(
+                  selectedSupplier === row.supplier_id.toString() ? "all" : row.supplier_id.toString()
+                )}
+                className={`text-left rounded-lg border p-3 transition-shadow hover:shadow-md cursor-pointer ${
+                  selectedSupplier === row.supplier_id.toString()
+                    ? "border-orange-400 bg-orange-50"
+                    : "border-gray-200 bg-white"
+                }`}
+              >
+                <p className="text-xs font-medium text-gray-600 truncate">{row.supplier_name}</p>
+                <p className={`text-2xl font-bold mt-1 ${
+                  selectedSupplier === row.supplier_id.toString() ? "text-orange-700" : "text-gray-900"
+                }`}>
+                  {row.count.toLocaleString()}
+                </p>
+                <p className="text-xs text-gray-400 mt-0.5">unallocated</p>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div>
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3">

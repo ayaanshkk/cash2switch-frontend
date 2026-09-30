@@ -4,6 +4,7 @@ import React, { FormEvent, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import {
+  AlertTriangle,
   Banknote,
   CalendarCheck,
   CheckCircle2,
@@ -16,6 +17,7 @@ import {
   Loader2,
   ReceiptText,
   Search,
+  X,
   XCircle,
 } from "lucide-react";
 
@@ -24,7 +26,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectSeparator, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Textarea } from "@/components/ui/textarea";
 import { fetchWithAuth } from "@/lib/api";
@@ -252,6 +254,104 @@ export default function PaymentCheckerPage() {
       .catch(() => {/* non-fatal */});
   }, []);
 
+  type SummaryModalType = 'expected' | 'received' | 'outstanding' | 'overdue' | null;
+  const [summaryModal, setSummaryModal] = useState<SummaryModalType>(null);
+  const [modalContracts, setModalContracts] = useState<PaymentGroup[]>([]);
+  const [modalLoading, setModalLoading] = useState(false);
+
+  const openSummaryModal = async (type: SummaryModalType) => {
+    setSummaryModal(type);
+    if (type === 'overdue') return; // uses chasingSummary already loaded
+    setModalLoading(true);
+    setModalContracts([]);
+    try {
+      const params = new URLSearchParams({ page: '1', page_size: '200' });
+      if (type === 'received') params.set('status', 'Received');
+      const data = await fetchWithAuth(`/api/commission/clients-with-payments?${params.toString()}`);
+      const mapped: CommissionPayment[] = [];
+      for (const client of data.clients || []) {
+        for (const p of client.payments) {
+          mapped.push({
+            ...p,
+            customer_name: client.business_name,
+            business_name: client.business_name,
+            supplier_name: client.supplier_name,
+            agent_name: client.agent_name,
+            mpan_number: client.mpan_number,
+            mpan_bottom: client.mpan_bottom,
+            contract_start_date: client.contract_start_date,
+            contract_end_date: client.contract_end_date,
+            service_id: client.service_id,
+            service_title: client.service_title,
+            aggregator: client.aggregator,
+            is_archived: client.is_archived,
+            is_deleted: client.is_deleted,
+            payment_policy_type: null,
+            next_follow_up_date: null,
+          });
+        }
+      }
+      // For outstanding modal, keep only rows with outstanding > 0
+      const filtered = type === 'outstanding'
+        ? mapped.filter((p) => Number(p.outstanding_amount || 0) > 0)
+        : mapped;
+      // Group by contract
+      const groups = new Map<string, PaymentGroup>();
+      filtered.forEach((payment) => {
+        const key = payment.contract_id ? `contract-${payment.contract_id}` : `payment-${payment.id}`;
+        const existing = groups.get(key);
+        if (!existing) {
+          groups.set(key, {
+            key,
+            title: payment.business_name || payment.customer_name || `Client #${payment.client_id}`,
+            subtitle: payment.supplier_name || '',
+            clientId: payment.client_id,
+            mpan: payment.mpan_number || payment.mpan_bottom || null,
+            contractStartDate: payment.contract_start_date,
+            contractEndDate: payment.contract_end_date,
+            serviceTitle: payment.service_title,
+            payments: [payment],
+            expected: Number(payment.expected_net_amount || 0),
+            received: Number(payment.amount_received || 0),
+            outstanding: Number(payment.outstanding_amount || 0),
+            nextDue: payment.due_date || null,
+            statuses: [payment.status],
+            isArchived: payment.is_archived ?? false,
+            isDeleted: payment.is_deleted ?? false,
+            needsChasing: false,
+          });
+        } else {
+          existing.payments.push(payment);
+          existing.expected += Number(payment.expected_net_amount || 0);
+          existing.received += Number(payment.amount_received || 0);
+          existing.outstanding += Number(payment.outstanding_amount || 0);
+          if (!existing.statuses.includes(payment.status)) existing.statuses.push(payment.status);
+        }
+      });
+      setModalContracts(Array.from(groups.values()));
+    } catch {
+      // non-fatal
+    } finally {
+      setModalLoading(false);
+    }
+  };
+
+  const overdueTotal = chasingSummary.reduce((sum, row) => sum + Number(row.total_outstanding || 0), 0);
+
+  // Resolve virtual status sentinels into real query params
+  const resolveFilters = (f: typeof filters) => {
+    const today = new Date().toISOString().slice(0, 10);
+    if (f.status === '__overdue__')    return { ...f, status: 'Due',  due_from: '', due_to: today };
+    if (f.status === '__this_week__')  return { ...f, status: 'all', due_from: today, due_to: new Date(Date.now() + 7  * 86400000).toISOString().slice(0, 10) };
+    if (f.status === '__this_month__') return { ...f, status: 'all', due_from: today, due_to: new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10) };
+    return f;
+  };
+
+  // When a supplier is clicked from the overdue modal, show that supplier's specific numbers
+  const activeChasing = filters.supplier !== 'all' && filters.needs_chasing === 'true'
+    ? chasingSummary.find((r) => String(r.supplier_id) === filters.supplier) ?? null
+    : null;
+
   const filteredPayments = useMemo(() => {
     const query = searchTerm.trim().toLowerCase();
     if (!query) return payments;
@@ -349,17 +449,18 @@ export default function PaymentCheckerPage() {
     nextSearchTerm = searchTerm,
     nextPagination = pagination,
   ) => {
+    const f = resolveFilters(nextFilters);
     const params = new URLSearchParams({
       page: String(nextPagination.page),
       page_size: String(nextPagination.page_size),
     });
-    if (nextFilters.status !== "all") params.set("status", nextFilters.status);
-    if (nextFilters.supplier !== "all") params.set("supplier", nextFilters.supplier);
-    if (nextFilters.agent !== "all") params.set("agent", nextFilters.agent);
-    if (nextFilters.aggregator !== "all") params.set("aggregator", nextFilters.aggregator);
-    if (nextFilters.due_from) params.set("due_from", nextFilters.due_from);
-    if (nextFilters.due_to) params.set("due_to", nextFilters.due_to);
-    if (nextFilters.needs_chasing) params.set("needs_chasing", nextFilters.needs_chasing);
+    if (f.status !== "all") params.set("status", f.status);
+    if (f.supplier !== "all") params.set("supplier", f.supplier);
+    if (f.agent !== "all") params.set("agent", f.agent);
+    if (f.aggregator !== "all") params.set("aggregator", f.aggregator);
+    if (f.due_from) params.set("due_from", f.due_from);
+    if (f.due_to) params.set("due_to", f.due_to);
+    if (f.needs_chasing) params.set("needs_chasing", f.needs_chasing);
     if (nextSearchTerm.trim()) params.set("search", nextSearchTerm.trim());
     return params.toString();
   };
@@ -373,17 +474,18 @@ export default function PaymentCheckerPage() {
     setError(null);
 
     try {
+      const f = resolveFilters(nextFilters);
       const params = new URLSearchParams({
         page: String(nextPagination.page),
         page_size: String(nextPagination.page_size),
       });
-      if (nextFilters.supplier !== "all") params.set("supplier", nextFilters.supplier);
-      if (nextFilters.agent !== "all") params.set("agent", nextFilters.agent);
-      if (nextFilters.status !== "all") params.set("status", nextFilters.status);
-      if (nextFilters.aggregator !== "all") params.set("aggregator", nextFilters.aggregator);
-      if (nextFilters.due_from) params.set("due_from", nextFilters.due_from);
-      if (nextFilters.due_to) params.set("due_to", nextFilters.due_to);
-      if (nextFilters.needs_chasing) params.set("needs_chasing", nextFilters.needs_chasing);
+      if (f.supplier !== "all") params.set("supplier", f.supplier);
+      if (f.agent !== "all") params.set("agent", f.agent);
+      if (f.status !== "all") params.set("status", f.status);
+      if (f.aggregator !== "all") params.set("aggregator", f.aggregator);
+      if (f.due_from) params.set("due_from", f.due_from);
+      if (f.due_to) params.set("due_to", f.due_to);
+      if (f.needs_chasing) params.set("needs_chasing", f.needs_chasing);
       if (nextSearchTerm.trim()) params.set("search", nextSearchTerm.trim());
 
       const data = await fetchWithAuth(`/api/commission/clients-with-payments?${params.toString()}`);
@@ -754,120 +856,69 @@ export default function PaymentCheckerPage() {
           </div>
         )}
 
-        <div className="grid gap-4 md:grid-cols-3">
-          <Card className="border-slate-200 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-            <CardHeader className="pb-2">
-              <CardTitle className="flex items-center gap-2 text-sm font-medium text-slate-600 dark:text-slate-400">
-                <CircleDollarSign className="h-4 w-4 text-slate-900 dark:text-slate-100" />
-                Expected
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="text-2xl font-semibold text-slate-950 dark:text-slate-50">{formatMoney(totals.expected)}</CardContent>
-          </Card>
-          <Card
-            className="cursor-pointer border-slate-200 shadow-sm transition-colors hover:border-emerald-300 hover:bg-emerald-50/40 dark:border-slate-800 dark:bg-slate-900 dark:hover:border-emerald-700 dark:hover:bg-emerald-950/20"
-            role="button"
-            tabIndex={0}
-            onClick={() => applyStatusShortcut("Received")}
-            onKeyDown={(event) => {
-              if (event.key === "Enter" || event.key === " ") {
-                event.preventDefault();
-                applyStatusShortcut("Received");
-              }
-            }}
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <button
+            type="button"
+            onClick={() => openSummaryModal('expected')}
+            className="text-left rounded-lg border border-slate-200 bg-white shadow-sm hover:shadow-md transition-shadow p-5 cursor-pointer"
           >
-            <CardHeader className="pb-2">
-              <CardTitle className="flex items-center gap-2 text-sm font-medium text-slate-600 dark:text-slate-400">
-                <CheckCircle2 className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
-                Received
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="text-2xl font-semibold text-slate-950 dark:text-slate-50">{formatMoney(totals.received)}</CardContent>
-          </Card>
-          <Card className="border-slate-200 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-            <CardHeader className="pb-2">
-              <CardTitle className="flex items-center gap-2 text-sm font-medium text-slate-600 dark:text-slate-400">
-                <CalendarCheck className="h-4 w-4 text-orange-600 dark:text-orange-400" />
-                Outstanding
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="text-2xl font-semibold text-slate-950 dark:text-slate-50">{formatMoney(totals.outstanding)}</CardContent>
-          </Card>
+            <div className="flex items-center gap-2 text-sm font-medium text-slate-600 mb-2">
+              <CircleDollarSign className="h-4 w-4 text-slate-900" />
+              Expected
+            </div>
+            <div className="text-2xl font-semibold text-slate-950">{formatMoney(totals.expected)}</div>
+            <div className="mt-1 text-xs text-slate-400">Click to view contracts</div>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => openSummaryModal('received')}
+            className="text-left rounded-lg border border-slate-200 bg-white shadow-sm hover:shadow-md transition-shadow p-5 cursor-pointer"
+          >
+            <div className="flex items-center gap-2 text-sm font-medium text-slate-600 mb-2">
+              <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+              Received
+            </div>
+            <div className="text-2xl font-semibold text-emerald-700">{formatMoney(totals.received)}</div>
+            <div className="mt-1 text-xs text-slate-400">Click to view contracts</div>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => openSummaryModal('outstanding')}
+            className="text-left rounded-lg border border-slate-200 bg-white shadow-sm hover:shadow-md transition-shadow p-5 cursor-pointer"
+          >
+            <div className="flex items-center gap-2 text-sm font-medium text-slate-600 mb-2">
+              <CalendarCheck className="h-4 w-4 text-orange-600" />
+              Outstanding
+            </div>
+            <div className="text-2xl font-semibold text-orange-700">{formatMoney(totals.outstanding)}</div>
+            <div className="mt-1 text-xs text-slate-400">Click to view contracts</div>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => openSummaryModal('overdue')}
+            className="text-left rounded-lg border border-red-200 bg-red-50 shadow-sm hover:shadow-md transition-shadow p-5 cursor-pointer"
+          >
+            <div className="flex items-center gap-2 text-sm font-medium text-red-700 mb-2">
+              <AlertTriangle className="h-4 w-4 text-red-600" />
+              {activeChasing ? `Overdue — ${activeChasing.supplier_name}` : 'Overdue Payments'}
+            </div>
+            <div className="text-2xl font-semibold text-red-700">
+              {formatMoney(activeChasing ? activeChasing.total_outstanding : overdueTotal)}
+            </div>
+            <div className="mt-1 text-xs text-red-400">
+              {activeChasing
+                ? `${activeChasing.overdue_count} contract${activeChasing.overdue_count !== 1 ? 's' : ''} overdue — click to view all`
+                : `${chasingSummary.reduce((s, r) => s + r.overdue_count, 0)} contracts overdue — click to view`}
+            </div>
+          </button>
         </div>
 
-        {/* Supplier chase summary — real totals from all data, hidden when already filtered */}
-        {filters.supplier === "all" && chasingSummary.length > 0 && (
-          <div className="rounded-lg border border-red-200 bg-red-50 p-4 dark:border-red-900 dark:bg-red-950/30">
-            <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-red-800 dark:text-red-300">Overdue payments — needs chasing</p>
-            <div className="flex flex-wrap gap-3">
-              {chasingSummary.map((row) => (
-                <button
-                  key={row.supplier_id ?? "unknown"}
-                  type="button"
-                  onClick={() => {
-                    const next = {
-                      ...filters,
-                      supplier: row.supplier_id ? String(row.supplier_id) : "all",
-                      needs_chasing: "true",
-                    };
-                    const nextPag = { ...pagination, page: 1 };
-                    setFilters(next);
-                    setPagination(nextPag);
-                    loadPayments(next, searchTerm, nextPag);
-                  }}
-                  className="rounded-lg border border-red-200 bg-white px-3 py-2 text-left shadow-sm hover:shadow-md transition-shadow dark:border-red-800 dark:bg-slate-900"
-                >
-                  <p className="text-xs font-semibold text-slate-800 truncate max-w-[160px] dark:text-slate-200">{row.supplier_name}</p>
-                  <p className="text-lg font-bold text-red-700 dark:text-red-400">{formatMoney(row.total_outstanding)}</p>
-                  <p className="text-xs text-slate-500 dark:text-slate-400">{row.overdue_count} contract{row.overdue_count !== 1 ? "s" : ""} overdue</p>
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Quick filter chips */}
-        <div className="flex flex-wrap gap-2">
-          {[
-            { label: "Overdue", due_to: new Date().toISOString().slice(0, 10), status: "Due" },
-            { label: "Due This Week", due_from: new Date().toISOString().slice(0, 10), due_to: new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10) },
-            { label: "Due This Month", due_from: new Date().toISOString().slice(0, 10), due_to: new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10) },
-            { label: "Chasing Supplier", status: "Chasing Supplier" },
-            { label: "Partially Paid", status: "Partially Paid" },
-          ].map((chip) => {
-            const isActive =
-              (chip.status ? filters.status === chip.status : true) &&
-              (chip.due_from ? filters.due_from === chip.due_from : true) &&
-              (chip.due_to ? filters.due_to === chip.due_to : true) &&
-              (chip.status || chip.due_from || chip.due_to ? true : false);
-            return (
-              <button
-                key={chip.label}
-                type="button"
-                onClick={() => {
-                  const nextFilters = {
-                    ...filters,
-                    status: chip.status || "all",
-                    due_from: chip.due_from || "",
-                    due_to: chip.due_to || "",
-                    needs_chasing: "",
-                  };
-                  const nextPagination = { ...pagination, page: 1 };
-                  setFilters(nextFilters);
-                  setPagination(nextPagination);
-                  loadPayments(nextFilters, searchTerm, nextPagination);
-                }}
-                className={`rounded-full px-3 py-1 text-xs font-medium border transition-colors ${
-                  isActive
-                    ? "bg-slate-900 text-white border-slate-900 dark:bg-slate-100 dark:text-slate-900"
-                    : "bg-white text-slate-600 border-slate-200 hover:border-slate-400 dark:bg-slate-900 dark:text-slate-300 dark:border-slate-700"
-                }`}
-              >
-                {chip.label}
-              </button>
-            );
-          })}
-          {(filters.status !== "all" || filters.due_from || filters.due_to || filters.needs_chasing || filters.supplier !== "all") && (
+        {/* Clear filters chip — only shown when something is active */}
+        {(filters.status !== "all" || filters.due_from || filters.due_to || filters.needs_chasing || filters.supplier !== "all") && (
+          <div className="flex">
             <button
               type="button"
               onClick={() => {
@@ -877,12 +928,12 @@ export default function PaymentCheckerPage() {
                 setPagination(nextPag);
                 loadPayments(next, searchTerm, nextPag);
               }}
-              className="rounded-full px-3 py-1 text-xs font-medium border border-slate-200 text-slate-400 hover:text-slate-700 bg-white dark:border-slate-700 dark:bg-slate-900 dark:text-slate-500 dark:hover:text-slate-300"
+              className="rounded-full px-3 py-1 text-xs font-medium border border-slate-200 text-slate-400 hover:text-slate-700 bg-white cursor-pointer"
             >
               ✕ Clear all filters
             </button>
-          )}
-        </div>
+          </div>
+        )}
 
         <Card className="border-slate-200 shadow-sm dark:border-slate-800 dark:bg-slate-900">
           <CardHeader className="pb-3">
@@ -902,7 +953,7 @@ export default function PaymentCheckerPage() {
             <Select
               value={filters.status}
               onValueChange={(status) => {
-                const nextFilters = { ...filters, status };
+                const nextFilters = { ...filters, status, needs_chasing: "" };
                 const nextPagination = { ...pagination, page: 1 };
                 setFilters(nextFilters);
                 setPagination(nextPagination);
@@ -912,13 +963,24 @@ export default function PaymentCheckerPage() {
               <SelectTrigger className="min-w-0 [&>span]:truncate dark:border-slate-800 dark:bg-slate-950 dark:text-slate-100">
                 <SelectValue placeholder="Status" />
               </SelectTrigger>
-              <SelectContent className="max-w-80 dark:border-slate-800 dark:bg-slate-900">
-                <SelectItem value="all" className="dark:hover:bg-slate-800">All statuses</SelectItem>
-                {statuses.map((status) => (
-                  <SelectItem key={status} value={status} className="dark:hover:bg-slate-800">
-                    {status}
-                  </SelectItem>
-                ))}
+              <SelectContent className="max-w-80">
+                <SelectItem value="all">All statuses</SelectItem>
+                <SelectSeparator />
+                <SelectGroup>
+                  <SelectLabel className="text-xs text-slate-400 font-normal">Quick filters</SelectLabel>
+                  <SelectItem value="__overdue__">⚠ Overdue</SelectItem>
+                  <SelectItem value="__this_week__">📅 Due This Week</SelectItem>
+                  <SelectItem value="__this_month__">📅 Due This Month</SelectItem>
+                </SelectGroup>
+                <SelectSeparator />
+                <SelectGroup>
+                  <SelectLabel className="text-xs text-slate-400 font-normal">Status</SelectLabel>
+                  {statuses.map((status) => (
+                    <SelectItem key={status} value={status}>
+                      {status}
+                    </SelectItem>
+                  ))}
+                </SelectGroup>
               </SelectContent>
             </Select>
 
@@ -1229,10 +1291,137 @@ export default function PaymentCheckerPage() {
           </CardContent>
         </Card>
 
-        <Sheet open={Boolean(selectedPayment)} onOpenChange={(open) => !open && setSelectedPayment(null)}>
-          <SheetContent className="w-full overflow-y-auto p-0 sm:max-w-2xl dark:border-slate-800 dark:bg-slate-950">
-            <SheetHeader className="border-b border-slate-200 px-6 py-5 pr-12 dark:border-slate-800">
-              <SheetTitle className="text-slate-950 dark:text-slate-50">Commission Payment</SheetTitle>
+        {/* Summary Modal */}
+        {summaryModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 cursor-pointer" onClick={() => setSummaryModal(null)}>
+            <div
+              className="relative w-full max-w-5xl max-h-[85vh] flex flex-col rounded-xl bg-white shadow-2xl"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Modal header */}
+              <div className={`flex items-center justify-between px-6 py-4 border-b rounded-t-xl ${summaryModal === 'overdue' ? 'bg-red-50 border-red-200' : 'bg-white'}`}>
+                <div>
+                  <h2 className={`text-lg font-semibold ${summaryModal === 'overdue' ? 'text-red-800' : 'text-slate-950'}`}>
+                    {summaryModal === 'expected' && '💰 Expected Payments'}
+                    {summaryModal === 'received' && '✅ Received Payments'}
+                    {summaryModal === 'outstanding' && '📅 Outstanding Payments'}
+                    {summaryModal === 'overdue' && '⚠️ Overdue Payments — Needs Chasing'}
+                  </h2>
+                  <p className="text-sm text-slate-500 mt-0.5">
+                    {summaryModal === 'expected' && `Total expected: ${formatMoney(totals.expected)}`}
+                    {summaryModal === 'received' && `Total received: ${formatMoney(totals.received)}`}
+                    {summaryModal === 'outstanding' && `Total outstanding: ${formatMoney(totals.outstanding)}`}
+                    {summaryModal === 'overdue' && `Total overdue: ${formatMoney(overdueTotal)} across ${chasingSummary.length} suppliers`}
+                  </p>
+                </div>
+                <button type="button" onClick={() => setSummaryModal(null)} className="rounded-md p-1 hover:bg-slate-100 transition-colors cursor-pointer">
+                  <X className="h-5 w-5 text-slate-500" />
+                </button>
+              </div>
+
+              {/* Modal body */}
+              <div className="overflow-y-auto flex-1 p-6">
+                {summaryModal === 'overdue' ? (
+                  <div className="flex flex-wrap gap-3">
+                    {chasingSummary.map((row) => (
+                      <button
+                        key={row.supplier_id ?? 'unknown'}
+                        type="button"
+                        onClick={() => {
+                          setSummaryModal(null);
+                          const next = { ...filters, supplier: row.supplier_id ? String(row.supplier_id) : 'all', needs_chasing: 'true' };
+                          const nextPag = { ...pagination, page: 1 };
+                          setFilters(next);
+                          setPagination(nextPag);
+                          loadPayments(next, searchTerm, nextPag);
+                        }}
+                        className="rounded-lg border border-red-200 bg-white px-4 py-3 text-left shadow-sm hover:shadow-md transition-shadow min-w-[160px] cursor-pointer"
+                      >
+                        <p className="text-xs font-semibold text-slate-800 truncate max-w-[180px]">{row.supplier_name}</p>
+                        <p className="text-xl font-bold text-red-700 mt-1">{formatMoney(row.total_outstanding)}</p>
+                        <p className="text-xs text-slate-500 mt-0.5">{row.overdue_count} contract{row.overdue_count !== 1 ? 's' : ''} overdue</p>
+                      </button>
+                    ))}
+                    {chasingSummary.length === 0 && (
+                      <p className="text-slate-500 text-sm">No overdue payments found.</p>
+                    )}
+                  </div>
+                ) : modalLoading ? (
+                  <div className="flex items-center justify-center py-16 text-slate-500">
+                    <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                    Loading contracts...
+                  </div>
+                ) : modalContracts.length === 0 ? (
+                  <p className="text-center text-slate-500 py-12">No contracts found.</p>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead className="bg-slate-50 text-left text-xs font-semibold tracking-wide text-slate-500 uppercase border-b">
+                        <tr>
+                          <th className="px-3 py-2">Customer</th>
+                          <th className="px-3 py-2">Supplier</th>
+                          <th className="px-3 py-2">Agent</th>
+                          <th className="px-3 py-2">MPAN/MPR</th>
+                          <th className="px-3 py-2 text-right">Expected</th>
+                          <th className="px-3 py-2 text-right">Received</th>
+                          <th className="px-3 py-2 text-right">Outstanding</th>
+                          <th className="px-3 py-2">Status</th>
+                          <th className="px-3 py-2">Next Due</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y bg-white">
+                        {modalContracts.map((group) => (
+                          <tr
+                            key={group.key}
+                            className="hover:bg-slate-50 cursor-pointer transition-colors"
+                            onClick={() => {
+                              setSummaryModal(null);
+                              const next = { ...filters, supplier: 'all', needs_chasing: '' };
+                              const nextPag = { ...pagination, page: 1 };
+                              setFilters(next);
+                              setPagination(nextPag);
+                              loadPayments(next, searchTerm, nextPag);
+                            }}
+                          >
+                            <td className="px-3 py-2 font-medium text-slate-900">{group.title}</td>
+                            <td className="px-3 py-2 text-slate-600">{group.payments[0]?.supplier_name || '-'}</td>
+                            <td className="px-3 py-2 text-slate-600">{group.payments[0]?.agent_name || '-'}</td>
+                            <td className="px-3 py-2 font-mono text-xs text-slate-600">{group.mpan || '-'}</td>
+                            <td className="px-3 py-2 text-right font-medium">{formatMoney(group.expected)}</td>
+                            <td className="px-3 py-2 text-right text-emerald-700 font-medium">{formatMoney(group.received)}</td>
+                            <td className="px-3 py-2 text-right text-orange-700 font-medium">{formatMoney(group.outstanding)}</td>
+                            <td className="px-3 py-2">
+                              <div className="flex flex-wrap gap-1">
+                                {group.statuses.map((s) => (
+                                  <Badge key={s} className={statusTone[s]}>{s}</Badge>
+                                ))}
+                              </div>
+                            </td>
+                            <td className="px-3 py-2 text-slate-600 whitespace-nowrap">{formatDate(group.nextDue)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                    <p className="text-xs text-slate-400 mt-3 text-center">Showing up to 200 contracts. Use the main table filters for more.</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        <Sheet
+          open={Boolean(selectedPayment)}
+          onOpenChange={(open) => {
+            if (!open) {
+              setSelectedPayment(null);
+              setNotesDraft("");
+            }
+          }}
+        >
+          <SheetContent className="w-full overflow-y-auto p-0 sm:max-w-2xl">
+            <SheetHeader className="border-b px-6 py-5 pr-12">
+              <SheetTitle>Commission Payment</SheetTitle>
             </SheetHeader>
 
             {selectedPayment && (
