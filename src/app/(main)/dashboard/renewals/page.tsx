@@ -2850,7 +2850,7 @@ export default function EnergyCustomersPage() {
       <AddEnergyClientModal
         isOpen={showCreateModal}
         onClose={() => setShowCreateModal(false)}
-        onSuccess={() => {
+        onClientCreated={() => {
           setShowCreateModal(false);
           fetchCustomers();
           if (isAdmin) fetchEmployeeStats();
