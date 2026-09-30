@@ -152,7 +152,7 @@ const getStatusLabel = (status?: string) => {
 export default function AllocatedContactsPage() {
   const { user } = useAuth();
   const router = useRouter();
-  const isAdmin = user?.role === "Platform Admin" || user?.role === "Tenant Super Admin";
+  const isAdmin = !!(user?.role && user.role.toLowerCase().includes("admin"));
 
   // Data
   const [allCustomers, setAllCustomers] = useState<EnergyCustomer[]>([]);
@@ -694,9 +694,9 @@ export default function AllocatedContactsPage() {
       </div>
 
       {/* Table */}
-      <div className="overflow-hidden rounded-lg border border-gray-200 dark:border-slate-800 bg-white dark:bg-slate-900">
-        <div className="overflow-x-auto">
-          <table className="w-full divide-y divide-gray-200 dark:divide-slate-800 min-w-[1000px]">
+      <div className="overflow-x-auto rounded-lg border border-gray-200 dark:border-slate-800 bg-white dark:bg-slate-900">
+        <div>
+          <table className="w-full divide-y divide-gray-200 dark:divide-slate-800 min-w-[900px]">
             <thead className="bg-gray-50 dark:bg-slate-800/50">
               <tr>
                 <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 dark:text-gray-400 uppercase w-16 border-r-2 border-gray-300 dark:border-slate-700">ID</th>

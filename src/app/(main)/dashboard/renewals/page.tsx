@@ -182,22 +182,23 @@ const formatUsage = (usage: number | undefined): string => {
 
 const getStatusColor = (status: string | undefined): string => {
   if (!status) return "bg-gray-100 text-gray-800 dark:bg-slate-800 dark:text-slate-300";
-  const statusLower = status.toLowerCase();
-  if (statusLower === 'called' || statusLower === 'priced' || statusLower === 'callback') {
+  const s = status.toLowerCase();
+  if (s === 'callback' || s === 'called' || s === 'priced')
     return "bg-green-100 text-green-800 dark:bg-green-950/50 dark:text-green-300";
-  }
-  if (statusLower === 'not answered') {
+  if (s === 'not answered')
     return "bg-yellow-100 text-yellow-800 dark:bg-yellow-950/50 dark:text-yellow-300";
-  }
-  if (statusLower === 'lost' || statusLower === 'lost cot') {
-    return "bg-red-100 text-red-800 dark:bg-red-950/50 dark:text-red-300";
-  }
-  if (statusLower === 'not called') {
+  if (s === 'not called')
     return "bg-gray-100 text-gray-500 dark:bg-slate-800 dark:text-slate-400";
-  }
-  if (statusLower === 'dead') {
-    return "bg-red-200 text-red-900 dark:bg-red-900/60 dark:text-red-200";
-  }
+  if (s === 'sold' || s === 'already renewed' || s === 'renewed direct' || s === 'renewed directly')
+    return "bg-blue-100 text-blue-800 dark:bg-blue-950/50 dark:text-blue-300";
+  if (s === 'end date changed' || s === 'end date chang')
+    return "bg-orange-100 text-orange-800 dark:bg-orange-950/50 dark:text-orange-300";
+  if (s === 'broker in place' || s === 'email only')
+    return "bg-purple-100 text-purple-800 dark:bg-purple-950/50 dark:text-purple-300";
+  if (s === 'lost' || s === 'lost cot' || s === 'invalid number' || s === 'meter de-energised' || s === 'complaint' || s === 'dead' || s === 'duplicate')
+    return "bg-red-100 text-red-800 dark:bg-red-950/50 dark:text-red-300";
+  if (s === 'incorrect supplier')
+    return "bg-amber-100 text-amber-800 dark:bg-amber-950/50 dark:text-amber-300";
   return "bg-gray-100 text-gray-800 dark:bg-slate-800 dark:text-slate-300";
 };
 
@@ -345,10 +346,7 @@ export default function EnergyCustomersPage() {
   const [calledDate, setCalledDate] = useState(() => new Date().toISOString().split('T')[0]);
   const [renewedBy, setRenewedBy] = useState<"customer" | "supplier" | "agent" | "">("");
   const [showFilterSidebar, setShowFilterSidebar] = useState(false);
-  const [salespersonFilter, setSalespersonFilter] = useState<number | "All">(() => {
-    const saved = sessionStorage.getItem('renewals_salesperson');
-    return saved && saved !== "All" ? parseInt(saved) : "All";
-  });
+  const [salespersonFilter, setSalespersonFilter] = useState<number | "All">("All");
   const [performancePeriod, setPerformancePeriod] = useState<'daily' | 'weekly' | 'monthly' | 'alltime'>('alltime');
   const [uploadSort,   setUploadSort]   = useState<"none" | "newest" | "oldest" | "custom">("none");
   const [uploadedFrom, setUploadedFrom] = useState("");
@@ -357,7 +355,7 @@ export default function EnergyCustomersPage() {
   const router = useRouter();
   const { user } = useAuth();
 
-  const isAdmin = user?.role === "Platform Admin" || user?.role === "Tenant Super Admin";
+  const isAdmin = !!(user?.role && user.role.toLowerCase().includes("admin"));
 
   const fetchPerformanceStats = async (period = performancePeriod) => {
     try {
@@ -437,9 +435,9 @@ export default function EnergyCustomersPage() {
     sessionStorage.setItem('renewals_end_date', endDateFilter);
   }, [endDateFilter]);
 
-  useEffect(() => {
-    sessionStorage.setItem('renewals_salesperson', salespersonFilter.toString());
-  }, [salespersonFilter]);
+
+  // Clear any stale salesperson sessionStorage key left from before this fix
+  useEffect(() => { sessionStorage.removeItem('renewals_salesperson'); }, []);
 
   // ---------------- Fetch Functions ----------------
   const fetchCustomers = async (showLoader = true) => {
@@ -2031,12 +2029,12 @@ export default function EnergyCustomersPage() {
       )}
 
       {/* Table */}
-      <div className="overflow-hidden rounded-lg border border-gray-200 dark:border-slate-800 bg-white dark:bg-slate-900">
-        <div className="overflow-x-auto">
-          <table className="min-w-[1200px] w-full divide-y divide-gray-200 dark:divide-slate-800 table-auto">
+      <div className="overflow-x-auto rounded-lg border border-gray-200 dark:border-slate-800 bg-white dark:bg-slate-900">
+        <div>
+          <table className="w-full divide-y divide-gray-200 dark:divide-slate-800 table-fixed min-w-[1200px]">
             <thead className="bg-gray-50 dark:bg-slate-800/50">
               <tr>
-                <th className="px-3 py-3 text-left w-10">
+                <th className="px-3 py-3 text-left w-[2%]">
                   <input
                     type="checkbox"
                     className="rounded border-gray-300 dark:border-slate-700 dark:bg-slate-800"
@@ -2044,40 +2042,40 @@ export default function EnergyCustomersPage() {
                     onChange={handleSelectAll}
                   />
                 </th>
-                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 dark:text-gray-400 uppercase w-16 border-r-2 border-gray-300 dark:border-slate-700">
+                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 dark:text-gray-400 uppercase w-[6%] border-r-2 border-gray-300 dark:border-slate-700">
                   ID
                 </th>
-                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 dark:text-gray-400 uppercase whitespace-nowrap">
+                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 dark:text-gray-400 uppercase w-[9%]">
                   Client Name
                 </th>
-                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 dark:text-gray-400 uppercase w-[11%]">
+                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 dark:text-gray-400 uppercase w-[9%]">
                   Trading Name
                 </th>
-                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 dark:text-gray-400 uppercase w-[8%]">
+                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 dark:text-gray-400 uppercase w-[7%]">
                   Tel No
                 </th>
-                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 dark:text-gray-400 uppercase w-[8%]">
+                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 dark:text-gray-400 uppercase w-[6%]">
                   Mobile No
                 </th>
-                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 dark:text-gray-400 uppercase w-[10%]">
+                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 dark:text-gray-400 uppercase w-[9%]">
                   MPAN Top
                 </th>
-                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 dark:text-gray-400 uppercase w-[9%]">
+                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 dark:text-gray-400 uppercase w-[7%]">
                   Supplier
                 </th>
-                <th className="px-3 py-3 text-right text-xs font-medium tracking-wider text-gray-500 dark:text-gray-400 uppercase w-[9%] whitespace-nowrap">
+                <th className="px-3 py-3 text-right text-xs font-medium tracking-wider text-gray-500 dark:text-gray-400 uppercase w-[7%]">
                   Annual Usage
                 </th>
-                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 dark:text-gray-400 uppercase w-[9%] whitespace-nowrap">
+                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 dark:text-gray-400 uppercase w-[7%]">
                   Start Date
                 </th>
-                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 dark:text-gray-400 uppercase w-[9%] whitespace-nowrap">
+                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 dark:text-gray-400 uppercase w-[7%]">
                   Contract End
                 </th>
                 <th className="px-3 py-3 text-center text-xs font-medium tracking-wider text-gray-500 dark:text-gray-400 uppercase w-[12%]">
                   Status
                 </th>
-                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 dark:text-gray-400 uppercase w-[9%]">
+                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 dark:text-gray-400 uppercase w-[12%]">
                   Assigned To
                 </th>
               </tr>
@@ -2220,14 +2218,14 @@ export default function EnergyCustomersPage() {
                         </div>
                       </td>
 
-                      <td className="px-3 py-3 text-sm text-gray-900 dark:text-slate-200 align-top">
-                        <div className="whitespace-nowrap">
+                      <td className="px-3 py-3 text-sm text-gray-900 dark:text-slate-200 align-top overflow-hidden">
+                        <div className="truncate" title={customer.phone ? String(customer.phone).replace(/\.0$/, '') : ''}>
                           {customer.phone ? String(customer.phone).replace(/\.0$/, '') : '—'}
                         </div>
                       </td>
 
-                      <td className="px-3 py-3 text-sm text-gray-900 dark:text-slate-200 align-top">
-                        <div className="whitespace-nowrap">
+                      <td className="px-3 py-3 text-sm text-gray-900 dark:text-slate-200 align-top overflow-hidden">
+                        <div className="truncate" title={customer.mobile_no ? String(customer.mobile_no).replace(/\.0$/, '') : ''}>
                           {customer.mobile_no ? String(customer.mobile_no).replace(/\.0$/, '') : '—'}
                         </div>
                       </td>
@@ -2266,7 +2264,7 @@ export default function EnergyCustomersPage() {
                           }}
                           disabled={isArchived}
                         >
-                          <SelectTrigger className="h-7 text-xs w-full max-w-[150px]">
+                          <SelectTrigger className="h-7 text-xs w-full">
                             <SelectValue placeholder="Not Called">
                               {customer.status ? (
                                 <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-semibold ${getStatusColor(customer.status)}`}>
@@ -2301,7 +2299,7 @@ export default function EnergyCustomersPage() {
                           }}
                           disabled={isArchived}
                         >
-                          <SelectTrigger className="h-7 text-xs w-full max-w-[150px]">
+                          <SelectTrigger className="h-7 text-xs w-full">
                             <SelectValue placeholder="Assign">
                               {customer.assigned_to_name || "Unassigned"}
                             </SelectValue>

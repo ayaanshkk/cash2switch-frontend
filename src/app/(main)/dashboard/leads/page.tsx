@@ -1,10 +1,10 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import {
   Search, Plus, Trash2, ChevronDown, Filter, AlertCircle,
   ChevronRight, ChevronLeft, ChevronLast, ChevronFirst,
-  Upload, Users, UserCheck, Loader2, Download,
+  Upload, Users, UserCheck, Loader2, Download, Info,
   TrendingUp, TrendingDown, AlertTriangle, CheckCircle2, Calendar, X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -30,6 +30,31 @@ const API_BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:50
 const CRM_PROXY = `${API_BASE_URL}/api/crm`;
 const BACKEND_PROXY = API_BASE_URL;
 const LEADS_PERFORMANCE_CACHE_PREFIX = "cash2switch_leads_performance_cache";
+const LEADS_CACHE_PREFIX = "cash2switch_leads_cache";
+const MAX_CACHED_LEADS = 500;
+
+const STATUS_OPTIONS = [
+  { value: "Not Called",         label: "Not Called" },
+  { value: "No Contact",         label: "No Contact" },
+  { value: "Callback",           label: "Callback" },
+  { value: "Not Answered",       label: "Not Answered" },
+  { value: "Dead",               label: "Dead" },
+  { value: "Priced",             label: "Priced" },
+  { value: "Sold",               label: "Sold" },
+  { value: "Won",                label: "Won" },
+  { value: "Converted",          label: "Converted" },
+  { value: "Already Renewed",    label: "Already Renewed" },
+  { value: "Renewed Directly",   label: "Renewed Directly" },
+  { value: "Lost",               label: "Lost" },
+  { value: "Lost COT",           label: "Lost COT" },
+  { value: "Invalid Number",     label: "Invalid Number" },
+  { value: "Incorrect Supplier", label: "Incorrect Supplier" },
+  { value: "Meter De-energised", label: "Meter De-energised" },
+  { value: "Broker in Place",    label: "Broker in Place" },
+  { value: "End Date Changed",   label: "End Date Changed" },
+  { value: "Complaint",          label: "Complaint" },
+  { value: "Email Only",         label: "Email Only" },
+  { value: "Duplicate",          label: "Duplicate" },
 ];
 
 const statusConfig: Record<string, {
@@ -55,6 +80,7 @@ const statusConfig: Record<string, {
   "Won":                { requiresDate: false, requiresSold: false, deletesRecord: false, requiresNotes: false, requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
   "Converted":          { requiresDate: false, requiresSold: false, deletesRecord: false, requiresNotes: false, requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
   "Not Called":         { requiresDate: false, requiresSold: false, deletesRecord: false, requiresNotes: false, requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
+  "No Contact":         { requiresDate: true,  requiresSold: false, deletesRecord: false, requiresNotes: false, requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
   "Dead":               { requiresDate: false, requiresSold: false, deletesRecord: false, requiresNotes: false, requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
   "Duplicate":          { requiresDate: false, requiresSold: false, deletesRecord: true,  requiresNotes: false, requiresNewEndDate: false, requiresSupplierChange: false, requiresAddressChange: false },
 };
@@ -112,8 +138,10 @@ const getStatusColor = (s?: string | null) => {
   if (l === "lead" || l === "not called") return "bg-gray-100 text-gray-500 dark:bg-slate-800 dark:text-slate-400";
   if (["callback", "priced", "called", "converted", "won"].includes(l)) return "bg-green-100 text-green-800 dark:bg-green-950/50 dark:text-green-300";
   if (l === "not answered") return "bg-yellow-100 text-yellow-800 dark:bg-yellow-950/50 dark:text-yellow-300";
-  if (["lost", "lost cot"].includes(l)) return "bg-red-100 text-red-800 dark:bg-red-950/50 dark:text-red-300";
-  if (l === "dead") return "bg-red-200 text-red-900 dark:bg-red-900/60 dark:text-red-200";
+  if (["sold", "already renewed", "renewed direct", "renewed directly"].includes(l)) return "bg-blue-100 text-blue-800 dark:bg-blue-950/50 dark:text-blue-300";
+  if (["lost", "lost cot", "dead", "meter de-energised", "complaint", "invalid number", "duplicate"].includes(l)) return "bg-red-100 text-red-800 dark:bg-red-950/50 dark:text-red-300";
+  if (l === "no contact") return "bg-purple-100 text-purple-800 dark:bg-purple-950/50 dark:text-purple-300";
+  if (l === "incorrect supplier") return "bg-amber-100 text-amber-800 dark:bg-amber-950/50 dark:text-amber-300";
   return "bg-gray-100 text-gray-800 dark:bg-slate-800 dark:text-slate-300";
 };
 
@@ -135,7 +163,7 @@ const getStageIdFromStatus = (status: string, stagesList?: Stage[]): number | nu
 // ─── Component ────────────────────────────────────────────────────────────────
 export default function LeadsPage() {
   const { user } = useAuth();
-  const isAdmin = user?.role === "Platform Admin" || user?.role === "Tenant Super Admin";
+  const isAdmin = !!(user?.role && ["Platform Admin","Tenant Super Admin","Admin","admin","superadmin","super admin","tenant super admin"].includes(user.role)) || !!(user?.role && user.role.toLowerCase().includes("admin"));
 
   // ── Data ───────────────────────────────────────────────────────────────────
   const [allLeads, setAllLeads]           = useState<LeadCustomer[]>([]);
@@ -148,15 +176,13 @@ export default function LeadsPage() {
   // ── Loading / error ────────────────────────────────────────────────        
   const [isLoading, setIsLoading]     = useState(true);
   const [isSearching, setIsSearching] = useState(false);
+  const [searchResults, setSearchResults] = useState<LeadCustomer[]>([]);
   const [error, setError]             = useState<string | null>(null);
 
   // ── Filters / pagination ───────────────────────────────────────────────────
   const [currentPage, setCurrentPage] = useState(1);
   const [serverTotal, setServerTotal] = useState(0);
 
-  // ── Loading / error ────────────────────────────────────────────────────────
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError]         = useState<string | null>(null);
 
   // ── Filters ────────────────────────────────────────────────────────────────
   const [service, setService] = useState(() => sessionStorage.getItem('leads_service') || "utilities");
@@ -167,10 +193,7 @@ export default function LeadsPage() {
   });
   const [statusFilter, setStatusFilter] = useState<string | "All">(() => sessionStorage.getItem('leads_status') || "All");
   const [endDateFilter, setEndDateFilter] = useState<"all" | "expired" | "365" | "30" | "60" | "90" | "90+">(() => (sessionStorage.getItem('leads_end_date') as any) || "all");  const [usageSort, setUsageSort] = useState<"none" | "low-high" | "high-low">(() => (sessionStorage.getItem('leads_usage_sort') as any) || "none");
-  const [salespersonFilter, setSalespersonFilter] = useState<number | "All">(() => {
-    const saved = sessionStorage.getItem('leads_salesperson');
-    return saved && saved !== "All" ? parseInt(saved) : "All";
-  });
+  const [salespersonFilter, setSalespersonFilter] = useState<number | "All">("All");
   const [uploadSort,   setUploadSort]   = useState<"none" | "newest" | "oldest" | "custom">("none");
   const [uploadedFrom, setUploadedFrom] = useState("");
   const [uploadedTo,   setUploadedTo]   = useState("");
@@ -350,40 +373,24 @@ export default function LeadsPage() {
     }
   };
 
-  const paginatedLeads = usageSort === "none"
-    ? allLeads
-    : [...allLeads].sort((a, b) => {
-        const aVal = a.annual_usage ?? 0;
-        const bVal = b.annual_usage ?? 0;
-        return usageSort === "low-high" ? aVal - bVal : bVal - aVal;
-      });
-
-  const filteredLeads = paginatedLeads;
-
-  const getSupplierName = (id?: number | null) =>
-    suppliers.find(s => s.supplier_id === id)?.supplier_name || "—";
-
-  const isDateRequired = () => {
-    if (!callbackStatus) return false;
-    const cfg = statusConfig[callbackStatus];
-    if (!cfg) return false;
-    if (cfg.requiresSold) return isSold === "yes";
-    return cfg.requiresDate;
-  };
-
   // ─── Fetch helpers ──────────────────────────────────────────────────────────
-  const fetchLeads = async (showLoader = true) => {
+  const fetchLeads = async (page = 1, showLoader = true) => {
     if (showLoader) setIsLoading(true);
     setError(null);
     try {
-      const [leadsResult, suppResult, empResult, stagesResult] = await Promise.allSettled([
-        fetchWithAuth(`${CRM_PROXY}/leads?exclude_stage=Lost&service=${encodeURIComponent(service)}`),
-        fetchWithAuth(`${BACKEND_PROXY}/suppliers`),
-        fetchWithAuth(`${BACKEND_PROXY}/employees`),
-        fetchWithAuth(`${CRM_PROXY}/stages`),
-      ]);
-
-      if (leadsResult.status === "rejected") throw leadsResult.reason;
+      const params = new URLSearchParams();
+      params.set("service", service);
+      params.set("exclude_stage", "Lost");
+      params.set("page", String(page));
+      params.set("per_page", String(CUSTOMERS_PER_PAGE));
+      if (searchTerm)                     params.set("search", searchTerm);
+      if (supplierFilter !== "All")       params.set("supplier_id", String(supplierFilter));
+      if (statusFilter !== "All")         params.set("status", statusFilter);
+      if (endDateFilter !== "all")        params.set("end_date_filter", endDateFilter);
+      if (salespersonFilter !== "All")    params.set("salesperson_id", String(salespersonFilter));
+      if (uploadSort !== "none")          params.set("upload_sort", uploadSort);
+      if (uploadSort === "custom" && uploadedFrom) params.set("uploaded_from", uploadedFrom);
+      if (uploadSort === "custom" && uploadedTo)   params.set("uploaded_to", uploadedTo);
 
       const [leadsResult, suppResult, empResult, stagesResult] = await Promise.allSettled([
         fetchWithAuth(`${CRM_PROXY}/leads?${params.toString()}`),
@@ -399,7 +406,7 @@ export default function LeadsPage() {
       const empResp    = empResult.status    === "fulfilled" ? empResult.value    : null;
       const stagesResp = stagesResult.status === "fulfilled" ? stagesResult.value : null;
 
-      const active: LeadCustomer[] = Array.isArray(leadsResp)
+      const incoming: LeadCustomer[] = Array.isArray(leadsResp)
         ? leadsResp
         : (leadsResp?.data || []);
 
@@ -494,7 +501,9 @@ export default function LeadsPage() {
   useEffect(() => { sessionStorage.setItem('leads_service', service); }, [service]);
   useEffect(() => { sessionStorage.setItem('leads_usage_sort', usageSort); }, [usageSort]);
   useEffect(() => { sessionStorage.setItem('leads_end_date', endDateFilter); }, [endDateFilter]);
-  useEffect(() => { sessionStorage.setItem('leads_salesperson', salespersonFilter.toString()); }, [salespersonFilter]);
+
+  // Clear any stale salesperson sessionStorage key left from before this fix
+  useEffect(() => { sessionStorage.removeItem('leads_salesperson'); }, []);
 
   useEffect(() => {
     if (!searchTerm || searchTerm.length < 2) { setSearchResults([]); return; }
@@ -513,9 +522,11 @@ export default function LeadsPage() {
 
   // ── Derived lists ──────────────────────────────────────────────────────────
   const sortedLeads = useMemo(() => {
-    const leadsToShow = searchTerm.trim() 
-      ? allLeads  
-      : allLeads.filter(l => !l.is_archived && !l.is_allocated);
+    const leadsToShow = searchTerm.trim()
+      ? allLeads
+      : isAdmin
+        ? allLeads.filter(l => !l.is_archived)
+        : allLeads.filter(l => !l.is_archived && !l.is_allocated);
       
     if (searchTerm && searchResults.length > 0) {
       const assignedIds = new Set(leadsToShow.map(l => l.opportunity_id));
@@ -576,11 +587,9 @@ export default function LeadsPage() {
     return list;
   }, [sortedLeads, searchTerm, supplierFilter, statusFilter, endDateFilter, usageSort, salespersonFilter]);
 
-  const totalPages    = Math.ceil(filteredLeads.length / CUSTOMERS_PER_PAGE);
-  const paginatedLeads = useMemo(() => {
-    const s = (currentPage - 1) * CUSTOMERS_PER_PAGE;
-    return filteredLeads.slice(s, s + CUSTOMERS_PER_PAGE);
-  }, [filteredLeads, currentPage]);
+  // Server paginates — totalPages must come from serverTotal, not the 25 leads on this page
+  const totalPages    = Math.ceil(serverTotal / CUSTOMERS_PER_PAGE) || 1;
+  const paginatedLeads = filteredLeads; // server already sliced to the right page
 
   const isFromSearch = (lead: LeadCustomer) => {
     if (isAdmin) return false;
@@ -619,6 +628,62 @@ export default function LeadsPage() {
       });
       return;
     }
+    setCallbackStatus(newStatus);
+    setSelectedLeadForCallback(leadId);
+    setShowCallbackModal(true);
+  };
+
+  const handleSubmitCallback = async () => {
+    if (!callbackStatus) return;
+    setCallbackError("");
+    const config = statusConfig[callbackStatus];
+    if (isDateRequired() && !callbackDate) {
+      setCallbackError("Please select a callback date");
+      return;
+    }
+    if (config?.requiresSold && !isSold) {
+      setCallbackError("Please select if the contract was sold");
+      return;
+    }
+    if (config?.requiresNotes && !callbackNotes.trim()) {
+      setCallbackError("Please enter the reason for this status");
+      return;
+    }
+    const isRenewalOrSoldAction = callbackStatus === "Already Renewed" || callbackStatus === "Sold";
+    if (isRenewalOrSoldAction && !renewedBy) {
+      setCallbackError(callbackStatus === "Sold" ? "Please select if sold by supplier or agent" : "Please select if renewed by customer or agent");
+      return;
+    }
+    if (isRenewalOrSoldAction && renewedBy === "agent" && !newStartDate) {
+      setCallbackError("Please enter the contract start date");
+      return;
+    }
+    if (callbackStatus === "End Date Changed" && !newEndDate) {
+      setCallbackError("Please enter the new contract end date");
+      return;
+    }
+
+    setIsSubmittingCallback(true);
+    try {
+      const payload: any = { status: callbackStatus, notes: callbackNotes };
+      if (calledDate) payload.called_date = calledDate;
+      if (isDateRequired() && callbackDate) payload.callback_date = callbackDate;
+      if (config?.requiresSold) payload.is_sold = isSold === "yes";
+      if (isRenewalOrSoldAction && newStartDate) payload.new_start_date = newStartDate;
+      if (config?.requiresNewEndDate && newEndDate) payload.new_end_date = newEndDate;
+      if (isRenewalOrSoldAction && renewedBy) payload.renewed_by = renewedBy;
+      if (config?.requiresSupplierChange && newSupplier.trim()) payload.new_supplier = newSupplier.trim();
+      if (config?.requiresAddressChange && newAddress.trim()) payload.new_address = newAddress.trim();
+      if ((callbackStatus === "Converted" || callbackStatus === "Won") && assignToEmployeeId) {
+        payload.assigned_to = parseInt(assignToEmployeeId);
+      }
+
+      const response = await fetchWithAuth(`${CRM_PROXY}/leads/${selectedLeadForCallback}/callback`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
       if (!response || response.error) {
         throw new Error(response?.error || "Failed to save");
       }
@@ -650,10 +715,11 @@ export default function LeadsPage() {
         setSelectedLeads(prev => prev.filter(id => id !== selectedLeadForCallback));
         toast.success("✅ Lead converted and assigned");
       } else {
+        const stageId = getStageIdFromStatus(callbackStatus, stages.length > 0 ? stages : undefined);
         setAllLeads(prev =>
           prev.map(l =>
             l.opportunity_id === selectedLeadForCallback
-              ? { 
+              ? {
                   ...l,
                   stage_name: response.lead?.stage_name || callbackStatus,
                   stage_id: response.lead?.stage_id || stageId || l.stage_id,
@@ -899,6 +965,8 @@ export default function LeadsPage() {
             );
 
             const statusData = await statusRes.json();
+            if (statusData.status === "completed") {
+              const successful = statusData.successful || 0;
               const duplicates = statusData.duplicates || 0;
               const errors: string[] = statusData.errors || [];
               const details = statusData.duplicate_details || [];
@@ -919,7 +987,7 @@ export default function LeadsPage() {
               setImportProgress(100);
 
               if (successful > 0) {
-                await fetchLeads(false);
+                await fetchLeads(1, false);
                 setBulkImportFile(null);
                 setAssignToEmployee(null);
               } else if (duplicates > 0) {
@@ -974,7 +1042,7 @@ export default function LeadsPage() {
         setImportProgress(100);
         toast.success(`Imported ${data.successful || 0} leads!`);
 
-        await fetchLeads(false);
+        await fetchLeads(1, false);
         setBulkImportFile(null);
         setAssignToEmployee(null);
       } else {
@@ -1061,15 +1129,15 @@ export default function LeadsPage() {
       <div className="flex flex-col sm:flex-row items-center justify-between gap-3 py-3 px-4 bg-gray-50 dark:bg-slate-900 border-t border-gray-200 dark:border-slate-800">
         <div className="text-sm text-gray-700 dark:text-gray-300">
           Showing <span className="font-medium">{(currentPage - 1) * CUSTOMERS_PER_PAGE + 1}</span> to{" "}
-          <span className="font-medium">{Math.min(currentPage * CUSTOMERS_PER_PAGE, filteredLeads.length)}</span>{" "}
-          of <span className="font-medium">{filteredLeads.length}</span> leads
+          <span className="font-medium">{Math.min(currentPage * CUSTOMERS_PER_PAGE, serverTotal)}</span>{" "}
+          of <span className="font-medium">{serverTotal.toLocaleString()}</span> leads
         </div>
         <div className="flex flex-wrap items-center justify-center space-x-1">
-          <Button variant="outline" size="icon" onClick={() => setCurrentPage(1)} disabled={currentPage === 1}><ChevronFirst className="h-4 w-4" /></Button>
-          <Button variant="outline" size="icon" onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1}><ChevronLeft className="h-4 w-4" /></Button>
-          <div className="flex items-center px-3 text-sm text-gray-700 dark:text-gray-300">Page {currentPage} of {totalPages}</div>
-          <Button variant="outline" size="icon" onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages}><ChevronRight className="h-4 w-4" /></Button>
-          <Button variant="outline" size="icon" onClick={() => setCurrentPage(totalPages)} disabled={currentPage === totalPages}><ChevronLast className="h-4 w-4" /></Button>
+          <Button variant="outline" size="icon" onClick={() => fetchLeads(1)} disabled={currentPage === 1}><ChevronFirst className="h-4 w-4" /></Button>
+          <Button variant="outline" size="icon" onClick={() => fetchLeads(Math.max(1, currentPage - 1))} disabled={currentPage === 1}><ChevronLeft className="h-4 w-4" /></Button>
+          <div className="flex items-center px-3 text-sm text-gray-700 dark:text-gray-300">Page {currentPage} of {totalPages.toLocaleString()}</div>
+          <Button variant="outline" size="icon" onClick={() => fetchLeads(Math.min(totalPages, currentPage + 1))} disabled={currentPage === totalPages}><ChevronRight className="h-4 w-4" /></Button>
+          <Button variant="outline" size="icon" onClick={() => fetchLeads(totalPages)} disabled={currentPage === totalPages}><ChevronLast className="h-4 w-4" /></Button>
         </div>
       </div>
     );
@@ -1103,27 +1171,21 @@ export default function LeadsPage() {
           <h2 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">Team Overview</h2>
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
             {unallocatedCount > 0 && (
-              <button
-                type="button"
-                onClick={openUnallocatedModal}
-                className="text-left bg-orange-50 border border-orange-300 rounded-lg p-4 hover:shadow-md transition-shadow cursor-pointer"
-              >
+              <div className="bg-orange-50 dark:bg-orange-950/30 border border-orange-200 dark:border-orange-900 rounded-lg p-4 hover:shadow-md transition-shadow">
                 <div className="flex items-center gap-2 mb-2">
-                  <AlertCircle className="h-4 w-4 text-orange-600" />
-                  <span className="text-xs font-semibold text-orange-700 truncate">Unallocated</span>
+                  <AlertCircle className="h-4 w-4 text-orange-600 dark:text-orange-400" />
+                  <span className="text-xs font-semibold text-orange-700 dark:text-orange-300 truncate">Unallocated</span>
                 </div>
                 <div className="flex items-baseline gap-2">
-                  <span className="text-2xl font-bold text-orange-700">{unallocatedCount.toLocaleString()}</span>
-                  <span className="text-xs text-orange-500">lead{unallocatedCount !== 1 ? "s" : ""}</span>
+                  <span className="text-2xl font-bold text-orange-700 dark:text-orange-300">{unallocatedCount.toLocaleString()}</span>
+                  <span className="text-xs text-orange-500 dark:text-orange-400">lead{unallocatedCount !== 1 ? "s" : ""}</span>
                 </div>
-              </button>
+              </div>
             )}
             {employeeStats.map(stat => (
-              <button
+              <div
                 key={stat.employee_id ?? "unassigned"}
-                type="button"
-                onClick={() => openTeamMemberModal(stat)}
-                className="text-left bg-white border border-gray-200 rounded-lg p-4 hover:shadow-md hover:border-blue-300 transition-all cursor-pointer"
+                className="bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-800 rounded-lg p-4 hover:shadow-md transition-shadow"
               >
                 <div className="flex items-center gap-2 mb-2">
                   <Users className="h-4 w-4 text-blue-600 dark:text-blue-400 shrink-0" />
@@ -1133,7 +1195,7 @@ export default function LeadsPage() {
                   <span className="text-2xl font-bold text-gray-900 dark:text-slate-100">{stat.count ?? stat.lead_count ?? 0}</span>
                   <span className="text-xs text-gray-500 dark:text-gray-400">lead{(stat.count ?? 0) !== 1 ? "s" : ""}</span>
                 </div>
-              </button>
+              </div>
             ))}
           </div>
         </div>
@@ -1645,6 +1707,31 @@ export default function LeadsPage() {
                 </SelectContent>
               </Select>
             </div>
+            <div>
+              <label className="block text-sm font-semibold text-gray-800 dark:text-gray-200 mb-2">Upload Date Sort</label>
+              <Select value={uploadSort} onValueChange={(v: any) => setUploadSort(v)}>
+                <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
+                <SelectContent position="popper" side="bottom" sideOffset={4} className="w-72 z-[60]">
+                  <SelectItem value="none">Default</SelectItem>
+                  <SelectItem value="newest">Newest First</SelectItem>
+                  <SelectItem value="oldest">Oldest First</SelectItem>
+                  <SelectItem value="custom">Custom Range</SelectItem>
+                </SelectContent>
+              </Select>
+              {uploadSort === "custom" && (
+                <div className="mt-2 space-y-2">
+                  <div>
+                    <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">From</label>
+                    <Input type="date" value={uploadedFrom} onChange={e => setUploadedFrom(e.target.value)} className="w-full" />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">To</label>
+                    <Input type="date" value={uploadedTo} onChange={e => setUploadedTo(e.target.value)} className="w-full" />
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
 
           <div className="px-6 py-4 border-t border-gray-200 dark:border-slate-800 shrink-0 flex gap-2">
             <Button
@@ -1656,6 +1743,9 @@ export default function LeadsPage() {
                 setEndDateFilter("all");
                 setUsageSort("none");
                 setSalespersonFilter("All");
+                setUploadSort("none");
+                setUploadedFrom("");
+                setUploadedTo("");
               }}
             >
               Clear All
@@ -1671,12 +1761,12 @@ export default function LeadsPage() {
       </div>
 
       {/* Table */}
-      <div className="overflow-hidden rounded-lg border border-gray-200 dark:border-slate-800 bg-white dark:bg-slate-900">
-        <div className="overflow-x-auto">
-          <table className="w-full divide-y divide-gray-200 dark:divide-slate-800 min-w-[1000px]">
+      <div className="overflow-x-auto rounded-lg border border-gray-200 dark:border-slate-800 bg-white dark:bg-slate-900">
+        <div>
+          <table className="w-full divide-y divide-gray-200 dark:divide-slate-800 table-fixed min-w-[1200px]">
             <thead className="bg-gray-50 dark:bg-slate-800/50">
               <tr>
-                <th className="px-3 py-3 text-left w-10">
+                <th className="px-3 py-3 text-left w-[2%]">
                   <input
                     type="checkbox"
                     className="rounded border-gray-300 dark:border-slate-700 dark:bg-slate-800"
@@ -1684,54 +1774,42 @@ export default function LeadsPage() {
                     onChange={handleSelectAll}
                   />
                 </th>
-                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 dark:text-gray-400 uppercase w-16 border-r-2 border-gray-300 dark:border-slate-700">
+                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 dark:text-gray-400 uppercase w-[6%] border-r-2 border-gray-300 dark:border-slate-700">
                   ID
                 </th>
                 <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 dark:text-gray-400 uppercase w-[9%]">
                   Client Name
                 </th>
-                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 dark:text-gray-400 uppercase w-[11%]">
+                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 dark:text-gray-400 uppercase w-[9%]">
                   Trading Name
                 </th>
-                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 dark:text-gray-400 uppercase w-[8%] overflow-hidden">
+                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 dark:text-gray-400 uppercase w-[7%]">
                   Tel No
                 </th>
-                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 dark:text-gray-400 uppercase w-[8%] overflow-hidden">
+                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 dark:text-gray-400 uppercase w-[6%]">
                   Mobile No
                 </th>
-                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 dark:text-gray-400 uppercase w-[10%]">
+                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 dark:text-gray-400 uppercase w-[9%]">
                   MPAN Top
                 </th>
-                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 dark:text-gray-400 uppercase w-[9%]">
+                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 dark:text-gray-400 uppercase w-[7%]">
                   Supplier
                 </th>
-                <th className="px-3 py-3 text-right text-xs font-medium tracking-wider text-gray-500 dark:text-gray-400 uppercase w-[9%] whitespace-nowrap">
+                <th className="px-3 py-3 text-right text-xs font-medium tracking-wider text-gray-500 dark:text-gray-400 uppercase w-[7%]">
                   Annual Usage
                 </th>
-                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 dark:text-gray-400 uppercase w-[9%] whitespace-nowrap">
+                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 dark:text-gray-400 uppercase w-[7%]">
                   Start Date
                 </th>
-                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 dark:text-gray-400 uppercase w-[9%] whitespace-nowrap">
+                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 dark:text-gray-400 uppercase w-[7%]">
                   Contract End
                 </th>
                 <th className="px-3 py-3 text-center text-xs font-medium tracking-wider text-gray-500 dark:text-gray-400 uppercase w-[12%]">
                   Status
                 </th>
-                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 dark:text-gray-400 uppercase w-[9%]">
+                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 dark:text-gray-400 uppercase w-[12%]">
                   Assigned To
                 </th>
-                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase w-20 border-r-2 border-gray-300">ID</th>
-                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase w-[9%]">Client Name</th>
-                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase w-[11%]">Trading Name</th>
-                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase w-[8%] overflow-hidden">Tel No</th>
-                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase w-[8%] overflow-hidden">Mobile No</th>
-                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase w-[10%]">MPAN Top</th>
-                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase w-[9%]">Supplier</th>
-                <th className="px-3 py-3 text-right text-xs font-medium tracking-wider text-gray-500 uppercase w-[9%] whitespace-nowrap">Annual Usage</th>
-                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase w-[9%] whitespace-nowrap">Start Date</th>
-                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase w-[9%] whitespace-nowrap">Contract End</th>
-                <th className="px-3 py-3 text-center text-xs font-medium tracking-wider text-gray-500 uppercase w-[12%]">Status</th>
-                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase w-[9%]">Assigned To</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200 dark:divide-slate-800 bg-white dark:bg-slate-900">
@@ -1754,6 +1832,7 @@ export default function LeadsPage() {
                 </td></tr>
               ) : paginatedLeads.map(lead => {
                 const isSelected = selectedLeads.includes(lead.opportunity_id);
+                const fromSearch = isFromSearch(lead);
                 const displayId  = lead.display_order ?? lead.tenant_lead_id ?? lead.opportunity_id;
                 return (
                   <tr key={lead.opportunity_id}
@@ -1887,7 +1966,7 @@ export default function LeadsPage() {
                           }
                         }}
                       >
-                        <SelectTrigger className="h-7 text-xs w-full max-w-[150px]">
+                        <SelectTrigger className="h-7 text-xs w-full">
                           <SelectValue placeholder="Set status">
                             {lead.stage_name ? (
                               <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-semibold ${getStatusColor(lead.stage_name)}`}>
@@ -1915,7 +1994,7 @@ export default function LeadsPage() {
                     <td className="px-3 py-3 align-top" onClick={e => e.stopPropagation()}>
                       <Select value={lead.opportunity_owner_employee_id?.toString() || "0"}
                         onValueChange={v => { setAssigningLeadId(lead.opportunity_id); setAssignToEmployeeId(v); setShowAssignModal(true); }}>
-                        <SelectTrigger className="h-7 text-xs w-full max-w-[150px]">
+                        <SelectTrigger className="h-7 text-xs w-full">
                           <SelectValue placeholder="Assign">{lead.assigned_to_name || "Unassigned"}</SelectValue>
                         </SelectTrigger>
                         <SelectContent>

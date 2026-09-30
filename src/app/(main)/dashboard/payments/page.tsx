@@ -1570,30 +1570,8 @@ export default function PaymentCheckerPage() {
                         </Button>
                       </div>
                     </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="date_received">Date received</Label>
-                      <Input
-                        id="date_received"
-                        type="date"
-                        value={receiptDraft.date_received}
-                        onChange={(event) =>
-                          setReceiptDraft((current) => ({ ...current, date_received: event.target.value }))
-                        }
-                      />
-                    </div>
-                  </div>
-                  {error && (
-                    <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>
-                  )}
-                  <Button type="submit" disabled={saving}>
-                    {saving ? (
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    ) : (
-                      <Banknote className="mr-2 h-4 w-4" />
-                    )}
-                    Log Payment
-                  </Button>
-                </form>
+                  </>
+                )}
 
                 {/* Notes — standalone, not part of log payment */}
                 <div className="rounded-lg border p-4 space-y-3">

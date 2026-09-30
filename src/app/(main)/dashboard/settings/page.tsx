@@ -331,93 +331,43 @@ export default function SettingsPage() {
     }
   };
 
-  const updateSearchPermission = (
+  const updateSearchPermission = async (
   userId: number,
   field: "leads" | "renewals",
   value: boolean
 ) => {
-  setSearchPermissionDraft((current) => ({
-    ...current,
-    [userId]: {
-      ...current[userId],
-      [field]: value,
-    },
-  }));
-};
+  const user = searchPermissionUsers.find(u => u.user_id === userId);
+  const prevDraft = searchPermissionDraft[userId];
+  const newEntry = { ...prevDraft, [field]: value };
 
-const hasSearchPermissionChanges = () => {
-  const userIds = Object.keys(searchPermissionDraft);
-
-  return userIds.some((id) => {
-    const userId = Number(id);
-
-    return (
-      searchPermissionDraft[userId]?.leads !==
-        searchPermissionOriginal[userId]?.leads ||
-      searchPermissionDraft[userId]?.renewals !==
-        searchPermissionOriginal[userId]?.renewals
-    );
-  });
-};
-
-const cancelSearchPermissionChanges = () => {
-  setSearchPermissionDraft(structuredClone(searchPermissionOriginal));
-};
-
-const saveSearchPermissions = async () => {
-  if (!hasSearchPermissionChanges()) return;
-
+  // Optimistic update
+  setSearchPermissionDraft(cur => ({ ...cur, [userId]: newEntry }));
   setIsSavingSearchPermissions(true);
 
   try {
     const token = localStorage.getItem("auth_token");
+    if (!token) throw new Error("Not authenticated");
 
-    if (!token) {
-      throw new Error("Not authenticated");
-    }
-
-    const changedUsers = searchPermissionUsers.filter((user) => {
-      const current = searchPermissionDraft[user.user_id];
-      const original = searchPermissionOriginal[user.user_id];
-
-      return (
-        current?.leads !== original?.leads ||
-        current?.renewals !== original?.renewals
-      );
-    });
-
-    for (const user of changedUsers) {
-      const current = searchPermissionDraft[user.user_id];
-
-      const res = await fetch(
-        `${API_BASE_URL}/auth/search-permissions/users/${user.user_id}`,
-        {
-          method: "PUT",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({
-            can_search_all_leads: current.leads,
-            can_search_all_renewals: current.renewals,
-          }),
-        }
-      );
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        throw new Error(
-          data.error || `Failed to update ${user.employee_name}`
-        );
+    const res = await fetch(
+      `${API_BASE_URL}/auth/search-permissions/users/${userId}`,
+      {
+        method: "PUT",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          can_search_all_leads: newEntry.leads,
+          can_search_all_renewals: newEntry.renewals,
+        }),
       }
-    }
+    );
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || `Failed to update ${user?.employee_name}`);
 
-    setSearchPermissionOriginal(structuredClone(searchPermissionDraft));
-
-    alert("Search permissions saved successfully.");
+    // Commit to original so "changed" detection stays clean
+    setSearchPermissionOriginal(cur => ({ ...cur, [userId]: { ...newEntry } }));
   } catch (err: any) {
-    alert(err.message || "Failed to save search permissions");
+    // Revert optimistic update
+    setSearchPermissionDraft(cur => ({ ...cur, [userId]: prevDraft }));
+    alert(err.message || "Failed to save permission");
   } finally {
     setIsSavingSearchPermissions(false);
   }
@@ -701,14 +651,11 @@ const saveSearchPermissions = async () => {
                         <input
                           type="checkbox"
                           checked={permissions.leads}
+                          disabled={isSavingSearchPermissions}
                           onChange={(e) =>
-                            updateSearchPermission(
-                              user.user_id,
-                              "leads",
-                              e.target.checked
-                            )
+                            updateSearchPermission(user.user_id, "leads", e.target.checked)
                           }
-                          className="h-4 w-4 cursor-pointer accent-blue-600"
+                          className="h-4 w-4 cursor-pointer accent-blue-600 disabled:opacity-50"
                         />
                       </td>
 
@@ -716,14 +663,11 @@ const saveSearchPermissions = async () => {
                         <input
                           type="checkbox"
                           checked={permissions.renewals}
+                          disabled={isSavingSearchPermissions}
                           onChange={(e) =>
-                            updateSearchPermission(
-                              user.user_id,
-                              "renewals",
-                              e.target.checked
-                            )
+                            updateSearchPermission(user.user_id, "renewals", e.target.checked)
                           }
-                          className="h-4 w-4 cursor-pointer accent-blue-600"
+                          className="h-4 w-4 cursor-pointer accent-blue-600 disabled:opacity-50"
                         />
                       </td>
                     </tr>
@@ -755,32 +699,12 @@ const saveSearchPermissions = async () => {
           </p>
         </div>
 
-        <div className="mt-5 flex justify-end gap-3">
-          <Button
-            variant="outline"
-            onClick={cancelSearchPermissionChanges}
-            disabled={
-              isSavingSearchPermissions || !hasSearchPermissionChanges()
-            }
-            className="dark:border-slate-700 dark:hover:bg-slate-800"
-          >
-            Cancel
-          </Button>
-
-          <Button
-            onClick={saveSearchPermissions}
-            disabled={
-              isSavingSearchPermissions || !hasSearchPermissionChanges()
-            }
-            className="dark:bg-slate-100 dark:text-slate-950 dark:hover:bg-slate-200"
-          >
-            <Save className="mr-2 h-4 w-4" />
-
-            {isSavingSearchPermissions
-              ? "Saving..."
-              : "Save Changes"}
-          </Button>
-        </div>
+        {isSavingSearchPermissions && (
+          <div className="mt-3 flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400">
+            <Save className="h-3.5 w-3.5 animate-pulse" />
+            Saving…
+          </div>
+        )}
       </>
     )}
   </CardContent>
