@@ -770,67 +770,35 @@ export default function LeadsPage() {
     try {
       const count = bulkAssignCount ? Number(bulkAssignCount) : null;
 
-      // Always use server-side assign-by-filter when a count is specified —
-      // avoids fetching records just to collect IDs, no memory blowup, no cap.
-      if (count) {
-        const payload: any = {
-          employee_id: bulkAssignEmployeeId,
-          count,
-          service,
-          exclude_stage: 'Lost',
-        };
-        if (salespersonFilter !== "All") payload.salesperson_filter = salespersonFilter;
-        if (bulkAssignmentNotes.trim()) payload.assignment_notes = bulkAssignmentNotes.trim();
-
-        const response = await fetchWithAuth(`${CRM_PROXY}/leads/assign-by-filter`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload),
-        });
-        if (response.success) {
-          setAllLeads([]);
-          setSelectedLeads([]);
-          setIsSelectAllChecked(false);
-          setShowBulkAssignModal(false);
-          setBulkAssignmentNotes("");
-          setBulkAssignEmployeeId(null);
-          setBulkAssignEmployeeName("");
-          toast.success(`✅ ${response.assigned_count} leads assigned to ${response.employee_name}`);
-          await fetchLeads(1);
-        } else {
-          toast.error(response.error || "Assignment failed");
-        }
-        return;
-      }
-
-      // No count entered — assign only the explicitly checked leads
-      const leadsToAssign: number[] = selectedLeads;
-
-      if (!leadsToAssign.length) {
-        toast.error("No leads to assign"); return;
-      }
-
-      const payload: any = { lead_ids: leadsToAssign, employee_id: bulkAssignEmployeeId };
+      // Always use server-side assign-by-filter — no cap, no page limit
+      const payload: any = {
+        employee_id: bulkAssignEmployeeId,
+        count,           // null = assign all matching leads
+        service,
+        exclude_stage: 'Lost',
+      };
+      if (salespersonFilter !== "All") payload.salesperson_filter = salespersonFilter;
       if (bulkAssignmentNotes.trim()) payload.assignment_notes = bulkAssignmentNotes.trim();
 
-      let response: any = null;
-      try {
-        response = await fetchWithAuth(`${CRM_PROXY}/leads/assign`, {
-          method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload),
-        });
-      } catch (fetchErr: any) {
-        console.warn("Assign fetch error (may have succeeded in DB):", fetchErr);
+      const response = await fetchWithAuth(`${CRM_PROXY}/leads/assign-by-filter`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      if (response.success) {
+        setAllLeads([]);
+        setSelectedLeads([]);
+        setIsSelectAllChecked(false);
+        setShowBulkAssignModal(false);
+        setBulkAssignmentNotes("");
+        setBulkAssignCount("");
+        setBulkAssignEmployeeId(null);
+        setBulkAssignEmployeeName("");
+        toast.success(`✅ ${response.assigned_count} leads assigned to ${response.employee_name}`);
+        await fetchLeads(1);
+      } else {
+        toast.error(response.error || "Assignment failed");
       }
-
-      if (response && response.error && !response.success) throw new Error(response.error);
-
-      setSelectedLeads([]);
-      setIsSelectAllChecked(false);
-      setShowBulkAssignModal(false);
-      setBulkAssignmentNotes("");
-      setBulkAssignCount("");
-      toast.success(`✅ ${leadsToAssign.length} leads assigned to ${bulkAssignEmployeeName}`);
-      await fetchLeads(1);
     } catch (err: any) {
       toast.error(`❌ Error assigning leads: ${err.message || "Unknown error"}`);
     } finally { setIsBulkAssigning(false); }
@@ -2486,27 +2454,22 @@ export default function LeadsPage() {
               <div className="text-sm text-blue-700 dark:text-blue-300">
                 Assigning to: <strong>{bulkAssignEmployeeName}</strong>
               </div>
-              <div className="text-sm text-blue-700">Assigning to: <strong>{bulkAssignEmployeeName}</strong></div>
             </div>
             <div>
               <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                Number of Leads to Assign{" "}
-                <span className="text-gray-400 dark:text-gray-500 font-normal">
-                  (max {selectedLeads.length})
-                </span>
+                Number of Leads to Assign
               </label>
               <Input
                 type="number"
                 min={1}
-                max={selectedLeads.length}
                 className="mt-1"
-                placeholder={`Enter a number (default: all ${selectedLeads.length})`}
+                placeholder="Enter a number (leave blank to assign all matching)"
                 value={bulkAssignCount}
                 onChange={e => {
                   const val = parseInt(e.target.value);
                   if (e.target.value === "") {
                     setBulkAssignCount("");
-                  } else if (!isNaN(val) && val >= 1 && val <= selectedLeads.length) {
+                  } else if (!isNaN(val) && val >= 1) {
                     setBulkAssignCount(val);
                   }
                 }}
