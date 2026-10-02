@@ -449,7 +449,8 @@ export default function DraftsPage() {
         await fetchWithAuth("/api/crm/leads/assign", {
           method: "PATCH",
           body:   JSON.stringify({ lead_ids: idsToAssign, employee_id: employeeId }),
-        });
+          timeoutMs: 300000,
+        } as RequestInit & { timeoutMs: number });
         setLeads((prev) => prev.filter((l) => !idsToAssign.includes(l.opportunity_id)));
         setSelectedLeadIds([]);
         toast.success(`Assigned ${idsToAssign.length} leads to ${emp?.employee_name}`);

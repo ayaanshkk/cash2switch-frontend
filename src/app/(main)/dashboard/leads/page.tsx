@@ -784,7 +784,8 @@ export default function LeadsPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
-      });
+        timeoutMs: 300000,
+      } as any);
       if (response.success) {
         setAllLeads([]);
         setSelectedLeads([]);
