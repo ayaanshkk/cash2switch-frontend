@@ -5,7 +5,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import {
   Upload, RefreshCw, Trash2, Zap,
   ChevronLeft, ChevronRight, ChevronFirst, ChevronLast,
-  Users, Search, AlertCircle,
+  Users, Search, AlertCircle, CheckCircle2, Loader2,
 } from "lucide-react";
 import { toast, Toaster } from "react-hot-toast";
 
@@ -136,7 +136,8 @@ export default function DraftsPage() {
   const [isBulkAssigning, setIsBulkAssigning]              = useState(false);
   const [endDateFilter, setEndDateFilter] = useState<"all" | "365" | "30" | "60" | "90" | "90+">("all");
   const [usageSort, setUsageSort]        = useState<"none" | "low-high" | "high-low">("none");
-  const [bulkAssignQuantity, setBulkAssignQuantity] = useState<string>("" );
+  const [bulkAssignQuantity, setBulkAssignQuantity] = useState<string>("");
+  const [bulkAssignResult, setBulkAssignResult]     = useState<{ count: number; name: string } | null>(null);
 
   const pollAbortRef = useRef<AbortController | null>(null);
 
@@ -453,11 +454,14 @@ export default function DraftsPage() {
         } as RequestInit & { timeoutMs: number });
         setLeads((prev) => prev.filter((l) => !idsToAssign.includes(l.opportunity_id)));
         setSelectedLeadIds([]);
-        toast.success(`Assigned ${idsToAssign.length} leads to ${emp?.employee_name}`);
-        setShowBulkAssignModal(false);
-        setBulkAssignEmployeeId("");
-        setBulkAssignEmployeeName("");
-        setBulkAssignQuantity("");
+        setBulkAssignResult({ count: idsToAssign.length, name: emp?.employee_name || "" });
+        setTimeout(() => {
+          setShowBulkAssignModal(false);
+          setBulkAssignResult(null);
+          setBulkAssignEmployeeId("");
+          setBulkAssignEmployeeName("");
+          setBulkAssignQuantity("");
+        }, 2000);
       } catch (err) {
         toast.error(err instanceof Error ? err.message : "Bulk assignment failed");
       } finally {
@@ -682,82 +686,133 @@ export default function DraftsPage() {
 
       {/* ── Bulk assign dialog ── */}
       <Dialog open={showBulkAssignModal} onOpenChange={(open) => {
-        setShowBulkAssignModal(open);
-        if (!open) { setBulkAssignQuantity(""); setBulkAssignEmployeeId(""); setBulkAssignEmployeeName(""); }
+        if (!open && !isBulkAssigning) {
+          setShowBulkAssignModal(false);
+          setBulkAssignResult(null);
+          setBulkAssignQuantity("");
+          setBulkAssignEmployeeId("");
+          setBulkAssignEmployeeName("");
+        }
       }}>
         <DialogContent className="dark:border-slate-800 dark:bg-slate-950 max-w-md w-[90vw] sm:w-full">
           <DialogHeader>
             <DialogTitle className="dark:text-slate-50">Bulk Assign Leads</DialogTitle>
-            <DialogDescription className="dark:text-slate-400">
-              {bulkAssignQuantity && !isNaN(parseInt(bulkAssignQuantity, 10))
-                ? `Will assign the first ${parseInt(bulkAssignQuantity, 10)} leads from the current list.`
-                : selectedIds.length > 0
-                ? `Will assign ${selectedIds.length} selected lead(s).`
-                : "Select leads or enter a quantity below."}
-            </DialogDescription>
+            {!bulkAssignResult && (
+              <DialogDescription className="dark:text-slate-400">
+                {bulkAssignQuantity && !isNaN(parseInt(bulkAssignQuantity, 10))
+                  ? `Will assign the first ${parseInt(bulkAssignQuantity, 10)} leads from the current list.`
+                  : selectedIds.length > 0
+                  ? `Will assign ${selectedIds.length} selected lead(s).`
+                  : "Select leads or enter a quantity below."}
+              </DialogDescription>
+            )}
           </DialogHeader>
 
-          <div className="space-y-4">
-            <div>
-              <label className="text-sm font-medium text-gray-700 dark:text-slate-300 mb-1 block">Salesperson</label>
-              <Select value={bulkAssignEmployeeId} onValueChange={(v) => {
-                setBulkAssignEmployeeId(v);
-                setBulkAssignEmployeeName(employees.find(e => e.employee_id === Number(v))?.employee_name || "");
-              }}>
-                <SelectTrigger className="dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100">
-                  <SelectValue placeholder="Select salesperson" />
-                </SelectTrigger>
-                <SelectContent className="dark:border-slate-800 dark:bg-slate-900">
-                  {employees.map((emp) => (
-                    <SelectItem key={emp.employee_id} value={emp.employee_id.toString()} className="dark:hover:bg-slate-800">
-                      {emp.employee_name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+          {bulkAssignResult ? (
+            /* ── Success state ── */
+            <div className="py-6 flex flex-col items-center gap-3 text-center">
+              <div className="h-12 w-12 rounded-full bg-green-100 dark:bg-green-900/40 flex items-center justify-center">
+                <CheckCircle2 className="h-7 w-7 text-green-600 dark:text-green-400" />
+              </div>
+              <p className="text-lg font-semibold dark:text-slate-100">Allocation Complete</p>
+              <p className="text-sm text-gray-500 dark:text-slate-400">
+                <strong>{bulkAssignResult.count}</strong> lead{bulkAssignResult.count !== 1 ? "s" : ""} assigned to <strong>{bulkAssignResult.name}</strong>
+              </p>
+              <p className="text-xs text-gray-400 dark:text-slate-500">This window will close shortly…</p>
             </div>
+          ) : (
+            /* ── Form state ── */
+            <div className="space-y-4">
+              <div>
+                <label className="text-sm font-medium text-gray-700 dark:text-slate-300 mb-1 block">Salesperson</label>
+                <Select value={bulkAssignEmployeeId} onValueChange={(v) => {
+                  setBulkAssignEmployeeId(v);
+                  setBulkAssignEmployeeName(employees.find(e => e.employee_id === Number(v))?.employee_name || "");
+                }} disabled={isBulkAssigning}>
+                  <SelectTrigger className="dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100">
+                    <SelectValue placeholder="Select salesperson" />
+                  </SelectTrigger>
+                  <SelectContent className="dark:border-slate-800 dark:bg-slate-900">
+                    {employees.map((emp) => (
+                      <SelectItem key={emp.employee_id} value={emp.employee_id.toString()} className="dark:hover:bg-slate-800">
+                        {emp.employee_name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
 
-            <div>
-              <label className="text-sm font-medium text-gray-700 dark:text-slate-300 mb-1 block">
-                Quantity <span className="text-gray-400 dark:text-slate-500 font-normal">(optional — overrides selection)</span>
-              </label>
-              <Input
-                type="number"
-                min={1}
-                max={draftLeads.length}
-                placeholder={`e.g. 100 (max ${draftLeads.length.toLocaleString()})`}
-                value={bulkAssignQuantity}
-                onChange={(e) => setBulkAssignQuantity(e.target.value)}
-                className="dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100 dark:placeholder:text-slate-500"
-              />
-              {bulkAssignQuantity && !isNaN(parseInt(bulkAssignQuantity, 10)) && (
-                <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">
-                  Will assign the first {Math.min(parseInt(bulkAssignQuantity, 10), draftLeads.length).toLocaleString()} leads from the current filtered list.
-                </p>
-              )}
+              <div>
+                <label className="text-sm font-medium text-gray-700 dark:text-slate-300 mb-1 block">
+                  Quantity <span className="text-gray-400 dark:text-slate-500 font-normal">(optional — overrides selection)</span>
+                </label>
+                <Input
+                  type="number"
+                  min={1}
+                  max={draftLeads.length}
+                  placeholder={`e.g. 100 (max ${draftLeads.length.toLocaleString()})`}
+                  value={bulkAssignQuantity}
+                  disabled={isBulkAssigning}
+                  onChange={(e) => setBulkAssignQuantity(e.target.value)}
+                  className="dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100 dark:placeholder:text-slate-500"
+                />
+                {bulkAssignQuantity && !isNaN(parseInt(bulkAssignQuantity, 10)) && (
+                  <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">
+                    Will assign the first {Math.min(parseInt(bulkAssignQuantity, 10), draftLeads.length).toLocaleString()} leads from the current filtered list.
+                  </p>
+                )}
+              </div>
+
+              {isBulkAssigning && (() => {
+                const qty = parseInt(bulkAssignQuantity, 10);
+                const displayCount = !isNaN(qty) && qty > 0 ? Math.min(qty, draftLeads.length) : selectedIds.length;
+                return (
+                  <div className="space-y-1.5">
+                    <p className="text-xs text-blue-600 dark:text-blue-400 font-medium">
+                      Allocating {displayCount.toLocaleString()} lead{displayCount !== 1 ? "s" : ""}…
+                    </p>
+                    <div className="w-full h-1.5 bg-blue-100 dark:bg-blue-950 rounded-full overflow-hidden">
+                      <div
+                        className="h-full w-2/5 bg-blue-500 rounded-full"
+                        style={{ animation: 'bulkAssignSlide 1.5s ease-in-out infinite' }}
+                      />
+                    </div>
+                    <style>{`
+                      @keyframes bulkAssignSlide {
+                        0%   { transform: translateX(-100%); }
+                        100% { transform: translateX(350%); }
+                      }
+                    `}</style>
+                  </div>
+                );
+              })()}
             </div>
-          </div>
+          )}
 
-          <div className="flex flex-col-reverse sm:flex-row justify-end gap-2 pt-2">
-            <Button
-              variant="outline"
-              onClick={() => setShowBulkAssignModal(false)}
-              disabled={isBulkAssigning}
-              className="dark:border-slate-700 dark:hover:bg-slate-800"
-            >
-              Cancel
-            </Button>
-            <Button
-              onClick={handleBulkAssign}
-              disabled={!bulkAssignEmployeeId || isBulkAssigning}
-              className="dark:bg-slate-100 dark:text-slate-950 dark:hover:bg-slate-200"
-            >
-              {isBulkAssigning && <span className="mr-2">⏳</span>}
-              {bulkAssignQuantity && !isNaN(parseInt(bulkAssignQuantity, 10))
-                ? `Assign ${Math.min(parseInt(bulkAssignQuantity, 10), draftLeads.length).toLocaleString()} Leads`
-                : `Assign ${selectedIds.length} Lead${selectedIds.length !== 1 ? "s" : ""}`}
-            </Button>
-          </div>
+          {!bulkAssignResult && (
+            <div className="flex flex-col-reverse sm:flex-row justify-end gap-2 pt-2">
+              <Button
+                variant="outline"
+                onClick={() => setShowBulkAssignModal(false)}
+                disabled={isBulkAssigning}
+                className="dark:border-slate-700 dark:hover:bg-slate-800"
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={handleBulkAssign}
+                disabled={!bulkAssignEmployeeId || isBulkAssigning}
+                className="dark:bg-slate-100 dark:text-slate-950 dark:hover:bg-slate-200"
+              >
+                {isBulkAssigning
+                  ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Assigning…</>
+                  : bulkAssignQuantity && !isNaN(parseInt(bulkAssignQuantity, 10))
+                    ? `Assign ${Math.min(parseInt(bulkAssignQuantity, 10), draftLeads.length).toLocaleString()} Leads`
+                    : `Assign ${selectedIds.length} Lead${selectedIds.length !== 1 ? "s" : ""}`
+                }
+              </Button>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
 

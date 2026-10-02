@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import {
   Search, Plus, Trash2, ChevronDown, Filter, AlertCircle,
   ChevronRight, ChevronLeft, ChevronLast, ChevronFirst,
@@ -249,6 +249,9 @@ export default function LeadsPage() {
   const [bulkAssignEmployeeName, setBulkAssignEmployeeName] = useState("");
   const [bulkAssignmentNotes, setBulkAssignmentNotes]       = useState("");
   const [isBulkAssigning, setIsBulkAssigning]               = useState(false);
+  const [bulkAssignResult, setBulkAssignResult]             = useState<{ count: number; name: string } | null>(null);
+  const [bulkAssignProgress, setBulkAssignProgress]         = useState<{ done: number; total: number } | null>(null);
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // ── Unallocated modal ─────────────────────────────────────────────────────
   type UnallocatedLead = { opportunity_id: number; business_name: string | null; contact_person: string | null; tel_number: string | null; supplier_name: string | null; end_date: string | null; mpan_mpr: string | null; };
@@ -762,47 +765,87 @@ export default function LeadsPage() {
     finally { setIsAssigning(false); }
   };
 
+  const stopPolling = useCallback(() => {
+    if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
+  }, []);
+
+  const resetBulkAssignModal = useCallback(() => {
+    stopPolling();
+    setShowBulkAssignModal(false);
+    setBulkAssignResult(null);
+    setBulkAssignProgress(null);
+    setBulkAssignmentNotes("");
+    setBulkAssignCount("");
+    setBulkAssignEmployeeId(null);
+    setBulkAssignEmployeeName("");
+    setIsBulkAssigning(false);
+  }, [stopPolling]);
+
   const handleBulkAssignWithNotes = async () => {
     if (!bulkAssignEmployeeId) {
       toast.error("Please select a salesperson"); return;
     }
     setIsBulkAssigning(true);
+    setBulkAssignProgress(null);
     try {
       const count = bulkAssignCount ? Number(bulkAssignCount) : null;
-
-      // Always use server-side assign-by-filter — no cap, no page limit
       const payload: any = {
         employee_id: bulkAssignEmployeeId,
-        count,           // null = assign all matching leads
+        count,
         service,
         exclude_stage: 'Lost',
       };
       if (salespersonFilter !== "All") payload.salesperson_filter = salespersonFilter;
       if (bulkAssignmentNotes.trim()) payload.assignment_notes = bulkAssignmentNotes.trim();
 
-      const response = await fetchWithAuth(`${CRM_PROXY}/leads/assign-by-filter`, {
+      // Kick off background job — returns immediately with task_id
+      const init = await fetchWithAuth(`${CRM_PROXY}/leads/assign-progress`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
-        timeoutMs: 300000,
       } as any);
-      if (response.success) {
-        setAllLeads([]);
-        setSelectedLeads([]);
-        setIsSelectAllChecked(false);
-        setShowBulkAssignModal(false);
-        setBulkAssignmentNotes("");
-        setBulkAssignCount("");
-        setBulkAssignEmployeeId(null);
-        setBulkAssignEmployeeName("");
-        toast.success(`✅ ${response.assigned_count} leads assigned to ${response.employee_name}`);
+
+      if (!init.success) { toast.error(init.error || "Failed to start assignment"); setIsBulkAssigning(false); return; }
+
+      // Zero leads matched — done instantly
+      if (!init.task_id) {
+        setBulkAssignResult({ count: 0, name: init.employee_name });
         await fetchLeads(1);
-      } else {
-        toast.error(response.error || "Assignment failed");
+        setTimeout(resetBulkAssignModal, 2000);
+        return;
       }
+
+      const taskId: string = init.task_id;
+      setBulkAssignProgress({ done: 0, total: init.total });
+
+      // Poll every 500 ms for live progress
+      pollRef.current = setInterval(async () => {
+        try {
+          const prog = await fetchWithAuth(`${CRM_PROXY}/tasks/${taskId}`);
+          setBulkAssignProgress({ done: prog.done, total: prog.total });
+
+          if (prog.status === 'done') {
+            stopPolling();
+            setAllLeads([]);
+            setSelectedLeads([]);
+            setIsSelectAllChecked(false);
+            setBulkAssignResult({ count: prog.assigned_count, name: prog.employee_name });
+            await fetchLeads(1);
+            setTimeout(resetBulkAssignModal, 2000);
+          } else if (prog.status === 'error') {
+            stopPolling();
+            setIsBulkAssigning(false);
+            toast.error(`Assignment failed: ${prog.error || 'Unknown error'}`);
+          }
+        } catch {
+          // network blip — keep polling
+        }
+      }, 500);
     } catch (err: any) {
+      stopPolling();
+      setIsBulkAssigning(false);
       toast.error(`❌ Error assigning leads: ${err.message || "Unknown error"}`);
-    } finally { setIsBulkAssigning(false); }
+    }
   };
 
   // ── Delete ─────────────────────────────────────────────────────────────────
@@ -2438,78 +2481,128 @@ export default function LeadsPage() {
       />
 
       {/* Bulk Assign Modal */}
-      <Dialog open={showBulkAssignModal} onOpenChange={setShowBulkAssignModal}>
+      <Dialog open={showBulkAssignModal} onOpenChange={(open) => {
+        if (!open && !isBulkAssigning) resetBulkAssignModal();
+      }}>
         <DialogContent className="max-w-md w-[90vw] sm:w-full">
           <DialogHeader>
             <DialogTitle>Bulk Assign Leads</DialogTitle>
-            <DialogDescription>Assign leads from your selection to {bulkAssignEmployeeName}</DialogDescription>
+            {!isBulkAssigning && !bulkAssignResult && (
+              <DialogDescription>Assign leads from your selection to {bulkAssignEmployeeName}</DialogDescription>
+            )}
           </DialogHeader>
-          <div className="space-y-4">
-            <div className="p-3 bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-900 rounded-lg">
-              <div className="flex items-center gap-2 mb-2">
-                <UserCheck className="h-4 w-4 text-blue-600 dark:text-blue-400 shrink-0" />
-                <span className="text-sm font-medium text-blue-900 dark:text-blue-200">
-                  {selectedLeads.length} lead{selectedLeads.length !== 1 ? "s" : ""} selected
-                </span>
+
+          {bulkAssignResult ? (
+            /* ── Success state ── */
+            <div className="py-6 flex flex-col items-center gap-3 text-center">
+              <div className="h-12 w-12 rounded-full bg-green-100 dark:bg-green-900/40 flex items-center justify-center">
+                <CheckCircle2 className="h-7 w-7 text-green-600 dark:text-green-400" />
               </div>
-              <div className="text-sm text-blue-700 dark:text-blue-300">
-                Assigning to: <strong>{bulkAssignEmployeeName}</strong>
-              </div>
-            </div>
-            <div>
-              <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                Number of Leads to Assign
-              </label>
-              <Input
-                type="number"
-                min={1}
-                className="mt-1"
-                placeholder="Enter a number (leave blank to assign all matching)"
-                value={bulkAssignCount}
-                onChange={e => {
-                  const val = parseInt(e.target.value);
-                  if (e.target.value === "") {
-                    setBulkAssignCount("");
-                  } else if (!isNaN(val) && val >= 1) {
-                    setBulkAssignCount(val);
-                  }
-                }}
-              />
-              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                Leave blank to assign all selected leads.
+              <p className="text-lg font-semibold text-gray-900 dark:text-slate-100">Allocation Complete</p>
+              <p className="text-sm text-gray-500 dark:text-gray-400">
+                <strong>{bulkAssignResult.count}</strong> lead{bulkAssignResult.count !== 1 ? "s" : ""} assigned to <strong>{bulkAssignResult.name}</strong>
               </p>
+              <p className="text-xs text-gray-400 dark:text-gray-500">This window will close shortly…</p>
             </div>
-            <div>
-              <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                Assignment Notes (Optional)
-              </label>
-              <Textarea
-                className="mt-1"
-                placeholder="Why are these being assigned?"
-                value={bulkAssignmentNotes}
-                onChange={e => setBulkAssignmentNotes(e.target.value)}
-                rows={3}
-              />
+          ) : isBulkAssigning && bulkAssignProgress ? (
+            /* ── Live progress state ── */
+            <div className="py-4 space-y-5">
+              <div className="p-3 bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-900 rounded-lg">
+                <div className="flex items-center justify-between mb-1">
+                  <div className="flex items-center gap-2">
+                    <Loader2 className="h-4 w-4 text-blue-600 dark:text-blue-400 animate-spin shrink-0" />
+                    <span className="text-sm font-medium text-blue-900 dark:text-blue-200">
+                      Allocating to <strong>{bulkAssignEmployeeName}</strong>
+                    </span>
+                  </div>
+                  <span className="text-sm font-semibold text-blue-700 dark:text-blue-300 tabular-nums">
+                    {bulkAssignProgress.done.toLocaleString()} / {bulkAssignProgress.total.toLocaleString()}
+                  </span>
+                </div>
+                <div className="w-full h-2 bg-blue-100 dark:bg-blue-900 rounded-full overflow-hidden mt-2">
+                  <div
+                    className="h-full bg-blue-500 rounded-full transition-all duration-300 ease-out"
+                    style={{ width: `${bulkAssignProgress.total > 0 ? Math.round((bulkAssignProgress.done / bulkAssignProgress.total) * 100) : 0}%` }}
+                  />
+                </div>
+                <p className="text-xs text-blue-600 dark:text-blue-400 mt-1.5 text-right">
+                  {bulkAssignProgress.total > 0
+                    ? `${Math.round((bulkAssignProgress.done / bulkAssignProgress.total) * 100)}%`
+                    : '0%'}
+                </p>
+              </div>
+              <p className="text-xs text-center text-gray-400 dark:text-gray-500">Please keep this window open…</p>
             </div>
-          </div>
-          <div className="flex flex-col-reverse sm:flex-row justify-end gap-2 mt-4">
-            <Button
-              variant="outline"
-              onClick={() => {
-                setShowBulkAssignModal(false);
-                setBulkAssignmentNotes("");
-                setBulkAssignEmployeeId(null);
-                setBulkAssignEmployeeName("");
-                setBulkAssignCount("");
-              }}
-              disabled={isBulkAssigning}
-            >
-              Cancel
-            </Button>
-            <Button onClick={handleBulkAssignWithNotes} disabled={isBulkAssigning}>
-              {isBulkAssigning ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Assigning...</> : `Assign ${bulkAssignCount || selectedLeads.length} Lead${(bulkAssignCount || selectedLeads.length) !== 1 ? "s" : ""}`}
-            </Button>
-          </div>
+          ) : (
+            /* ── Form state ── */
+            <div className="space-y-4">
+              {(() => {
+                const displayCount = bulkAssignCount ? Number(bulkAssignCount) : selectedLeads.length;
+                return (
+                  <div className="p-3 bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-900 rounded-lg">
+                    <div className="flex items-center gap-2 mb-2">
+                      <UserCheck className="h-4 w-4 text-blue-600 dark:text-blue-400 shrink-0" />
+                      <span className="text-sm font-medium text-blue-900 dark:text-blue-200">
+                        {displayCount} lead{displayCount !== 1 ? "s" : ""} selected
+                      </span>
+                    </div>
+                    <div className="text-sm text-blue-700 dark:text-blue-300">
+                      Assigning to: <strong>{bulkAssignEmployeeName}</strong>
+                    </div>
+                  </div>
+                );
+              })()}
+              <div>
+                <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                  Number of Leads to Assign
+                </label>
+                <Input
+                  type="number"
+                  min={1}
+                  className="mt-1"
+                  placeholder="Enter a number (leave blank to assign all matching)"
+                  value={bulkAssignCount}
+                  onChange={e => {
+                    const val = parseInt(e.target.value);
+                    if (e.target.value === "") {
+                      setBulkAssignCount("");
+                    } else if (!isNaN(val) && val >= 1) {
+                      setBulkAssignCount(val);
+                    }
+                  }}
+                />
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                  Leave blank to assign all selected leads.
+                </p>
+              </div>
+              <div>
+                <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                  Assignment Notes (Optional)
+                </label>
+                <Textarea
+                  className="mt-1"
+                  placeholder="Why are these being assigned?"
+                  value={bulkAssignmentNotes}
+                  onChange={e => setBulkAssignmentNotes(e.target.value)}
+                  rows={3}
+                />
+              </div>
+            </div>
+          )}
+
+          {!bulkAssignResult && !isBulkAssigning && (
+            <div className="flex flex-col-reverse sm:flex-row justify-end gap-2 mt-4">
+              <Button
+                variant="outline"
+                onClick={resetBulkAssignModal}
+              >
+                Cancel
+              </Button>
+              <Button onClick={handleBulkAssignWithNotes}>
+                {`Assign ${bulkAssignCount || selectedLeads.length} Lead${(bulkAssignCount || selectedLeads.length) !== 1 ? "s" : ""}`}
+              </Button>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
     </div>
