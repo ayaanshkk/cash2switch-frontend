@@ -632,7 +632,7 @@ export default function AgentCommissionsPage() {
               <Input className="w-full sm:w-44 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-100 dark:[color-scheme:dark]" type="month" value={month} onChange={(e) => setMonth(e.target.value)} />
               {month && <Button variant="ghost" size="sm" onClick={() => setMonth("")} className="text-slate-500 hover:text-slate-900 dark:text-slate-400">All</Button>}
             </div>
-            <Button variant="outline" onClick={load} disabled={loading} className="dark:border-slate-800 dark:hover:bg-slate-800">
+            <Button variant="outline" onClick={() => load()} disabled={loading} className="dark:border-slate-800 dark:hover:bg-slate-800">
               {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCcw className="mr-2 h-4 w-4" />}
               Refresh
             </Button>
