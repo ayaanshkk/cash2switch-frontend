@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect } from "react";
 import {
   Search, Filter, AlertCircle, ChevronRight, ChevronLeft,
   ChevronLast, ChevronFirst, Users, UserCheck, Loader2, ChevronDown, Phone,
@@ -24,8 +24,6 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 
 // ---------------- Constants ----------------
-const LEADS_PER_PAGE = 25;
-
 const STATUS_OPTIONS = [
   { value: "Not Called",         label: "Not Called" },
   { value: "Callback",           label: "Callback" },
@@ -157,13 +155,16 @@ const getStageIdFromStatus = (status: string, stages?: Stage[]): number | null =
 };
 
 // ---------------- Component ----------------
+const PAGE_SIZE = 100;
+
 export default function AllocatedLeadsPage() {
   const { user } = useAuth();
   const normalizedRole = typeof user?.role === "string" ? user.role.trim().toLowerCase() : "";
   const isAdmin = normalizedRole.includes("admin");
 
   // Data
-  const [allLeads, setAllLeads]           = useState<AllocatedLead[]>([]);
+  const [leads, setLeads]                 = useState<AllocatedLead[]>([]);
+  const [total, setTotal]                 = useState(0);
   const [suppliers, setSuppliers]         = useState<Supplier[]>([]);
   const [employees, setEmployees]         = useState<Employee[]>([]);
   const [stages, setStages]               = useState<Stage[]>([]);
@@ -175,31 +176,30 @@ export default function AllocatedLeadsPage() {
   const [error, setError]         = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
 
-  // Filters
-  const [searchTerm, setSearchTerm]             = useState("");
-  const [supplierFilter, setSupplierFilter]     = useState<number | "All">("All");
-  const [statusFilter, setStatusFilter]         = useState<string | "All">("All");
+  // Filters — all sent to server
+  const [searchTerm, setSearchTerm]               = useState("");
+  const [supplierFilter, setSupplierFilter]       = useState<number | "All">("All");
+  const [statusFilter, setStatusFilter]           = useState<string | "All">("All");
   const [salespersonFilter, setSalespersonFilter] = useState<number | "All">("All");
-  const [endDateFilter, setEndDateFilter]       = useState<"all" | "expired" | "30" | "60" | "90" | "90+">("all");
-  const [usageSort, setUsageSort]               = useState<"none" | "low-high" | "high-low">("none");
-  const [allocSort, setAllocSort]               = useState<"none" | "newest" | "oldest" | "custom">("none");
-  const [allocFrom, setAllocFrom]               = useState("");
-  const [allocTo,   setAllocTo]                 = useState("");
+  const [endDateFilter, setEndDateFilter]         = useState<"all" | "expired" | "30" | "60" | "90" | "90+">("all");
+  const [allocSort, setAllocSort]                 = useState<"none" | "newest" | "oldest" | "custom">("none");
+  const [allocFrom, setAllocFrom]                 = useState("");
+  const [allocTo,   setAllocTo]                   = useState("");
 
   // Callback modal
-  const [showCallbackModal, setShowCallbackModal]                   = useState(false);
-  const [selectedLeadForCallback, setSelectedLeadForCallback]       = useState<number | null>(null);
-  const [callbackStatus, setCallbackStatus]                         = useState("");
-  const [callbackDate, setCallbackDate]                             = useState("");
-  const [callbackNotes, setCallbackNotes]                           = useState("");
-  const [newEndDate, setNewEndDate]                                 = useState("");
-  const [isSold, setIsSold]                                         = useState("");
-  const [isSubmittingCallback, setIsSubmittingCallback]             = useState(false);
-  const [callbackError, setCallbackError]                           = useState("");
-  const [newSupplier, setNewSupplier]                               = useState("");
-  const [newAddress, setNewAddress]                                 = useState("");
-  const [calledDate, setCalledDate]                                 = useState(() => new Date().toISOString().split("T")[0]);
-    const [renewedBy, setRenewedBy]                                 = useState<"customer" | "supplier" | "agent" | "">("");
+  const [showCallbackModal, setShowCallbackModal]             = useState(false);
+  const [selectedLeadForCallback, setSelectedLeadForCallback] = useState<number | null>(null);
+  const [callbackStatus, setCallbackStatus]                   = useState("");
+  const [callbackDate, setCallbackDate]                       = useState("");
+  const [callbackNotes, setCallbackNotes]                     = useState("");
+  const [newEndDate, setNewEndDate]                           = useState("");
+  const [isSold, setIsSold]                                   = useState("");
+  const [isSubmittingCallback, setIsSubmittingCallback]       = useState(false);
+  const [callbackError, setCallbackError]                     = useState("");
+  const [newSupplier, setNewSupplier]                         = useState("");
+  const [newAddress, setNewAddress]                           = useState("");
+  const [calledDate, setCalledDate]                           = useState(() => new Date().toISOString().split("T")[0]);
+  const [renewedBy, setRenewedBy]                             = useState<"customer" | "supplier" | "agent" | "">("");
 
   // Assign modal
   const [showAssignModal, setShowAssignModal]       = useState(false);
@@ -209,46 +209,61 @@ export default function AllocatedLeadsPage() {
   const [isAssigning, setIsAssigning]               = useState(false);
 
   // ---------------- Effects ----------------
+  // Debounced search — avoid firing on every keystroke
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   useEffect(() => {
-    fetchAllocatedLeads();
+    const t = setTimeout(() => setDebouncedSearch(searchTerm), 350);
+    return () => clearTimeout(t);
+  }, [searchTerm]);
+
+  // Reset to page 1 when any filter changes
+  useEffect(() => { setCurrentPage(1); }, [
+    service, debouncedSearch, supplierFilter, statusFilter,
+    salespersonFilter, endDateFilter, allocSort, allocFrom, allocTo,
+  ]);
+
+  // Fetch whenever page or filters change
+  useEffect(() => {
+    fetchAllocatedLeads(currentPage);
+  }, [currentPage, service, debouncedSearch, supplierFilter, statusFilter,
+      salespersonFilter, endDateFilter, allocSort, allocFrom, allocTo, isAdmin]);
+
+  useEffect(() => {
     fetchSuppliers();
     fetchStages();
     if (isAdmin) fetchEmployees();
-  }, [service, isAdmin]);
-
-  useEffect(() => { setCurrentPage(1); }, [searchTerm, supplierFilter, statusFilter, salespersonFilter, endDateFilter, usageSort, allocSort, allocFrom, allocTo]);
+  }, [isAdmin]);
 
   // ---------------- Fetch ----------------
-  const fetchAllocatedLeads = async () => {
+  const fetchAllocatedLeads = async (page = 1) => {
     setIsLoading(true);
     setError(null);
     try {
-      const resp = await fetchWithAuth(
-        `/api/crm/leads/allocated?service=${encodeURIComponent(service)}&exclude_stage=Lost`
-      );
-      const data: AllocatedLead[] = Array.isArray(resp) ? resp : (resp?.data || []);
+      const params = new URLSearchParams({
+        service,
+        exclude_stage: "Lost",
+        page: String(page),
+        page_size: String(PAGE_SIZE),
+      });
+      if (debouncedSearch)                          params.set("search",         debouncedSearch);
+      if (supplierFilter !== "All")                 params.set("supplier_id",    String(supplierFilter));
+      if (statusFilter !== "All")                   params.set("status",         statusFilter);
+      if (isAdmin && salespersonFilter !== "All")   params.set("salesperson_id", String(salespersonFilter));
+      if (endDateFilter !== "all")                  params.set("end_date_filter", endDateFilter);
+      if (allocSort === "oldest")                   params.set("upload_sort",    "asc");
+      else if (allocSort === "newest")              params.set("upload_sort",    "desc");
+      if (allocSort === "custom" && allocFrom)      params.set("upload_from",    allocFrom);
+      if (allocSort === "custom" && allocTo)        params.set("upload_to",      allocTo);
 
-      const allocated = data.filter(l => l.opportunity_owner_employee_id !== null);
-      setAllLeads(allocated);
-
-      if (isAdmin) {
-        const countMap: Record<number, { name: string; count: number }> = {};
-        allocated.forEach(l => {
-          if (l.opportunity_owner_employee_id && l.assigned_to_name) {
-            const eid = l.opportunity_owner_employee_id;
-            if (!countMap[eid]) countMap[eid] = { name: l.assigned_to_name, count: 0 };
-            countMap[eid].count++;
-          }
-        });
-        setEmployeeStats(
-          Object.entries(countMap)
-            .map(([id, v]) => ({ employee_id: Number(id), employee_name: v.name, count: v.count }))
-            .sort((a, b) => a.employee_name.localeCompare(b.employee_name))
-        );
-      }
+      const resp = await fetchWithAuth(`/api/crm/leads/allocated?${params.toString()}`);
+      const data: AllocatedLead[] = resp?.data ?? (Array.isArray(resp) ? resp : []);
+      setLeads(data);
+      setTotal(resp?.total ?? data.length);
+      if (isAdmin && resp?.team_stats) setEmployeeStats(resp.team_stats);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unknown error");
-      setAllLeads([]);
+      setLeads([]);
+      setTotal(0);
     } finally {
       setIsLoading(false);
     }
@@ -279,78 +294,8 @@ export default function AllocatedLeadsPage() {
   const getSupplierName = (id?: number | null) =>
     suppliers.find(s => s.supplier_id === id)?.supplier_name || "—";
 
-  // ---------------- Filters ----------------
-  const filteredLeads = useMemo(() => {
-    let list = allLeads.filter(l => {
-      const term = searchTerm.toLowerCase();
-      const matchSearch =
-        (l.business_name  || "").toLowerCase().includes(term) ||
-        (l.contact_person || "").toLowerCase().includes(term) ||
-        (l.tel_number     || "").toLowerCase().includes(term) ||
-        (l.mpan_mpr       || "").toLowerCase().includes(term) ||
-        (l.email          || "").toLowerCase().includes(term);
-
-      const matchSupplier = supplierFilter === "All" || l.supplier_id === supplierFilter;
-      const normaliseStage = (s: string | null | undefined) => {
-        if (!s || s.toLowerCase() === "lead") return "Not Called";
-        return s;
-      };
-      const matchStatus = statusFilter === "All" || normaliseStage(l.stage_name) === statusFilter;
-      const matchSalesperson = !isAdmin || salespersonFilter === "All" || l.opportunity_owner_employee_id === salespersonFilter;
-
-      let matchEndDate = true;
-      if (endDateFilter !== "all" && l.end_date) {
-        const days = Math.ceil((new Date(l.end_date).getTime() - Date.now()) / 86400000);
-        if      (endDateFilter === "expired") matchEndDate = days < 0;
-        else if (endDateFilter === "30")      matchEndDate = days >= 0 && days <= 30;
-        else if (endDateFilter === "60")      matchEndDate = days > 30 && days <= 60;
-        else if (endDateFilter === "90")      matchEndDate = days > 60 && days <= 90;
-        else if (endDateFilter === "90+")     matchEndDate = days > 90 && days <= 365;
-      }
-
-      let matchAlloc = true;
-      if (allocSort === "custom" && (allocFrom || allocTo)) {
-        const created = l.created_at ? new Date(l.created_at) : null;
-        if (!created || isNaN(created.getTime())) {
-          matchAlloc = false;
-        } else {
-          if (allocFrom) matchAlloc = matchAlloc && created >= new Date(allocFrom);
-          if (allocTo) {
-            const toEnd = new Date(allocTo);
-            toEnd.setHours(23, 59, 59, 999);
-            matchAlloc = matchAlloc && created <= toEnd;
-          }
-        }
-      }
-
-      return matchSearch && matchSupplier && matchStatus && matchSalesperson && matchEndDate && matchAlloc;
-    });
-
-    if (allocSort !== "none" && usageSort === "none") {
-      return [...list].sort((a, b) => {
-        const diff = new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime();
-        if (diff !== 0) return allocSort === "oldest" ? -diff : diff;
-        return allocSort === "oldest" ? a.opportunity_id - b.opportunity_id : b.opportunity_id - a.opportunity_id;
-      });
-    }
-
-    if (usageSort !== "none") {
-      list = [...list].sort((a, b) =>
-        usageSort === "low-high"
-          ? (a.annual_usage || 0) - (b.annual_usage || 0)
-          : (b.annual_usage || 0) - (a.annual_usage || 0)
-      );
-    }
-
-    return list;
-  }, [allLeads, searchTerm, supplierFilter, statusFilter, salespersonFilter, endDateFilter, usageSort, allocSort, allocFrom, allocTo, isAdmin]);
-
   // ---------------- Pagination ----------------
-  const totalPages     = Math.ceil(filteredLeads.length / LEADS_PER_PAGE);
-  const paginatedLeads = useMemo(() => {
-    const start = (currentPage - 1) * LEADS_PER_PAGE;
-    return filteredLeads.slice(start, start + LEADS_PER_PAGE);
-  }, [filteredLeads, currentPage]);
+  const totalPages = Math.ceil(total / PAGE_SIZE);
 
   // ---------------- Callback ----------------
   const isDateRequired = () => {
@@ -418,13 +363,14 @@ export default function AllocatedLeadsPage() {
       if (!response || response.error) throw new Error(response?.error || "Failed to save");
 
       if (response.moved_to_recycle_bin || response.moved_to_priced) {
-        setAllLeads(prev => prev.filter(l => l.opportunity_id !== selectedLeadForCallback));
+        setLeads(prev => prev.filter(l => l.opportunity_id !== selectedLeadForCallback));
+        setTotal(t => Math.max(0, t - 1));
         toast.success(response.moved_to_recycle_bin ? "🗑️ Moved to recycle bin" : "✅ Moved to Priced page");
       } else if (callbackStatus === "End Date Changed" || callbackStatus === "Already Renewed") {
-        await fetchAllocatedLeads();
+        await fetchAllocatedLeads(currentPage);
         toast.success(callbackStatus === "Already Renewed" ? "✅ Lead information updated" : "✅ Contract end date updated");
       } else {
-        setAllLeads(prev =>
+        setLeads(prev =>
           prev.map(l => l.opportunity_id === selectedLeadForCallback ? { ...l, stage_name: callbackStatus } : l)
         );
         toast.success("✅ Callback saved successfully");
@@ -452,20 +398,7 @@ export default function AllocatedLeadsPage() {
         body: JSON.stringify(payload),
       });
 
-      if (isAdmin) {
-        const empName = employees.find(e => e.employee_id === empId)?.employee_name || null;
-        setAllLeads(prev => prev.map(l =>
-          l.opportunity_id === assigningLeadId
-            ? { ...l, opportunity_owner_employee_id: empId, assigned_to_name: empName }
-            : l
-        ));
-      } else {
-        if (empId !== user?.id) {
-          setAllLeads(prev => prev.filter(l => l.opportunity_id !== assigningLeadId));
-        }
-      }
-
-      await fetchAllocatedLeads();
+      await fetchAllocatedLeads(currentPage);
       toast.success("✅ Salesperson reassigned successfully");
       setShowAssignModal(false);
       setAssignToEmployeeId(""); setAssignmentNotes(""); setAssigningLeadId(null);
@@ -476,12 +409,14 @@ export default function AllocatedLeadsPage() {
   // ---------------- Pagination Controls ----------------
   const PaginationControls = () => {
     if (totalPages <= 1) return null;
+    const from = (currentPage - 1) * PAGE_SIZE + 1;
+    const to   = Math.min(currentPage * PAGE_SIZE, total);
     return (
       <div className="flex flex-col sm:flex-row items-center justify-between gap-3 py-3 px-4 bg-muted/50 border-t border-border">
         <div className="text-sm text-muted-foreground">
-          Showing <span className="font-medium">{(currentPage - 1) * LEADS_PER_PAGE + 1}</span> to{" "}
-          <span className="font-medium">{Math.min(currentPage * LEADS_PER_PAGE, filteredLeads.length)}</span>{" "}
-          of <span className="font-medium">{filteredLeads.length}</span> leads
+          Showing <span className="font-medium">{from}</span> to{" "}
+          <span className="font-medium">{to}</span>{" "}
+          of <span className="font-medium">{total}</span> leads
         </div>
         <div className="flex flex-wrap items-center justify-center space-x-1">
           <Button variant="outline" size="icon" onClick={() => setCurrentPage(1)} disabled={currentPage === 1}><ChevronFirst className="h-4 w-4" /></Button>
@@ -562,7 +497,7 @@ export default function AllocatedLeadsPage() {
               <div className="bg-indigo-600 p-2 rounded-lg shrink-0"><UserCheck className="h-5 w-5 text-white" /></div>
               <div>
                 <p className="text-sm text-muted-foreground">Allocated to You</p>
-                <p className="text-2xl font-bold text-foreground">{allLeads.length}</p>
+                <p className="text-2xl font-bold text-foreground">{total}</p>
               </div>
             </div>
           </div>
@@ -658,14 +593,6 @@ export default function AllocatedLeadsPage() {
           </SelectContent>
         </Select>
 
-        <Select value={usageSort} onValueChange={(v: any) => setUsageSort(v)}>
-          <SelectTrigger className="w-full min-w-0"><SelectValue /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="none">Usage: Default</SelectItem>
-            <SelectItem value="low-high">Usage: Low to High</SelectItem>
-            <SelectItem value="high-low">Usage: High to Low</SelectItem>
-          </SelectContent>
-        </Select>
 
         {/* Recently Allocated sort */}
         <Select value={allocSort} onValueChange={(v: any) => { setAllocSort(v); if (v !== "custom") { setAllocFrom(""); setAllocTo(""); } }}>
@@ -722,7 +649,7 @@ export default function AllocatedLeadsPage() {
                     <p className="text-lg text-red-600 dark:text-red-400">Failed to load leads</p>
                   </td>
                 </tr>
-              ) : paginatedLeads.length === 0 ? (
+              ) : leads.length === 0 ? (
                 <tr>
                  <td colSpan={12} className="px-6 py-12 text-center text-gray-500 dark:text-gray-400">
                   <UserCheck className="h-12 w-12 text-gray-400 dark:text-gray-600 mx-auto mb-3" />
@@ -739,7 +666,7 @@ export default function AllocatedLeadsPage() {
                 </td>
                 </tr>
               ) : (
-                paginatedLeads.map(lead => {
+                leads.map(lead => {
                   const displayId = lead.tenant_lead_id || lead.opportunity_id;
                   return (
                     <tr
@@ -861,7 +788,7 @@ export default function AllocatedLeadsPage() {
             </tbody>
           </table>
         </div>
-        {!isLoading && !error && filteredLeads.length > 0 && <PaginationControls />}
+        {!isLoading && !error && total > PAGE_SIZE && <PaginationControls />}
       </div>
 
       {/* ── Callback Modal ── */}
