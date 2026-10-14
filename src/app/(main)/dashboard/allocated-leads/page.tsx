@@ -313,7 +313,7 @@ export default function AllocatedLeadsPage() {
         body: JSON.stringify({ stage_id: 1 }),
       })
         .then(() => {
-          setAllLeads(prev => prev.map(l =>
+          setLeads(prev => prev.map(l =>
             l.opportunity_id === leadId ? { ...l, stage_name: null, stage_id: 1 } : l
           ));
           toast.success("✅ Status cleared");
