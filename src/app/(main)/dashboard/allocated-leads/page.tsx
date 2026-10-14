@@ -511,7 +511,7 @@ export default function AllocatedLeadsPage() {
           <div className="flex-1">
             <h3 className="text-sm font-medium text-red-800 dark:text-red-300">Error Loading Leads</h3>
             <p className="mt-1 text-sm text-red-700 dark:text-red-300">{error}</p>
-            <Button onClick={fetchAllocatedLeads} variant="outline" size="sm" className="mt-3">Try Again</Button>
+            <Button onClick={() => fetchAllocatedLeads(1)} variant="outline" size="sm" className="mt-3">Try Again</Button>
           </div>
         </div>
       )}
