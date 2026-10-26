@@ -19,6 +19,7 @@ import {
     SelectValue,
 } from "@/components/ui/select";
 import { fetchWithAuth } from "@/lib/api";
+import { CreatableSupplierCombobox } from "@/components/ui/CreatableSupplierCombobox";
 
 interface Supplier {
   supplier_id: number;
@@ -37,6 +38,7 @@ interface AddEnergyClientModalProps {
     service: string;
     suppliers: Supplier[];
     employees: Employee[];
+    onAddSupplier?: (supplier: Supplier) => void;
 }
 
 export function AddEnergyClientModal({
@@ -46,6 +48,7 @@ export function AddEnergyClientModal({
     service: parentService,
     suppliers,
     employees,
+    onAddSupplier,
 }: AddEnergyClientModalProps) {
     const [formData, setFormData] = useState({
         service: parentService,
@@ -362,21 +365,13 @@ export function AddEnergyClientModal({
                                 <Label htmlFor="supplier_id">
                                     Supplier <span className="text-red-500">*</span>
                                 </Label>
-                                <Select
+                                <CreatableSupplierCombobox
+                                    suppliers={suppliers}
                                     value={formData.supplier_id}
-                                    onValueChange={(value) => handleChange("supplier_id", value)}
-                                >
-                                    <SelectTrigger className={errors.supplier_id ? "border-red-500" : ""}>
-                                        <SelectValue placeholder="Select supplier" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        {suppliers.map((supplier) => (
-                                            <SelectItem key={supplier.supplier_id} value={supplier.supplier_id.toString()}>
-                                                {supplier.supplier_name}
-                                            </SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
+                                    onChange={(value) => handleChange("supplier_id", value)}
+                                    onAddSupplier={onAddSupplier}
+                                    hasError={!!errors.supplier_id}
+                                />
                                 {errors.supplier_id && <span className="text-red-500 text-xs">{errors.supplier_id}</span>}
                             </div>
 

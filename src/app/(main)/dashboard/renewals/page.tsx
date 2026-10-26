@@ -31,6 +31,7 @@ import { toast, Toaster } from 'react-hot-toast';
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Textarea } from "@/components/ui/textarea";
 import { AddEnergyClientModal } from "@/components/ui/AddEnergyClientModal";
+import { SearchableFilterCombobox } from "@/components/ui/SearchableFilterCombobox";
 
 // ---------------- Constants ----------------
 const CUSTOMERS_PER_PAGE = 25;
@@ -1596,35 +1597,15 @@ export default function EnergyCustomersPage() {
           </div>
 
           {/* Supplier Filter */}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button
-                variant="outline"
-                className="min-w-0 justify-between w-full"
-              >
-                <Filter className="mr-2 h-4 w-4 shrink-0" />
-                <span className="truncate">
-                  {supplierFilter === "All"
-                    ? "All Suppliers"
-                    : getSupplierName(supplierFilter as number)}
-                </span>
-                <ChevronDown className="ml-1 h-3 w-3 shrink-0 opacity-60" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent>
-              <DropdownMenuItem onClick={() => setSupplierFilter("All")}>
-                All Suppliers
-              </DropdownMenuItem>
-              {suppliers.map((supplier) => (
-                <DropdownMenuItem
-                  key={supplier.supplier_id}
-                  onClick={() => setSupplierFilter(supplier.supplier_id)}
-                >
-                  {supplier.supplier_name}
-                </DropdownMenuItem>
-              ))}
-            </DropdownMenuContent>
-          </DropdownMenu>
+          <SearchableFilterCombobox
+            options={[
+              { value: "All", label: "All Suppliers" },
+              ...suppliers.map(s => ({ value: s.supplier_id.toString(), label: s.supplier_name })),
+            ]}
+            value={supplierFilter === "All" ? "All" : String(supplierFilter)}
+            onChange={v => setSupplierFilter(v === "All" ? "All" : Number(v))}
+            showFilterIcon
+          />
 
           {/* Status Filter */}
           <DropdownMenu>
@@ -1790,31 +1771,14 @@ export default function EnergyCustomersPage() {
                   <label className="mb-2 block text-sm font-medium text-foreground">
                     Salesperson
                   </label>
-                  <Select
+                  <SearchableFilterCombobox
+                    options={[
+                      { value: "All", label: "All Salespersons" },
+                      ...employees.map(e => ({ value: e.employee_id.toString(), label: e.employee_name })),
+                    ]}
                     value={salespersonFilter.toString()}
-                    onValueChange={(value) =>
-                      setSalespersonFilter(
-                        value === "All" ? "All" : Number(value)
-                      )
-                    }
-                  >
-                    <SelectTrigger className="h-10 w-full border-border bg-background text-foreground">
-                      <SelectValue placeholder="All Salespersons" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="All">
-                        All Salespersons
-                      </SelectItem>
-                      {employees.map((employee) => (
-                        <SelectItem
-                          key={employee.employee_id}
-                          value={employee.employee_id.toString()}
-                        >
-                          {employee.employee_name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                    onChange={v => setSalespersonFilter(v === "All" ? "All" : Number(v))}
+                  />
                 </div>
               )}
 
@@ -1831,35 +1795,14 @@ export default function EnergyCustomersPage() {
                 <label className="mb-2 block text-sm font-medium text-foreground">
                   Supplier
                 </label>
-                <Select
-                  value={
-                    supplierFilter === "All"
-                      ? "All"
-                      : String(supplierFilter)
-                  }
-                  onValueChange={(value) =>
-                    setSupplierFilter(
-                      value === "All" ? "All" : Number(value)
-                    )
-                  }
-                >
-                  <SelectTrigger className="h-10 w-full border-border bg-background text-foreground">
-                    <SelectValue placeholder="All Suppliers" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="All">
-                      All Suppliers
-                    </SelectItem>
-                    {suppliers.map((supplier) => (
-                      <SelectItem
-                        key={supplier.supplier_id}
-                        value={supplier.supplier_id.toString()}
-                      >
-                        {supplier.supplier_name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <SearchableFilterCombobox
+                  options={[
+                    { value: "All", label: "All Suppliers" },
+                    ...suppliers.map(s => ({ value: s.supplier_id.toString(), label: s.supplier_name })),
+                  ]}
+                  value={supplierFilter === "All" ? "All" : String(supplierFilter)}
+                  onChange={v => setSupplierFilter(v === "All" ? "All" : Number(v))}
+                />
               </div>
 
               {/* Status */}
@@ -2858,6 +2801,7 @@ export default function EnergyCustomersPage() {
         service={service}
         suppliers={suppliers}
         employees={employees}
+        onAddSupplier={(s) => setSuppliers(prev => [...prev, { ...s, provisions: 3, provisions_text: "" }])}
       />
     </div>
   );

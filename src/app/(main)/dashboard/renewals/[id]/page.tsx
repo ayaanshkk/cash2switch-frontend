@@ -28,6 +28,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { CreatableSupplierCombobox } from "@/components/ui/CreatableSupplierCombobox";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
 
@@ -1520,22 +1521,17 @@ export default function EnergyCustomerDetailsPage() {
                 <div>
                   <label className="text-sm font-medium text-gray-700 dark:text-slate-300">Old Supplier</label>
                   {isEditing ? (
-                    <Select
+                    <CreatableSupplierCombobox
+                      suppliers={suppliers}
                       value={displayCustomer.old_supplier_id?.toString() || ""}
-                      onValueChange={(value) => handleUpdateField("old_supplier_id", parseInt(value))}
-                    >
-                      <SelectTrigger className="mt-1 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100">
-                        <SelectValue placeholder="Select old supplier" />
-                      </SelectTrigger>
-                      <SelectContent className="dark:border-slate-800 dark:bg-slate-900">
-                        <SelectItem value="0" className="dark:text-slate-200 dark:focus:bg-slate-800">— None —</SelectItem>
-                        {suppliers.map((s) => (
-                          <SelectItem key={s.supplier_id} value={s.supplier_id.toString()} className="dark:text-slate-200 dark:focus:bg-slate-800">
-                            {s.supplier_name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                      onChange={(value) => handleUpdateField("old_supplier_id", parseInt(value))}
+                      onAddSupplier={(s) => setSuppliers(prev => [...prev, s])}
+                      onDeleteSupplier={(id) => setSuppliers(prev => prev.filter(s => s.supplier_id !== id))}
+                      placeholder="Select old supplier"
+                      fallbackLabel={displayCustomer.old_supplier_name || undefined}
+                      allowNone
+                      triggerClassName="mt-1 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+                    />
                   ) : (
                     <Input value={displayCustomer.old_supplier_name || ""} disabled className="mt-1 bg-gray-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300" />
                   )}
@@ -1545,22 +1541,17 @@ export default function EnergyCustomerDetailsPage() {
                 <div>
                   <label className="text-sm font-medium text-gray-700 dark:text-slate-300">New Supplier</label>
                   {isEditing ? (
-                    <Select
+                    <CreatableSupplierCombobox
+                      suppliers={suppliers}
                       value={displayCustomer.supplier_id?.toString() || ""}
-                      onValueChange={(value) => handleUpdateField("supplier_id", parseInt(value))}
-                    >
-                      <SelectTrigger className="mt-1 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100">
-                        <SelectValue placeholder="Select new supplier" />
-                      </SelectTrigger>
-                      <SelectContent className="dark:border-slate-800 dark:bg-slate-900">
-                        <SelectItem value="0" className="dark:text-slate-200 dark:focus:bg-slate-800">— None —</SelectItem>
-                        {suppliers.map((s) => (
-                          <SelectItem key={s.supplier_id} value={s.supplier_id.toString()} className="dark:text-slate-200 dark:focus:bg-slate-800">
-                            {s.supplier_name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                      onChange={(value) => handleUpdateField("supplier_id", parseInt(value))}
+                      onAddSupplier={(s) => setSuppliers(prev => [...prev, s])}
+                      onDeleteSupplier={(id) => setSuppliers(prev => prev.filter(s => s.supplier_id !== id))}
+                      placeholder="Select new supplier"
+                      fallbackLabel={displayCustomer.supplier_name || undefined}
+                      allowNone
+                      triggerClassName="mt-1 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+                    />
                   ) : (
                     <Input value={displayCustomer.supplier_name || ""} disabled className="mt-1 bg-gray-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300" />
                   )}

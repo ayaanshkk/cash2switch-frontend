@@ -26,6 +26,7 @@ import {
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { CreatableSupplierCombobox } from "@/components/ui/CreatableSupplierCombobox";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { fetchWithAuth } from "@/lib/api";
@@ -1168,22 +1169,17 @@ export default function LeadDetailsPage() {
                 <div>
                   <label className="text-sm font-medium text-gray-700 dark:text-gray-300">New Supplier</label>
                   {isEditing ? (
-                    <Select
+                    <CreatableSupplierCombobox
+                      suppliers={suppliers}
                       value={displayLead.supplier_id?.toString() || ""}
-                      onValueChange={(v) => handleUpdateField("supplier_id", parseInt(v))}
-                    >
-                      <SelectTrigger className="mt-1 dark:bg-gray-800 dark:border-gray-700 dark:text-white">
-                        <SelectValue placeholder="Select new supplier" />
-                      </SelectTrigger>
-                      <SelectContent className="dark:bg-gray-800 dark:border-gray-700 dark:text-white">
-                        <SelectItem value="0">— None —</SelectItem>
-                        {suppliers.map((s) => (
-                          <SelectItem key={s.supplier_id} value={s.supplier_id.toString()}>
-                            {s.supplier_name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                      onChange={(v) => handleUpdateField("supplier_id", parseInt(v))}
+                      onAddSupplier={(s) => setSuppliers(prev => [...prev, s])}
+                      onDeleteSupplier={(id) => setSuppliers(prev => prev.filter(s => s.supplier_id !== id))}
+                      placeholder="Select new supplier"
+                      fallbackLabel={displayLead.supplier_name || undefined}
+                      allowNone
+                      triggerClassName="mt-1 dark:bg-gray-800 dark:border-gray-700 dark:text-white"
+                    />
                   ) : (
                     <Input value={displayLead.supplier_name || ""} disabled className="mt-1 bg-gray-50 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-300" />
                   )}

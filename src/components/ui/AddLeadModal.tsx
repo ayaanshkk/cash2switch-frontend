@@ -11,6 +11,7 @@ import {
     Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { fetchWithAuth } from "@/lib/api";
+import { CreatableSupplierCombobox } from "@/components/ui/CreatableSupplierCombobox";
 
 interface Supplier { supplier_id: number; supplier_name: string; }
 interface Employee { employee_id: number; employee_name: string; }
@@ -22,10 +23,11 @@ interface AddLeadModalProps {
     service: string;
     suppliers: Supplier[];
     employees: Employee[];
+    onAddSupplier?: (supplier: Supplier) => void;
 }
 
 export function AddLeadModal({
-    isOpen, onClose, onLeadCreated, service: parentService, suppliers, employees,
+    isOpen, onClose, onLeadCreated, service: parentService, suppliers, employees, onAddSupplier,
 }: AddLeadModalProps) {
     const [formData, setFormData] = useState({
         service: parentService,
@@ -246,18 +248,13 @@ export function AddLeadModal({
                         <div className="grid grid-cols-2 gap-4">
                             <div className="flex flex-col space-y-1.5">
                                 <Label>Supplier <span className="text-red-500">*</span></Label>
-                                <Select value={formData.supplier_id} onValueChange={v => handleChange("supplier_id", v)}>
-                                    <SelectTrigger className={errors.supplier_id ? "border-red-500" : ""}>
-                                        <SelectValue placeholder="Select supplier" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        {suppliers.map(s => (
-                                            <SelectItem key={s.supplier_id} value={s.supplier_id.toString()}>
-                                                {s.supplier_name}
-                                            </SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
+                                <CreatableSupplierCombobox
+                                    suppliers={suppliers}
+                                    value={formData.supplier_id}
+                                    onChange={v => handleChange("supplier_id", v)}
+                                    onAddSupplier={onAddSupplier}
+                                    hasError={!!errors.supplier_id}
+                                />
                                 {errors.supplier_id && <span className="text-red-500 text-xs">{errors.supplier_id}</span>}
                             </div>
                             <div className="flex flex-col space-y-1.5">

@@ -23,6 +23,7 @@ import { toast, Toaster } from "react-hot-toast";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Textarea } from "@/components/ui/textarea";
 import { AddLeadModal } from "@/components/ui/AddLeadModal";
+import { SearchableFilterCombobox } from "@/components/ui/SearchableFilterCombobox";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 const CUSTOMERS_PER_PAGE = 25;
@@ -1546,19 +1547,15 @@ export default function LeadsPage() {
             <Input placeholder="Search leads..." className="pl-8" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
           </div>
 
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="outline" className="min-w-0 justify-between w-full">
-                <Filter className="mr-2 h-4 w-4 shrink-0" />
-                <span className="truncate">{supplierFilter === "All" ? "All Suppliers" : getSupplierName(supplierFilter as number)}</span>
-                <ChevronDown className="ml-1 h-3 w-3 shrink-0" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent>
-              <DropdownMenuItem onClick={() => setSupplierFilter("All")}>All Suppliers</DropdownMenuItem>
-              {suppliers.map(s => <DropdownMenuItem key={s.supplier_id} onClick={() => setSupplierFilter(s.supplier_id)}>{s.supplier_name}</DropdownMenuItem>)}
-            </DropdownMenuContent>
-          </DropdownMenu>
+          <SearchableFilterCombobox
+            options={[
+              { value: "All", label: "All Suppliers" },
+              ...suppliers.map(s => ({ value: s.supplier_id.toString(), label: s.supplier_name })),
+            ]}
+            value={supplierFilter === "All" ? "All" : String(supplierFilter)}
+            onChange={v => setSupplierFilter(v === "All" ? "All" : Number(v))}
+            showFilterIcon
+          />
 
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -1652,18 +1649,14 @@ export default function LeadsPage() {
             {isAdmin && (
               <div>
                 <label className="block text-sm font-semibold text-gray-800 dark:text-gray-200 mb-2">Salesperson</label>
-                <Select
+                <SearchableFilterCombobox
+                  options={[
+                    { value: "All", label: "All Salespersons" },
+                    ...employees.map(e => ({ value: e.employee_id.toString(), label: e.employee_name })),
+                  ]}
                   value={salespersonFilter.toString()}
-                  onValueChange={v => setSalespersonFilter(v === "All" ? "All" : parseInt(v))}
-                >
-                  <SelectTrigger className="w-full">
-                    <SelectValue placeholder="All Salespersons" />
-                  </SelectTrigger>
-                  <SelectContent position="popper" side="bottom" sideOffset={4} className="w-72 z-[60]">
-                    <SelectItem value="All">All Salespersons</SelectItem>
-                    {employees.map(e => <SelectItem key={e.employee_id} value={e.employee_id.toString()}>{e.employee_name}</SelectItem>)}
-                  </SelectContent>
-                </Select>
+                  onChange={v => setSalespersonFilter(v === "All" ? "All" : parseInt(v))}
+                />
               </div>
             )}
 
@@ -1672,16 +1665,14 @@ export default function LeadsPage() {
             </div>
             <div>
               <label className="block text-sm font-semibold text-gray-800 dark:text-gray-200 mb-2">Supplier</label>
-              <Select
-                value={supplierFilter.toString()}
-                onValueChange={v => setSupplierFilter(v === "All" ? "All" : parseInt(v))}
-              >
-                <SelectTrigger className="w-full"><SelectValue placeholder="All Suppliers" /></SelectTrigger>
-                <SelectContent position="popper" side="bottom" sideOffset={4} className="w-72 z-[60]">
-                  <SelectItem value="All">All Suppliers</SelectItem>
-                  {suppliers.map(s => <SelectItem key={s.supplier_id} value={s.supplier_id.toString()}>{s.supplier_name}</SelectItem>)}
-                </SelectContent>
-              </Select>
+              <SearchableFilterCombobox
+                options={[
+                  { value: "All", label: "All Suppliers" },
+                  ...suppliers.map(s => ({ value: s.supplier_id.toString(), label: s.supplier_name })),
+                ]}
+                value={supplierFilter === "All" ? "All" : String(supplierFilter)}
+                onChange={v => setSupplierFilter(v === "All" ? "All" : parseInt(v))}
+              />
             </div>
             <div>
               <label className="block text-sm font-semibold text-gray-800 dark:text-gray-200 mb-2">Status</label>
@@ -2478,6 +2469,7 @@ export default function LeadsPage() {
         service={service}
         suppliers={suppliers}
         employees={employees}
+        onAddSupplier={(s) => setSuppliers(prev => [...prev, s])}
       />
 
       {/* Bulk Assign Modal */}
