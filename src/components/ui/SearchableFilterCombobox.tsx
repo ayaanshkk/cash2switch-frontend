@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { Check, ChevronsUpDown, Filter } from "lucide-react";
+import { Check, ChevronsUpDown, Filter, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import {
@@ -21,12 +21,14 @@ import {
 export interface FilterOption {
   value: string;
   label: string;
+  deletable?: boolean; // show trash icon for this option
 }
 
 interface SearchableFilterComboboxProps {
   options: FilterOption[];
   value: string;
   onChange: (value: string) => void;
+  onDelete?: (value: string) => void;
   placeholder?: string;
   triggerClassName?: string;
   showFilterIcon?: boolean;
@@ -36,12 +38,20 @@ export function SearchableFilterCombobox({
   options,
   value,
   onChange,
+  onDelete,
   placeholder = "All",
   triggerClassName,
   showFilterIcon = false,
 }: SearchableFilterComboboxProps) {
   const [open, setOpen] = useState(false);
   const selectedLabel = options.find(o => o.value === value)?.label ?? placeholder;
+
+  const handleDelete = (e: React.MouseEvent, optionValue: string) => {
+    e.stopPropagation();
+    e.preventDefault();
+    if (!onDelete) return;
+    onDelete(optionValue);
+  };
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -71,14 +81,27 @@ export function SearchableFilterCombobox({
                     onChange(o.value);
                     setOpen(false);
                   }}
+                  className={cn("flex items-center justify-between pr-1", onDelete && o.deletable && "group")}
                 >
-                  <Check
-                    className={cn(
-                      "mr-2 h-4 w-4",
-                      value === o.value ? "opacity-100" : "opacity-0"
-                    )}
-                  />
-                  {o.label}
+                  <span className="flex items-center min-w-0">
+                    <Check
+                      className={cn(
+                        "mr-2 h-4 w-4 shrink-0",
+                        value === o.value ? "opacity-100" : "opacity-0"
+                      )}
+                    />
+                    <span className="truncate">{o.label}</span>
+                  </span>
+                  {onDelete && o.deletable && (
+                    <button
+                      type="button"
+                      onClick={(e) => handleDelete(e, o.value)}
+                      className="ml-2 shrink-0 p-1 rounded opacity-0 group-hover:opacity-100 hover:bg-red-100 hover:text-red-600 dark:hover:bg-red-900/30 dark:hover:text-red-400 transition-all"
+                      title="Delete supplier"
+                    >
+                      <Trash2 className="h-3 w-3" />
+                    </button>
+                  )}
                 </CommandItem>
               ))}
             </CommandGroup>

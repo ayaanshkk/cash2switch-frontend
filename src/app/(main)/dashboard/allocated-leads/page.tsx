@@ -22,6 +22,8 @@ import { toast, Toaster } from "react-hot-toast";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
+import { SupplierCellCombobox } from "@/components/ui/SupplierCellCombobox";
+import { SupplierDeleteDialog } from "@/components/ui/SupplierDeleteDialog";
 
 // ---------------- Constants ----------------
 const STATUS_OPTIONS = [
@@ -169,6 +171,7 @@ export default function AllocatedLeadsPage() {
   const [employees, setEmployees]         = useState<Employee[]>([]);
   const [stages, setStages]               = useState<Stage[]>([]);
   const [employeeStats, setEmployeeStats] = useState<EmployeeStat[]>([]);
+  const [deleteSupplier, setDeleteSupplier] = useState<{ id: number; name: string } | null>(null);
 
   // UI
   const [service, setService]     = useState("utilities");
@@ -293,6 +296,25 @@ export default function AllocatedLeadsPage() {
 
   const getSupplierName = (id?: number | null) =>
     suppliers.find(s => s.supplier_id === id)?.supplier_name || "—";
+
+  const updateLeadSupplier = async (leadId: number, newSupplierId: number) => {
+    const sup = suppliers.find(s => s.supplier_id === newSupplierId);
+    try {
+      await fetchWithAuth(`/api/crm/leads/${leadId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ supplier_id: newSupplierId }),
+      });
+      setLeads(prev => prev.map(l =>
+        l.opportunity_id === leadId
+          ? { ...l, supplier_id: newSupplierId, supplier_name: sup?.supplier_name || null }
+          : l
+      ));
+      toast.success("✅ Supplier updated");
+    } catch (err: any) {
+      toast.error(err?.message || "Failed to update supplier");
+    }
+  };
 
   // ---------------- Pagination ----------------
   const totalPages = Math.ceil(total / PAGE_SIZE);
@@ -433,6 +455,18 @@ export default function AllocatedLeadsPage() {
   return (
     <div className="w-full max-w-full overflow-x-hidden p-4 sm:p-6 text-slate-900 dark:bg-slate-950 dark:text-slate-100 min-h-screen">
       <Toaster position="top-right" />
+
+      <SupplierDeleteDialog
+        supplierId={deleteSupplier?.id ?? null}
+        supplierName={deleteSupplier?.name ?? ""}
+        allSuppliers={suppliers}
+        onClose={() => setDeleteSupplier(null)}
+        onDeleted={(id) => {
+          setSuppliers(prev => prev.filter(s => s.supplier_id !== id));
+          setLeads(prev => prev.map(l => l.supplier_id === id ? { ...l, supplier_id: undefined, supplier_name: null } : l));
+          setDeleteSupplier(null);
+        }}
+      />
 
       <h1 className="mb-2 text-2xl sm:text-4xl font-semibold tracking-tight text-foreground">Allocated Leads</h1>
       <p className="mb-6 text-sm text-muted-foreground">
@@ -622,10 +656,10 @@ export default function AllocatedLeadsPage() {
                 <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 dark:text-gray-400 uppercase w-16 border-r-2 border-border">ID</th>
                 <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 dark:text-gray-400 uppercase w-[9%]">Client Name</th>
                 <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 dark:text-gray-400 uppercase w-[11%]">Trading Name</th>
-                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 dark:text-gray-400 uppercase w-[8%]">Tel No</th>
-                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 dark:text-gray-400 uppercase w-[8%]">Mobile No</th>
+                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 dark:text-gray-400 uppercase w-[5%]">Tel No</th>
+                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 dark:text-gray-400 uppercase w-[5%]">Mobile No</th>
                 <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 dark:text-gray-400 uppercase w-[10%]">MPAN</th>
-                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 dark:text-gray-400 uppercase w-[9%]">Supplier</th>
+                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 dark:text-gray-400 uppercase w-[13%]">Supplier</th>
                 <th className="px-3 py-3 text-right text-xs font-medium tracking-wider text-gray-500 dark:text-gray-400 uppercase w-[9%] whitespace-nowrap">Annual Usage</th>
                 <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 dark:text-gray-400 uppercase w-[9%] whitespace-nowrap">Start Date</th>
                 <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 dark:text-gray-400 uppercase w-[9%] whitespace-nowrap">Contract End</th>
@@ -702,8 +736,14 @@ export default function AllocatedLeadsPage() {
                         <div className="truncate" title={lead.mpan_mpr || ""}>{lead.mpan_mpr || "—"}</div>
                       </td>
 
-                      <td className="px-3 py-3 text-sm text-foreground align-top overflow-hidden">
-                        <div className="truncate">{lead.supplier_name || getSupplierName(lead.supplier_id)}</div>
+                      <td className="px-3 py-3 align-top" onClick={e => e.stopPropagation()}>
+                        <SupplierCellCombobox
+                          supplierId={lead.supplier_id}
+                          supplierName={lead.supplier_name}
+                          suppliers={suppliers}
+                          onChange={(newId) => updateLeadSupplier(lead.opportunity_id, newId)}
+                          onDelete={(id, name) => setDeleteSupplier({ id, name })}
+                        />
                       </td>
 
                       <td className="px-3 py-3 text-sm text-foreground text-right align-top">

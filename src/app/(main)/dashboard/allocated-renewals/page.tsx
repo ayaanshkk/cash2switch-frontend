@@ -22,6 +22,8 @@ import { fetchWithAuth } from "@/lib/api";
 import { toast, Toaster } from "react-hot-toast";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Textarea } from "@/components/ui/textarea";
+import { SupplierCellCombobox } from "@/components/ui/SupplierCellCombobox";
+import { SupplierDeleteDialog } from "@/components/ui/SupplierDeleteDialog";
 
 // ---------------- Constants ----------------
 const CUSTOMERS_PER_PAGE = 25;
@@ -158,6 +160,7 @@ export default function AllocatedContactsPage() {
   const [allCustomers, setAllCustomers] = useState<EnergyCustomer[]>([]);
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
+  const [deleteSupplier, setDeleteSupplier] = useState<{ id: number; name: string } | null>(null);
   const [employeeStats, setEmployeeStats] = useState<EmployeeStat[]>([]);
 
   // UI
@@ -255,6 +258,25 @@ export default function AllocatedContactsPage() {
 
   const getSupplierName = (id?: number) =>
     suppliers.find(s => s.supplier_id === id)?.supplier_name || "—";
+
+  const updateRenewalSupplier = async (clientId: number, newSupplierId: number) => {
+    const sup = suppliers.find(s => s.supplier_id === newSupplierId);
+    try {
+      await fetchWithAuth(`/energy-clients/${clientId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ supplier_id: newSupplierId }),
+      });
+      setAllCustomers(prev => prev.map(c =>
+        c.client_id === clientId
+          ? { ...c, supplier_id: newSupplierId, supplier_name: sup?.supplier_name }
+          : c
+      ));
+      toast.success("✅ Supplier updated");
+    } catch (err: any) {
+      toast.error(err?.message || "Failed to update supplier");
+    }
+  };
 
   // ---------------- Filters ----------------
   const filteredCustomers = useMemo(() => {
@@ -484,6 +506,18 @@ export default function AllocatedContactsPage() {
     <div className="w-full max-w-full overflow-x-hidden p-4 sm:p-6 text-slate-900 dark:bg-slate-950 dark:text-slate-100 min-h-screen">
       <Toaster position="top-right" />
 
+      <SupplierDeleteDialog
+        supplierId={deleteSupplier?.id ?? null}
+        supplierName={deleteSupplier?.name ?? ""}
+        allSuppliers={suppliers}
+        onClose={() => setDeleteSupplier(null)}
+        onDeleted={(id) => {
+          setSuppliers(prev => prev.filter(s => s.supplier_id !== id));
+          setAllCustomers(prev => prev.map(c => c.supplier_id === id ? { ...c, supplier_id: undefined, supplier_name: undefined } : c));
+          setDeleteSupplier(null);
+        }}
+      />
+
       <h1 className="mb-2 text-2xl sm:text-4xl font-semibold tracking-tight text-slate-900 dark:text-slate-50">Allocated Renewals</h1>
       <p className="mb-6 text-sm text-gray-500 dark:text-gray-400">
         {isAdmin
@@ -702,10 +736,10 @@ export default function AllocatedContactsPage() {
                 <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 dark:text-gray-400 uppercase w-16 border-r-2 border-gray-300 dark:border-slate-700">ID</th>
                 <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 dark:text-gray-400 uppercase w-[9%]">Client Name</th>
                 <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 dark:text-gray-400 uppercase w-[11%]">Trading Name</th>
-                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 dark:text-gray-400 uppercase w-[8%]">Tel No</th>
-                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 dark:text-gray-400 uppercase w-[8%]">Mobile No</th>
+                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 dark:text-gray-400 uppercase w-[5%]">Tel No</th>
+                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 dark:text-gray-400 uppercase w-[5%]">Mobile No</th>
                 <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 dark:text-gray-400 uppercase w-[10%]">MPAN Top</th>
-                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 dark:text-gray-400 uppercase w-[9%]">Supplier</th>
+                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 dark:text-gray-400 uppercase w-[13%]">Supplier</th>
                 <th className="px-3 py-3 text-right text-xs font-medium tracking-wider text-gray-500 dark:text-gray-400 uppercase w-[9%] whitespace-nowrap">Annual Usage</th>
                 <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 dark:text-gray-400 uppercase w-[9%] whitespace-nowrap">Start Date</th>
                 <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 dark:text-gray-400 uppercase w-[9%] whitespace-nowrap">Contract End</th>
@@ -774,8 +808,14 @@ export default function AllocatedContactsPage() {
                         <div className="truncate" title={customer.mpan_top || ""}>{customer.mpan_top || "—"}</div>
                       </td>
 
-                      <td className="px-3 py-3 text-sm text-gray-900 dark:text-slate-200 align-top overflow-hidden">
-                        <div className="truncate" title={customer.supplier_name || ""}>{customer.supplier_name || "—"}</div>
+                      <td className="px-3 py-3 align-top" onClick={e => e.stopPropagation()}>
+                        <SupplierCellCombobox
+                          supplierId={customer.supplier_id}
+                          supplierName={customer.supplier_name}
+                          suppliers={suppliers}
+                          onChange={(newId) => updateRenewalSupplier(customer.client_id, newId)}
+                          onDelete={(id, name) => setDeleteSupplier({ id, name })}
+                        />
                       </td>
 
                       <td className="px-3 py-3 text-sm text-gray-900 dark:text-slate-200 text-right align-top">

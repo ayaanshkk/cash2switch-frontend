@@ -24,6 +24,8 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Textarea } from "@/components/ui/textarea";
 import { AddLeadModal } from "@/components/ui/AddLeadModal";
 import { SearchableFilterCombobox } from "@/components/ui/SearchableFilterCombobox";
+import { SupplierDeleteDialog } from "@/components/ui/SupplierDeleteDialog";
+import { SupplierCellCombobox } from "@/components/ui/SupplierCellCombobox";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 const CUSTOMERS_PER_PAGE = 25;
@@ -120,7 +122,7 @@ interface TeamStat {
   count?: number;
 }
 
-interface Supplier { supplier_id: number; supplier_name: string; }
+interface Supplier { supplier_id: number; supplier_name: string; is_owned?: boolean; }
 interface Employee { employee_id: number; employee_name: string; email?: string; }
 interface Stage { stage_id: number; stage_name: string; stage_description?: string; }
 
@@ -170,6 +172,7 @@ export default function LeadsPage() {
   const [allLeads, setAllLeads]           = useState<LeadCustomer[]>([]);
   const [suppliers, setSuppliers]         = useState<Supplier[]>([]);
   const [employees, setEmployees]         = useState<Employee[]>([]);
+  const [deleteSupplier, setDeleteSupplier] = useState<{ id: number; name: string } | null>(null);
   const [stages, setStages]               = useState<Stage[]>([]);
   const [employeeStats, setEmployeeStats] = useState<TeamStat[]>([]);
   const [unallocatedCount, setUnallocatedCount] = useState<number>(0);
@@ -602,6 +605,25 @@ export default function LeadsPage() {
 
   const getSupplierName = (id?: number | null) =>
     suppliers.find(s => s.supplier_id === id)?.supplier_name || "—";
+
+  const updateLeadSupplier = async (leadId: number, newSupplierId: number) => {
+    const sup = suppliers.find(s => s.supplier_id === newSupplierId);
+    try {
+      await fetchWithAuth(`${CRM_PROXY}/leads/${leadId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ supplier_id: newSupplierId }),
+      });
+      setAllLeads(prev => prev.map(l =>
+        l.opportunity_id === leadId
+          ? { ...l, supplier_id: newSupplierId, supplier_name: sup?.supplier_name || null }
+          : l
+      ));
+      toast.success("✅ Supplier updated");
+    } catch (err: any) {
+      toast.error(err?.message || "Failed to update supplier");
+    }
+  };
 
   const isDateRequired = () => {
     if (!callbackStatus) return false;
@@ -1550,10 +1572,14 @@ export default function LeadsPage() {
           <SearchableFilterCombobox
             options={[
               { value: "All", label: "All Suppliers" },
-              ...suppliers.map(s => ({ value: s.supplier_id.toString(), label: s.supplier_name })),
+              ...suppliers.map(s => ({ value: s.supplier_id.toString(), label: s.supplier_name, deletable: true })),
             ]}
             value={supplierFilter === "All" ? "All" : String(supplierFilter)}
             onChange={v => setSupplierFilter(v === "All" ? "All" : Number(v))}
+            onDelete={(v) => {
+              const s = suppliers.find(x => x.supplier_id === Number(v));
+              if (s) setDeleteSupplier({ id: s.supplier_id, name: s.supplier_name });
+            }}
             showFilterIcon
           />
 
@@ -1668,10 +1694,14 @@ export default function LeadsPage() {
               <SearchableFilterCombobox
                 options={[
                   { value: "All", label: "All Suppliers" },
-                  ...suppliers.map(s => ({ value: s.supplier_id.toString(), label: s.supplier_name })),
+                  ...suppliers.map(s => ({ value: s.supplier_id.toString(), label: s.supplier_name, deletable: true })),
                 ]}
                 value={supplierFilter === "All" ? "All" : String(supplierFilter)}
                 onChange={v => setSupplierFilter(v === "All" ? "All" : parseInt(v))}
+                onDelete={(v) => {
+                  const s = suppliers.find(x => x.supplier_id === Number(v));
+                  if (s) setDeleteSupplier({ id: s.supplier_id, name: s.supplier_name });
+                }}
               />
             </div>
             <div>
@@ -1786,16 +1816,16 @@ export default function LeadsPage() {
                 <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 dark:text-gray-400 uppercase w-[9%]">
                   Trading Name
                 </th>
-                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 dark:text-gray-400 uppercase w-[7%]">
+                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 dark:text-gray-400 uppercase w-[5%]">
                   Tel No
                 </th>
-                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 dark:text-gray-400 uppercase w-[6%]">
+                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 dark:text-gray-400 uppercase w-[5%]">
                   Mobile No
                 </th>
                 <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 dark:text-gray-400 uppercase w-[9%]">
                   MPAN Top
                 </th>
-                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 dark:text-gray-400 uppercase w-[7%]">
+                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 dark:text-gray-400 uppercase w-[11%]">
                   Supplier
                 </th>
                 <th className="px-3 py-3 text-right text-xs font-medium tracking-wider text-gray-500 dark:text-gray-400 uppercase w-[7%]">
@@ -1936,10 +1966,14 @@ export default function LeadsPage() {
                     </td>
 
                     {/* Supplier */}
-                    <td className="px-3 py-3 text-sm text-gray-900 dark:text-slate-200 align-top overflow-hidden">
-                      <div className="truncate" title={lead.supplier_name || ""}>
-                        {lead.supplier_name || getSupplierName(lead.supplier_id)}
-                      </div>
+                    <td className="px-3 py-3 align-top" onClick={e => e.stopPropagation()}>
+                      <SupplierCellCombobox
+                        supplierId={lead.supplier_id}
+                        supplierName={lead.supplier_name}
+                        suppliers={suppliers}
+                        onChange={(newId) => updateLeadSupplier(lead.opportunity_id, newId)}
+                        onDelete={(id, name) => setDeleteSupplier({ id, name })}
+                      />
                     </td>
 
                     {/* Annual Usage */}
@@ -2462,6 +2496,18 @@ export default function LeadsPage() {
       </Dialog>
 
       {/* Add Lead Modal */}
+      <SupplierDeleteDialog
+        supplierId={deleteSupplier?.id ?? null}
+        supplierName={deleteSupplier?.name ?? ""}
+        allSuppliers={suppliers}
+        onClose={() => setDeleteSupplier(null)}
+        onDeleted={(id) => {
+          setSuppliers(prev => prev.filter(s => s.supplier_id !== id));
+          if (supplierFilter === id) setSupplierFilter("All");
+          setDeleteSupplier(null);
+        }}
+      />
+
       <AddLeadModal
         isOpen={showAddLeadModal}
         onClose={() => setShowAddLeadModal(false)}
@@ -2469,7 +2515,7 @@ export default function LeadsPage() {
         service={service}
         suppliers={suppliers}
         employees={employees}
-        onAddSupplier={(s) => setSuppliers(prev => [...prev, s])}
+        onAddSupplier={(s) => setSuppliers(prev => [...prev, { ...s, is_owned: true }])}
       />
 
       {/* Bulk Assign Modal */}

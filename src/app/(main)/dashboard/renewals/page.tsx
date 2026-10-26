@@ -32,6 +32,8 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Textarea } from "@/components/ui/textarea";
 import { AddEnergyClientModal } from "@/components/ui/AddEnergyClientModal";
 import { SearchableFilterCombobox } from "@/components/ui/SearchableFilterCombobox";
+import { SupplierDeleteDialog } from "@/components/ui/SupplierDeleteDialog";
+import { SupplierCellCombobox } from "@/components/ui/SupplierCellCombobox";
 
 // ---------------- Constants ----------------
 const CUSTOMERS_PER_PAGE = 25;
@@ -146,6 +148,7 @@ interface Supplier {
   supplier_name: string;
   provisions: number;
   provisions_text: string;
+  is_owned?: boolean;
 }
 
 interface Employee {
@@ -254,6 +257,7 @@ export default function EnergyCustomersPage() {
   const [allCustomers, setAllCustomers] = useState<EnergyCustomer[]>([]);
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
+  const [deleteSupplier, setDeleteSupplier] = useState<{ id: number; name: string } | null>(null);
   const [stages, setStages] = useState<Stage[]>([]);
   const [searchTerm, setSearchTerm] = useState(() => sessionStorage.getItem('renewals_search') || "");
   const [supplierFilter, setSupplierFilter] = useState<number | "All">(() => {
@@ -1222,6 +1226,25 @@ export default function EnergyCustomersPage() {
     return suppliers.find(s => s.supplier_id === supplierId)?.supplier_name || "—";
   };
 
+  const updateRenewalSupplier = async (clientId: number, newSupplierId: number) => {
+    const sup = suppliers.find(s => s.supplier_id === newSupplierId);
+    try {
+      await fetchWithAuth(`/energy-clients/${clientId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ supplier_id: newSupplierId }),
+      });
+      setAllCustomers(prev => prev.map(c =>
+        c.client_id === clientId
+          ? { ...c, supplier_id: newSupplierId, supplier_name: sup?.supplier_name }
+          : c
+      ));
+      toast.success("✅ Supplier updated");
+    } catch (err: any) {
+      toast.error(err?.message || "Failed to update supplier");
+    }
+  };
+
   const [performanceModalLoading, setPerformanceModalLoading] = useState(false);
 
   const handlePerformanceClick = async (type: 'renewed' | 'in_progress' | 'not_contacted' | 'lost' | 'renewed_directly' | 'end_date_changed' | 'priced' | 'not_due') => {
@@ -1600,10 +1623,14 @@ export default function EnergyCustomersPage() {
           <SearchableFilterCombobox
             options={[
               { value: "All", label: "All Suppliers" },
-              ...suppliers.map(s => ({ value: s.supplier_id.toString(), label: s.supplier_name })),
+              ...suppliers.map(s => ({ value: s.supplier_id.toString(), label: s.supplier_name, deletable: true })),
             ]}
             value={supplierFilter === "All" ? "All" : String(supplierFilter)}
             onChange={v => setSupplierFilter(v === "All" ? "All" : Number(v))}
+            onDelete={(v) => {
+              const s = suppliers.find(x => x.supplier_id === Number(v));
+              if (s) setDeleteSupplier({ id: s.supplier_id, name: s.supplier_name });
+            }}
             showFilterIcon
           />
 
@@ -1798,10 +1825,14 @@ export default function EnergyCustomersPage() {
                 <SearchableFilterCombobox
                   options={[
                     { value: "All", label: "All Suppliers" },
-                    ...suppliers.map(s => ({ value: s.supplier_id.toString(), label: s.supplier_name })),
+                    ...suppliers.map(s => ({ value: s.supplier_id.toString(), label: s.supplier_name, deletable: true })),
                   ]}
                   value={supplierFilter === "All" ? "All" : String(supplierFilter)}
                   onChange={v => setSupplierFilter(v === "All" ? "All" : Number(v))}
+                  onDelete={(v) => {
+                    const s = suppliers.find(x => x.supplier_id === Number(v));
+                    if (s) setDeleteSupplier({ id: s.supplier_id, name: s.supplier_name });
+                  }}
                 />
               </div>
 
@@ -1994,16 +2025,16 @@ export default function EnergyCustomersPage() {
                 <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 dark:text-gray-400 uppercase w-[9%]">
                   Trading Name
                 </th>
-                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 dark:text-gray-400 uppercase w-[7%]">
+                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 dark:text-gray-400 uppercase w-[5%]">
                   Tel No
                 </th>
-                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 dark:text-gray-400 uppercase w-[6%]">
+                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 dark:text-gray-400 uppercase w-[5%]">
                   Mobile No
                 </th>
                 <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 dark:text-gray-400 uppercase w-[9%]">
                   MPAN Top
                 </th>
-                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 dark:text-gray-400 uppercase w-[7%]">
+                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 dark:text-gray-400 uppercase w-[11%]">
                   Supplier
                 </th>
                 <th className="px-3 py-3 text-right text-xs font-medium tracking-wider text-gray-500 dark:text-gray-400 uppercase w-[7%]">
@@ -2177,8 +2208,14 @@ export default function EnergyCustomersPage() {
                         <div className="truncate" title={customer.mpan_top || ""}>{customer.mpan_top || "—"}</div>
                       </td>
 
-                      <td className="px-3 py-3 text-sm text-gray-900 dark:text-slate-200 align-top overflow-hidden">
-                        <div className="truncate" title={customer.supplier_name || ""}>{customer.supplier_name || "—"}</div>
+                      <td className="px-3 py-3 align-top" onClick={e => e.stopPropagation()}>
+                        <SupplierCellCombobox
+                          supplierId={customer.supplier_id}
+                          supplierName={customer.supplier_name}
+                          suppliers={suppliers}
+                          onChange={(newId) => updateRenewalSupplier(customer.client_id, newId)}
+                          onDelete={(id, name) => setDeleteSupplier({ id, name })}
+                        />
                       </td>
 
                       <td className="px-3 py-3 text-sm text-gray-900 dark:text-slate-200 text-right align-top">
@@ -2790,6 +2827,18 @@ export default function EnergyCustomersPage() {
       </Dialog>
 
       {/* Add Energy Client Modal */}
+      <SupplierDeleteDialog
+        supplierId={deleteSupplier?.id ?? null}
+        supplierName={deleteSupplier?.name ?? ""}
+        allSuppliers={suppliers}
+        onClose={() => setDeleteSupplier(null)}
+        onDeleted={(id) => {
+          setSuppliers(prev => prev.filter(s => s.supplier_id !== id));
+          if (supplierFilter === id) setSupplierFilter("All");
+          setDeleteSupplier(null);
+        }}
+      />
+
       <AddEnergyClientModal
         isOpen={showCreateModal}
         onClose={() => setShowCreateModal(false)}
@@ -2801,7 +2850,7 @@ export default function EnergyCustomersPage() {
         service={service}
         suppliers={suppliers}
         employees={employees}
-        onAddSupplier={(s) => setSuppliers(prev => [...prev, { ...s, provisions: 3, provisions_text: "" }])}
+        onAddSupplier={(s) => setSuppliers(prev => [...prev, { ...s, provisions: 3, provisions_text: "", is_owned: true }])}
       />
     </div>
   );
