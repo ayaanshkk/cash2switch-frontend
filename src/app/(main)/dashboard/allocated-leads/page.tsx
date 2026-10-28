@@ -4,6 +4,7 @@ import React, { useState, useEffect } from "react";
 import {
   Search, Filter, AlertCircle, ChevronRight, ChevronLeft,
   ChevronLast, ChevronFirst, UserCheck, Loader2, Phone, X, ChevronDown, Download,
+  TrendingUp, TrendingDown, AlertTriangle, CheckCircle2, Calendar, Users,
 } from "lucide-react";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
@@ -192,6 +193,17 @@ export default function AllocatedLeadsPage() {
   const [allocTo,   setAllocTo]                   = useState("");
   const [showFilterSidebar, setShowFilterSidebar] = useState(false);
 
+  // Performance panel
+  const [performanceStats, setPerformanceStats] = useState({
+    converted: 0, renewed: 0, in_progress: 0, not_contacted: 0, lost: 0,
+    success_rate: 0, renewed_directly: 0, end_date_changed: 0, priced: 0,
+  });
+  const [showPerformanceModal, setShowPerformanceModal] = useState(false);
+  const [performanceFilter, setPerformanceFilter] = useState<string | null>(null);
+  const [performanceFilteredLeads, setPerformanceFilteredLeads] = useState<AllocatedLead[]>([]);
+  const [performanceModalLoading, setPerformanceModalLoading] = useState(false);
+  const [performancePeriod, setPerformancePeriod] = useState<'daily' | 'weekly' | 'monthly' | 'alltime'>('alltime');
+
   // Callback modal
   const [showCallbackModal, setShowCallbackModal]             = useState(false);
   const [selectedLeadForCallback, setSelectedLeadForCallback] = useState<number | null>(null);
@@ -239,6 +251,17 @@ export default function AllocatedLeadsPage() {
     fetchStages();
     if (isAdmin) fetchEmployees();
   }, [isAdmin]);
+
+  useEffect(() => {
+    const tid = setTimeout(() => fetchPerformanceStats(performancePeriod), 600);
+    return () => clearTimeout(tid);
+  }, [service, performancePeriod]);
+
+  useEffect(() => {
+    const handleFocus = () => fetchPerformanceStats(performancePeriod);
+    window.addEventListener('focus', handleFocus);
+    return () => window.removeEventListener('focus', handleFocus);
+  }, [performancePeriod, service]);
 
   // ---------------- Fetch ----------------
   const fetchAllocatedLeads = async (page = 1) => {
@@ -308,6 +331,45 @@ export default function AllocatedLeadsPage() {
       document.body.removeChild(link); URL.revokeObjectURL(url);
     } catch { toast.error("Failed to export CSV"); }
   };
+
+  const fetchPerformanceStats = async (period = performancePeriod) => {
+    try {
+      const resp = await fetchWithAuth(
+        `/api/crm/leads/performance?service=${encodeURIComponent(service)}&period=${period}&allocated=true`
+      );
+      if (resp && !resp.error) {
+        setPerformanceStats({
+          converted:        resp.converted_count        || 0,
+          renewed:          resp.renewed_count          || 0,
+          in_progress:      resp.contacted_count        || 0,
+          not_contacted:    resp.not_contacted_count    || 0,
+          lost:             resp.lost_count             || 0,
+          success_rate:     resp.success_rate           || 0,
+          renewed_directly: resp.renewed_directly_count || 0,
+          end_date_changed: resp.end_date_changed_count || 0,
+          priced:           resp.priced_count           || 0,
+        });
+      }
+    } catch {}
+  };
+
+  const handlePerformanceClick = async (type: string) => {
+    setPerformanceFilter(type); setShowPerformanceModal(true);
+    setPerformanceFilteredLeads([]); setPerformanceModalLoading(true);
+    try {
+      const resp = await fetchWithAuth(
+        `/api/crm/leads/performance?service=${encodeURIComponent(service)}&return_records=true&stage_filter=${encodeURIComponent(type)}&allocated=true`
+      );
+      setPerformanceFilteredLeads(resp?.records || []);
+    } catch { toast.error("Failed to load leads"); setPerformanceFilteredLeads([]); }
+    finally { setPerformanceModalLoading(false); }
+  };
+
+  const getPerformanceLabel = (type: string) => ({
+    converted: "Converted", renewed: "Renewed", in_progress: "In Progress",
+    not_contacted: "Not Contacted", lost: "Lost", renewed_directly: "Renewed Directly",
+    end_date_changed: "End Date Changed", priced: "Priced",
+  }[type] || "");
 
   const fetchSuppliers = async () => {
     try {
@@ -586,6 +648,114 @@ export default function AllocatedLeadsPage() {
           </div>
         </div>
       )}
+
+      {/* Lead Performance Panel */}
+      <div className="mb-6">
+        <div className="bg-white dark:bg-slate-900 rounded-lg border border-gray-200 dark:border-slate-800 p-4 sm:p-6">
+          <div className="mb-4">
+            <h2 className="text-xl font-semibold text-gray-900 dark:text-slate-100">Lead Performance</h2>
+            <p className="text-sm text-gray-600 dark:text-gray-400">{isAdmin ? "Overall lead success metrics" : "Your lead success metrics"}</p>
+          </div>
+          <div className="flex items-center gap-2 mb-4 overflow-x-auto pb-2">
+            <span className="text-xs font-medium text-gray-500 dark:text-gray-400 shrink-0">Period:</span>
+            <div className="flex items-center gap-1 rounded-xl border border-gray-200 dark:border-slate-800 bg-gray-50 dark:bg-slate-800/60 p-1 shrink-0">
+              {(['daily', 'weekly', 'monthly', 'alltime'] as const).map((p) => (
+                <button key={p} type="button" onClick={() => setPerformancePeriod(p)}
+                  className={`rounded-lg px-3 py-1 text-xs font-medium capitalize transition-all duration-150 ${
+                    performancePeriod === p
+                      ? 'bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-100 shadow-sm'
+                      : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
+                  }`}>
+                  {p === 'alltime' ? 'All Time' : p}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+            {[
+              { key: "converted",        label: "Converted",        cardBg: "bg-emerald-50 dark:bg-emerald-950/30 border-emerald-200 dark:border-emerald-900/60", numColor: "text-emerald-700 dark:text-emerald-300", labelColor: "text-emerald-600 dark:text-emerald-400", icon: <CheckCircle2 className="h-6 w-6 text-emerald-600 dark:text-emerald-400 mx-auto" />, val: performanceStats.converted },
+              { key: "renewed",          label: "Renewed",          cardBg: "bg-green-50 dark:bg-green-950/30 border-green-200 dark:border-green-900/60", numColor: "text-green-700 dark:text-green-300", labelColor: "text-green-600 dark:text-green-400", icon: <CheckCircle2 className="h-6 w-6 text-green-600 dark:text-green-400 mx-auto" />, val: performanceStats.renewed },
+              { key: "in_progress",      label: "In Progress",      cardBg: "bg-blue-50 dark:bg-blue-950/30 border-blue-200 dark:border-blue-900/60", numColor: "text-blue-700 dark:text-blue-300", labelColor: "text-blue-600 dark:text-blue-400", icon: <TrendingUp className="h-6 w-6 text-blue-600 dark:text-blue-400 mx-auto" />, val: performanceStats.in_progress },
+              { key: "renewed_directly", label: "Renewed Directly", cardBg: "bg-teal-50 dark:bg-teal-950/30 border-teal-200 dark:border-teal-900/60", numColor: "text-teal-700 dark:text-teal-300", labelColor: "text-teal-600 dark:text-teal-400", icon: <CheckCircle2 className="h-6 w-6 text-teal-600 dark:text-teal-400 mx-auto" />, val: performanceStats.renewed_directly },
+              { key: "end_date_changed", label: "End Date Changed", cardBg: "bg-purple-50 dark:bg-purple-950/30 border-purple-200 dark:border-purple-900/60", numColor: "text-purple-700 dark:text-purple-300", labelColor: "text-purple-600 dark:text-purple-400", icon: <Calendar className="h-6 w-6 text-purple-600 dark:text-purple-400 mx-auto" />, val: performanceStats.end_date_changed },
+              { key: "priced",           label: "Priced",           cardBg: "bg-yellow-50 dark:bg-yellow-950/30 border-yellow-200 dark:border-yellow-900/60", numColor: "text-yellow-700 dark:text-yellow-300", labelColor: "text-yellow-600 dark:text-yellow-400", icon: <TrendingUp className="h-6 w-6 text-yellow-600 dark:text-yellow-400 mx-auto" />, val: performanceStats.priced },
+              { key: "not_contacted",    label: "Not Contacted",    cardBg: "bg-orange-50 dark:bg-orange-950/30 border-orange-200 dark:border-orange-900/60", numColor: "text-orange-700 dark:text-orange-300", labelColor: "text-orange-600 dark:text-orange-400", icon: <AlertTriangle className="h-6 w-6 text-orange-600 dark:text-orange-400 mx-auto" />, val: performanceStats.not_contacted },
+              { key: "lost",             label: "Lost",             cardBg: "bg-red-50 dark:bg-red-950/30 border-red-200 dark:border-red-900/60", numColor: "text-red-700 dark:text-red-300", labelColor: "text-red-600 dark:text-red-400", icon: <TrendingDown className="h-6 w-6 text-red-600 dark:text-red-400 mx-auto" />, val: performanceStats.lost },
+            ].map(({ key, label, cardBg, numColor, labelColor, icon, val }) => (
+              <div key={key}
+                className={`text-center p-4 sm:p-6 border rounded-lg ${cardBg} cursor-pointer hover:shadow-md transition-shadow`}
+                onClick={() => handlePerformanceClick(key)}>
+                <div className={`text-3xl sm:text-4xl font-bold ${numColor}`}>{val}</div>
+                <div className={`text-xs sm:text-sm ${labelColor} mt-2 font-medium`}>{label}</div>
+                <div className="mt-3">{icon}</div>
+              </div>
+            ))}
+          </div>
+          <div className="mt-4 text-center border-t border-gray-200 dark:border-slate-800 pt-4">
+            <div className="text-sm text-gray-600 dark:text-gray-400">
+              Success rate: <span className="font-semibold text-gray-900 dark:text-slate-100">{performanceStats.success_rate}%</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Performance Modal */}
+      <Dialog open={showPerformanceModal} onOpenChange={setShowPerformanceModal}>
+        <DialogContent className="max-w-[95vw] w-[95vw] max-h-[90vh] overflow-hidden flex flex-col">
+          <DialogHeader className="pb-4 border-b border-gray-200 dark:border-slate-800 shrink-0">
+            <DialogTitle className="text-2xl font-bold text-gray-900 dark:text-slate-100">{performanceFilter ? getPerformanceLabel(performanceFilter) : "Leads"}</DialogTitle>
+            <DialogDescription>Showing {performanceFilteredLeads.length} lead{performanceFilteredLeads.length !== 1 ? "s" : ""}</DialogDescription>
+          </DialogHeader>
+          <div className="flex-1 overflow-y-auto pr-2">
+            {performanceModalLoading ? (
+              <div className="flex min-h-64 items-center justify-center text-slate-500 dark:text-slate-400">
+                <Loader2 className="mr-2 h-5 w-5 animate-spin" />Loading leads...
+              </div>
+            ) : performanceFilteredLeads.length === 0 ? (
+              <div className="text-center py-16 text-gray-500 dark:text-gray-400">
+                <p className="text-lg">No leads in this category</p>
+              </div>
+            ) : (
+              <div className="space-y-3 py-4">
+                {performanceFilteredLeads.map(l => (
+                  <div key={l.opportunity_id}
+                    className="p-4 sm:p-5 border border-gray-200 dark:border-slate-800 bg-white dark:bg-slate-900 rounded-xl hover:bg-gray-50 dark:hover:bg-slate-800/60 hover:shadow-sm cursor-pointer transition-all"
+                    onClick={() => { setShowPerformanceModal(false); window.open(`/dashboard/leads/${l.opportunity_id}`, "_blank"); }}>
+                    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-4">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-2 flex-wrap">
+                          <h3 className="text-base sm:text-lg font-bold text-gray-900 dark:text-slate-100 truncate">{l.business_name}</h3>
+                          {l.stage_name && (
+                            <Badge variant="outline" className={`text-xs shrink-0 ${getStatusColor(l.stage_name)}`}>{getStatusLabel(l.stage_name)}</Badge>
+                          )}
+                        </div>
+                        <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400 truncate">{l.contact_person} · {l.tel_number}</p>
+                      </div>
+                      <div className="text-left sm:text-right shrink-0">
+                        {l.annual_usage && <p className="text-xs sm:text-sm font-semibold text-gray-700 dark:text-gray-300">{l.annual_usage.toLocaleString()} kWh</p>}
+                        {l.end_date && <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">End: {formatDate(l.end_date)}</p>}
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 pt-3 border-t border-gray-100 dark:border-slate-800">
+                      <div><p className="text-xs text-gray-500 dark:text-gray-400 uppercase mb-1">Supplier</p><p className="font-semibold text-sm text-gray-900 dark:text-slate-100 truncate">{l.supplier_name || "—"}</p></div>
+                      <div><p className="text-xs text-gray-500 dark:text-gray-400 uppercase mb-1">MPAN</p><p className="font-semibold text-sm text-gray-900 dark:text-slate-100 font-mono truncate">{l.mpan_mpr || "—"}</p></div>
+                      <div><p className="text-xs text-gray-500 dark:text-gray-400 uppercase mb-1">Annual Usage</p><p className="font-semibold text-sm text-gray-900 dark:text-slate-100">{l.annual_usage?.toLocaleString() || "—"} kWh</p></div>
+                      <div><p className="text-xs text-gray-500 dark:text-gray-400 uppercase mb-1">Assigned To</p>
+                        <p className="font-semibold text-sm text-purple-700 dark:text-purple-400 flex items-center gap-1 truncate">
+                          <Users className="h-3 w-3 shrink-0" /><span className="truncate">{l.assigned_to_name || "Unassigned"}</span>
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+          <div className="flex justify-end gap-2 pt-4 border-t border-gray-200 dark:border-slate-800 shrink-0">
+            <Button variant="outline" onClick={() => setShowPerformanceModal(false)}>Close</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Search & Filters */}
       <div className="mb-6 grid grid-cols-1 gap-3 xl:grid-cols-[minmax(0,1fr)_auto]">
