@@ -26,6 +26,7 @@ import { AddLeadModal } from "@/components/ui/AddLeadModal";
 import { SearchableFilterCombobox } from "@/components/ui/SearchableFilterCombobox";
 import { SupplierDeleteDialog } from "@/components/ui/SupplierDeleteDialog";
 import { SupplierCellCombobox } from "@/components/ui/SupplierCellCombobox";
+import { BulkActionProgress } from "@/components/ui/BulkActionProgress";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 const CUSTOMERS_PER_PAGE = 25;
@@ -211,6 +212,7 @@ export default function LeadsPage() {
   const [bulkImportFile, setBulkImportFile] = useState<File | null>(null);
   const [bulkImporting, setBulkImporting] = useState(false);
   const [importProgress, setImportProgress] = useState(0);
+  const [importFloating, setImportFloating] = useState<{ visible: boolean; progress: number; done: boolean; doneLabel: string }>({ visible: false, progress: 0, done: false, doneLabel: "" });
   const [duplicateDetails, setDuplicateDetails] = useState<any[]>([]);
   const [showAllDuplicates, setShowAllDuplicates] = useState(false);
   const [assignToEmployee, setAssignToEmployee] = useState<number | null>(null);
@@ -936,29 +938,63 @@ export default function LeadsPage() {
   };
 
   const handleBulkImport = async () => {
-    if (!bulkImportFile) {
-      alert("Please select a file");
-      return;
-    }
+    if (!bulkImportFile) { alert("Please select a file"); return; }
 
     setBulkImporting(true);
     setBulkImportResult(null);
     setDuplicateDetails([]);
     setShowAllDuplicates(false);
+
+    // Close the modal so user can work while import runs
+    setShowImportModal(false);
+
+    // Linear creep: ~0.4% every 2s → reaches 94% after ~7 minutes, never hits 95%
+    // This means a long import stays visually in-motion without piling up at 89%
+    let animationInterval: ReturnType<typeof setInterval> | null = null;
+    let animatedProgress = 5;
+    const startCreep = (from: number) => {
+      if (animationInterval) clearInterval(animationInterval);
+      animatedProgress = Math.max(animatedProgress, from);
+      // First tick fires quickly to get off 0%, then slows to linear pace
+      let tickCount = 0;
+      animationInterval = setInterval(() => {
+        tickCount++;
+        const step = tickCount <= 3 ? 2 : 0.4;
+        animatedProgress = Math.min(animatedProgress + step, 94);
+        const pct = Math.floor(animatedProgress);
+        setImportProgress(pct);
+        setImportFloating(prev => prev.done ? prev : { ...prev, progress: pct });
+      }, 2000);
+    };
+
+    // Start animating right away — don't wait for upload to finish
     setImportProgress(5);
+    setImportFloating({ visible: true, progress: 5, done: false, doneLabel: "" });
+    startCreep(5);
+
+    const finishImport = (successful: number, duplicates: number, errors: string[]) => {
+      if (animationInterval) clearInterval(animationInterval);
+      setImportProgress(100);
+      const dupeMsg = duplicates > 0 ? `, ${duplicates} duplicate${duplicates !== 1 ? "s" : ""} skipped` : "";
+      const doneLabel = successful > 0
+        ? `Imported ${successful} lead${successful !== 1 ? "s" : ""} successfully${dupeMsg}`
+        : duplicates > 0
+          ? `All ${duplicates} record${duplicates !== 1 ? "s" : ""} were duplicates`
+          : errors.length > 0 ? "Import failed" : "No leads imported";
+      setImportFloating({ visible: true, progress: 100, done: true, doneLabel });
+      setTimeout(() => setImportFloating(prev => ({ ...prev, visible: false })), 5000);
+      setBulkImporting(false);
+    };
 
     try {
       const token = localStorage.getItem("auth_token");
       const tenantId = localStorage.getItem("tenant_id") || "";
-
       const fd = new FormData();
       fd.append("file", bulkImportFile);
+      if (assignToEmployee) fd.append("assigned_employee_id", assignToEmployee.toString());
 
-      if (assignToEmployee) {
-        fd.append("assigned_employee_id", assignToEmployee.toString());
-      }
-
-      setImportProgress(10);
+      setImportProgress(15);
+      setImportFloating(prev => ({ ...prev, progress: 15 }));
 
       const res = await fetch(
         `${BACKEND_PROXY}/import/leads?service=${encodeURIComponent(service)}`,
@@ -966,142 +1002,90 @@ export default function LeadsPage() {
       );
 
       setImportProgress(30);
-
+      setImportFloating(prev => ({ ...prev, progress: 30 }));
       const data = await res.json();
 
       if (!res.ok) {
-        setBulkImportResult({
-          success: false,
-          successful: 0,
-          duplicates: data.duplicates || 0,
-          errors: [data.error || data.message || "Import failed"],
-        });
-
-        setImportProgress(100);
-        toast.error(data.error || data.message || "Import failed");
+        setBulkImportResult({ success: false, successful: 0, duplicates: data.duplicates || 0, errors: [data.error || data.message || "Import failed"] });
+        finishImport(0, 0, [data.error || "Import failed"]);
         return;
       }
 
       if (data.job_id) {
         const jobId = data.job_id;
+        startCreep(30);
 
         const poll = async (): Promise<void> => {
           await new Promise((resolve) => setTimeout(resolve, 2000));
-
           try {
-            const statusRes = await fetch(
-              `${BACKEND_PROXY}/import/status/${jobId}`,
-              {
-                headers: {
-                  Authorization: `Bearer ${token}`,
-                  "X-Tenant-ID": tenantId,
-                },
-              }
-            );
-
+            const statusRes = await fetch(`${BACKEND_PROXY}/import/status/${jobId}`, {
+              headers: { Authorization: `Bearer ${token}`, "X-Tenant-ID": tenantId },
+            });
             const statusData = await statusRes.json();
-            if (statusData.status === "completed") {
+
+            // Use real backend progress — stop animation once backend has real data
+            if (statusData.progress_pct != null) {
+              const backendPct = Math.min(Math.round(Number(statusData.progress_pct)), 97);
+              if (backendPct > animatedProgress) {
+                if (animationInterval) { clearInterval(animationInterval); animationInterval = null; }
+                animatedProgress = backendPct;
+              }
+              setImportProgress(backendPct);
+              setImportFloating(prev => prev.done ? prev : { ...prev, progress: backendPct });
+            }
+
+            if (statusData.status === "completed" || statusData.status === "done") {
               const successful = statusData.successful || 0;
               const duplicates = statusData.duplicates || 0;
               const errors: string[] = statusData.errors || [];
               const details = statusData.duplicate_details || [];
-
               setDuplicateDetails(details);
-
               setBulkImportResult({
-                success: successful > 0,
-                successful,
-                duplicates,
-                errors,
-                assigned_to: assignToEmployee
-                  ? employees.find((e) => e.employee_id === assignToEmployee)?.employee_name
-                  : "You",
+                success: successful > 0, successful, duplicates, errors,
+                assigned_to: assignToEmployee ? employees.find(e => e.employee_id === assignToEmployee)?.employee_name : "You",
                 duplicate_report: statusData.duplicate_report || [],
               });
-
-              setImportProgress(100);
-
+              finishImport(successful, duplicates, errors);
               if (successful > 0) {
                 await fetchLeads(1, false);
                 setBulkImportFile(null);
                 setAssignToEmployee(null);
-              } else if (duplicates > 0) {
-                toast.error("Import completed but all records were duplicates.");
-              } else {
-                toast.error("Import completed but no leads were inserted.");
               }
               return;
             }
             if (statusData.status === "failed") {
               const errors: string[] = statusData.errors || ["Import failed"];
-              setBulkImportResult({
-                success: false,
-                successful: 0,
-                duplicates: statusData.duplicates || 0,
-                errors,
-              });
-
-              setImportProgress(100);
-              toast.error("Import failed");
+              setBulkImportResult({ success: false, successful: 0, duplicates: statusData.duplicates || 0, errors });
+              finishImport(0, statusData.duplicates || 0, errors);
               return;
             }
-
             return poll();
           } catch {
-            setBulkImportResult({
-              success: false,
-              successful: 0,
-              errors: ["Network error while polling"],
-            });
-
-            setImportProgress(100);
-            toast.error("Network error");
+            setBulkImportResult({ success: false, successful: 0, errors: ["Network error while polling"] });
+            finishImport(0, 0, ["Network error"]);
           }
         };
-        await poll(); return;
+        await poll();
+        return;
       }
 
+      // Synchronous response (no job_id)
       if (data.success) {
         const details = data.duplicate_details || [];
         setDuplicateDetails(details);
-
-        setBulkImportResult({
-          success: true,
-          successful: data.successful || 0,
-          duplicates: data.duplicates || 0,
-          errors: data.errors || [],
-          assigned_to: data.assigned_to,
-          duplicate_report: data.duplicate_report || [],
-        });
-
-        setImportProgress(100);
-        toast.success(`Imported ${data.successful || 0} leads!`);
-
+        setBulkImportResult({ success: true, successful: data.successful || 0, duplicates: data.duplicates || 0, errors: data.errors || [], assigned_to: data.assigned_to, duplicate_report: data.duplicate_report || [] });
+        finishImport(data.successful || 0, data.duplicates || 0, data.errors || []);
         await fetchLeads(1, false);
         setBulkImportFile(null);
         setAssignToEmployee(null);
       } else {
-        setBulkImportResult({
-          success: false,
-          successful: data.successful || 0,
-          duplicates: data.duplicates || 0,
-          errors: data.errors || [data.error || "Import failed"],
-        });
-
-        setImportProgress(100);
-        toast.error(data.error || data.message || "Import failed");
+        setBulkImportResult({ success: false, successful: data.successful || 0, duplicates: data.duplicates || 0, errors: data.errors || [data.error || "Import failed"] });
+        finishImport(data.successful || 0, data.duplicates || 0, data.errors || [data.error || "Import failed"]);
       }
     } catch {
-      setBulkImportResult({
-        success: false,
-        successful: 0,
-        errors: ["Network error"],
-      });
-
-      setImportProgress(100);
+      setBulkImportResult({ success: false, successful: 0, errors: ["Network error"] });
+      finishImport(0, 0, ["Network error"]);
       toast.error("Network error");
-    } finally {
-      setBulkImporting(false);
     }
   };
 
@@ -1182,6 +1166,15 @@ export default function LeadsPage() {
   return (
     <div className="w-full max-w-full overflow-x-hidden p-4 sm:p-6 text-slate-900 dark:text-slate-100">
       <Toaster position="top-right" />
+      <BulkActionProgress
+        visible={importFloating.visible}
+        progress={importFloating.progress}
+        done={importFloating.done}
+        doneLabel={importFloating.doneLabel}
+        label="Importing leads…"
+        sublabel={importFloating.progress < 15 ? "Uploading file…" : importFloating.progress < 80 ? "Processing records…" : "Finalising…"}
+        onDismiss={() => setImportFloating(prev => ({ ...prev, visible: false }))}
+      />
       <h1 className="mb-6 text-2xl sm:text-4xl font-semibold tracking-tight text-slate-900 dark:text-slate-100">Leads</h1>
 
       {/* Service Tabs */}
@@ -2146,29 +2139,6 @@ export default function LeadsPage() {
               </Button>
             </div>
 
-            {/* PROGRESS */}
-            {bulkImporting && (
-              <div className="border border-gray-200 dark:border-slate-800 rounded-md p-4 bg-gray-50 dark:bg-slate-800/50">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-sm font-medium text-gray-900 dark:text-slate-100">
-                    Importing Leads...
-                  </span>
-                  <span className="text-sm font-semibold text-gray-900 dark:text-slate-100">
-                    {importProgress}%
-                  </span>
-                </div>
-                <div className="w-full h-2 bg-gray-200 dark:bg-slate-700 rounded-full overflow-hidden">
-                  <div
-                    className="h-full bg-blue-600 transition-all duration-500"
-                    style={{ width: `${importProgress}%` }}
-                  />
-                </div>
-                <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
-                  Processing your file. Please wait...
-                </p>
-              </div>
-            )}
-
             {/* RESULT */}
             {bulkImportResult && (
               <div
@@ -2278,13 +2248,12 @@ export default function LeadsPage() {
                   setShowAllDuplicates(false);
                   setImportProgress(0);
                 }}
-                disabled={bulkImporting}
               >
                 Close
               </Button>
-              {!bulkImporting && !bulkImportResult?.success && (
-                <Button onClick={handleBulkImport} disabled={!bulkImportFile}>
-                  Import Leads
+              {!bulkImportResult?.success && (
+                <Button onClick={handleBulkImport} disabled={!bulkImportFile || bulkImporting}>
+                  {bulkImporting ? "Importing…" : "Import Leads"}
                 </Button>
               )}
             </div>

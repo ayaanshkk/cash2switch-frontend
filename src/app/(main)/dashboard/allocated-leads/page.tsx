@@ -3,16 +3,17 @@
 import React, { useState, useEffect } from "react";
 import {
   Search, Filter, AlertCircle, ChevronRight, ChevronLeft,
-  ChevronLast, ChevronFirst, Users, UserCheck, Loader2, ChevronDown, Phone,
+  ChevronLast, ChevronFirst, UserCheck, Loader2, Phone, X, ChevronDown, Download,
 } from "lucide-react";
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { SearchableFilterCombobox } from "@/components/ui/SearchableFilterCombobox";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
   Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
-import {
-  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
@@ -185,9 +186,11 @@ export default function AllocatedLeadsPage() {
   const [statusFilter, setStatusFilter]           = useState<string | "All">("All");
   const [salespersonFilter, setSalespersonFilter] = useState<number | "All">("All");
   const [endDateFilter, setEndDateFilter]         = useState<"all" | "expired" | "30" | "60" | "90" | "90+">("all");
+  const [usageSort, setUsageSort]                 = useState<"none" | "low-high" | "high-low">("none");
   const [allocSort, setAllocSort]                 = useState<"none" | "newest" | "oldest" | "custom">("none");
   const [allocFrom, setAllocFrom]                 = useState("");
   const [allocTo,   setAllocTo]                   = useState("");
+  const [showFilterSidebar, setShowFilterSidebar] = useState(false);
 
   // Callback modal
   const [showCallbackModal, setShowCallbackModal]             = useState(false);
@@ -222,14 +225,14 @@ export default function AllocatedLeadsPage() {
   // Reset to page 1 when any filter changes
   useEffect(() => { setCurrentPage(1); }, [
     service, debouncedSearch, supplierFilter, statusFilter,
-    salespersonFilter, endDateFilter, allocSort, allocFrom, allocTo,
+    salespersonFilter, endDateFilter, usageSort, allocSort, allocFrom, allocTo,
   ]);
 
   // Fetch whenever page or filters change
   useEffect(() => {
     fetchAllocatedLeads(currentPage);
   }, [currentPage, service, debouncedSearch, supplierFilter, statusFilter,
-      salespersonFilter, endDateFilter, allocSort, allocFrom, allocTo, isAdmin]);
+      salespersonFilter, endDateFilter, usageSort, allocSort, allocFrom, allocTo, isAdmin]);
 
   useEffect(() => {
     fetchSuppliers();
@@ -257,6 +260,7 @@ export default function AllocatedLeadsPage() {
       else if (allocSort === "newest")              params.set("upload_sort",    "desc");
       if (allocSort === "custom" && allocFrom)      params.set("upload_from",    allocFrom);
       if (allocSort === "custom" && allocTo)        params.set("upload_to",      allocTo);
+      if (usageSort !== "none")                     params.set("usage_sort",     usageSort);
 
       const resp = await fetchWithAuth(`/api/crm/leads/allocated?${params.toString()}`);
       const data: AllocatedLead[] = resp?.data ?? (Array.isArray(resp) ? resp : []);
@@ -270,6 +274,39 @@ export default function AllocatedLeadsPage() {
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const downloadAllocatedLeadsCsv = async () => {
+    try {
+      const params = new URLSearchParams({ service, exclude_stage: "Lost", page: "1", page_size: "5000" });
+      if (debouncedSearch)                          params.set("search",         debouncedSearch);
+      if (supplierFilter !== "All")                 params.set("supplier_id",    String(supplierFilter));
+      if (statusFilter !== "All")                   params.set("status",         statusFilter);
+      if (isAdmin && salespersonFilter !== "All")   params.set("salesperson_id", String(salespersonFilter));
+      if (endDateFilter !== "all")                  params.set("end_date_filter", endDateFilter);
+      if (allocSort === "oldest")                   params.set("upload_sort",    "asc");
+      else if (allocSort === "newest")              params.set("upload_sort",    "desc");
+      if (allocSort === "custom" && allocFrom)      params.set("upload_from",    allocFrom);
+      if (allocSort === "custom" && allocTo)        params.set("upload_to",      allocTo);
+      if (usageSort !== "none")                     params.set("usage_sort",     usageSort);
+      const resp = await fetchWithAuth(`/api/crm/leads/allocated?${params.toString()}`);
+      const allData: AllocatedLead[] = resp?.data ?? (Array.isArray(resp) ? resp : []);
+      const escapeCsv = (v: unknown) => `"${String(v ?? "").replace(/"/g, '""')}"`;
+      const headers = ["ID","Client Name","Trading Name","Phone","Mobile","MPAN","Supplier","Annual Usage","Start Date","Contract End","Status","Assigned To"];
+      const rows = allData.map(l => [
+        l.tenant_lead_id ?? l.opportunity_id, l.contact_person, l.business_name,
+        l.tel_number, l.mobile_no, l.mpan_mpr,
+        l.supplier_name, l.annual_usage,
+        formatDate(l.start_date), formatDate(l.end_date), l.stage_name, l.assigned_to_name,
+      ]);
+      const csv = [headers, ...rows].map(r => r.map(escapeCsv).join(",")).join("\r\n");
+      const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url; link.download = `allocated-leads-${service}-${new Date().toISOString().slice(0,10)}.csv`;
+      document.body.appendChild(link); link.click();
+      document.body.removeChild(link); URL.revokeObjectURL(url);
+    } catch { toast.error("Failed to export CSV"); }
   };
 
   const fetchSuppliers = async () => {
@@ -551,120 +588,230 @@ export default function AllocatedLeadsPage() {
       )}
 
       {/* Search & Filters */}
-      <div className="mb-6 grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-6 gap-3">
-        <div className="relative min-w-0 sm:col-span-2 xl:col-span-1">
-          <Search className="text-muted-foreground absolute top-2.5 left-2 h-4 w-4" />
-          <Input placeholder="Search leads..." className="pl-8" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
-        </div>
-
-        {isAdmin && (
+      <div className="mb-6 grid grid-cols-1 gap-3 xl:grid-cols-[minmax(0,1fr)_auto]">
+        <div className="grid min-w-0 grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-3">
+          <div className="relative min-w-0 sm:col-span-2 xl:col-span-1">
+            <Search className="text-muted-foreground absolute top-2.5 left-2 h-4 w-4" />
+            <Input placeholder="Search leads..." className="pl-8" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
+          </div>
+          <SearchableFilterCombobox
+            options={[
+              { value: "All", label: "All Suppliers" },
+              ...suppliers.map(s => ({ value: s.supplier_id.toString(), label: s.supplier_name, deletable: true })),
+            ]}
+            value={supplierFilter === "All" ? "All" : String(supplierFilter)}
+            onChange={v => setSupplierFilter(v === "All" ? "All" : parseInt(v))}
+            onDelete={(v) => {
+              const s = suppliers.find(x => x.supplier_id === Number(v));
+              if (s) setDeleteSupplier({ id: s.supplier_id, name: s.supplier_name });
+            }}
+            showFilterIcon
+          />
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="outline" className="min-w-0 justify-between w-full">
-                <Users className="mr-2 h-4 w-4 shrink-0" />
-                <span className="truncate">
-                  {salespersonFilter === "All"
-                    ? "All Salespersons"
-                    : employees.find(e => e.employee_id === salespersonFilter)?.employee_name || "Salesperson"}
-                </span>
+                <Filter className="mr-2 h-4 w-4 shrink-0" />
+                <span className="truncate">{statusFilter === "All" ? "All Status" : statusFilter}</span>
                 <ChevronDown className="ml-1 h-3 w-3 shrink-0" />
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent>
-              <DropdownMenuItem onClick={() => setSalespersonFilter("All")}>All Salespersons</DropdownMenuItem>
-              {employees.map(e => (
-                <DropdownMenuItem key={e.employee_id} onClick={() => setSalespersonFilter(e.employee_id)}>
-                  {e.employee_name}
-                </DropdownMenuItem>
+            <DropdownMenuContent className="w-56 max-h-80 overflow-y-auto">
+              <DropdownMenuItem onClick={() => setStatusFilter("All")}>All Status</DropdownMenuItem>
+              {STATUS_OPTIONS.map(o => (
+                <DropdownMenuItem key={o.value} onClick={() => setStatusFilter(o.value)}>{o.label}</DropdownMenuItem>
               ))}
             </DropdownMenuContent>
           </DropdownMenu>
-        )}
-
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="outline" className="min-w-0 justify-between w-full">
-              <Filter className="mr-2 h-4 w-4 shrink-0" />
-              <span className="truncate">{supplierFilter === "All" ? "All Suppliers" : getSupplierName(supplierFilter as number)}</span>
-              <ChevronDown className="ml-1 h-3 w-3 shrink-0" />
+          <Select value={endDateFilter} onValueChange={(v: any) => setEndDateFilter(v)}>
+            <SelectTrigger className="w-full min-w-0"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Contracts</SelectItem>
+              <SelectItem value="30">Ending in 30 days</SelectItem>
+              <SelectItem value="60">Ending in 31–60 days</SelectItem>
+              <SelectItem value="90">Ending in 61–90 days</SelectItem>
+              <SelectItem value="90+">Ending in 90+ days</SelectItem>
+              <SelectItem value="expired">Expired Contracts</SelectItem>
+            </SelectContent>
+          </Select>
+          <Select value={usageSort} onValueChange={(v: any) => setUsageSort(v)}>
+            <SelectTrigger className="w-full min-w-0"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="none">Usage: Default</SelectItem>
+              <SelectItem value="low-high">Usage: Low to High</SelectItem>
+              <SelectItem value="high-low">Usage: High to Low</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="flex flex-wrap items-center gap-2 xl:justify-end">
+          <Button variant="outline" onClick={() => setShowFilterSidebar(true)} className="relative flex-none whitespace-nowrap">
+            <Filter className="mr-2 h-4 w-4" />
+            All Filters
+            {(supplierFilter !== "All" || statusFilter !== "All" || endDateFilter !== "all" || usageSort !== "none" || allocSort !== "none" || (isAdmin && salespersonFilter !== "All")) && (
+              <span className="absolute -top-1 -right-1 h-2.5 w-2.5 rounded-full bg-black dark:bg-white" />
+            )}
+          </Button>
+          {isAdmin && (
+            <Button onClick={downloadAllocatedLeadsCsv} variant="outline" disabled={leads.length === 0} className="flex-none whitespace-nowrap">
+              <Download className="mr-2 h-4 w-4" />Download Leads
             </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent>
-            <DropdownMenuItem onClick={() => setSupplierFilter("All")}>All Suppliers</DropdownMenuItem>
-            {suppliers.map(s => (
-              <DropdownMenuItem key={s.supplier_id} onClick={() => setSupplierFilter(s.supplier_id)}>
-                {s.supplier_name}
-              </DropdownMenuItem>
-            ))}
-          </DropdownMenuContent>
-        </DropdownMenu>
+          )}
+        </div>
+      </div>
 
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="outline" className="min-w-0 justify-between w-full">
-              <Filter className="mr-2 h-4 w-4 shrink-0" />
-              <span className="truncate">{statusFilter === "All" ? "All Status" : getStatusLabel(statusFilter as string)}</span>
-              <ChevronDown className="ml-1 h-3 w-3 shrink-0" />
+      {/* Filter Sidebar */}
+      <div
+        className={`fixed inset-0 z-50 flex transition-opacity duration-300 ${showFilterSidebar ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"}`}
+      >
+        <div className="flex-1 bg-black/30 dark:bg-black/60" onClick={() => setShowFilterSidebar(false)} />
+        <div
+          className={`w-80 bg-white dark:bg-slate-900 border-l border-gray-200 dark:border-slate-800 h-full shadow-2xl flex flex-col transition-transform duration-300 ease-in-out ${showFilterSidebar ? "translate-x-0" : "translate-x-full"}`}
+          style={{ willChange: "transform" }}
+        >
+          <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-slate-800 shrink-0">
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-slate-100">All Filters</h2>
+            <button onClick={() => setShowFilterSidebar(false)} className="p-1 rounded hover:bg-gray-100 dark:hover:bg-slate-800">
+              <X className="h-5 w-5 text-gray-500 dark:text-gray-400" />
+            </button>
+          </div>
+          <div className="flex-1 overflow-y-auto px-6 py-6 space-y-6 min-h-0">
+            {isAdmin && (
+              <div>
+                <label className="block text-sm font-semibold text-gray-800 dark:text-gray-200 mb-2">Salesperson</label>
+                <SearchableFilterCombobox
+                  options={[
+                    { value: "All", label: "All Salespersons" },
+                    ...employees.map(e => ({ value: e.employee_id.toString(), label: e.employee_name })),
+                  ]}
+                  value={salespersonFilter.toString()}
+                  onChange={v => setSalespersonFilter(v === "All" ? "All" : parseInt(v))}
+                />
+              </div>
+            )}
+
+            <div className="border-t border-gray-200 dark:border-slate-800 pt-6">
+              <p className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-4">Quick Filters</p>
+            </div>
+            <div>
+              <label className="block text-sm font-semibold text-gray-800 dark:text-gray-200 mb-2">Supplier</label>
+              <SearchableFilterCombobox
+                options={[
+                  { value: "All", label: "All Suppliers" },
+                  ...suppliers.map(s => ({ value: s.supplier_id.toString(), label: s.supplier_name, deletable: true })),
+                ]}
+                value={supplierFilter === "All" ? "All" : String(supplierFilter)}
+                onChange={v => setSupplierFilter(v === "All" ? "All" : parseInt(v))}
+                onDelete={(v) => {
+                  const s = suppliers.find(x => x.supplier_id === Number(v));
+                  if (s) setDeleteSupplier({ id: s.supplier_id, name: s.supplier_name });
+                }}
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-semibold text-gray-800 dark:text-gray-200 mb-2">Status</label>
+              <Select value={statusFilter.toString()} onValueChange={v => setStatusFilter(v)}>
+                <SelectTrigger className="w-full"><SelectValue placeholder="All Status" /></SelectTrigger>
+                <SelectContent position="popper" side="bottom" sideOffset={4} className="w-72 z-[60]">
+                  <SelectItem value="All">All Status</SelectItem>
+                  {STATUS_OPTIONS.map(o => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <label className="block text-sm font-semibold text-gray-800 dark:text-gray-200 mb-2">Contract End Date</label>
+              <Select value={endDateFilter} onValueChange={(v: any) => setEndDateFilter(v)}>
+                <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
+                <SelectContent position="popper" side="bottom" sideOffset={4} className="w-72 z-[60]">
+                  <SelectItem value="all">All Contracts</SelectItem>
+                  <SelectItem value="30">Ending in 30 days</SelectItem>
+                  <SelectItem value="60">Ending in 31–60 days</SelectItem>
+                  <SelectItem value="90">Ending in 61–90 days</SelectItem>
+                  <SelectItem value="90+">Ending in 90+ days</SelectItem>
+                  <SelectItem value="expired">Expired Contracts</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <label className="block text-sm font-semibold text-gray-800 dark:text-gray-200 mb-2">Annual Usage Sort</label>
+              <Select value={usageSort} onValueChange={(v: any) => setUsageSort(v)}>
+                <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
+                <SelectContent position="popper" side="bottom" sideOffset={4} className="w-72 z-[60]">
+                  <SelectItem value="none">Default</SelectItem>
+                  <SelectItem value="low-high">Low to High</SelectItem>
+                  <SelectItem value="high-low">High to Low</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <label className="block text-sm font-semibold text-gray-800 dark:text-gray-200 mb-2">Recently Uploaded</label>
+              <Select value={allocSort} onValueChange={(v: any) => { setAllocSort(v); if (v !== "custom") { setAllocFrom(""); setAllocTo(""); } }}>
+                <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
+                <SelectContent position="popper" side="bottom" sideOffset={4} className="w-72 z-[60]">
+                  <SelectItem value="none">Default</SelectItem>
+                  <SelectItem value="newest">Newest First</SelectItem>
+                  <SelectItem value="oldest">Oldest First</SelectItem>
+                  <SelectItem value="custom">Custom Range</SelectItem>
+                </SelectContent>
+              </Select>
+              {allocSort === "custom" && (
+                <div className="mt-2 space-y-2">
+                  <div>
+                    <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">From</label>
+                    <Input type="date" value={allocFrom} onChange={e => setAllocFrom(e.target.value)} className="w-full" />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">To</label>
+                    <Input type="date" value={allocTo} onChange={e => setAllocTo(e.target.value)} className="w-full" />
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="px-6 py-4 border-t border-gray-200 dark:border-slate-800 shrink-0 flex gap-2">
+            <Button
+              variant="outline"
+              className="flex-1"
+              onClick={() => {
+                setSupplierFilter("All");
+                setStatusFilter("All");
+                setEndDateFilter("all");
+                setUsageSort("none");
+                setSalespersonFilter("All");
+                setAllocSort("none");
+                setAllocFrom("");
+                setAllocTo("");
+              }}
+            >
+              Clear All
             </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent>
-            <DropdownMenuItem onClick={() => setStatusFilter("All")}>All Status</DropdownMenuItem>
-            {STATUS_OPTIONS.map(o => (
-              <DropdownMenuItem key={o.value} onClick={() => setStatusFilter(o.value)}>{o.label}</DropdownMenuItem>
-            ))}
-          </DropdownMenuContent>
-        </DropdownMenu>
-
-        <Select value={endDateFilter} onValueChange={(v: any) => setEndDateFilter(v)}>
-          <SelectTrigger className="w-full min-w-0"><SelectValue /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Contracts</SelectItem>
-            <SelectItem value="30">Ending in 30 days</SelectItem>
-            <SelectItem value="60">Ending in 31-60 days</SelectItem>
-            <SelectItem value="90">Ending in 61-90 days</SelectItem>
-            <SelectItem value="90+">Ending in 90+ days</SelectItem>
-            <SelectItem value="expired">Expired Contracts</SelectItem>
-          </SelectContent>
-        </Select>
-
-
-        {/* Recently Allocated sort */}
-        <Select value={allocSort} onValueChange={(v: any) => { setAllocSort(v); if (v !== "custom") { setAllocFrom(""); setAllocTo(""); } }}>
-          <SelectTrigger className="w-full min-w-0"><SelectValue placeholder="Recently Allocated" /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="none">Allocated: Default</SelectItem>
-            <SelectItem value="newest">Newest to Oldest</SelectItem>
-            <SelectItem value="oldest">Oldest to Newest</SelectItem>
-            <SelectItem value="custom">Custom Date Range</SelectItem>
-          </SelectContent>
-        </Select>
-
-        {allocSort === "custom" && (
-          <>
-            <Input type="date" className="w-full min-w-0" placeholder="From" value={allocFrom} onChange={e => setAllocFrom(e.target.value)} />
-            <Input type="date" className="w-full min-w-0" placeholder="To"   value={allocTo}   onChange={e => setAllocTo(e.target.value)} />
-          </>
-        )}
+            <Button
+              className="flex-1 bg-black text-white hover:bg-gray-800 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-slate-200"
+              onClick={() => setShowFilterSidebar(false)}
+            >
+              Done
+            </Button>
+          </div>
+        </div>
       </div>
 
       {/* Table */}
       <div className="overflow-x-auto rounded-lg border border-gray-200 dark:border-slate-800 bg-white dark:bg-slate-900">
         <div>
-          <table className="w-full divide-y divide-gray-200 dark:divide-slate-800 min-w-[900px]">
+          <table className="w-full table-fixed divide-y divide-gray-200 dark:divide-slate-800 min-w-[1200px]">
             <thead className="bg-gray-50 dark:bg-slate-800/50">
               <tr>
-                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 dark:text-gray-400 uppercase w-16 border-r-2 border-border">ID</th>
+                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 dark:text-gray-400 uppercase w-[5%] border-r-2 border-gray-300 dark:border-slate-700">ID</th>
                 <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 dark:text-gray-400 uppercase w-[9%]">Client Name</th>
-                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 dark:text-gray-400 uppercase w-[11%]">Trading Name</th>
-                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 dark:text-gray-400 uppercase w-[5%]">Tel No</th>
-                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 dark:text-gray-400 uppercase w-[5%]">Mobile No</th>
-                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 dark:text-gray-400 uppercase w-[10%]">MPAN</th>
-                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 dark:text-gray-400 uppercase w-[13%]">Supplier</th>
-                <th className="px-3 py-3 text-right text-xs font-medium tracking-wider text-gray-500 dark:text-gray-400 uppercase w-[9%] whitespace-nowrap">Annual Usage</th>
-                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 dark:text-gray-400 uppercase w-[9%] whitespace-nowrap">Start Date</th>
-                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 dark:text-gray-400 uppercase w-[9%] whitespace-nowrap">Contract End</th>
-                <th className="px-3 py-3 text-center text-xs font-medium tracking-wider text-gray-500 dark:text-gray-400 uppercase w-[13%]">Status</th>
-                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 dark:text-gray-400 uppercase w-[9%]">Assigned To</th>
+                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 dark:text-gray-400 uppercase w-[9%]">Trading Name</th>
+                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 dark:text-gray-400 uppercase w-[6%]">Tel No</th>
+                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 dark:text-gray-400 uppercase w-[6%]">Mobile No</th>
+                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 dark:text-gray-400 uppercase w-[9%]">MPAN</th>
+                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 dark:text-gray-400 uppercase w-[10%]">Supplier</th>
+                <th className="px-3 py-3 text-right text-xs font-medium tracking-wider text-gray-500 dark:text-gray-400 uppercase w-[7%] whitespace-nowrap">Annual Usage</th>
+                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 dark:text-gray-400 uppercase w-[7%] whitespace-nowrap">Start Date</th>
+                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 dark:text-gray-400 uppercase w-[7%] whitespace-nowrap">Contract End</th>
+                <th className="px-3 py-3 text-center text-xs font-medium tracking-wider text-gray-500 dark:text-gray-400 uppercase w-[12%]">Status</th>
+                <th className="px-3 py-3 text-left text-xs font-medium tracking-wider text-gray-500 dark:text-gray-400 uppercase w-[13%]">Assigned To</th>
               </tr>
             </thead>
 
@@ -705,34 +852,34 @@ export default function AllocatedLeadsPage() {
                   return (
                     <tr
                       key={lead.opportunity_id}
-                      className="hover:bg-muted/50 transition-colors cursor-pointer"
+                      className="hover:bg-gray-50 dark:hover:bg-slate-800/60 transition-colors cursor-pointer"
                       onClick={() => window.open(`/dashboard/leads/${lead.opportunity_id}`, "_blank")}
                     >
-                      <td className="px-3 py-3 text-sm font-medium text-foreground border-r-2 border-border align-top">
+                      <td className="px-3 py-3 text-sm font-medium text-gray-900 dark:text-slate-100 border-r-2 border-gray-300 dark:border-slate-700 align-top">
                         <div className="whitespace-nowrap">{displayId}</div>
                       </td>
 
-                      <td className="px-3 py-3 text-sm text-foreground align-top overflow-hidden">
+                      <td className="px-3 py-3 text-sm text-gray-700 dark:text-gray-300 align-top overflow-hidden">
                         <div className="whitespace-normal break-words leading-tight">{lead.contact_person || "—"}</div>
                       </td>
 
-                      <td className="px-3 py-3 text-sm text-foreground align-top overflow-hidden">
+                      <td className="px-3 py-3 text-sm text-gray-900 dark:text-slate-100 align-top overflow-hidden">
                         <div className="whitespace-normal break-words leading-tight">{lead.business_name || "—"}</div>
                       </td>
 
-                      <td className="px-3 py-3 text-sm text-foreground align-top">
-                        <div className="whitespace-nowrap">
+                      <td className="px-3 py-3 text-sm text-gray-900 dark:text-slate-200 align-top overflow-hidden">
+                        <div className="truncate max-w-[100px]" title={lead.tel_number ? String(lead.tel_number).replace(/\.0$/, "") : ""}>
                           {lead.tel_number ? String(lead.tel_number).replace(/\.0$/, "") : "—"}
                         </div>
                       </td>
 
-                      <td className="px-3 py-3 text-sm text-foreground align-top">
-                        <div className="whitespace-nowrap">
+                      <td className="px-3 py-3 text-sm text-gray-900 dark:text-slate-200 align-top overflow-hidden">
+                        <div className="truncate max-w-[100px]" title={lead.mobile_no ? String(lead.mobile_no).replace(/\.0$/, "") : ""}>
                           {lead.mobile_no ? String(lead.mobile_no).replace(/\.0$/, "") : "—"}
                         </div>
                       </td>
 
-                      <td className="px-3 py-3 text-sm text-foreground align-top overflow-hidden">
+                      <td className="px-3 py-3 text-sm text-gray-900 dark:text-slate-200 align-top overflow-hidden">
                         <div className="truncate" title={lead.mpan_mpr || ""}>{lead.mpan_mpr || "—"}</div>
                       </td>
 
@@ -746,17 +893,17 @@ export default function AllocatedLeadsPage() {
                         />
                       </td>
 
-                      <td className="px-3 py-3 text-sm text-foreground text-right align-top">
+                      <td className="px-3 py-3 text-sm text-gray-900 dark:text-slate-200 text-right align-top">
                         <div className="whitespace-nowrap">
                           {lead.annual_usage ? lead.annual_usage.toLocaleString() : "—"}
                         </div>
                       </td>
 
-                      <td className="px-3 py-3 text-sm text-foreground align-top">
+                      <td className="px-3 py-3 text-sm text-gray-900 dark:text-slate-200 align-top">
                         <div className="whitespace-nowrap">{formatDate(lead.start_date)}</div>
                       </td>
 
-                      <td className="px-3 py-3 text-sm text-foreground align-top">
+                      <td className="px-3 py-3 text-sm text-gray-900 dark:text-slate-200 align-top">
                         <div className="whitespace-nowrap">{formatDate(lead.end_date)}</div>
                       </td>
 
@@ -766,7 +913,7 @@ export default function AllocatedLeadsPage() {
                           value={lead.stage_name || ""}
                           onValueChange={v => openCallbackModal(lead.opportunity_id, v === "CLEAR_STATUS" ? "" : v)}
                         >
-                          <SelectTrigger className="h-7 text-xs w-full max-w-[140px]">
+                          <SelectTrigger className="h-7 text-xs w-full">
                             <SelectValue placeholder="Set status">
                               {lead.stage_name ? (
                                 <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-semibold ${getStatusColor(lead.stage_name)}`}>
@@ -803,7 +950,7 @@ export default function AllocatedLeadsPage() {
                               setShowAssignModal(true);
                             }}
                           >
-                            <SelectTrigger className="h-7 text-xs w-full max-w-[140px]">
+                            <SelectTrigger className="h-7 text-xs w-full">
                               <SelectValue placeholder="Assign">
                                 {lead.assigned_to_name || "Unassigned"}
                               </SelectValue>

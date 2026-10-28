@@ -53,7 +53,7 @@ interface TeamMember {
 }
 
 interface SearchPermissionUser {
-  user_id: number;
+  user_id: number | null;
   employee_id: number;
   employee_name: string;
   username: string | null;
@@ -201,10 +201,12 @@ export default function SettingsPage() {
     > = {};
 
     users.forEach((user) => {
-      permissions[user.user_id] = {
-        leads: Boolean(user.can_search_all_leads),
-        renewals: Boolean(user.can_search_all_renewals),
-      };
+      if (user.user_id != null) {
+        permissions[user.user_id] = {
+          leads: Boolean(user.can_search_all_leads),
+          renewals: Boolean(user.can_search_all_renewals),
+        };
+      }
     });
 
     setSearchPermissionDraft(permissions);
@@ -270,6 +272,7 @@ export default function SettingsPage() {
       setGeneratedInviteLink(data.invite.invite_link);
       setInviteForm({ employee_name: "", username: "", email: "", phone: "", role_id: "" });
       loadMembers();
+      loadSearchPermissions();
     } catch (err: any) {
       alert(err.message || "Failed to create invite");
     } finally {
@@ -387,6 +390,7 @@ export default function SettingsPage() {
       if (!res.ok) throw new Error(data.error || "Failed to delete");
       alert("Team member deleted successfully");
       loadMembers();
+      loadSearchPermissions();
     } catch (err: any) {
       alert(err.message || "Failed to delete team member");
     } finally {
@@ -625,15 +629,14 @@ export default function SettingsPage() {
                   );
                 })
                 .map((user) => {
-                  const permissions =
-                    searchPermissionDraft[user.user_id] || {
-                      leads: false,
-                      renewals: false,
-                    };
+                  const hasLogin = user.user_id != null;
+                  const permissions = hasLogin
+                    ? (searchPermissionDraft[user.user_id!] || { leads: false, renewals: false })
+                    : { leads: false, renewals: false };
 
                   return (
                     <tr
-                      key={user.user_id}
+                      key={user.employee_id}
                       className="border-b border-slate-100 last:border-b-0 dark:border-slate-800"
                     >
                       <td className="px-5 py-4">
@@ -641,9 +644,14 @@ export default function SettingsPage() {
                           {user.employee_name}
                         </div>
 
-                        <div className="text-sm text-slate-500 dark:text-slate-400">
+                        <div className="text-sm text-slate-500 dark:text-slate-400 flex items-center gap-1.5 flex-wrap">
                           {user.role || "User"}
                           {user.username && ` · ${user.username}`}
+                          {!hasLogin && (
+                            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-400">
+                              No login yet
+                            </span>
+                          )}
                         </div>
                       </td>
 
@@ -651,11 +659,11 @@ export default function SettingsPage() {
                         <input
                           type="checkbox"
                           checked={permissions.leads}
-                          disabled={isSavingSearchPermissions}
+                          disabled={!hasLogin || isSavingSearchPermissions}
                           onChange={(e) =>
-                            updateSearchPermission(user.user_id, "leads", e.target.checked)
+                            hasLogin && updateSearchPermission(user.user_id!, "leads", e.target.checked)
                           }
-                          className="h-4 w-4 cursor-pointer accent-blue-600 disabled:opacity-50"
+                          className="h-4 w-4 cursor-pointer accent-blue-600 disabled:opacity-50 disabled:cursor-not-allowed"
                         />
                       </td>
 
@@ -663,11 +671,11 @@ export default function SettingsPage() {
                         <input
                           type="checkbox"
                           checked={permissions.renewals}
-                          disabled={isSavingSearchPermissions}
+                          disabled={!hasLogin || isSavingSearchPermissions}
                           onChange={(e) =>
-                            updateSearchPermission(user.user_id, "renewals", e.target.checked)
+                            hasLogin && updateSearchPermission(user.user_id!, "renewals", e.target.checked)
                           }
-                          className="h-4 w-4 cursor-pointer accent-blue-600 disabled:opacity-50"
+                          className="h-4 w-4 cursor-pointer accent-blue-600 disabled:opacity-50 disabled:cursor-not-allowed"
                         />
                       </td>
                     </tr>

@@ -34,6 +34,7 @@ import { AddEnergyClientModal } from "@/components/ui/AddEnergyClientModal";
 import { SearchableFilterCombobox } from "@/components/ui/SearchableFilterCombobox";
 import { SupplierDeleteDialog } from "@/components/ui/SupplierDeleteDialog";
 import { SupplierCellCombobox } from "@/components/ui/SupplierCellCombobox";
+import { BulkActionProgress } from "@/components/ui/BulkActionProgress";
 
 // ---------------- Constants ----------------
 const CUSTOMERS_PER_PAGE = 25;
@@ -271,6 +272,7 @@ export default function EnergyCustomersPage() {
   const [bulkImportFile, setBulkImportFile] = useState<File | null>(null);
   const [bulkImporting, setBulkImporting] = useState(false);
   const [importProgress, setImportProgress] = useState(0);
+  const [importFloating, setImportFloating] = useState<{ visible: boolean; progress: number; done: boolean; doneLabel: string }>({ visible: false, progress: 0, done: false, doneLabel: "" });
   const [assignToEmployee, setAssignToEmployee] = useState<number | null>(null);
   const [bulkImportResult, setBulkImportResult] = useState<{
     success: boolean;
@@ -313,6 +315,7 @@ export default function EnergyCustomersPage() {
   const [searchResults, setSearchResults] = useState<EnergyCustomer[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [isSelectAllChecked, setIsSelectAllChecked] = useState(false);
+  const [bulkDeleteProgress, setBulkDeleteProgress] = useState({ visible: false, progress: 0, done: false, total: 0, deleted: 0 });
   const [employeeStats, setEmployeeStats] = useState<{
     employee_id: number;
     employee_name: string;
@@ -967,39 +970,53 @@ export default function EnergyCustomersPage() {
 
   // ---------------- Bulk Delete ----------------
   const bulkDeleteCustomers = async () => {
-    if (!user) {
-      alert("You don't have permission to delete clients.");
-      return;
-    }
-    if (selectedCustomers.length === 0) {
-      alert("Please select customers to delete");
-      return;
-    }
-    if (!window.confirm(`Are you sure you want to delete ${selectedCustomers.length} client(s) and all related records?`)) {
-      return;
-    }
+    if (!user) { alert("You don't have permission to delete clients."); return; }
+    if (selectedCustomers.length === 0) { alert("Please select customers to delete"); return; }
+    if (!window.confirm(`Are you sure you want to delete ${selectedCustomers.length} client(s) and all related records?`)) return;
+
+    const ids = [...selectedCustomers];
+    const CHUNK_SIZE = 50;
+    const chunks: number[][] = [];
+    for (let i = 0; i < ids.length; i += CHUNK_SIZE) chunks.push(ids.slice(i, i + CHUNK_SIZE));
+
+    setBulkDeleteProgress({ visible: true, progress: 0, done: false, total: ids.length, deleted: 0 });
+
+    // Clear selection immediately so user can keep working
+    setSelectedCustomers([]);
+    setIsSelectAllChecked(false);
+
+    let deletedSoFar = 0;
     try {
-      const deletePromises = selectedCustomers.map(clientId =>
-        fetchWithAuth(`/energy-clients/${clientId}`, { method: "DELETE" })
-      );
-      await Promise.all(deletePromises);
+      for (let i = 0; i < chunks.length; i++) {
+        const chunk = chunks[i];
+        const response = await fetchWithAuth('/energy-clients/bulk-delete', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ client_ids: chunk }),
+          timeoutMs: 120000,
+        } as any);
 
-      setAllCustomers((prev) => prev.filter((c) => !selectedCustomers.includes(c.client_id)));
-      setSelectedCustomers([]);
-      setIsSelectAllChecked(false);
+        if (!response || response.error) throw new Error(response?.error || 'Failed to delete customers');
 
-      const remainingCount = allCustomers.filter(c => !selectedCustomers.includes(c.client_id)).length;
-      if (remainingCount === 0) {
-        try {
-          await fetchWithAuth('/energy-clients/reset-sequence', { method: 'POST' });
-          toast.success('✅ Sequence reset successfully');
-        } catch (resetErr) {
-          console.error('⚠️ Error resetting sequence:', resetErr);
-        }
+        deletedSoFar += chunk.length;
+        const progress = Math.round((deletedSoFar / ids.length) * 100);
+        setBulkDeleteProgress(prev => ({ ...prev, progress, deleted: deletedSoFar }));
+
+        // Remove from local state as each chunk completes
+        setAllCustomers(prev => prev.filter(c => !chunk.includes(c.client_id)));
       }
-    } catch (err) {
+
+      setBulkDeleteProgress(prev => ({ ...prev, progress: 100, done: true }));
+      setTimeout(() => setBulkDeleteProgress(prev => ({ ...prev, visible: false })), 3000);
+
+      const remainingCount = allCustomers.filter(c => !ids.includes(c.client_id)).length;
+      if (remainingCount === 0) {
+        try { await fetchWithAuth('/energy-clients/reset-sequence', { method: 'POST' }); } catch {}
+      }
+    } catch (err: any) {
       console.error("Bulk delete error:", err);
-      toast.error("Error deleting some customers");
+      toast.error(err?.message || "Error deleting customers");
+      setBulkDeleteProgress(prev => ({ ...prev, visible: false }));
     }
   };
 
@@ -1023,9 +1040,12 @@ export default function EnergyCustomersPage() {
       const allClientIds = customersToDelete.map(c => c.client_id);
       toast.success(`🗑️ Deleting ${allClientIds.length} customers...`);
 
-      await Promise.all(allClientIds.map(clientId =>
-        fetchWithAuth(`/energy-clients/${clientId}`, { method: "DELETE" })
-      ));
+      await fetchWithAuth('/energy-clients/bulk-delete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ client_ids: allClientIds }),
+        timeoutMs: 120000,
+      } as any);
 
       await fetchWithAuth('/energy-clients/reset-sequence', { method: 'POST' });
 
@@ -1042,160 +1062,118 @@ export default function EnergyCustomersPage() {
   };
 
   const handleBulkImport = async () => {
-    if (!bulkImportFile) {
-      alert("Please select a file");
-      return;
-    }
+    if (!bulkImportFile) { alert("Please select a file"); return; }
 
     setBulkImporting(true);
-    setImportProgress(0);
     setBulkImportResult(null);
     setDuplicateDetails([]);
     setShowAllDuplicates(false);
 
+    // Close modal so user can keep working
+    setShowImportModal(false);
+
+    // Linear creep: ~0.4% every 2s → reaches 94% after ~7 minutes, never hits 95%
+    let animationInterval: ReturnType<typeof setInterval> | null = null;
+    let animatedProgress = 5;
+    const startCreep = (from: number) => {
+      if (animationInterval) clearInterval(animationInterval);
+      animatedProgress = Math.max(animatedProgress, from);
+      let tickCount = 0;
+      animationInterval = setInterval(() => {
+        tickCount++;
+        const step = tickCount <= 3 ? 2 : 0.4;
+        animatedProgress = Math.min(animatedProgress + step, 94);
+        const pct = Math.floor(animatedProgress);
+        setImportProgress(pct);
+        setImportFloating(prev => prev.done ? prev : { ...prev, progress: pct });
+      }, 2000);
+    };
+
+    // Start animating right away — don't wait for upload to finish
+    setImportProgress(5);
+    setImportFloating({ visible: true, progress: 5, done: false, doneLabel: "" });
+    startCreep(5);
+
+    const finishImport = (successful: number, duplicates: number, failed: boolean) => {
+      if (animationInterval) clearInterval(animationInterval);
+      setImportProgress(100);
+      const dupeMsg = duplicates > 0 ? `, ${duplicates} duplicate${duplicates !== 1 ? "s" : ""} skipped` : "";
+      const doneLabel = failed
+        ? "Import failed"
+        : successful > 0
+          ? `Imported ${successful} record${successful !== 1 ? "s" : ""} successfully${dupeMsg}`
+          : duplicates > 0
+            ? `All ${duplicates} record${duplicates !== 1 ? "s" : ""} were duplicates`
+            : "No records imported";
+      setImportFloating({ visible: true, progress: 100, done: true, doneLabel });
+      setTimeout(() => setImportFloating(prev => ({ ...prev, visible: false })), 5000);
+      setBulkImporting(false);
+    };
+
     try {
       const token = localStorage.getItem("auth_token");
       const formData = new FormData();
-
       formData.append("file", bulkImportFile);
-
-      if (assignToEmployee) {
-        formData.append(
-          "assigned_employee_id",
-          assignToEmployee.toString()
-        );
-      }
+      if (assignToEmployee) formData.append("assigned_employee_id", assignToEmployee.toString());
 
       const res = await fetch(
         `${API_BASE_URL}/import/energy-customers?service=${encodeURIComponent(service)}`,
-        {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-          body: formData,
-        }
+        { method: "POST", headers: { Authorization: `Bearer ${token}` }, body: formData }
       );
-
       const data = await res.json();
 
       if (!res.ok || !data.job_id) {
-        setBulkImportResult({
-          success: false,
-          successful: 0,
-          errors: [
-            data.error || "Failed to start import",
-          ],
-        });
-
-        toast.error(data.error || "Failed to start import");
-        setBulkImporting(false);
+        setBulkImportResult({ success: false, successful: 0, errors: [data.error || "Failed to start import"] });
+        finishImport(0, 0, true);
         return;
       }
 
       const jobId = data.job_id;
+      startCreep(15);
 
-      const poll = async (): Promise<void> => {
-        return new Promise((resolve) => {
-          const interval = setInterval(async () => {
-            try {
-              const statusRes = await fetch(
-                `${API_BASE_URL}/import/status/${jobId}`,
-                {
-                  headers: {
-                    Authorization: `Bearer ${token}`,
-                  },
-                }
-              );
+      await new Promise<void>((resolve) => {
+        const interval = setInterval(async () => {
+          try {
+            const statusRes = await fetch(`${API_BASE_URL}/import/status/${jobId}`, { headers: { Authorization: `Bearer ${token}` } });
+            const statusData = await statusRes.json();
 
-              const statusData = await statusRes.json();
+            // Use backend progress_pct if it's meaningful (> current animated value)
+            if (statusData.progress_pct != null && Number(statusData.progress_pct) > 0) {
+              const backendPct = Math.min(Math.floor(Number(statusData.progress_pct)), 89);
+              setImportProgress(backendPct);
+              setImportFloating(prev => prev.done ? prev : { ...prev, progress: backendPct });
+            }
 
-              if (statusData.status === "done") {
-                clearInterval(interval);
-                setImportProgress(100);
-
-                const duplicates: DuplicateDetail[] =
-                  Array.isArray(statusData.duplicate_details)
-                    ? statusData.duplicate_details
-                    : [];
-
-                setDuplicateDetails(duplicates);
-
-                setBulkImportResult({
-                  success: statusData.successful > 0,
-                  successful: statusData.successful || 0,
-                  errors: statusData.errors || [],
-                });
-
-                if (statusData.successful > 0) {
-                  await fetchCustomers(false);
-
-                  if (isAdmin) {
-                    await fetchEmployeeStats();
-                  }
-                }
-
-                setBulkImportFile(null);
-                setAssignToEmployee(null);
-                setBulkImporting(false);
-
-                resolve();
-
-              } else if (statusData.status === "failed") {
-                clearInterval(interval);
-
-                setBulkImportResult({
-                  success: false,
-                  successful: statusData.successful || 0,
-                  errors:
-                    statusData.errors?.length
-                      ? statusData.errors
-                      : ["Import failed"],
-                });
-
-                toast.error("Import failed");
-
-                setBulkImporting(false);
-                resolve();
-
-              } else {
-                const pct = Math.floor(
-                  Number(statusData.progress_pct || 0)
-                );
-
-                setImportProgress(pct);
-              }
-
-            } catch (pollErr) {
+            if (statusData.status === "done") {
               clearInterval(interval);
-
-              setBulkImportResult({
-                success: false,
-                successful: 0,
-                errors: ["Lost connection during import"],
-              });
-
-              toast.error("Connection error during import");
-
-              setBulkImporting(false);
+              const duplicates: DuplicateDetail[] = Array.isArray(statusData.duplicate_details) ? statusData.duplicate_details : [];
+              setDuplicateDetails(duplicates);
+              setBulkImportResult({ success: statusData.successful > 0, successful: statusData.successful || 0, errors: statusData.errors || [] });
+              finishImport(statusData.successful || 0, duplicates.length, false);
+              if (statusData.successful > 0) {
+                await fetchCustomers(false);
+                if (isAdmin) await fetchEmployeeStats();
+              }
+              setBulkImportFile(null);
+              setAssignToEmployee(null);
+              resolve();
+            } else if (statusData.status === "failed") {
+              clearInterval(interval);
+              setBulkImportResult({ success: false, successful: statusData.successful || 0, errors: statusData.errors?.length ? statusData.errors : ["Import failed"] });
+              finishImport(statusData.successful || 0, 0, true);
               resolve();
             }
-          }, 100);
-        });
-      };
-
-      await poll();
-
-    } catch (error) {
-      toast.error("Network error during import");
-
-      setBulkImportResult({
-        success: false,
-        successful: 0,
-        errors: ["Network error occurred"],
+          } catch {
+            clearInterval(interval);
+            setBulkImportResult({ success: false, successful: 0, errors: ["Lost connection during import"] });
+            finishImport(0, 0, true);
+            resolve();
+          }
+        }, 1500);
       });
-
-      setBulkImporting(false);
+    } catch {
+      setBulkImportResult({ success: false, successful: 0, errors: ["Network error occurred"] });
+      finishImport(0, 0, true);
     }
   };
 
@@ -1353,6 +1331,25 @@ export default function EnergyCustomersPage() {
   return (
     <div className="w-full max-w-full overflow-x-hidden p-4 sm:p-6 text-slate-900 dark:text-slate-100">
       <Toaster position="top-right" />
+      <BulkActionProgress
+        visible={bulkDeleteProgress.visible}
+        progress={bulkDeleteProgress.progress}
+        done={bulkDeleteProgress.done}
+        total={bulkDeleteProgress.total}
+        label={`Deleting ${bulkDeleteProgress.total} record${bulkDeleteProgress.total !== 1 ? 's' : ''}…`}
+        sublabel={`${bulkDeleteProgress.deleted} of ${bulkDeleteProgress.total} deleted`}
+        onDismiss={() => setBulkDeleteProgress(prev => ({ ...prev, visible: false }))}
+      />
+      <BulkActionProgress
+        visible={importFloating.visible}
+        progress={importFloating.progress}
+        done={importFloating.done}
+        doneLabel={importFloating.doneLabel}
+        label="Importing renewals…"
+        sublabel={importFloating.progress < 15 ? "Uploading file…" : importFloating.progress < 80 ? "Processing records…" : "Finalising…"}
+        onDismiss={() => setImportFloating(prev => ({ ...prev, visible: false }))}
+        stackOffset={bulkDeleteProgress.visible ? 1 : 0}
+      />
       <h1 className="mb-6 text-2xl sm:text-4xl font-semibold tracking-tight text-slate-900 dark:text-slate-100">Renewals</h1>
 
       {/* Service Tabs */}
@@ -1933,6 +1930,42 @@ export default function EnergyCustomersPage() {
                   </SelectContent>
                 </Select>
               </div>
+
+              {/* Recently Uploaded */}
+              <div className="mb-6">
+                <label className="mb-2 block text-sm font-medium text-foreground">Recently Uploaded</label>
+                <Select value={uploadSort} onValueChange={(v: any) => { setUploadSort(v); if (v !== "custom") { setUploadedFrom(""); setUploadedTo(""); } }}>
+                  <SelectTrigger className="h-10 w-full border-border bg-background text-foreground"><SelectValue /></SelectTrigger>
+                  <SelectContent position="popper" side="bottom" sideOffset={4} className="w-72 z-[60]">
+                    <SelectItem value="none">None</SelectItem>
+                    <SelectItem value="newest">Newest to Oldest</SelectItem>
+                    <SelectItem value="oldest">Oldest to Newest</SelectItem>
+                    <SelectItem value="custom">Custom Date Range</SelectItem>
+                  </SelectContent>
+                </Select>
+                {uploadSort === "custom" && (
+                  <div className="mt-3 space-y-2">
+                    <div>
+                      <label className="text-xs text-muted-foreground mb-1 block">From</label>
+                      <input
+                        type="date"
+                        value={uploadedFrom}
+                        onChange={e => setUploadedFrom(e.target.value)}
+                        className="w-full border border-border rounded-md px-3 py-2 text-sm bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs text-muted-foreground mb-1 block">To</label>
+                      <input
+                        type="date"
+                        value={uploadedTo}
+                        onChange={e => setUploadedTo(e.target.value)}
+                        className="w-full border border-border rounded-md px-3 py-2 text-sm bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
 
             {/* Footer */}
@@ -1948,6 +1981,9 @@ export default function EnergyCustomersPage() {
                   setStatusFilter("All");
                   setEndDateFilter("all");
                   setUsageSort("none");
+                  setUploadSort("none");
+                  setUploadedFrom("");
+                  setUploadedTo("");
                 }}
               >
                 Clear All
@@ -1961,42 +1997,6 @@ export default function EnergyCustomersPage() {
               >
                 Done
               </Button>
-            </div>
-
-            {/* Recently Uploaded */}
-            <div>
-              <label className="block text-sm font-semibold text-gray-800 mb-2">Recently Uploaded</label>
-              <Select value={uploadSort} onValueChange={(v: any) => { setUploadSort(v); if (v !== "custom") { setUploadedFrom(""); setUploadedTo(""); } }}>
-                <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
-                <SelectContent position="popper" side="bottom" sideOffset={4} className="w-72 z-[60]">
-                  <SelectItem value="none">None</SelectItem>
-                  <SelectItem value="newest">Newest to Oldest</SelectItem>
-                  <SelectItem value="oldest">Oldest to Newest</SelectItem>
-                  <SelectItem value="custom">Custom Date Range</SelectItem>
-                </SelectContent>
-              </Select>
-              {uploadSort === "custom" && (
-                <div className="mt-3 space-y-2">
-                  <div>
-                    <label className="text-xs text-gray-500 mb-1 block">From</label>
-                    <input
-                      type="date"
-                      value={uploadedFrom}
-                      onChange={e => setUploadedFrom(e.target.value)}
-                      className="w-full border border-gray-200 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-black"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-xs text-gray-500 mb-1 block">To</label>
-                    <input
-                      type="date"
-                      value={uploadedTo}
-                      onChange={e => setUploadedTo(e.target.value)}
-                      className="w-full border border-gray-200 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-black"
-                    />
-                  </div>
-                </div>
-              )}
             </div>
           </div>
         </>
@@ -2405,43 +2405,18 @@ export default function EnergyCustomersPage() {
               </Button>
             </div>
 
-            {!bulkImporting && !bulkImportResult && (
+            {!bulkImportResult && (
               <div className="flex justify-end">
                 <Button
                   onClick={handleBulkImport}
-                  disabled={!bulkImportFile}
+                  disabled={!bulkImportFile || bulkImporting}
                 >
-                  Import Customers
+                  {bulkImporting ? "Importing…" : "Import Customers"}
                 </Button>
               </div>
             )}
 
-            {bulkImporting && (
-              <div className="py-4">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                    Importing renewals...
-                  </span>
-
-                  <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                    {importProgress}%
-                  </span>
-                </div>
-
-                <div className="w-full h-2 bg-gray-200 dark:bg-slate-700 rounded-full overflow-hidden">
-                  <div
-                    className="h-full bg-blue-600 transition-all duration-500"
-                    style={{ width: `${importProgress}%` }}
-                  />
-                </div>
-
-                <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
-                  Please wait while the renewals are being imported...
-                </p>
-              </div>
-            )}
-
-            {bulkImportResult && !bulkImporting && (
+            {bulkImportResult && (
               <div
                 className={`rounded-md p-4 border ${
                   bulkImportResult.success
