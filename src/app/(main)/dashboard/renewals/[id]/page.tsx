@@ -203,6 +203,7 @@ interface EnergyCustomer {
   door_number?: string;
   town?: string;
   county?: string;
+  data_source?: string;
 
   old_supplier_name?: string;
   old_supplier_id?: number;
@@ -1613,7 +1614,12 @@ export default function EnergyCustomerDetailsPage() {
                 {/* Data Source */}
                 <div>
                   <label className="text-sm font-medium text-gray-700 dark:text-slate-300">Data Source</label>
-                  <Input disabled className="mt-1 bg-gray-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300" placeholder="—" />
+                  <Input
+                    value={displayCustomer.data_source || ""}
+                    disabled
+                    className="mt-1 bg-gray-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300"
+                    placeholder="—"
+                  />
                 </div>
 
                 {/* Annual Usage */}

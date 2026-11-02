@@ -40,6 +40,8 @@ import {
   UserCheck,
   Sparkles,
   FilePenLine,
+  GitBranch,
+  Zap,
 } from "lucide-react";
 
 export interface NavSubItem {
@@ -151,24 +153,10 @@ const allSidebarItems: NavGroup[] = [
         ],
       },
       {
-        title: "Documents",
-        url: "/dashboard/documents/all",
-        icon: FolderOpen,
-        roles: ["platform admin", "salesperson"],
-        subItems: [
-          {
-            title: "All Documents",
-            url: "/dashboard/documents/all",
-            icon: File,
-            roles: ["platform admin", "salesperson"],
-          },
-          {
-            title: "New Connections",
-            url: "/dashboard/documents/new-connections",
-            icon: UserPlus,
-            roles: ["platform admin", "salesperson"],
-          },
-        ],
+        title: "Leads Pipeline",
+        url: "/dashboard/pipeline/leads-generator",
+        icon: GitBranch,
+        roles: ["platform admin"],
       },
       {
         title: "Archives",
@@ -210,12 +198,6 @@ const allSidebarItems: NavGroup[] = [
         ],
       },
       {
-        title: "Email Logs",
-        url: "/dashboard/email-logs",
-        icon: MailCheck,
-        roles: ["platform admin"],
-      },
-      {
         title: "Cleansing",
         url: "/dashboard/cleansing",
         icon: Sparkles,
@@ -227,6 +209,32 @@ const allSidebarItems: NavGroup[] = [
         icon: FilePenLine,
         roles: ["platform admin"],
         isNew: true,
+      },
+      {
+        title: "Email Logs",
+        url: "/dashboard/email-logs",
+        icon: MailCheck,
+        roles: ["platform admin"],
+      },
+      {
+        title: "Documents",
+        url: "/dashboard/documents/all",
+        icon: FolderOpen,
+        roles: ["platform admin", "salesperson"],
+        subItems: [
+          {
+            title: "All Documents",
+            url: "/dashboard/documents/all",
+            icon: File,
+            roles: ["platform admin", "salesperson"],
+          },
+          {
+            title: "New Connections",
+            url: "/dashboard/documents/new-connections",
+            icon: UserPlus,
+            roles: ["platform admin", "salesperson"],
+          },
+        ],
       },
       {
         title: "Recycle Bin",
