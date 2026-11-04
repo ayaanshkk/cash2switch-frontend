@@ -103,7 +103,7 @@ interface AllocatedLead {
   assigned_to_name: string | null;
 }
 
-interface Supplier { supplier_id: number; supplier_name: string; }
+interface Supplier { supplier_id: number; supplier_name: string; record_count?: number; }
 interface Employee { employee_id: number; employee_name: string; }
 interface Stage    { stage_id: number; stage_name: string; }
 interface EmployeeStat { employee_id: number; employee_name: string; count: number; }
@@ -246,6 +246,14 @@ export default function AllocatedLeadsPage() {
   }, [currentPage, service, debouncedSearch, supplierFilter, statusFilter,
       salespersonFilter, endDateFilter, usageSort, allocSort, allocFrom, allocTo, isAdmin]);
 
+  const supplierCounts = React.useMemo(() => {
+    const counts: Record<number, number> = {};
+    for (const l of leads) {
+      if (l.supplier_id != null) counts[l.supplier_id] = (counts[l.supplier_id] || 0) + 1;
+    }
+    return counts;
+  }, [leads]);
+
   useEffect(() => {
     fetchSuppliers();
     fetchStages();
@@ -373,7 +381,7 @@ export default function AllocatedLeadsPage() {
 
   const fetchSuppliers = async () => {
     try {
-      const r = await fetchWithAuth("/suppliers");
+      const r = await fetchWithAuth("/suppliers?page=leads");
       setSuppliers(Array.isArray(r) ? r : (r?.data || []));
     } catch { setSuppliers([]); }
   };
@@ -559,6 +567,7 @@ export default function AllocatedLeadsPage() {
         supplierId={deleteSupplier?.id ?? null}
         supplierName={deleteSupplier?.name ?? ""}
         allSuppliers={suppliers}
+        page="leads"
         onClose={() => setDeleteSupplier(null)}
         onDeleted={(id) => {
           setSuppliers(prev => prev.filter(s => s.supplier_id !== id));
@@ -767,7 +776,7 @@ export default function AllocatedLeadsPage() {
           <SearchableFilterCombobox
             options={[
               { value: "All", label: "All Suppliers" },
-              ...suppliers.map(s => ({ value: s.supplier_id.toString(), label: s.supplier_name, deletable: true })),
+              ...suppliers.map(s => ({ value: s.supplier_id.toString(), label: s.supplier_name, count: s.record_count || 0, deletable: true })),
             ]}
             value={supplierFilter === "All" ? "All" : String(supplierFilter)}
             onChange={v => setSupplierFilter(v === "All" ? "All" : parseInt(v))}
@@ -866,7 +875,7 @@ export default function AllocatedLeadsPage() {
               <SearchableFilterCombobox
                 options={[
                   { value: "All", label: "All Suppliers" },
-                  ...suppliers.map(s => ({ value: s.supplier_id.toString(), label: s.supplier_name, deletable: true })),
+                  ...suppliers.map(s => ({ value: s.supplier_id.toString(), label: s.supplier_name, count: s.record_count || 0, deletable: true })),
                 ]}
                 value={supplierFilter === "All" ? "All" : String(supplierFilter)}
                 onChange={v => setSupplierFilter(v === "All" ? "All" : parseInt(v))}

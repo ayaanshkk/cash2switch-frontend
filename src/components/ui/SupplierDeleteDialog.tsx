@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { Loader2, AlertTriangle } from "lucide-react";
+import { Loader2, AlertTriangle, Check } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -9,13 +9,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { Input } from "@/components/ui/input";
 import { fetchWithAuth } from "@/lib/api";
 
 interface Supplier {
@@ -37,6 +31,8 @@ interface Props {
   allSuppliers: Supplier[];
   onClose: () => void;
   onDeleted: (supplierId: number) => void;
+  /** Which page is triggering the delete — scopes the usage check and deletion */
+  page?: "leads" | "renewals";
 }
 
 type Step = "checking" | "has_contracts" | "reassigning" | "confirm_delete";
@@ -47,10 +43,12 @@ export function SupplierDeleteDialog({
   allSuppliers,
   onClose,
   onDeleted,
+  page,
 }: Props) {
   const [step, setStep] = useState<Step>("checking");
   const [contracts, setContracts] = useState<Contract[]>([]);
   const [newSupplierId, setNewSupplierId] = useState<string>("");
+  const [supplierSearch, setSupplierSearch] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -61,11 +59,12 @@ export function SupplierDeleteDialog({
     setNewSupplierId("");
     setError(null);
 
-    fetchWithAuth(`/suppliers/${supplierId}/usage`)
+    const pageParam = page ? `?page=${page}` : "";
+    fetchWithAuth(`/suppliers/${supplierId}/usage${pageParam}`)
       .then((data) => {
         if (data.count === 0) {
-          // No contracts — attempt direct delete
-          return fetchWithAuth(`/suppliers/${supplierId}`, { method: "DELETE" })
+          // No contracts on this page — attempt direct delete/hide
+          return fetchWithAuth(`/suppliers/${supplierId}${pageParam}`, { method: "DELETE" })
             .then((res) => {
               if (res?.error === "Cannot delete a supplier not created by your account") {
                 setError("You can only delete suppliers you added.");
@@ -97,7 +96,7 @@ export function SupplierDeleteDialog({
     try {
       await fetchWithAuth(`/suppliers/${supplierId}/reassign`, {
         method: "POST",
-        body: JSON.stringify({ new_supplier_id: parseInt(newSupplierId) }),
+        body: JSON.stringify({ new_supplier_id: parseInt(newSupplierId), page: page || null }),
       });
       onDeleted(supplierId);
       onClose();
@@ -118,7 +117,7 @@ export function SupplierDeleteDialog({
     try {
       await fetchWithAuth(`/suppliers/${supplierId}/reassign`, {
         method: "POST",
-        body: JSON.stringify({ new_supplier_id: null }),
+        body: JSON.stringify({ new_supplier_id: null, page: page || null }),
       });
       onDeleted(supplierId);
       onClose();
@@ -202,7 +201,7 @@ export function SupplierDeleteDialog({
               >
                 No, Just Delete
               </Button>
-              <Button onClick={() => setStep("reassigning")} disabled={submitting}>
+              <Button onClick={() => { setStep("reassigning"); setSupplierSearch(""); setNewSupplierId(""); }} disabled={submitting}>
                 Yes, Reassign
               </Button>
             </div>
@@ -220,18 +219,38 @@ export function SupplierDeleteDialog({
               to:
             </p>
 
-            <Select value={newSupplierId} onValueChange={setNewSupplierId}>
-              <SelectTrigger className="w-full">
-                <SelectValue placeholder="— Select supplier —" />
-              </SelectTrigger>
-              <SelectContent>
-                {otherSuppliers.map((s) => (
-                  <SelectItem key={s.supplier_id} value={s.supplier_id.toString()}>
-                    {s.supplier_name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <div className="border rounded-md overflow-hidden dark:border-slate-700">
+              <div className="px-3 py-2 border-b dark:border-slate-700 bg-slate-50 dark:bg-slate-800">
+                <Input
+                  autoFocus
+                  placeholder="Search suppliers…"
+                  value={supplierSearch}
+                  onChange={e => setSupplierSearch(e.target.value)}
+                  className="h-7 text-sm border-0 bg-transparent shadow-none focus-visible:ring-0 p-0"
+                />
+              </div>
+              <ul className="max-h-52 overflow-y-auto py-1">
+                {otherSuppliers
+                  .filter(s => s.supplier_name.toLowerCase().includes(supplierSearch.toLowerCase()))
+                  .map(s => (
+                    <li
+                      key={s.supplier_id}
+                      onClick={() => setNewSupplierId(s.supplier_id.toString())}
+                      className={`px-3 py-2 text-sm cursor-pointer flex items-center justify-between gap-2 ${
+                        newSupplierId === s.supplier_id.toString()
+                          ? "bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900"
+                          : "hover:bg-slate-100 dark:hover:bg-slate-800"
+                      }`}
+                    >
+                      {s.supplier_name}
+                      {newSupplierId === s.supplier_id.toString() && <Check className="h-3.5 w-3.5 shrink-0" />}
+                    </li>
+                  ))}
+                {otherSuppliers.filter(s => s.supplier_name.toLowerCase().includes(supplierSearch.toLowerCase())).length === 0 && (
+                  <li className="px-3 py-2 text-sm text-muted-foreground">No suppliers found.</li>
+                )}
+              </ul>
+            </div>
 
             {error && <p className="text-sm text-red-500">{error}</p>}
 
@@ -262,6 +281,11 @@ export function SupplierDeleteDialog({
               <p className="text-sm text-red-800 dark:text-red-300">
                 <strong>{contracts.length} {contractWord}</strong> will have their
                 supplier removed and will show no supplier assigned. Do you wish to proceed?
+                {page && (
+                  <span className="block mt-1 text-xs text-red-600">
+                    This supplier will remain visible in {page === "leads" ? "renewals" : "leads"}.
+                  </span>
+                )}
               </p>
             </div>
 

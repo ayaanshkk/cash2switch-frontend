@@ -150,6 +150,7 @@ interface Supplier {
   provisions: number;
   provisions_text: string;
   is_owned?: boolean;
+  record_count?: number;
 }
 
 interface Employee {
@@ -495,7 +496,7 @@ export default function EnergyCustomersPage() {
 
   const fetchInitData = async () => {
     try {
-      const response = await fetchWithAuth("/energy-clients/init-data");
+      const response = await fetchWithAuth("/energy-clients/init-data?page=renewals");
       if (response && !response.error) {
         setSuppliers(response.suppliers || []);
         setEmployees(response.employees || []);
@@ -559,6 +560,14 @@ export default function EnergyCustomersPage() {
       return (a.display_order ?? 9999) - (b.display_order ?? 9999);
     });
   }, [allCustomers, searchResults, searchTerm, user]);
+
+  const supplierCounts = useMemo(() => {
+    const counts: Record<number, number> = {};
+    for (const c of allCustomers) {
+      if (c.supplier_id != null) counts[c.supplier_id] = (counts[c.supplier_id] || 0) + 1;
+    }
+    return counts;
+  }, [allCustomers]);
 
   const filteredCustomers = useMemo(() => {
     let filtered = sortedCustomers.filter((customer) => {
@@ -1620,7 +1629,7 @@ export default function EnergyCustomersPage() {
           <SearchableFilterCombobox
             options={[
               { value: "All", label: "All Suppliers" },
-              ...suppliers.map(s => ({ value: s.supplier_id.toString(), label: s.supplier_name, deletable: true })),
+              ...suppliers.map(s => ({ value: s.supplier_id.toString(), label: s.supplier_name, count: supplierCounts[s.supplier_id] || 0, deletable: true })),
             ]}
             value={supplierFilter === "All" ? "All" : String(supplierFilter)}
             onChange={v => setSupplierFilter(v === "All" ? "All" : Number(v))}
@@ -1822,7 +1831,7 @@ export default function EnergyCustomersPage() {
                 <SearchableFilterCombobox
                   options={[
                     { value: "All", label: "All Suppliers" },
-                    ...suppliers.map(s => ({ value: s.supplier_id.toString(), label: s.supplier_name, deletable: true })),
+                    ...suppliers.map(s => ({ value: s.supplier_id.toString(), label: s.supplier_name, count: supplierCounts[s.supplier_id] || 0, deletable: true })),
                   ]}
                   value={supplierFilter === "All" ? "All" : String(supplierFilter)}
                   onChange={v => setSupplierFilter(v === "All" ? "All" : Number(v))}
@@ -2806,6 +2815,7 @@ export default function EnergyCustomersPage() {
         supplierId={deleteSupplier?.id ?? null}
         supplierName={deleteSupplier?.name ?? ""}
         allSuppliers={suppliers}
+        page="renewals"
         onClose={() => setDeleteSupplier(null)}
         onDeleted={(id) => {
           setSuppliers(prev => prev.filter(s => s.supplier_id !== id));

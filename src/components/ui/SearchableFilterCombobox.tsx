@@ -21,7 +21,8 @@ import {
 export interface FilterOption {
   value: string;
   label: string;
-  deletable?: boolean; // show trash icon for this option
+  count?: number;
+  deletable?: boolean;
 }
 
 interface SearchableFilterComboboxProps {
@@ -44,17 +45,28 @@ export function SearchableFilterCombobox({
   showFilterIcon = false,
 }: SearchableFilterComboboxProps) {
   const [open, setOpen] = useState(false);
+  const deletingRef = React.useRef(false);
   const selectedLabel = options.find(o => o.value === value)?.label ?? placeholder;
 
   const handleDelete = (e: React.MouseEvent, optionValue: string) => {
     e.stopPropagation();
     e.preventDefault();
     if (!onDelete) return;
+    deletingRef.current = true;
     onDelete(optionValue);
   };
 
+  const handleOpenChange = (next: boolean) => {
+    if (!next && deletingRef.current) {
+      // Swallow the close triggered by parent re-render after delete
+      deletingRef.current = false;
+      return;
+    }
+    setOpen(next);
+  };
+
   return (
-    <Popover open={open} onOpenChange={setOpen}>
+    <Popover open={open} onOpenChange={handleOpenChange}>
       <PopoverTrigger asChild>
         <Button
           variant="outline"
@@ -83,7 +95,7 @@ export function SearchableFilterCombobox({
                   }}
                   className={cn("flex items-center justify-between pr-1", onDelete && o.deletable && "group")}
                 >
-                  <span className="flex items-center min-w-0">
+                  <span className="flex items-center min-w-0 flex-1 overflow-hidden">
                     <Check
                       className={cn(
                         "mr-2 h-4 w-4 shrink-0",
@@ -91,6 +103,13 @@ export function SearchableFilterCombobox({
                       )}
                     />
                     <span className="truncate">{o.label}</span>
+                  </span>
+                  <span className="flex items-center gap-1 ml-1 shrink-0">
+                    {o.count != null && o.count > 0 && (
+                      <span className="text-[10px] font-medium text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-700 rounded px-1 py-0.5 leading-none">
+                        {o.count}
+                      </span>
+                    )}
                   </span>
                   {onDelete && o.deletable && (
                     <button

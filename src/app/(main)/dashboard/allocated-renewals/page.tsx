@@ -106,6 +106,7 @@ interface EnergyCustomer {
 interface Supplier {
   supplier_id: number;
   supplier_name: string;
+  record_count?: number;
 }
 
 interface Employee {
@@ -329,7 +330,7 @@ export default function AllocatedContactsPage() {
 
   const fetchSuppliers = async () => {
     try {
-      const r = await fetchWithAuth("/suppliers");
+      const r = await fetchWithAuth("/suppliers?page=renewals");
       setSuppliers(Array.isArray(r) ? r : (r?.data || []));
     } catch { setSuppliers([]); }
   };
@@ -362,6 +363,14 @@ export default function AllocatedContactsPage() {
       toast.error(err?.message || "Failed to update supplier");
     }
   };
+
+  const supplierCounts = useMemo(() => {
+    const counts: Record<number, number> = {};
+    for (const c of allCustomers) {
+      if (c.supplier_id != null) counts[c.supplier_id] = (counts[c.supplier_id] || 0) + 1;
+    }
+    return counts;
+  }, [allCustomers]);
 
   // ---------------- Filters ----------------
   const filteredCustomers = useMemo(() => {
@@ -595,6 +604,7 @@ export default function AllocatedContactsPage() {
         supplierId={deleteSupplier?.id ?? null}
         supplierName={deleteSupplier?.name ?? ""}
         allSuppliers={suppliers}
+        page="renewals"
         onClose={() => setDeleteSupplier(null)}
         onDeleted={(id) => {
           setSuppliers(prev => prev.filter(s => s.supplier_id !== id));
@@ -814,7 +824,7 @@ export default function AllocatedContactsPage() {
           <SearchableFilterCombobox
             options={[
               { value: "All", label: "All Suppliers" },
-              ...suppliers.map(s => ({ value: s.supplier_id.toString(), label: s.supplier_name, deletable: true })),
+              ...suppliers.map(s => ({ value: s.supplier_id.toString(), label: s.supplier_name, count: supplierCounts[s.supplier_id] || 0, deletable: true })),
             ]}
             value={supplierFilter === "All" ? "All" : String(supplierFilter)}
             onChange={v => setSupplierFilter(v === "All" ? "All" : parseInt(v))}
@@ -914,7 +924,7 @@ export default function AllocatedContactsPage() {
               <SearchableFilterCombobox
                 options={[
                   { value: "All", label: "All Suppliers" },
-                  ...suppliers.map(s => ({ value: s.supplier_id.toString(), label: s.supplier_name, deletable: true })),
+                  ...suppliers.map(s => ({ value: s.supplier_id.toString(), label: s.supplier_name, count: supplierCounts[s.supplier_id] || 0, deletable: true })),
                 ]}
                 value={supplierFilter === "All" ? "All" : String(supplierFilter)}
                 onChange={v => setSupplierFilter(v === "All" ? "All" : parseInt(v))}

@@ -19,7 +19,10 @@ import {
   Search,
   X,
   XCircle,
+  Zap,
+  ListChecks,
 } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -244,6 +247,42 @@ export default function PaymentCheckerPage() {
   });
   const today = new Date();
   today.setHours(0, 0, 0, 0);
+
+  // Bulk log modal
+  const [bulkLogGroup, setBulkLogGroup] = useState<PaymentGroup | null>(null);
+  const [bulkAmount, setBulkAmount] = useState("");
+  const [bulkDate, setBulkDate] = useState(new Date().toISOString().slice(0, 10));
+  const [bulkNotes, setBulkNotes] = useState("");
+  const [bulkSaving, setBulkSaving] = useState(false);
+
+  const openBulkLog = (group: PaymentGroup) => {
+    setBulkLogGroup(group);
+    // Pre-fill with full outstanding balance for this contract
+    setBulkAmount(String(group.outstanding.toFixed(2)));
+    setBulkDate(new Date().toISOString().slice(0, 10));
+    setBulkNotes("");
+  };
+
+  const submitBulkLog = async () => {
+    if (!bulkLogGroup) return;
+    const contractId = bulkLogGroup.payments[0]?.contract_id;
+    if (!contractId) return alert("No contract ID found for this group.");
+    if (!bulkAmount || Number(bulkAmount) <= 0) return alert("Please enter a valid amount.");
+    setBulkSaving(true);
+    try {
+      await fetchWithAuth(`/api/commission/contracts/${contractId}/bulk-receipt`, {
+        method: "POST",
+        body: JSON.stringify({ total_amount: Number(bulkAmount), date_received: bulkDate, notes: bulkNotes || undefined }),
+      });
+      setBulkLogGroup(null);
+      // Refresh the list
+      loadPayments();
+    } catch (err: any) {
+      alert(err.message || "Failed to log bulk payment");
+    } finally {
+      setBulkSaving(false);
+    }
+  };
 
   type ChasingSummaryRow = { supplier_id: number | null; supplier_name: string; overdue_count: number; total_outstanding: string };
   const [chasingSummary, setChasingSummary] = useState<ChasingSummaryRow[]>([]);
@@ -832,7 +871,7 @@ export default function PaymentCheckerPage() {
   const selectedIsClosed = selectedPayment?.status === "Closed";
 
   return (
-    <div className="min-h-screen bg-transparent px-4 py-6 text-slate-900 dark:bg-transparent dark:text-slate-100 sm:px-6 lg:px-8">
+    <div className="min-h-screen bg-transparent px-2 py-6 text-slate-900 dark:bg-transparent dark:text-slate-100 sm:px-3 lg:px-4">
       <div className="space-y-6">
         <div className="flex flex-col gap-4 rounded-lg border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900 md:flex-row md:items-center md:justify-between">
           <div>
@@ -1111,22 +1150,35 @@ export default function PaymentCheckerPage() {
             ) : (
               <div className="border-t border-slate-200 dark:border-slate-800">
                 <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
+                  <table className="w-full text-sm table-fixed">
+                    <colgroup>
+                      <col className="w-[13%]" />
+                      <col className="w-[8%]" />
+                      <col className="w-[8%]" />
+                      <col className="w-[7%]" />
+                      <col className="w-[9%]" />
+                      <col className="w-[15%]" />
+                      <col className="w-[7%]" />
+                      <col className="w-[7%]" />
+                      <col className="w-[8%]" />
+                      <col className="w-[7%]" />
+                      <col className="w-[8%]" />
+                      <col className="w-[3%]" />
+                    </colgroup>
                     <thead className="bg-slate-50 text-left text-xs font-semibold tracking-wide text-slate-500 uppercase border-b border-slate-200 dark:border-slate-800 dark:bg-slate-800/60 dark:text-slate-400">
                       <tr>
-                        <th className="px-3 py-2">Customer</th>
-                        <th className="px-3 py-2">Supplier</th>
-                        <th className="px-3 py-2">Aggregator</th>
-                        <th className="px-3 py-2">Agent</th>
-                        <th className="px-3 py-2">MPAN/MPR</th>
-                        <th className="px-3 py-2">Start</th>
-                        <th className="px-3 py-2">End</th>
-                        <th className="px-3 py-2 text-right">Expected</th>
-                        <th className="px-3 py-2 text-right">Received</th>
-                        <th className="px-3 py-2 text-right">Outstanding</th>
-                        <th className="px-3 py-2">Next Due</th>
-                        <th className="px-3 py-2">Status</th>
-                        <th className="px-3 py-2"></th>
+                        <th className="px-2 py-2">Customer</th>
+                        <th className="px-2 py-2">Supplier</th>
+                        <th className="px-2 py-2">Aggregator</th>
+                        <th className="px-2 py-2">Agent</th>
+                        <th className="px-2 py-2">MPAN/MPR</th>
+                        <th className="px-2 py-2">Period</th>
+                        <th className="px-2 py-2 text-right">Expected</th>
+                        <th className="px-2 py-2 text-right">Received</th>
+                        <th className="px-2 py-2 text-right">Outstanding</th>
+                        <th className="px-2 py-2">Next Due</th>
+                        <th className="px-2 py-2">Status</th>
+                        <th className="px-2 py-2"></th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-200 bg-white dark:divide-slate-800 dark:bg-slate-900">
@@ -1148,8 +1200,8 @@ export default function PaymentCheckerPage() {
                               }`}
                               onClick={() => togglePaymentGroup(group.key)}
                             >
-                              <td className="px-3 py-2">
-                                <div className="flex items-center gap-2">
+                              <td className="px-2 py-2">
+                                <div className="flex items-center gap-1.5">
                                   <button
                                     type="button"
                                     className="rounded border border-slate-200 bg-slate-50 p-0.5 shrink-0 dark:border-slate-700 dark:bg-slate-800"
@@ -1162,14 +1214,14 @@ export default function PaymentCheckerPage() {
                                   <div>
                                     <button
                                       type="button"
-                                      className="font-semibold text-slate-950 hover:underline text-left dark:text-slate-100"
+                                      className="font-semibold text-slate-950 hover:underline text-left dark:text-slate-100 leading-tight"
                                       onClick={(e) => { e.stopPropagation(); openCustomerDetails(group.clientId); }}
                                     >
                                       {group.title}
                                     </button>
                                     <div className="flex gap-1 mt-0.5 flex-wrap">
                                       <Badge className="bg-slate-900 text-white hover:bg-slate-900 text-xs dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-slate-100">
-                                        {group.payments.length} instalment{group.payments.length === 1 ? "" : "s"}
+                                        {group.payments.length} inst.
                                       </Badge>
                                       {group.isArchived && <Badge className="bg-amber-100 text-amber-700 hover:bg-amber-100 text-xs dark:bg-amber-950/60 dark:text-amber-300">Archived</Badge>}
                                       {group.isDeleted && <Badge className="bg-red-100 text-red-700 hover:bg-red-100 text-xs dark:bg-red-950/60 dark:text-red-300">Deleted</Badge>}
@@ -1177,25 +1229,39 @@ export default function PaymentCheckerPage() {
                                   </div>
                                 </div>
                               </td>
-                              <td className="px-3 py-2 text-slate-700 dark:text-slate-300">{group.payments[0]?.supplier_name || "-"}</td>
-                              <td className="px-3 py-2 text-slate-700 dark:text-slate-300">{group.payments[0]?.aggregator || "-"}</td>
-                              <td className="px-3 py-2 text-slate-700 dark:text-slate-300">{group.payments[0]?.agent_name || "-"}</td>
-                              <td className="px-3 py-2 font-mono text-xs text-slate-700 dark:text-slate-300">{group.mpan || "-"}</td>
-                              <td className="px-3 py-2 text-slate-700 whitespace-nowrap dark:text-slate-300">{formatDate(group.contractStartDate)}</td>
-                              <td className="px-3 py-2 text-slate-700 whitespace-nowrap dark:text-slate-300">{formatDate(group.contractEndDate)}</td>
-                              <td className="px-3 py-2 text-right font-medium text-slate-900 dark:text-slate-100">{formatMoney(group.expected)}</td>
-                              <td className="px-3 py-2 text-right text-emerald-700 font-medium dark:text-emerald-400">{formatMoney(group.received)}</td>
-                              <td className="px-3 py-2 text-right text-orange-700 font-medium dark:text-orange-400">{formatMoney(group.outstanding)}</td>
-                              <td className="px-3 py-2 text-slate-700 whitespace-nowrap dark:text-slate-300">{formatDate(group.nextDue)}</td>
-                              <td className="px-3 py-2">
+                              <td className="px-2 py-2 text-slate-700 truncate dark:text-slate-300">{group.payments[0]?.supplier_name || "-"}</td>
+                              <td className="px-2 py-2 text-slate-700 truncate dark:text-slate-300">{group.payments[0]?.aggregator || "-"}</td>
+                              <td className="px-2 py-2 text-slate-700 truncate dark:text-slate-300">{group.payments[0]?.agent_name || "-"}</td>
+                              <td className="px-2 py-2 font-mono text-xs text-slate-700 dark:text-slate-300">{group.mpan || "-"}</td>
+                              <td className="px-2 py-2 text-slate-700 whitespace-nowrap dark:text-slate-300">
+                                <span>{formatDate(group.contractStartDate)}</span>
+                                <span className="text-slate-400 mx-0.5">–</span>
+                                <span>{formatDate(group.contractEndDate)}</span>
+                              </td>
+                              <td className="px-2 py-2 text-right font-medium text-slate-900 dark:text-slate-100">{formatMoney(group.expected)}</td>
+                              <td className="px-2 py-2 text-right text-emerald-700 font-medium dark:text-emerald-400">{formatMoney(group.received)}</td>
+                              <td className="px-2 py-2 text-right text-orange-700 font-medium dark:text-orange-400">{formatMoney(group.outstanding)}</td>
+                              <td className="px-2 py-2 text-slate-700 whitespace-nowrap dark:text-slate-300">{formatDate(group.nextDue)}</td>
+                              <td className="px-2 py-2">
                                 <div className="flex flex-wrap gap-1">
                                   {group.statuses.map((status) => (
                                     <Badge key={status} className={statusTone[status]}>{status}</Badge>
                                   ))}
                                 </div>
                               </td>
-                              <td className="px-3 py-2">
+                              <td className="px-2 py-2">
                                 <div className="flex gap-1" onClick={(e) => e.stopPropagation()}>
+                                  {group.outstanding > 0 && (
+                                    <Button
+                                      size="sm"
+                                      className="h-7 px-2 text-xs bg-black hover:bg-gray-900 text-white gap-1"
+                                      title="Log a lump-sum payment across all unpaid months"
+                                      onClick={() => openBulkLog(group)}
+                                    >
+                                      <ListChecks className="h-3 w-3" />
+                                      Log
+                                    </Button>
+                                  )}
                                   <Button size="sm" variant="outline" className="h-7 px-2 text-xs dark:border-slate-700 dark:hover:bg-slate-800" onClick={() => openPaymentHistory(group.clientId)}>
                                     <ReceiptText className="h-3 w-3" />
                                   </Button>
@@ -1504,9 +1570,48 @@ export default function PaymentCheckerPage() {
                 ) : (
                   <>
                     <form onSubmit={submitReceipt} className="space-y-4 rounded-lg border border-slate-200 p-4 dark:border-slate-800 dark:bg-slate-900">
-                      <div className="flex items-center gap-2 text-sm font-semibold text-slate-950 dark:text-slate-50">
-                        <Banknote className="h-4 w-4" />
-                        Log Payment
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-2 text-sm font-semibold text-slate-950 dark:text-slate-50">
+                          <Banknote className="h-4 w-4" />
+                          Log Payment
+                        </div>
+                        {/* Quick: received expected button */}
+                        {Number(selectedPayment.outstanding_amount) > 0 && (
+                          <Button
+                            type="button"
+                            size="sm"
+                            className="h-7 text-xs bg-black hover:bg-gray-900 text-white gap-1"
+                            disabled={saving}
+                            onClick={async () => {
+                              const amt = Number(selectedPayment.outstanding_amount || selectedPayment.expected_net_amount);
+                              if (!amt) return;
+                              setSaving(true);
+                              setError(null);
+                              setSuccessMessage(null);
+                              try {
+                                const data = await fetchWithAuth(`/api/commission/payments/${selectedPayment.id}/receipts`, {
+                                  method: "POST",
+                                  body: JSON.stringify({
+                                    amount_received: amt,
+                                    date_received: new Date().toISOString().slice(0, 10),
+                                  }),
+                                });
+                                setSuccessMessage("Marked as received.");
+                                setReceipts(data.receipts || receipts);
+                                const refreshed = await fetchWithAuth(`/api/commission/payments/${selectedPayment.id}`);
+                                setSelectedPayment(refreshed.payment);
+                                updatePaymentInList(refreshed.payment);
+                              } catch (err: any) {
+                                setError(err.message || "Failed");
+                              } finally {
+                                setSaving(false);
+                              }
+                            }}
+                          >
+                            <Zap className="h-3 w-3" />
+                            Received {formatMoney(selectedPayment.outstanding_amount || selectedPayment.expected_net_amount)}
+                          </Button>
+                        )}
                       </div>
                       <div className="grid gap-3 sm:grid-cols-2">
                         <div className="space-y-2">
@@ -1741,6 +1846,107 @@ export default function PaymentCheckerPage() {
             )}
           </SheetContent>
         </Sheet>
+
+        {/* ── Bulk Log Total Modal ── */}
+        <Dialog open={!!bulkLogGroup} onOpenChange={open => { if (!open && !bulkSaving) setBulkLogGroup(null); }}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <ListChecks className="h-5 w-5 text-black" />
+                Log Total Payment
+              </DialogTitle>
+            </DialogHeader>
+
+            {bulkLogGroup && (
+              <div className="flex flex-col gap-4">
+                {/* Contract summary */}
+                <div className="rounded-lg bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 p-3 text-sm">
+                  <p className="font-semibold text-slate-900 dark:text-slate-100">{bulkLogGroup.title}</p>
+                  <p className="text-slate-500 dark:text-slate-400 text-xs mt-0.5">{bulkLogGroup.subtitle}</p>
+                  <div className="grid grid-cols-3 gap-2 mt-2 text-xs">
+                    <div>
+                      <p className="text-slate-400">Total Expected</p>
+                      <p className="font-semibold text-slate-900 dark:text-white">{formatMoney(bulkLogGroup.expected)}</p>
+                    </div>
+                    <div>
+                      <p className="text-slate-400">Received So Far</p>
+                      <p className="font-semibold text-emerald-600">{formatMoney(bulkLogGroup.received)}</p>
+                    </div>
+                    <div>
+                      <p className="text-slate-400">Outstanding</p>
+                      <p className="font-semibold text-orange-600">{formatMoney(bulkLogGroup.outstanding)}</p>
+                    </div>
+                  </div>
+                  <p className="text-[10px] text-slate-400 mt-2">
+                    Amount will be distributed oldest instalment first. Each instalment is filled to its expected amount before moving to the next.
+                  </p>
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label className="text-sm font-medium">Total Amount Received</Label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 text-sm">£</span>
+                    <Input
+                      type="number"
+                      min="0.01"
+                      step="0.01"
+                      className="pl-7 dark:border-slate-700 dark:bg-slate-950"
+                      value={bulkAmount}
+                      onChange={e => setBulkAmount(e.target.value)}
+                    />
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      className="text-xs text-blue-600 hover:underline"
+                      onClick={() => setBulkAmount(String(bulkLogGroup.outstanding.toFixed(2)))}
+                    >
+                      Outstanding ({formatMoney(bulkLogGroup.outstanding)})
+                    </button>
+                    <span className="text-xs text-slate-300">·</span>
+                    <button
+                      type="button"
+                      className="text-xs text-blue-600 hover:underline"
+                      onClick={() => setBulkAmount(String(bulkLogGroup.expected.toFixed(2)))}
+                    >
+                      Full expected ({formatMoney(bulkLogGroup.expected)})
+                    </button>
+                  </div>
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label className="text-sm font-medium">Date Received</Label>
+                  <Input
+                    type="date"
+                    value={bulkDate}
+                    onChange={e => setBulkDate(e.target.value)}
+                    className="dark:border-slate-700 dark:bg-slate-950 dark:[color-scheme:dark]"
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label className="text-sm font-medium">Notes <span className="text-slate-400 font-normal">(optional)</span></Label>
+                  <textarea
+                    rows={2}
+                    className="w-full rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-black"
+                    placeholder="e.g. Received via BACS, reference #..."
+                    value={bulkNotes}
+                    onChange={e => setBulkNotes(e.target.value)}
+                  />
+                </div>
+
+                <Button
+                  className="w-full bg-black hover:bg-gray-900 text-white gap-2"
+                  disabled={bulkSaving || !bulkAmount || Number(bulkAmount) <= 0}
+                  onClick={submitBulkLog}
+                >
+                  {bulkSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <ListChecks className="h-4 w-4" />}
+                  Log {bulkAmount ? formatMoney(Number(bulkAmount)) : "Amount"} Across Instalments
+                </Button>
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
       </div>
     </div>
   );

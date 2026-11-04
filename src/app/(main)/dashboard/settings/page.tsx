@@ -16,6 +16,10 @@ import {
   Link as LinkIcon,
   Search,
   Info,
+  AlertTriangle,
+  Loader2,
+  UserX,
+  ArrowRight,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -26,6 +30,7 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
 
@@ -108,6 +113,18 @@ export default function SettingsPage() {
   >({});
   const [isLoadingSearchPermissions, setIsLoadingSearchPermissions] = useState(false);
   const [isSavingSearchPermissions, setIsSavingSearchPermissions] = useState(false);
+
+  // Delete modal state
+  interface DeletionCheck {
+    leads: number; allocated_leads: number;
+    renewals: number; allocated_renewals: number;
+    other_members: { employee_id: number; employee_name: string }[];
+  }
+  const [deleteModal, setDeleteModal] = useState<{ member: TeamMember } | null>(null);
+  const [deletionCheck, setDeletionCheck] = useState<DeletionCheck | null>(null);
+  const [deletionCheckLoading, setDeletionCheckLoading] = useState(false);
+  const [reassignTo, setReassignTo] = useState<string>("");
+  const [isDeleting, setIsDeleting] = useState(false);
 
   // ── Bootstrap ───────────────────────────────────────────────────────────────
 
@@ -376,25 +393,51 @@ export default function SettingsPage() {
   }
 };
 
-  const handleDeleteMember = async (employeeId: number, employeeName: string) => {
-    if (!confirm(`Are you sure you want to delete ${employeeName}? This cannot be undone.`)) return;
-
-    setDeletingEmployeeId(employeeId);
+  const openDeleteModal = async (member: TeamMember) => {
+    setDeleteModal({ member });
+    setReassignTo("");
+    setDeletionCheck(null);
+    setDeletionCheckLoading(true);
     try {
       const token = localStorage.getItem("auth_token");
-      const res = await fetch(`${API_BASE_URL}/auth/invite/delete/${employeeId}`, {
-        method: "DELETE",
+      const res = await fetch(`${API_BASE_URL}/auth/invite/deletion-check/${member.employee_id}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to check");
+      setDeletionCheck(data);
+    } catch (err: any) {
+      alert(err.message || "Failed to load deletion info");
+      setDeleteModal(null);
+    } finally {
+      setDeletionCheckLoading(false);
+    }
+  };
+
+  const handleDeleteMember = async (reassign?: boolean) => {
+    if (!deleteModal) return;
+    const { member } = deleteModal;
+    if (reassign && !reassignTo) return alert("Please select a team member to reassign records to.");
+
+    setIsDeleting(true);
+    try {
+      const token = localStorage.getItem("auth_token");
+      const res = await fetch(`${API_BASE_URL}/auth/invite/delete/${member.employee_id}`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify(reassign ? { reassign_to_employee_id: parseInt(reassignTo) } : {}),
+      });
+      const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Failed to delete");
-      alert("Team member deleted successfully");
+      setDeleteModal(null);
+      setDeletionCheck(null);
+      setReassignTo("");
       loadMembers();
       loadSearchPermissions();
     } catch (err: any) {
       alert(err.message || "Failed to delete team member");
     } finally {
-      setDeletingEmployeeId(null);
+      setIsDeleting(false);
     }
   };
 
@@ -419,6 +462,92 @@ export default function SettingsPage() {
 
     return (
       <div className="space-y-6">
+        {/* Team Members Card */}
+        <Card className="border-slate-200 dark:border-slate-800 dark:bg-slate-900">
+          <CardHeader>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div>
+                <CardTitle className="text-slate-950 dark:text-slate-50">Team Members</CardTitle>
+                <CardDescription className="dark:text-slate-400">
+                  Manage your team — update roles or remove inactive members.
+                </CardDescription>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={loadMembers}
+                disabled={isLoadingMembers}
+                className="w-full sm:w-auto dark:border-slate-700 dark:hover:bg-slate-800"
+              >
+                {isLoadingMembers ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                {members.length === 0 ? "Load Members" : "Refresh"}
+              </Button>
+            </div>
+          </CardHeader>
+          {members.length > 0 && (
+            <CardContent>
+              <div className="overflow-x-auto rounded-lg border border-slate-200 dark:border-slate-800">
+                <table className="w-full min-w-[600px]">
+                  <thead className="bg-slate-50 dark:bg-slate-900">
+                    <tr className="border-b border-slate-200 dark:border-slate-800">
+                      <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-400">Name</th>
+                      <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-400">Username</th>
+                      <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-400">Role</th>
+                      <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-400">Status</th>
+                      <th className="px-5 py-3 text-right text-xs font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-400">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {members.map(member => (
+                      <tr key={member.employee_id} className="border-b border-slate-100 last:border-b-0 dark:border-slate-800">
+                        <td className="px-5 py-3 font-medium text-slate-900 dark:text-slate-100">{member.employee_name}</td>
+                        <td className="px-5 py-3 text-sm text-slate-500 dark:text-slate-400">{member.username || "—"}</td>
+                        <td className="px-5 py-3">
+                          <Select
+                            value={String(member.role_id || "")}
+                            onValueChange={(v) => handleUpdateMemberRole(member, v)}
+                            disabled={!member.user_id || updatingRoleEmployeeId === member.employee_id}
+                          >
+                            <SelectTrigger className="h-7 w-36 text-xs dark:border-slate-700 dark:bg-slate-900">
+                              <SelectValue placeholder="No role" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="2">Platform Admin</SelectItem>
+                              <SelectItem value="3">Salesperson</SelectItem>
+                              <SelectItem value="5">Leads Offshore</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </td>
+                        <td className="px-5 py-3">
+                          {member.is_invite_pending ? (
+                            <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-400">Invite Pending</span>
+                          ) : member.user_id ? (
+                            <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-400">Active</span>
+                          ) : (
+                            <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400">No Login</span>
+                          )}
+                        </td>
+                        <td className="px-5 py-3 text-right">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/30 h-7 px-2"
+                            onClick={() => openDeleteModal(member)}
+                            disabled={deletingEmployeeId === member.employee_id}
+                          >
+                            <Trash2 className="h-3.5 w-3.5 mr-1" />
+                            Delete
+                          </Button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </CardContent>
+          )}
+        </Card>
+
         {/* Invite Card */}
         <Card className="border-slate-200 dark:border-slate-800 dark:bg-slate-900">
           <CardHeader>
@@ -718,7 +847,108 @@ export default function SettingsPage() {
   </CardContent>
 </Card>
 
- </div>
+        {/* ── Delete Confirmation Modal ── */}
+        <Dialog open={!!deleteModal} onOpenChange={open => { if (!open && !isDeleting) { setDeleteModal(null); setDeletionCheck(null); setReassignTo(""); } }}>
+          <DialogContent className="max-w-lg">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2 text-red-600">
+                <UserX className="h-5 w-5" />
+                Delete {deleteModal?.member.employee_name}?
+              </DialogTitle>
+            </DialogHeader>
+
+            {deletionCheckLoading ? (
+              <div className="flex items-center justify-center py-10 text-slate-400">
+                <Loader2 className="h-5 w-5 animate-spin mr-2" />
+                Checking records…
+              </div>
+            ) : deletionCheck && (() => {
+              const total = deletionCheck.leads + deletionCheck.allocated_leads + deletionCheck.renewals + deletionCheck.allocated_renewals;
+              const hasRecords = total > 0;
+              return (
+                <div className="flex flex-col gap-4">
+                  {hasRecords ? (
+                    <>
+                      <div className="rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 p-4">
+                        <div className="flex items-start gap-2">
+                          <AlertTriangle className="h-4 w-4 text-amber-600 mt-0.5 shrink-0" />
+                          <div>
+                            <p className="text-sm font-semibold text-amber-800 dark:text-amber-300">This member has active records</p>
+                            <p className="text-xs text-amber-700 dark:text-amber-400 mt-0.5">
+                              Before deleting, would you like to reassign their records to another team member?
+                            </p>
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-2 gap-2 mt-3">
+                          {[
+                            { label: "Leads",              val: deletionCheck.leads },
+                            { label: "Allocated Leads",    val: deletionCheck.allocated_leads },
+                            { label: "Renewals",           val: deletionCheck.renewals },
+                            { label: "Allocated Renewals", val: deletionCheck.allocated_renewals },
+                          ].filter(r => r.val > 0).map(r => (
+                            <div key={r.label} className="rounded bg-white dark:bg-slate-900 border border-amber-100 dark:border-amber-900 px-3 py-2 flex justify-between">
+                              <span className="text-xs text-slate-600 dark:text-slate-400">{r.label}</span>
+                              <span className="text-xs font-bold text-slate-900 dark:text-white tabular-nums">{r.val.toLocaleString()}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div>
+                        <Label className="text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5 block">
+                          Reassign all records to:
+                        </Label>
+                        <Select value={reassignTo} onValueChange={setReassignTo}>
+                          <SelectTrigger className="dark:border-slate-700 dark:bg-slate-950">
+                            <SelectValue placeholder="Select a team member…" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {deletionCheck.other_members.map(m => (
+                              <SelectItem key={m.employee_id} value={String(m.employee_id)}>
+                                {m.employee_name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      <Button
+                        className="w-full gap-2 bg-black hover:bg-gray-900 text-white"
+                        disabled={!reassignTo || isDeleting}
+                        onClick={() => handleDeleteMember(true)}
+                      >
+                        {isDeleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowRight className="h-4 w-4" />}
+                        Reassign & Delete
+                      </Button>
+
+                      <div className="relative flex items-center gap-3">
+                        <div className="flex-1 border-t border-slate-200 dark:border-slate-700" />
+                        <span className="text-xs text-slate-400">or</span>
+                        <div className="flex-1 border-t border-slate-200 dark:border-slate-700" />
+                      </div>
+                    </>
+                  ) : (
+                    <p className="text-sm text-slate-600 dark:text-slate-400">
+                      This member has no leads or renewals assigned. Safe to delete immediately.
+                    </p>
+                  )}
+
+                  <Button
+                    variant="outline"
+                    className="w-full border-red-300 text-red-600 hover:bg-red-50 dark:border-red-800 dark:hover:bg-red-950/30"
+                    disabled={isDeleting}
+                    onClick={() => handleDeleteMember(false)}
+                  >
+                    {isDeleting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Trash2 className="h-4 w-4 mr-2" />}
+                    {hasRecords ? "Delete without reassigning" : "Delete user"}
+                  </Button>
+                </div>
+              );
+            })()}
+          </DialogContent>
+        </Dialog>
+
+      </div>
     );
   };
 
