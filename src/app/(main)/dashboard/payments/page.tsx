@@ -240,6 +240,13 @@ export default function PaymentCheckerPage() {
     date_received: "",
     notes: "",
   });
+  const [editingPaymentDetails, setEditingPaymentDetails] = useState(false);
+  const [paymentDetailsDraft, setPaymentDetailsDraft] = useState({
+    expected_net_amount: "",
+    due_date: "",
+  });
+  const [discontinuing, setDiscontinuing] = useState(false);
+  const [discontinuingContractId, setDiscontinuingContractId] = useState<number | null>(null);
   const [followUpDate, setFollowUpDate] = useState(() => {
     const d = new Date();
     d.setDate(d.getDate() + 14);
@@ -676,6 +683,7 @@ export default function PaymentCheckerPage() {
     setReceipts([]);
     setDetailLoading(true);
     setError(null);
+    setEditingPaymentDetails(false);
 
     try {
       const data = await fetchWithAuth(`/api/commission/payments/${payment.id}`);
@@ -862,6 +870,78 @@ export default function PaymentCheckerPage() {
       setError(err instanceof Error ? err.message : "Failed to update payment status");
     } finally {
       setSaving(false);
+    }
+  };
+
+  const openEditPaymentDetails = () => {
+    if (!selectedPayment) return;
+    setPaymentDetailsDraft({
+      expected_net_amount: String(Number(selectedPayment.expected_net_amount || 0).toFixed(2)),
+      due_date: selectedPayment.due_date ? selectedPayment.due_date.slice(0, 10) : "",
+    });
+    setEditingPaymentDetails(true);
+  };
+
+  const savePaymentDetails = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedPayment) return;
+    setSaving(true);
+    setError(null);
+    setSuccessMessage(null);
+    try {
+      const body: Record<string, string | number> = {};
+      body.expected_net_amount = Number(paymentDetailsDraft.expected_net_amount);
+      if (paymentDetailsDraft.due_date) body.due_date = paymentDetailsDraft.due_date;
+      const data = await fetchWithAuth(`/api/commission/payments/${selectedPayment.id}`, {
+        method: "PATCH",
+        body: JSON.stringify(body),
+      });
+      updatePaymentInList(data.payment);
+      setSelectedPayment(data.payment);
+      setEditingPaymentDetails(false);
+      setSuccessMessage("Payment details updated.");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to update payment");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const discontinuePayment = async () => {
+    if (!selectedPayment) return;
+    if (!window.confirm("Mark this supplier as discontinued? The expected amount will be set to £0 and the payment will be closed.")) return;
+    setDiscontinuing(true);
+    setError(null);
+    setSuccessMessage(null);
+    try {
+      const data = await fetchWithAuth(`/api/commission/payments/${selectedPayment.id}/discontinue`, {
+        method: "POST",
+      });
+      updatePaymentInList(data.payment);
+      setSelectedPayment(data.payment);
+      await loadPayments();
+      setSuccessMessage("Marked as supplier discontinued. Amount set to £0.");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to discontinue");
+    } finally {
+      setDiscontinuing(false);
+    }
+  };
+
+  const discontinueContract = async (group: PaymentGroup) => {
+    const contractId = group.payments[0]?.contract_id;
+    if (!contractId) return;
+    if (!window.confirm(`Mark all ${group.payments.length} instalments for "${group.title}" as supplier no longer trading? All expected amounts will be set to £0 and payments closed.`)) return;
+    setDiscontinuingContractId(contractId);
+    setError(null);
+    try {
+      await fetchWithAuth(`/api/commission/contracts/${contractId}/discontinue`, { method: "POST" });
+      await loadPayments();
+      setSuccessMessage(`All instalments for "${group.title}" closed — supplier no longer trading.`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to discontinue contract");
+    } finally {
+      setDiscontinuingContractId(null);
     }
   };
 
@@ -1262,6 +1342,19 @@ export default function PaymentCheckerPage() {
                                       Log
                                     </Button>
                                   )}
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="h-7 px-2 text-xs border-orange-200 text-orange-700 hover:bg-orange-50 hover:border-orange-300 dark:border-orange-900/50 dark:text-orange-400 dark:hover:bg-orange-950/30"
+                                    title="Supplier no longer trading — zero out all instalments"
+                                    disabled={discontinuingContractId === group.payments[0]?.contract_id}
+                                    onClick={() => discontinueContract(group)}
+                                  >
+                                    {discontinuingContractId === group.payments[0]?.contract_id
+                                      ? <Loader2 className="h-3 w-3 animate-spin" />
+                                      : <XCircle className="h-3 w-3" />
+                                    }
+                                  </Button>
                                   <Button size="sm" variant="outline" className="h-7 px-2 text-xs dark:border-slate-700 dark:hover:bg-slate-800" onClick={() => openPaymentHistory(group.clientId)}>
                                     <ReceiptText className="h-3 w-3" />
                                   </Button>
@@ -1274,8 +1367,17 @@ export default function PaymentCheckerPage() {
 
                             {expanded && (
                               <tr key={`${group.key}-expanded`}>
-                                <td colSpan={13} className="p-0 bg-slate-50 dark:bg-slate-950/60">
-                                  <table className="w-full text-sm border-t border-b border-slate-200 dark:border-slate-800">
+                                <td colSpan={13} className="p-0 bg-slate-50 dark:bg-slate-950/60" style={{ width: "100%" }}>
+                                  <table className="w-full text-sm border-t border-b border-slate-200 dark:border-slate-800" style={{ tableLayout: "fixed", minWidth: "100%" }}>
+                                    <colgroup>
+                                      <col style={{ width: "15%" }} />
+                                      <col style={{ width: "25%" }} />
+                                      <col style={{ width: "12%" }} />
+                                      <col style={{ width: "13%" }} />
+                                      <col style={{ width: "12%" }} />
+                                      <col style={{ width: "12%" }} />
+                                      <col style={{ width: "11%" }} />
+                                    </colgroup>
                                     <thead className="bg-slate-100 text-left text-xs font-semibold tracking-wide text-slate-500 uppercase dark:bg-slate-800/80 dark:text-slate-400">
                                       <tr>
                                         <th className="px-8 py-2">Instalment</th>
@@ -1484,6 +1586,7 @@ export default function PaymentCheckerPage() {
             if (!open) {
               setSelectedPayment(null);
               setNotesDraft("");
+              setEditingPaymentDetails(false);
             }
           }}
         >
@@ -1511,56 +1614,106 @@ export default function PaymentCheckerPage() {
                         {selectedPayment.payment_period_label || `Year ${selectedPayment.instalment_year}`}
                       </p>
                     </div>
-                    <Badge className={`${statusTone[selectedPayment.status]} shrink-0`}>{selectedPayment.status}</Badge>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <Badge className={statusTone[selectedPayment.status]}>{selectedPayment.status}</Badge>
+                      {!editingPaymentDetails && (
+                        <button
+                          type="button"
+                          title="Edit payment details"
+                          className="rounded p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-slate-800 dark:hover:text-slate-200"
+                          onClick={openEditPaymentDetails}
+                        >
+                          <Edit className="h-3.5 w-3.5" />
+                        </button>
+                      )}
+                    </div>
                   </div>
-                  <div className="mt-4 grid grid-cols-2 gap-3 text-sm">
-                    <div>
-                      <p className="text-slate-500 dark:text-slate-400">Service</p>
-                      <p className="font-semibold text-slate-900 dark:text-slate-100">{selectedPayment.service_title || "-"}</p>
-                    </div>
-                    <div>
-                      <p className="text-slate-500 dark:text-slate-400">MPAN/MPR</p>
-                      <p className="font-mono text-xs font-semibold break-words text-slate-900 dark:text-slate-100">
-                        {selectedPayment.mpan_number || selectedPayment.mpan_bottom || "-"}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-slate-500 dark:text-slate-400">Contract start</p>
-                      <p className="font-semibold text-slate-900 dark:text-slate-100">{formatDate(selectedPayment.contract_start_date)}</p>
-                    </div>
-                    <div>
-                      <p className="text-slate-500 dark:text-slate-400">Contract end</p>
-                      <p className="font-semibold text-slate-900 dark:text-slate-100">{formatDate(selectedPayment.contract_end_date)}</p>
-                    </div>
-                    <div>
-                      <p className="text-slate-500 dark:text-slate-400">Expected</p>
-                      <p className="font-semibold text-slate-900 dark:text-slate-100">{formatMoney(selectedPayment.expected_net_amount)}</p>
-                    </div>
-                    <div>
-                      <p className="text-slate-500 dark:text-slate-400">Outstanding</p>
-                      <p className="font-semibold text-slate-900 dark:text-slate-100">{formatMoney(selectedPayment.outstanding_amount)}</p>
-                    </div>
-                    <div>
-                      <p className="text-slate-500 dark:text-slate-400">Due date</p>
-                      <p className="font-semibold text-slate-900 dark:text-slate-100">{formatDate(selectedPayment.due_date)}</p>
-                    </div>
-                    <div>
-                      <p className="text-slate-500 dark:text-slate-400">Last checked</p>
-                      <p className="font-semibold text-slate-900 dark:text-slate-100">{formatDateTime(selectedPayment.last_checked_at)}</p>
-                    </div>
-                    {selectedPayment.next_follow_up_date && (
-                      <div>
-                        <p className="text-slate-500">Next follow-up</p>
-                        <p className="font-semibold text-amber-700">{formatDate(selectedPayment.next_follow_up_date)}</p>
+
+                  {editingPaymentDetails ? (
+                    <form onSubmit={savePaymentDetails} className="mt-4 space-y-3">
+                      <div className="grid grid-cols-2 gap-3 text-sm">
+                        <div className="space-y-1">
+                          <Label className="text-slate-500 dark:text-slate-400">Expected amount</Label>
+                          <Input
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            value={paymentDetailsDraft.expected_net_amount}
+                            onChange={(e) => setPaymentDetailsDraft((d) => ({ ...d, expected_net_amount: e.target.value }))}
+                            className="h-8 text-sm dark:border-slate-700 dark:bg-slate-950"
+                            required
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-slate-500 dark:text-slate-400">Due date</Label>
+                          <Input
+                            type="date"
+                            value={paymentDetailsDraft.due_date}
+                            onChange={(e) => setPaymentDetailsDraft((d) => ({ ...d, due_date: e.target.value }))}
+                            className="h-8 text-sm dark:border-slate-700 dark:bg-slate-950 dark:[color-scheme:dark]"
+                          />
+                        </div>
                       </div>
-                    )}
-                    {selectedPayment.follow_up_count != null && selectedPayment.follow_up_count > 0 && (
-                      <div>
-                        <p className="text-slate-500">Times chased</p>
-                        <p className="font-semibold">{selectedPayment.follow_up_count}</p>
+                      <div className="flex gap-2">
+                        <Button type="submit" size="sm" disabled={saving}>
+                          {saving ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : null}
+                          Save
+                        </Button>
+                        <Button type="button" size="sm" variant="outline" onClick={() => setEditingPaymentDetails(false)} className="dark:border-slate-700">
+                          Cancel
+                        </Button>
                       </div>
-                    )}
-                  </div>
+                    </form>
+                  ) : (
+                    <div className="mt-4 grid grid-cols-2 gap-3 text-sm">
+                      <div>
+                        <p className="text-slate-500 dark:text-slate-400">Service</p>
+                        <p className="font-semibold text-slate-900 dark:text-slate-100">{selectedPayment.service_title || "-"}</p>
+                      </div>
+                      <div>
+                        <p className="text-slate-500 dark:text-slate-400">MPAN/MPR</p>
+                        <p className="font-mono text-xs font-semibold break-words text-slate-900 dark:text-slate-100">
+                          {selectedPayment.mpan_number || selectedPayment.mpan_bottom || "-"}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-slate-500 dark:text-slate-400">Contract start</p>
+                        <p className="font-semibold text-slate-900 dark:text-slate-100">{formatDate(selectedPayment.contract_start_date)}</p>
+                      </div>
+                      <div>
+                        <p className="text-slate-500 dark:text-slate-400">Contract end</p>
+                        <p className="font-semibold text-slate-900 dark:text-slate-100">{formatDate(selectedPayment.contract_end_date)}</p>
+                      </div>
+                      <div>
+                        <p className="text-slate-500 dark:text-slate-400">Expected</p>
+                        <p className="font-semibold text-slate-900 dark:text-slate-100">{formatMoney(selectedPayment.expected_net_amount)}</p>
+                      </div>
+                      <div>
+                        <p className="text-slate-500 dark:text-slate-400">Outstanding</p>
+                        <p className="font-semibold text-slate-900 dark:text-slate-100">{formatMoney(selectedPayment.outstanding_amount)}</p>
+                      </div>
+                      <div>
+                        <p className="text-slate-500 dark:text-slate-400">Due date</p>
+                        <p className="font-semibold text-slate-900 dark:text-slate-100">{formatDate(selectedPayment.due_date)}</p>
+                      </div>
+                      <div>
+                        <p className="text-slate-500 dark:text-slate-400">Last checked</p>
+                        <p className="font-semibold text-slate-900 dark:text-slate-100">{formatDateTime(selectedPayment.last_checked_at)}</p>
+                      </div>
+                      {selectedPayment.next_follow_up_date && (
+                        <div>
+                          <p className="text-slate-500">Next follow-up</p>
+                          <p className="font-semibold text-amber-700">{formatDate(selectedPayment.next_follow_up_date)}</p>
+                        </div>
+                      )}
+                      {selectedPayment.follow_up_count != null && selectedPayment.follow_up_count > 0 && (
+                        <div>
+                          <p className="text-slate-500">Times chased</p>
+                          <p className="font-semibold">{selectedPayment.follow_up_count}</p>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
 
                 {selectedIsClosed ? (
@@ -1664,19 +1817,6 @@ export default function PaymentCheckerPage() {
                       </Button>
                     </form>
 
-                    <div className="rounded-lg border border-slate-200 p-4 dark:border-slate-800 dark:bg-slate-900">
-                      <div className="mb-3 text-sm font-semibold text-slate-950 dark:text-slate-50">Actions</div>
-                      <div className="flex flex-wrap gap-2">
-                        <Button variant="outline" onClick={() => patchStatus("Chasing Supplier")} disabled={saving} className="dark:border-slate-700 dark:hover:bg-slate-800">
-                          <CalendarCheck className="mr-2 h-4 w-4" />
-                          Mark as Chasing Supplier
-                        </Button>
-                        <Button variant="destructive" onClick={() => patchStatus("Closed")} disabled={saving}>
-                          <XCircle className="mr-2 h-4 w-4" />
-                          Close
-                        </Button>
-                      </div>
-                    </div>
                   </>
                 )}
 
@@ -1743,6 +1883,19 @@ export default function PaymentCheckerPage() {
                         Close
                       </Button>
                     </div>
+                  </div>
+
+                  <div className="border-t pt-3">
+                    <p className="mb-2 text-xs text-slate-500 dark:text-slate-400">If the supplier has ceased trading, mark below — commission will be zeroed out and the payment closed.</p>
+                    <Button
+                      variant="outline"
+                      onClick={discontinuePayment}
+                      disabled={discontinuing || saving}
+                      className="border-orange-200 text-orange-700 hover:bg-orange-50 hover:border-orange-300 dark:border-orange-900/50 dark:text-orange-400 dark:hover:bg-orange-950/30"
+                    >
+                      {discontinuing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <XCircle className="mr-2 h-4 w-4" />}
+                      Supplier No Longer Trading
+                    </Button>
                   </div>
                 </div>
 
@@ -1822,16 +1975,29 @@ export default function PaymentCheckerPage() {
                               {receipt.logged_by_name || "Logged"} · {formatDateTime(receipt.created_at)}
                             </p>
                             {receipt.notes && <p className="mt-2 text-slate-700 dark:text-slate-300">{receipt.notes}</p>}
-                            <Button
-                              type="button"
-                              size="sm"
-                              variant="outline"
-                              className="mt-3 dark:border-slate-700 dark:hover:bg-slate-800"
-                              onClick={() => startEditingReceipt(receipt)}
-                            >
-                              <Edit className="mr-2 h-4 w-4" />
-                              Edit Receipt
-                            </Button>
+                            <div className="mt-3 flex gap-2">
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="outline"
+                                className="dark:border-slate-700 dark:hover:bg-slate-800"
+                                onClick={() => startEditingReceipt(receipt)}
+                              >
+                                <Edit className="mr-2 h-4 w-4" />
+                                Edit
+                              </Button>
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="outline"
+                                className="border-red-200 text-red-600 hover:bg-red-50 hover:border-red-300 dark:border-red-900/50 dark:text-red-400 dark:hover:bg-red-950/30"
+                                disabled={saving}
+                                onClick={() => deleteReceipt(receipt.id)}
+                              >
+                                <XCircle className="mr-2 h-4 w-4" />
+                                Delete
+                              </Button>
+                            </div>
                           </>
                         )}
                       </div>
