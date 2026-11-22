@@ -669,7 +669,7 @@ export default function PaymentCheckerPage() {
 
   const openPaymentHistory = (clientId: number | null) => {
     if (!clientId) return;
-    router.push(`/dashboard/payments/history/${clientId}`);
+    window.open(`/dashboard/payments/history/${clientId}`, "_blank");
   };
 
   const changePage = (nextPage: number) => {

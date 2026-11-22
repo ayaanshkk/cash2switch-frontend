@@ -3,7 +3,7 @@
 import { Fragment, FormEvent, useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 
-import { ArrowLeft, BadgePoundSterling, Banknote, CalendarCheck, CheckCircle2, Clock3, Edit, ExternalLink, Loader2, RefreshCcw } from "lucide-react";
+import { ArrowLeft, BadgePoundSterling, Banknote, CalendarCheck, CheckCircle2, Clock3, Download, Edit, ExternalLink, Loader2, RefreshCcw } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
@@ -12,7 +12,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { fetchWithAuth } from "@/lib/api";
+import { API_BASE_URL, fetchWithAuth } from "@/lib/api";
 
 type PaymentLog = {
   success: boolean;
@@ -61,6 +61,7 @@ type PaymentLog = {
   }>;
   agent_commissions: Array<{
     id: string;
+    commission_payment_receipt_id?: string | null;
     contract_id: number | null;
     instalment_year: number | null;
     payment_period_label: string | null;
@@ -138,6 +139,10 @@ export default function PaymentHistoryPage() {
   const [sheetPaymentId, setSheetPaymentId] = useState<string | null>(null);
   const [sheetReceipts, setSheetReceipts] = useState<PaymentLog["receipts"]>([]);
   const [sheetLoading, setSheetLoading] = useState(false);
+
+  // commission statement selection
+  const [selectedCommissions, setSelectedCommissions] = useState<Set<string>>(new Set());
+  const [downloadingStatement, setDownloadingStatement] = useState(false);
 
   const sheetPayment = sheetPaymentId
     ? log?.payments.find((p) => p.id === sheetPaymentId) ?? null
@@ -268,10 +273,35 @@ export default function PaymentHistoryPage() {
     }
   };
 
+  const downloadStatement = async (receiptIds: string[]) => {
+    if (!receiptIds.length) return;
+    setDownloadingStatement(true);
+    const agentName = log?.payments.find((p) => p.agent_name)?.agent_name ?? `Client ${clientId}`;
+    try {
+      const token = localStorage.getItem("auth_token") || localStorage.getItem("token");
+      const res = await fetch(`${API_BASE_URL}/api/commission/statement/custom`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ receipt_ids: receiptIds, agent_name: agentName }),
+      });
+      if (!res.ok) throw new Error(`Download failed: ${res.status}`);
+      const url = URL.createObjectURL(await res.blob());
+      Object.assign(document.createElement("a"), { href: url, download: `commission-statement-client-${clientId}.pdf` }).click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Download failed");
+    } finally {
+      setDownloadingStatement(false);
+    }
+  };
+
   useEffect(() => {
     loadLog();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [clientId]);
+
+  // suppress unused warning
+  void activePaymentId; void sheetLoading; void sheetReceipts;
 
   return (
     <div className="min-h-screen bg-slate-50/50 px-4 py-6 sm:px-6 lg:px-8">
@@ -409,9 +439,8 @@ export default function PaymentHistoryPage() {
                       </thead>
                       <tbody className="divide-y bg-white">
                         {group.payments.map((payment) => {
-                          const paymentReceipts = log.receipts.filter(
-                            (r) => r.commission_payment_id === payment.id
-                          );
+                          const isReceived = payment.status === "Received" ||
+                            (Number(payment.outstanding_amount || 0) <= 0 && Number(payment.amount_received || 0) > 0);
 
                           return (
                             <Fragment key={payment.id}>
@@ -445,15 +474,19 @@ export default function PaymentHistoryPage() {
                                 <td className="px-4 py-3 text-slate-700">{formatDateTime(payment.last_checked_at)}</td>
                                 {log.is_admin && (
                                   <td className="px-4 py-3 text-right">
-                                    <Button
-                                      type="button"
-                                      size="sm"
-                                      variant="outline"
-                                      onClick={() => openSheet(payment.id)}
-                                    >
-                                      <Banknote className="mr-2 h-4 w-4" />
-                                      Log Payment
-                                    </Button>
+                                    {!isReceived ? (
+                                      <Button
+                                        type="button"
+                                        size="sm"
+                                        variant="outline"
+                                        onClick={() => openSheet(payment.id)}
+                                      >
+                                        <Banknote className="mr-2 h-4 w-4" />
+                                        Log Payment
+                                      </Button>
+                                    ) : (
+                                      <span className="text-xs font-medium text-emerald-600">✓ Received</span>
+                                    )}
                                   </td>
                                 )}
                               </tr>
@@ -550,53 +583,111 @@ export default function PaymentHistoryPage() {
               </Card>
             )}
 
-            <Card className="border-slate-200 shadow-sm">
-              <CardHeader>
-                <CardTitle>Agent Commission Entries</CardTitle>
-              </CardHeader>
-              <CardContent className="p-0">
-                <div className="overflow-x-auto">
-                  <table className="w-full min-w-[760px] text-sm">
-                    <thead className="bg-slate-50 text-left text-xs font-semibold tracking-wide text-slate-500 uppercase">
-                      <tr>
-                        <th className="px-4 py-3">Contract / Year</th>
-                        {log.is_admin && <th className="px-4 py-3 text-right">Receipt Amount</th>}
-                        <th className="px-4 py-3 text-right">Rate</th>
-                        <th className="px-4 py-3 text-right">Commission</th>
-                        <th className="px-4 py-3">Batch Month</th>
-                        <th className="px-4 py-3">Status</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y bg-white">
-                      {log.agent_commissions.map((item) => (
-                        <tr key={item.id}>
-                          <td className="px-4 py-3 font-medium text-slate-950">
-                            Contract #{item.contract_id || "-"}
-                            <span className="block text-xs text-slate-500">
-                              {item.payment_period_label || `Year ${item.instalment_year || "-"}`}
-                            </span>
-                          </td>
-                          {log.is_admin && <td className="px-4 py-3 text-right">{formatMoney(item.receipt_amount)}</td>}
-                          <td className="px-4 py-3 text-right">{Number(item.commission_rate || 0).toFixed(2)}%</td>
-                          <td className="px-4 py-3 text-right font-semibold">{formatMoney(item.commission_amount)}</td>
-                          <td className="px-4 py-3 text-slate-700">{formatDate(item.batch_month)}</td>
-                          <td className="px-4 py-3">
-                            <Badge className={statusTone(item.status)}>{item.status}</Badge>
-                          </td>
-                        </tr>
-                      ))}
-                      {log.agent_commissions.length === 0 && (
-                        <tr>
-                          <td colSpan={log.is_admin ? 6 : 5} className="px-4 py-10 text-center text-slate-500">
-                            No agent commission entries found yet.
-                          </td>
-                        </tr>
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-              </CardContent>
-            </Card>
+            {/* Agent Commission Entries with checkbox download */}
+            {log.agent_commissions.length > 0 && (() => {
+              const selectableIds = log.agent_commissions
+                .map((i) => i.commission_payment_receipt_id)
+                .filter(Boolean) as string[];
+              const allChecked = selectableIds.length > 0 && selectableIds.every((id) => selectedCommissions.has(id));
+              const someChecked = selectableIds.some((id) => selectedCommissions.has(id)) && !allChecked;
+              const selectedList = selectableIds.filter((id) => selectedCommissions.has(id));
+              const selectedTotal = log.agent_commissions
+                .filter((i) => i.commission_payment_receipt_id && selectedCommissions.has(i.commission_payment_receipt_id))
+                .reduce((s, i) => s + Number(i.commission_amount || 0), 0);
+
+              return (
+                <Card className="border-slate-200 shadow-sm">
+                  <CardHeader>
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <CardTitle>Agent Commission Entries</CardTitle>
+                      <div className="flex items-center gap-2">
+                        {selectedList.length > 0 && (
+                          <Button size="sm" onClick={() => downloadStatement(selectedList)} disabled={downloadingStatement}>
+                            {downloadingStatement ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <Download className="mr-1.5 h-3.5 w-3.5" />}
+                            Download Selected ({selectedList.length}) — {moneyFormatter.format(selectedTotal)}
+                          </Button>
+                        )}
+                        <Button size="sm" variant="outline" onClick={() => downloadStatement(selectableIds)} disabled={downloadingStatement || selectableIds.length === 0}>
+                          {downloadingStatement ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <Download className="mr-1.5 h-3.5 w-3.5" />}
+                          Download All
+                        </Button>
+                      </div>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="p-0">
+                    <div className="overflow-x-auto">
+                      <table className="w-full min-w-[760px] text-sm">
+                        <thead className="bg-slate-50 text-left text-xs font-semibold tracking-wide text-slate-500 uppercase">
+                          <tr>
+                            <th className="px-4 py-3 w-10">
+                              <input
+                                type="checkbox"
+                                checked={allChecked}
+                                ref={(el) => { if (el) el.indeterminate = someChecked; }}
+                                onChange={() => {
+                                  if (allChecked) {
+                                    setSelectedCommissions((prev) => { const s = new Set(prev); selectableIds.forEach((id) => s.delete(id)); return s; });
+                                  } else {
+                                    setSelectedCommissions((prev) => { const s = new Set(prev); selectableIds.forEach((id) => s.add(id)); return s; });
+                                  }
+                                }}
+                                className="h-4 w-4 rounded border-slate-300 accent-slate-800 cursor-pointer"
+                                title="Select all"
+                              />
+                            </th>
+                            <th className="px-4 py-3">Contract / Year</th>
+                            {log.is_admin && <th className="px-4 py-3 text-right">Receipt Amount</th>}
+                            <th className="px-4 py-3 text-right">Rate</th>
+                            <th className="px-4 py-3 text-right">Commission</th>
+                            <th className="px-4 py-3">Batch Month</th>
+                            <th className="px-4 py-3">Status</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y bg-white">
+                          {log.agent_commissions.map((item) => {
+                            const rid = item.commission_payment_receipt_id;
+                            const checked = !!rid && selectedCommissions.has(rid);
+                            return (
+                              <tr key={item.id} className={`transition-colors ${checked ? "bg-blue-50" : "hover:bg-slate-50"}`}>
+                                <td className="px-4 py-3">
+                                  {rid && (
+                                    <input
+                                      type="checkbox"
+                                      checked={checked}
+                                      onChange={() => {
+                                        setSelectedCommissions((prev) => {
+                                          const s = new Set(prev);
+                                          s.has(rid) ? s.delete(rid) : s.add(rid);
+                                          return s;
+                                        });
+                                      }}
+                                      className="h-4 w-4 rounded border-slate-300 accent-slate-800 cursor-pointer"
+                                    />
+                                  )}
+                                </td>
+                                <td className="px-4 py-3 font-medium text-slate-950">
+                                  Contract #{item.contract_id || "-"}
+                                  <span className="block text-xs text-slate-500">
+                                    {item.payment_period_label || `Year ${item.instalment_year || "-"}`}
+                                  </span>
+                                </td>
+                                {log.is_admin && <td className="px-4 py-3 text-right">{formatMoney(item.receipt_amount)}</td>}
+                                <td className="px-4 py-3 text-right">{Number(item.commission_rate || 0).toFixed(2)}%</td>
+                                <td className="px-4 py-3 text-right font-semibold">{formatMoney(item.commission_amount)}</td>
+                                <td className="px-4 py-3 text-slate-700">{formatDate(item.batch_month)}</td>
+                                <td className="px-4 py-3">
+                                  <Badge className={statusTone(item.status)}>{item.status}</Badge>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  </CardContent>
+                </Card>
+              );
+            })()}
           </>
         )}
       </div>

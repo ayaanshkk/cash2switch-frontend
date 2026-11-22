@@ -668,7 +668,7 @@ export default function AgentCommissionsPage() {
                   </Button>
                 )}
                 {!pendingBatch && anyBatch && !hasSelection && (
-                  <Button size="sm" variant="outline" onClick={() => openManageSidebar(anyBatch)} disabled={!!saving} className="dark:border-slate-700 dark:hover:bg-slate-800">
+                  <Button size="sm" variant="outline" onClick={() => window.open(`/dashboard/payments/agent-commissions/batch/${anyBatch.id}`, "_blank")} className="dark:border-slate-700 dark:hover:bg-slate-800">
                     Manage Payments
                   </Button>
                 )}
@@ -733,8 +733,8 @@ export default function AgentCommissionsPage() {
                       return (
                       <tr
                         key={item.id || `${item.client_name}-${idx}`}
-                        className={`transition-colors ${isChecked ? "bg-blue-50 dark:bg-blue-950/20" : "hover:bg-slate-50 dark:hover:bg-slate-800/50"} ${item.client_id ? "cursor-pointer" : ""}`}
-                        onClick={() => item.client_id && window.open(`/dashboard/payments/history/${item.client_id}`, "_blank")}
+                        className={`transition-colors ${isChecked ? "bg-blue-50 dark:bg-blue-950/20" : "hover:bg-slate-50 dark:hover:bg-slate-800/50"} ${item.batch_id ? "cursor-pointer" : ""}`}
+                        onClick={() => item.batch_id && window.open(`/dashboard/payments/agent-commissions/batch/${item.batch_id}`, "_blank")}
                       >
                         <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
                           {rid && (
@@ -757,25 +757,22 @@ export default function AgentCommissionsPage() {
                           <div className="flex items-center justify-center gap-1.5">
                             {rowFullyPaid ? (
                               <button
-                                onClick={() => { if (itemBatch) openManageSidebar(itemBatch); }}
-                                disabled={!!saving}
-                                className="rounded-md bg-emerald-100 px-2.5 py-1 text-xs font-semibold text-emerald-700 hover:bg-emerald-200 disabled:opacity-40 dark:bg-emerald-950/60 dark:text-emerald-300 dark:hover:bg-emerald-950/80"
+                                onClick={() => itemBatch && window.open(`/dashboard/payments/agent-commissions/batch/${itemBatch.id}`, "_blank")}
+                                className="rounded-md bg-emerald-100 px-2.5 py-1 text-xs font-semibold text-emerald-700 hover:bg-emerald-200 dark:bg-emerald-950/60 dark:text-emerald-300 dark:hover:bg-emerald-950/80"
                               >
                                 ✓ Paid
                               </button>
                             ) : rowPartlyPaid ? (
                               <button
-                                onClick={() => { if (itemBatch) openPayItem(itemBatch, item, paidForRow); }}
-                                disabled={!!saving}
-                                className="rounded-md bg-blue-100 px-2.5 py-1 text-xs font-semibold text-blue-700 hover:bg-blue-200 disabled:opacity-40 dark:bg-blue-950/60 dark:text-blue-300 dark:hover:bg-blue-950/80"
+                                onClick={() => itemBatch && window.open(`/dashboard/payments/agent-commissions/batch/${itemBatch.id}`, "_blank")}
+                                className="rounded-md bg-blue-100 px-2.5 py-1 text-xs font-semibold text-blue-700 hover:bg-blue-200 dark:bg-blue-950/60 dark:text-blue-300 dark:hover:bg-blue-950/80"
                               >
                                 Part Paid
                               </button>
                             ) : itemBatch ? (
                               <button
-                                onClick={() => openPayItem(itemBatch, item)}
-                                disabled={!!saving}
-                                className="rounded-md border border-slate-300 px-2.5 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-40 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-800"
+                                onClick={() => window.open(`/dashboard/payments/agent-commissions/batch/${itemBatch.id}`, "_blank")}
+                                className="rounded-md border border-slate-300 px-2.5 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-800"
                               >
                                 Pay
                               </button>
