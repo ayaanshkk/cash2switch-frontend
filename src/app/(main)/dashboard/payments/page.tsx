@@ -12,6 +12,7 @@ import {
   ChevronRight,
   CircleDollarSign,
   Edit,
+  Eraser,
   ExternalLink,
   Layers3,
   Loader2,
@@ -21,6 +22,7 @@ import {
   XCircle,
   Zap,
   ListChecks,
+  MessageCircleQuestion,
 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
@@ -34,7 +36,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sh
 import { Textarea } from "@/components/ui/textarea";
 import { fetchWithAuth } from "@/lib/api";
 
-type PaymentStatus = "Scheduled" | "Pending" | "Due" | "Received" | "Partially Paid" | "Chasing Supplier" | "Closed";
+type PaymentStatus = "Scheduled" | "Pending" | "Due" | "Received" | "Partially Paid" | "Chasing Supplier" | "Query Raised" | "Closed" | "Received - Written Off";
 
 type CommissionPayment = {
   id: string;
@@ -150,7 +152,9 @@ const statusTone: Record<PaymentStatus, string> = {
   Received: "bg-emerald-100 text-emerald-700 hover:bg-emerald-100 dark:bg-emerald-950/60 dark:text-emerald-300 dark:hover:bg-emerald-950/60",
   "Partially Paid": "bg-orange-100 text-orange-800 hover:bg-orange-100 dark:bg-orange-950/60 dark:text-orange-300 dark:hover:bg-orange-950/60",
   "Chasing Supplier": "bg-red-100 text-red-700 hover:bg-red-100 dark:bg-red-950/60 dark:text-red-300 dark:hover:bg-red-950/60",
+  "Query Raised": "bg-purple-100 text-purple-700 hover:bg-purple-100 dark:bg-purple-950/60 dark:text-purple-300 dark:hover:bg-purple-950/60",
   Closed: "bg-zinc-200 text-zinc-700 hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-800",
+  "Received - Written Off": "bg-amber-100 text-amber-700 hover:bg-amber-100 dark:bg-amber-950/60 dark:text-amber-300 dark:hover:bg-amber-950/60",
 };
 
 const moneyFormatter = new Intl.NumberFormat("en-GB", {
@@ -192,7 +196,9 @@ export default function PaymentCheckerPage() {
     "Received",
     "Partially Paid",
     "Chasing Supplier",
+    "Query Raised",
     "Closed",
+    "Received - Written Off",
   ];
   const [suppliers, setSuppliers] = useState<FilterOption[]>([]);
   const [agents, setAgents] = useState<FilterOption[]>([]);
@@ -245,8 +251,27 @@ export default function PaymentCheckerPage() {
     expected_net_amount: "",
     due_date: "",
   });
+  const [editingExpectedId, setEditingExpectedId] = useState<string | null>(null);
+  const [editingExpectedValue, setEditingExpectedValue] = useState("");
+  const [editingGroupExpectedKey, setEditingGroupExpectedKey] = useState<string | null>(null);
+  const [editingGroupExpectedValue, setEditingGroupExpectedValue] = useState("");
   const [discontinuing, setDiscontinuing] = useState(false);
   const [discontinuingContractId, setDiscontinuingContractId] = useState<number | null>(null);
+  const [writingOff, setWritingOff] = useState(false);
+  const [writingOffContractId, setWritingOffContractId] = useState<number | null>(null);
+  const [writeOffModal, setWriteOffModal] = useState<{ type: "payment"; } | { type: "contract"; group: PaymentGroup } | null>(null);
+  const [writeOffNotes, setWriteOffNotes] = useState("");
+
+  type ConfirmDialogState = {
+    title: string;
+    message: string;
+    actionLabel: string;
+    actionVariant?: "default" | "destructive" | "outline";
+    onConfirm: () => void;
+  } | null;
+  const [confirmDialog, setConfirmDialog] = useState<ConfirmDialogState>(null);
+  const closeConfirmDialog = () => setConfirmDialog(null);
+  const [closingAccount, setClosingAccount] = useState(false);
   const [followUpDate, setFollowUpDate] = useState(() => {
     const d = new Date();
     d.setDate(d.getDate() + 14);
@@ -468,7 +493,7 @@ export default function PaymentCheckerPage() {
         Number(payment.outstanding_amount || 0) > 0 &&
         payment.due_date &&
         new Date(payment.due_date) < new Date() &&
-        !['Received', 'Closed'].includes(payment.status)
+        !['Received', 'Closed', 'Received - Written Off'].includes(payment.status)
       ) {
         group.needsChasing = true;
       }
@@ -816,10 +841,19 @@ export default function PaymentCheckerPage() {
     }
   };
 
-  const deleteReceipt = async (receiptId: string) => {
+  const deleteReceipt = (receiptId: string) => {
     if (!selectedPayment) return;
-    if (!window.confirm("Delete this entry? This cannot be undone.")) return;
+    setConfirmDialog({
+      title: "Delete Entry",
+      message: "Delete this entry? This cannot be undone.",
+      actionLabel: "Delete",
+      actionVariant: "destructive",
+      onConfirm: () => _deleteReceiptConfirmed(receiptId),
+    });
+  };
 
+  const _deleteReceiptConfirmed = async (receiptId: string) => {
+    if (!selectedPayment) return;
     setSaving(true);
     setError(null);
     setSuccessMessage(null);
@@ -850,7 +884,7 @@ export default function PaymentCheckerPage() {
     }
   };
 
-  const patchStatus = async (status: "Chasing Supplier" | "Closed") => {
+  const patchStatus = async (status: "Chasing Supplier" | "Query Raised" | "Closed") => {
     if (!selectedPayment) return;
 
     setSaving(true);
@@ -865,7 +899,8 @@ export default function PaymentCheckerPage() {
         body: JSON.stringify(body),
       });
       updatePaymentInList(data.payment);
-      setSuccessMessage(status === "Closed" ? "Payment closed." : "Marked as chasing supplier.");
+      const msg = status === "Closed" ? "Payment closed." : status === "Query Raised" ? "Query raised." : "Marked as chasing supplier.";
+      setSuccessMessage(msg);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to update payment status");
     } finally {
@@ -907,9 +942,56 @@ export default function PaymentCheckerPage() {
     }
   };
 
-  const discontinuePayment = async () => {
+  const saveGroupExpected = async (group: PaymentGroup, value: string) => {
+    const parsed = Number(value);
+    setEditingGroupExpectedKey(null);
+    if (isNaN(parsed) || parsed < 0) return;
+    const contractId = group.payments[0]?.contract_id;
+    if (!contractId) return;
+    try {
+      await fetchWithAuth(`/api/commission/contracts/${contractId}/expected-amount`, {
+        method: "PATCH",
+        body: JSON.stringify({ total_amount: parsed }),
+      });
+      await loadPayments(filters, searchTerm, pagination);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to update expected amount");
+    }
+  };
+
+  const saveInlineExpected = async (payment: CommissionPayment, value: string) => {
+    const parsed = Number(value);
+    if (isNaN(parsed) || parsed < 0) {
+      setEditingExpectedId(null);
+      return;
+    }
+    setEditingExpectedId(null);
+    try {
+      const data = await fetchWithAuth(`/api/commission/payments/${payment.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ expected_net_amount: parsed }),
+      });
+      setPayments((current) => current.map((p) => (p.id === payment.id ? data.payment : p)));
+      if (selectedPayment?.id === payment.id) setSelectedPayment(data.payment);
+      await loadPayments(filters, searchTerm, pagination);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to update expected amount");
+    }
+  };
+
+  const discontinuePayment = () => {
     if (!selectedPayment) return;
-    if (!window.confirm("Mark this supplier as discontinued? The expected amount will be set to £0 and the payment will be closed.")) return;
+    setConfirmDialog({
+      title: "Supplier No Longer Trading",
+      message: "Mark this supplier as discontinued? The expected amount will be set to £0 and the payment will be closed.",
+      actionLabel: "Confirm",
+      actionVariant: "destructive",
+      onConfirm: _discontinuePaymentConfirmed,
+    });
+  };
+
+  const _discontinuePaymentConfirmed = async () => {
+    if (!selectedPayment) return;
     setDiscontinuing(true);
     setError(null);
     setSuccessMessage(null);
@@ -928,10 +1010,54 @@ export default function PaymentCheckerPage() {
     }
   };
 
-  const discontinueContract = async (group: PaymentGroup) => {
+  const closeAccount = () => {
+    if (!selectedPayment) return;
+    const contractId = selectedPayment.contract_id;
+    if (!contractId) return;
+    setConfirmDialog({
+      title: "Close Account",
+      message: "Close this account? All unpaid instalments will be set to £0 and closed. Months that were already paid will remain untouched.",
+      actionLabel: "Close Account",
+      actionVariant: "destructive",
+      onConfirm: _closeAccountConfirmed,
+    });
+  };
+
+  const _closeAccountConfirmed = async () => {
+    if (!selectedPayment) return;
+    const contractId = selectedPayment.contract_id;
+    if (!contractId) return;
+    setClosingAccount(true);
+    setError(null);
+    setSuccessMessage(null);
+    try {
+      await fetchWithAuth(`/api/commission/contracts/${contractId}/account-closed`, { method: "POST" });
+      await loadPayments();
+      const refreshed = await fetchWithAuth(`/api/commission/payments/${selectedPayment.id}`);
+      setSelectedPayment(refreshed.payment);
+      setSuccessMessage("Account closed. Unpaid instalments set to £0; paid months preserved.");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to close account");
+    } finally {
+      setClosingAccount(false);
+    }
+  };
+
+  const discontinueContract = (group: PaymentGroup) => {
     const contractId = group.payments[0]?.contract_id;
     if (!contractId) return;
-    if (!window.confirm(`Mark all ${group.payments.length} instalments for "${group.title}" as supplier no longer trading? All expected amounts will be set to £0 and payments closed.`)) return;
+    setConfirmDialog({
+      title: "Supplier No Longer Trading",
+      message: `Mark all ${group.payments.length} instalments for "${group.title}" as supplier no longer trading? All expected amounts will be set to £0 and payments closed.`,
+      actionLabel: "Confirm",
+      actionVariant: "destructive",
+      onConfirm: () => _discontinueContractConfirmed(group),
+    });
+  };
+
+  const _discontinueContractConfirmed = async (group: PaymentGroup) => {
+    const contractId = group.payments[0]?.contract_id;
+    if (!contractId) return;
     setDiscontinuingContractId(contractId);
     setError(null);
     try {
@@ -945,10 +1071,68 @@ export default function PaymentCheckerPage() {
     }
   };
 
+  const writeOffPayment = () => {
+    if (!selectedPayment) return;
+    setConfirmDialog({
+      title: "Write Off Instalment",
+      message: `Write off £${Number(selectedPayment.outstanding_amount).toFixed(2)} outstanding for this instalment? Expected amount stays on record; outstanding becomes £0 and the instalment is closed. This cannot be undone.`,
+      actionLabel: "Write Off",
+      actionVariant: "destructive",
+      onConfirm: _writeOffPaymentConfirmed,
+    });
+  };
+
+  const _writeOffPaymentConfirmed = async () => {
+    if (!selectedPayment) return;
+    setWritingOff(true);
+    setError(null);
+    setSuccessMessage(null);
+    try {
+      const data = await fetchWithAuth(`/api/commission/payments/${selectedPayment.id}/write-off`, {
+        method: 'POST',
+      });
+      updatePaymentInList(data.payment);
+      setSelectedPayment(data.payment);
+      await loadPayments(filters, searchTerm, pagination);
+      setSuccessMessage('Outstanding amount written off.');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to write off payment');
+    } finally {
+      setWritingOff(false);
+    }
+  };
+
+  const writeOffContract = (group: PaymentGroup) => {
+    const contractId = group.payments[0]?.contract_id;
+    if (!contractId) return;
+    setWriteOffNotes("");
+    setWriteOffModal({ type: "contract", group });
+  };
+
+  const _writeOffContractConfirmed = async (group: PaymentGroup) => {
+    const contractId = group.payments[0]?.contract_id;
+    if (!contractId) return;
+    setWritingOffContractId(contractId);
+    setError(null);
+    try {
+      await fetchWithAuth(`/api/commission/contracts/${contractId}/write-off`, {
+        method: 'POST',
+        body: JSON.stringify({ notes: writeOffNotes.trim() || undefined }),
+      });
+      await loadPayments(filters, searchTerm, pagination);
+      setSuccessMessage(`All outstanding amounts for "${group.title}" written off.`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to write off contract');
+    } finally {
+      setWritingOffContractId(null);
+      setWriteOffModal(null);
+    }
+  };
+
   const isColumnVisible = (key: PaymentColumnKey) => visiblePaymentColumns[key];
   const visibleColumnCount = 1 + paymentColumnOptions.filter((column) => isColumnVisible(column.key)).length;
 
-  const selectedIsClosed = selectedPayment?.status === "Closed";
+  const selectedIsClosed = selectedPayment?.status === "Closed" || selectedPayment?.status === "Received - Written Off";
 
   return (
     <div className="min-h-screen bg-transparent px-2 py-6 text-slate-900 dark:bg-transparent dark:text-slate-100 sm:px-3 lg:px-4">
@@ -1232,18 +1416,18 @@ export default function PaymentCheckerPage() {
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm table-fixed">
                     <colgroup>
-                      <col className="w-[13%]" />
-                      <col className="w-[8%]" />
-                      <col className="w-[8%]" />
+                      <col className="w-[11%]" />
+                      <col className="w-[7%]" />
+                      <col className="w-[7%]" />
                       <col className="w-[7%]" />
                       <col className="w-[9%]" />
-                      <col className="w-[15%]" />
+                      <col className="w-[13%]" />
+                      <col className="w-[7%]" />
+                      <col className="w-[7%]" />
                       <col className="w-[7%]" />
                       <col className="w-[7%]" />
                       <col className="w-[8%]" />
-                      <col className="w-[7%]" />
-                      <col className="w-[8%]" />
-                      <col className="w-[3%]" />
+                      <col className="w-[10%]" />
                     </colgroup>
                     <thead className="bg-slate-50 text-left text-xs font-semibold tracking-wide text-slate-500 uppercase border-b border-slate-200 dark:border-slate-800 dark:bg-slate-800/60 dark:text-slate-400">
                       <tr>
@@ -1258,7 +1442,7 @@ export default function PaymentCheckerPage() {
                         <th className="px-2 py-2 text-right">Outstanding</th>
                         <th className="px-2 py-2">Next Due</th>
                         <th className="px-2 py-2">Status</th>
-                        <th className="px-2 py-2"></th>
+                        <th className="px-2 py-2">Actions</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-200 bg-white dark:divide-slate-800 dark:bg-slate-900">
@@ -1271,7 +1455,7 @@ export default function PaymentCheckerPage() {
                         return (
                           <React.Fragment key={group.key}>
                             <tr
-                              className={`cursor-pointer transition-colors hover:bg-slate-50 dark:hover:bg-slate-800/50 ${
+                              className={`cursor-pointer transition-colors hover:bg-slate-50 dark:hover:bg-slate-800/50 [&>td]:align-top ${
                                 group.isDeleted
                                   ? "bg-red-50/40 dark:bg-red-950/20"
                                   : group.isArchived
@@ -1318,19 +1502,50 @@ export default function PaymentCheckerPage() {
                                 <span className="text-slate-400 mx-0.5">–</span>
                                 <span>{formatDate(group.contractEndDate)}</span>
                               </td>
-                              <td className="px-2 py-2 text-right font-medium text-slate-900 dark:text-slate-100">{formatMoney(group.expected)}</td>
+                              <td
+                                className="px-2 py-2 text-right font-medium text-slate-900 dark:text-slate-100"
+                                onClick={(e) => {
+                                  if (!group.payments[0]?.contract_id) return;
+                                  e.stopPropagation();
+                                  setEditingGroupExpectedKey(group.key);
+                                  setEditingGroupExpectedValue(group.expected.toFixed(2));
+                                }}
+                              >
+                                {editingGroupExpectedKey === group.key ? (
+                                  <input
+                                    type="number"
+                                    step="0.01"
+                                    min="0"
+                                    autoFocus
+                                    className="w-24 rounded border border-slate-300 bg-white px-2 py-0.5 text-right text-sm font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-black dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
+                                    value={editingGroupExpectedValue}
+                                    onChange={(e) => setEditingGroupExpectedValue(e.target.value)}
+                                    onBlur={() => saveGroupExpected(group, editingGroupExpectedValue)}
+                                    onKeyDown={(e) => {
+                                      if (e.key === "Enter") { e.preventDefault(); saveGroupExpected(group, editingGroupExpectedValue); }
+                                      if (e.key === "Escape") setEditingGroupExpectedKey(null);
+                                    }}
+                                    onClick={(e) => e.stopPropagation()}
+                                  />
+                                ) : (
+                                  <span className="group/grpexp relative cursor-pointer">
+                                    {formatMoney(group.expected)}
+                                    <Edit className="ml-1 inline h-3 w-3 text-slate-300 opacity-0 group-hover/grpexp:opacity-100 transition-opacity dark:text-slate-600" />
+                                  </span>
+                                )}
+                              </td>
                               <td className="px-2 py-2 text-right text-emerald-700 font-medium dark:text-emerald-400">{formatMoney(group.received)}</td>
                               <td className="px-2 py-2 text-right text-orange-700 font-medium dark:text-orange-400">{formatMoney(group.outstanding)}</td>
                               <td className="px-2 py-2 text-slate-700 whitespace-nowrap dark:text-slate-300">{formatDate(group.nextDue)}</td>
-                              <td className="px-2 py-2">
+                              <td className="px-2 py-2 overflow-hidden min-w-0">
                                 <div className="flex flex-wrap gap-1">
                                   {group.statuses.map((status) => (
-                                    <Badge key={status} className={statusTone[status]}>{status}</Badge>
+                                    <Badge key={status} className={`${statusTone[status]} whitespace-nowrap`}>{status}</Badge>
                                   ))}
                                 </div>
                               </td>
-                              <td className="px-2 py-2">
-                                <div className="flex gap-1" onClick={(e) => e.stopPropagation()}>
+                              <td className="px-2 py-2 overflow-hidden min-w-0">
+                                <div className="flex flex-wrap gap-1" onClick={(e) => e.stopPropagation()}>
                                   {group.outstanding > 0 && (
                                     <Button
                                       size="sm"
@@ -1340,6 +1555,21 @@ export default function PaymentCheckerPage() {
                                     >
                                       <ListChecks className="h-3 w-3" />
                                       Log
+                                    </Button>
+                                  )}
+                                  {group.outstanding > 0 && group.received > 0 && (
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      className="h-7 px-2 text-xs border-purple-200 text-purple-700 hover:bg-purple-50 hover:border-purple-300 dark:border-purple-900/50 dark:text-purple-400 dark:hover:bg-purple-950/30"
+                                      title="Write off all outstanding amounts for this contract"
+                                      disabled={writingOffContractId === group.payments[0]?.contract_id}
+                                      onClick={() => writeOffContract(group)}
+                                    >
+                                      {writingOffContractId === group.payments[0]?.contract_id
+                                        ? <Loader2 className="h-3 w-3 animate-spin" />
+                                        : <Eraser className="h-3 w-3" />
+                                      }
                                     </Button>
                                   )}
                                   <Button
@@ -1404,7 +1634,38 @@ export default function PaymentCheckerPage() {
                                             {" – "}
                                             {formatDate(payment.payment_period_end || payment.contract_end_date)}
                                           </td>
-                                          <td className="px-4 py-2 text-right font-medium text-slate-900 dark:text-slate-100">{formatMoney(payment.expected_net_amount)}</td>
+                                          <td
+                                            className="px-4 py-2 text-right font-medium text-slate-900 dark:text-slate-100"
+                                            onClick={(e) => {
+                                              if (String(payment.id).startsWith("stub-")) return;
+                                              e.stopPropagation();
+                                              setEditingExpectedId(payment.id);
+                                              setEditingExpectedValue(String(Number(payment.expected_net_amount || 0).toFixed(2)));
+                                            }}
+                                          >
+                                            {editingExpectedId === payment.id ? (
+                                              <input
+                                                type="number"
+                                                step="0.01"
+                                                min="0"
+                                                autoFocus
+                                                className="w-24 rounded border border-slate-300 bg-white px-2 py-0.5 text-right text-sm font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-black dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
+                                                value={editingExpectedValue}
+                                                onChange={(e) => setEditingExpectedValue(e.target.value)}
+                                                onBlur={() => saveInlineExpected(payment, editingExpectedValue)}
+                                                onKeyDown={(e) => {
+                                                  if (e.key === "Enter") { e.preventDefault(); saveInlineExpected(payment, editingExpectedValue); }
+                                                  if (e.key === "Escape") setEditingExpectedId(null);
+                                                }}
+                                                onClick={(e) => e.stopPropagation()}
+                                              />
+                                            ) : (
+                                              <span className="group/exp relative cursor-pointer">
+                                                {formatMoney(payment.expected_net_amount)}
+                                                <Edit className="ml-1 inline h-3 w-3 text-slate-300 opacity-0 group-hover/exp:opacity-100 transition-opacity dark:text-slate-600" />
+                                              </span>
+                                            )}
+                                          </td>
                                           <td className="px-4 py-2 text-slate-700 dark:text-slate-300">{formatDate(payment.due_date)}</td>
                                           <td className="px-4 py-2 text-right text-slate-900 dark:text-slate-100">{formatMoney(payment.amount_received)}</td>
                                           <td className="px-4 py-2 text-right text-slate-900 dark:text-slate-100">{formatMoney(payment.outstanding_amount)}</td>
@@ -1414,7 +1675,7 @@ export default function PaymentCheckerPage() {
                                               {Number(payment.outstanding_amount) > 0 &&
                                                 payment.due_date &&
                                                 new Date(payment.due_date) < today &&
-                                                !["Received", "Closed"].includes(payment.status) && (
+                                                !["Received", "Closed", "Received - Written Off"].includes(payment.status) && (
                                                   <span className="text-xs font-semibold text-red-600">
                                                     {Math.floor((today.getTime() - new Date(payment.due_date).getTime()) / 86400000)}d overdue
                                                   </span>
@@ -1878,6 +2139,10 @@ export default function PaymentCheckerPage() {
                         <CalendarCheck className="mr-2 h-4 w-4" />
                         Mark as Chasing Supplier
                       </Button>
+                      <Button variant="outline" onClick={() => patchStatus("Query Raised")} disabled={saving}>
+                        <MessageCircleQuestion className="mr-2 h-4 w-4" />
+                        Raise a Query
+                      </Button>
                       <Button variant="destructive" onClick={() => patchStatus("Closed")} disabled={saving}>
                         <XCircle className="mr-2 h-4 w-4" />
                         Close
@@ -1885,23 +2150,51 @@ export default function PaymentCheckerPage() {
                     </div>
                   </div>
 
-                  <div className="border-t pt-3">
-                    <p className="mb-2 text-xs text-slate-500 dark:text-slate-400">If the supplier has ceased trading, mark below — commission will be zeroed out and the payment closed.</p>
-                    <Button
-                      variant="outline"
-                      onClick={discontinuePayment}
-                      disabled={discontinuing || saving}
-                      className="border-orange-200 text-orange-700 hover:bg-orange-50 hover:border-orange-300 dark:border-orange-900/50 dark:text-orange-400 dark:hover:bg-orange-950/30"
-                    >
-                      {discontinuing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <XCircle className="mr-2 h-4 w-4" />}
-                      Supplier No Longer Trading
-                    </Button>
+                  <div className="border-t pt-3 space-y-3">
+                    <div>
+                      <p className="mb-2 text-xs text-slate-500 dark:text-slate-400">Supplier has completely ceased trading — all instalments (paid and unpaid) will be zeroed out.</p>
+                      <Button
+                        variant="outline"
+                        onClick={discontinuePayment}
+                        disabled={discontinuing || closingAccount || saving}
+                        className="border-orange-200 text-orange-700 hover:bg-orange-50 hover:border-orange-300 dark:border-orange-900/50 dark:text-orange-400 dark:hover:bg-orange-950/30"
+                      >
+                        {discontinuing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <XCircle className="mr-2 h-4 w-4" />}
+                        Supplier No Longer Trading
+                      </Button>
+                    </div>
+                    <div>
+                      <p className="mb-2 text-xs text-slate-500 dark:text-slate-400">Supplier was active and commission was paid for some months — close only the unpaid instalments, keeping paid months for agent commissions.</p>
+                      <Button
+                        variant="outline"
+                        onClick={closeAccount}
+                        disabled={closingAccount || discontinuing || saving}
+                        className="border-slate-300 text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+                      >
+                        {closingAccount ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <XCircle className="mr-2 h-4 w-4" />}
+                        Account Closed
+                      </Button>
+                    </div>
+                    {Number(selectedPayment.outstanding_amount) > 0 && Number(selectedPayment.amount_received) > 0 && (
+                      <div className="border-t pt-3">
+                        <p className="mb-2 text-xs text-slate-500 dark:text-slate-400">Write off the outstanding balance for this instalment only — expected amount stays, outstanding becomes £0 and the instalment is closed.</p>
+                        <Button
+                          variant="outline"
+                          onClick={writeOffPayment}
+                          disabled={writingOff || saving || closingAccount || discontinuing}
+                          className="border-purple-200 text-purple-700 hover:bg-purple-50 hover:border-purple-300 dark:border-purple-900/50 dark:text-purple-400 dark:hover:bg-purple-950/30"
+                        >
+                          {writingOff ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Eraser className="mr-2 h-4 w-4" />}
+                          Write Off
+                        </Button>
+                      </div>
+                    )}
                   </div>
                 </div>
 
                 {/* Payment History */}
                 <div className="space-y-3">
-                  <h3 className="text-sm font-semibold text-slate-950 dark:text-slate-50">Receipt history</h3>
+                  <h3 className="text-sm font-semibold text-slate-950 dark:text-slate-50">Receipt &amp; note history</h3>
                   {detailLoading ? (
                     <div className="flex items-center text-sm text-slate-500 dark:text-slate-400">
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -1967,14 +2260,27 @@ export default function PaymentCheckerPage() {
                           </form>
                         ) : (
                           <>
-                            <div className="flex items-center justify-between gap-3">
-                              <p className="font-semibold text-slate-900 dark:text-slate-100">{formatMoney(receipt.amount_received)}</p>
-                              <p className="text-slate-500 dark:text-slate-400">{formatDate(receipt.date_received)}</p>
-                            </div>
-                            <p className="mt-1 text-slate-500 dark:text-slate-400">
-                              {receipt.logged_by_name || "Logged"} · {formatDateTime(receipt.created_at)}
-                            </p>
-                            {receipt.notes && <p className="mt-2 text-slate-700 dark:text-slate-300">{receipt.notes}</p>}
+                            {Number(receipt.amount_received) > 0 ? (
+                              <>
+                                <div className="flex items-center justify-between gap-3">
+                                  <p className="font-semibold text-slate-900 dark:text-slate-100">{formatMoney(receipt.amount_received)}</p>
+                                  <p className="text-slate-500 dark:text-slate-400">{formatDate(receipt.date_received)}</p>
+                                </div>
+                                <p className="mt-1 text-slate-500 dark:text-slate-400">
+                                  {receipt.logged_by_name || "Logged"} · {formatDateTime(receipt.created_at)}
+                                </p>
+                                {receipt.notes && <p className="mt-2 text-slate-700 dark:text-slate-300">{receipt.notes}</p>}
+                              </>
+                            ) : (
+                              <>
+                                <div className="flex items-center gap-2">
+                                  <span className="text-xs font-medium text-slate-400 uppercase tracking-wide dark:text-slate-500">Note</span>
+                                  <span className="text-xs text-slate-400 dark:text-slate-500">· {formatDateTime(receipt.created_at)}</span>
+                                </div>
+                                <p className="mt-1 text-slate-500 dark:text-slate-400 text-xs">{receipt.logged_by_name || "Logged"}</p>
+                                {receipt.notes && <p className="mt-1 text-slate-700 dark:text-slate-300">{receipt.notes}</p>}
+                              </>
+                            )}
                             <div className="mt-3 flex gap-2">
                               <Button
                                 type="button"
@@ -2012,6 +2318,82 @@ export default function PaymentCheckerPage() {
             )}
           </SheetContent>
         </Sheet>
+
+        {/* ── Confirm Dialog ── */}
+        <Dialog open={!!confirmDialog} onOpenChange={(open) => { if (!open) closeConfirmDialog(); }}>
+          <DialogContent className="max-w-sm">
+            <DialogHeader>
+              <DialogTitle>{confirmDialog?.title}</DialogTitle>
+            </DialogHeader>
+            <p className="text-sm text-slate-600 dark:text-slate-400 leading-relaxed">
+              {confirmDialog?.message}
+            </p>
+            <div className="flex justify-end gap-2 pt-2">
+              <Button variant="outline" onClick={closeConfirmDialog} className="dark:border-slate-700">
+                Cancel
+              </Button>
+              <Button
+                variant={confirmDialog?.actionVariant === "destructive" ? "destructive" : "default"}
+                onClick={() => {
+                  confirmDialog?.onConfirm();
+                  closeConfirmDialog();
+                }}
+              >
+                {confirmDialog?.actionLabel}
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* ── Write Off Modal ── */}
+        <Dialog open={!!writeOffModal} onOpenChange={(open) => { if (!open) setWriteOffModal(null); }}>
+          <DialogContent className="max-w-sm">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Eraser className="h-5 w-5 text-purple-600" />
+                {writeOffModal?.type === "contract" ? "Write Off Contract" : "Write Off Instalment"}
+              </DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+              <p className="text-sm text-slate-600 dark:text-slate-400 leading-relaxed">
+                {writeOffModal?.type === "contract"
+                  ? `Write off all outstanding amounts for "${(writeOffModal as any)?.group?.title}"? All unpaid instalments will be closed. Expected amounts stay on record.`
+                  : selectedPayment
+                    ? `Write off £${Number(selectedPayment.outstanding_amount).toFixed(2)} outstanding for this instalment? Expected amount stays on record; outstanding becomes £0.`
+                    : ""}
+              </p>
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium text-slate-700 dark:text-slate-300">
+                  Reason <span className="text-slate-400 font-normal">(saved in history log)</span>
+                </label>
+                <Textarea
+                  placeholder="e.g. Customer went into administration, partial settlement agreed..."
+                  value={writeOffNotes}
+                  onChange={(e) => setWriteOffNotes(e.target.value)}
+                  rows={3}
+                  className="resize-none dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 dark:placeholder:text-slate-500"
+                />
+              </div>
+              <p className="text-xs text-slate-400">This cannot be undone.</p>
+              <div className="flex justify-end gap-2">
+                <Button variant="outline" onClick={() => setWriteOffModal(null)} className="dark:border-slate-700">
+                  Cancel
+                </Button>
+                <Button
+                  variant="destructive"
+                  disabled={writingOff || (writeOffModal?.type === "contract" && writingOffContractId !== null)}
+                  onClick={() => {
+                    if (writeOffModal?.type === "payment") _writeOffPaymentConfirmed();
+                    else if (writeOffModal?.type === "contract") _writeOffContractConfirmed((writeOffModal as any).group);
+                  }}
+                >
+                  {(writingOff || writingOffContractId !== null) ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Eraser className="mr-2 h-4 w-4" />}
+                  Write Off
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
 
         {/* ── Bulk Log Total Modal ── */}
         <Dialog open={!!bulkLogGroup} onOpenChange={open => { if (!open && !bulkSaving) setBulkLogGroup(null); }}>

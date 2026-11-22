@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
-  BadgePoundSterling,
   Download,
   Loader2,
   Lock,
@@ -68,7 +67,10 @@ type AgentGroup = {
 };
 
 type PaymentSidebar = {
-  batchId: string;
+  /** null when paying all pending batches for an agent */
+  batchId: string | null;
+  /** set when paying all pending batches in one go */
+  employeeId?: number | null;
   agentName: string;
   /** full batch total for display */
   batchTotal: number;
@@ -164,8 +166,16 @@ export default function AgentCommissionsPage() {
     msgTimerRef.current = setTimeout(() => setMessage(null), 4000);
   };
   const [error, setError] = useState<string | null>(null);
-  const [search, setSearch] = useState("");
+  const [selectedAgent, setSelectedAgent] = useState<string | null>(null);
+  const [pendingAgent, setPendingAgent] = useState<string | null>(null);
+  const [agentDropdownOpen, setAgentDropdownOpen] = useState(false);
+  const [agentSearch, setAgentSearch] = useState("");
+  // selection: agentName → Set of commission_payment_receipt_ids
+  const [selectedItems, setSelectedItems] = useState<Record<string, Set<string>>>({});
   const [statusFilter, setStatusFilter] = useState<string | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const PAGE_SIZE = 20;
+  const [statsModal, setStatsModal] = useState<"total" | "paid" | "partial" | "awaiting" | null>(null);
   const [sidebar, setSidebar] = useState<PaymentSidebar | null>(null);
   const [sidebarError, setSidebarError] = useState<string | null>(null);
   const amountRef = useRef<HTMLInputElement>(null);
@@ -190,19 +200,17 @@ export default function AgentCommissionsPage() {
   }, [items, batches]);
 
   const filteredGroups = useMemo(() => {
-    let groups = agentGroups;
-    const q = search.trim().toLowerCase();
-    if (q) groups = groups.filter(
-      (g) => g.agentName.toLowerCase().includes(q) || g.items.some((i) => i.client_name?.toLowerCase().includes(q)),
-    );
-    if (statusFilter) {
-      groups = groups.filter((g) => {
-        const label = agentStatusLabel(g);
-        return label === statusFilter;
-      });
-    }
-    return groups;
-  }, [agentGroups, search, statusFilter]);
+    if (!selectedAgent) return [];
+    return agentGroups.filter((g) => g.agentName === selectedAgent);
+  }, [agentGroups, selectedAgent]);
+
+  const agentOptions = useMemo(() => {
+    const q = agentSearch.trim().toLowerCase();
+    return agentGroups
+      .map((g) => g.agentName)
+      .filter((name) => !q || name.toLowerCase().includes(q))
+      .sort((a, b) => a.localeCompare(b));
+  }, [agentGroups, agentSearch]);
 
   const adminTotals = useMemo(() => {
     const total   = agentGroups.reduce((s, g) => s + g.total, 0);
@@ -272,20 +280,37 @@ export default function AgentCommissionsPage() {
     });
   }
 
-  function openPayAll(batch: CommissionBatch) {
-    const total      = Number(batch.total_amount || 0);
-    const alreadyPaid = Number(batch.amount_paid || 0);
-    const outstanding = Math.max(total - alreadyPaid, 0);
+  function openPayAll(group: AgentGroup, pendingBatches: CommissionBatch[], totalOutstanding: number) {
     setSidebarError(null);
-    setSidebar({
-      batchId: batch.id, agentName: batch.agent_name,
-      batchTotal: total, alreadyPaid,
-      prefilledAmount: outstanding,
-      context: `Full commission payment`,
-      receiptId: null,
-      amountPaid: outstanding > 0 ? outstanding.toFixed(2) : "",
-      paymentDate: todayIso(), notes: "",
-    });
+    if (pendingBatches.length === 1) {
+      const batch = pendingBatches[0];
+      const total = Number(batch.total_amount || 0);
+      const alreadyPaid = Number(batch.amount_paid || 0);
+      const outstanding = Math.max(total - alreadyPaid, 0);
+      setSidebar({
+        batchId: batch.id, agentName: batch.agent_name,
+        batchTotal: total, alreadyPaid,
+        prefilledAmount: outstanding,
+        context: `Full commission payment`,
+        receiptId: null,
+        amountPaid: outstanding > 0 ? outstanding.toFixed(2) : "",
+        paymentDate: todayIso(), notes: "",
+      });
+    } else {
+      // Multiple pending batches — pay all in one go
+      setSidebar({
+        batchId: null,
+        employeeId: group.employeeId,
+        agentName: group.agentName,
+        batchTotal: totalOutstanding,
+        alreadyPaid: 0,
+        prefilledAmount: totalOutstanding,
+        context: `Full commission payment (${pendingBatches.length} months)`,
+        receiptId: null,
+        amountPaid: totalOutstanding > 0 ? totalOutstanding.toFixed(2) : "",
+        paymentDate: todayIso(), notes: "",
+      });
+    }
   }
 
   function openPayItem(batch: CommissionBatch, item: CommissionItem, alreadyPaidForItem = 0) {
@@ -311,12 +336,20 @@ export default function AgentCommissionsPage() {
     setSidebarError(null);
     const amt = Number(sidebar.amountPaid);
     if (!sidebar.amountPaid || isNaN(amt) || amt <= 0) { setSidebarError("Enter a valid amount."); return; }
-    setSaving(`pay-${sidebar.batchId}`);
+    setSaving(`pay-${sidebar.batchId ?? sidebar.employeeId}`);
     try {
-      await fetchWithAuth(`/api/commission/batches/${sidebar.batchId}/log-payment`, {
-        method: "POST",
-        body: JSON.stringify({ amount_paid: sidebar.amountPaid, payment_date: sidebar.paymentDate, notes: sidebar.notes || null, receipt_id: sidebar.receiptId || null }),
-      });
+      if (!sidebar.batchId && sidebar.employeeId) {
+        // Pay all pending batches for this agent
+        await fetchWithAuth(`/api/commission/agents/${sidebar.employeeId}/pay-all-pending`, {
+          method: "POST",
+          body: JSON.stringify({ amount_paid: sidebar.amountPaid, payment_date: sidebar.paymentDate, notes: sidebar.notes || null }),
+        });
+      } else {
+        await fetchWithAuth(`/api/commission/batches/${sidebar.batchId}/log-payment`, {
+          method: "POST",
+          body: JSON.stringify({ amount_paid: sidebar.amountPaid, payment_date: sidebar.paymentDate, notes: sidebar.notes || null, receipt_id: sidebar.receiptId || null }),
+        });
+      }
       showMessage(`Payment of ${money(amt)} logged for ${sidebar.agentName}.`);
       setSidebar(null);
       await load();
@@ -340,7 +373,7 @@ export default function AgentCommissionsPage() {
       await load();
       // Update sidebar state with fresh batch data
       setSidebar((s) => {
-        if (!s || s.batchId !== batchId) return s;
+        if (!s || (s.batchId && s.batchId !== batchId)) return s;
         return s; // load() will refresh batches; sidebar stays open
       });
     } catch (e) {
@@ -374,6 +407,43 @@ export default function AgentCommissionsPage() {
       URL.revokeObjectURL(url);
     } catch (e) { setError(e instanceof Error ? e.message : "Download failed"); }
     finally { setSaving(null); }
+  };
+
+  const downloadCustomStatement = async (agentName: string, receiptIds: string[]) => {
+    const key = `dl-custom-${agentName}`;
+    setSaving(key); setError(null);
+    try {
+      const token = localStorage.getItem("auth_token") || localStorage.getItem("token");
+      const res = await fetch(`${API_BASE_URL}/api/commission/statement/custom`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ receipt_ids: receiptIds, agent_name: agentName }),
+      });
+      if (!res.ok) throw new Error(`Download failed: ${res.status}`);
+      const url = URL.createObjectURL(await res.blob());
+      Object.assign(document.createElement("a"), { href: url, download: `commission-${agentName.replace(/\s+/g, "-")}-selected.pdf` }).click();
+      URL.revokeObjectURL(url);
+    } catch (e) { setError(e instanceof Error ? e.message : "Download failed"); }
+    finally { setSaving(null); }
+  };
+
+  /* ── selection helpers ── */
+  const getSelected = (agentName: string): Set<string> => selectedItems[agentName] ?? new Set();
+
+  const toggleItem = (agentName: string, receiptId: string) => {
+    setSelectedItems((prev) => {
+      const current = new Set(prev[agentName] ?? []);
+      if (current.has(receiptId)) current.delete(receiptId); else current.add(receiptId);
+      return { ...prev, [agentName]: current };
+    });
+  };
+
+  const toggleAll = (agentName: string, receiptIds: string[]) => {
+    setSelectedItems((prev) => {
+      const current = prev[agentName] ?? new Set();
+      const allSelected = receiptIds.every((id) => current.has(id));
+      return { ...prev, [agentName]: allSelected ? new Set() : new Set(receiptIds) };
+    });
   };
 
   /* ── views ── */
@@ -431,54 +501,142 @@ export default function AgentCommissionsPage() {
 
   const renderAdminView = () => (
     <div className="space-y-5">
-      {/* Summary */}
+      {/* Summary stats */}
       <div className="grid gap-4 grid-cols-2 md:grid-cols-5">
         {([
-          { label: "Agents",           value: String(agentGroups.length),      filter: null,               valueCls: "",                                          countLabel: `${agentGroups.length} agent${agentGroups.length !== 1 ? "s" : ""}` },
-          { label: "Total Commission", value: money(adminTotals.total),         filter: null,               valueCls: "" },
-          { label: "Paid",             value: money(adminTotals.paid),          filter: "Commission Paid",  valueCls: "text-emerald-700 dark:text-emerald-400" },
-          { label: "Partially Paid",   value: money(adminTotals.partial),       filter: "Partially Paid",   valueCls: "text-blue-700 dark:text-blue-400" },
-          { label: "Awaiting",         value: money(adminTotals.awaiting),      filter: "Awaiting Payment", valueCls: "text-orange-700 dark:text-orange-400" },
-        ] as { label: string; value: string; filter: string | null; valueCls: string }[]).map(({ label, value, filter, valueCls }) => {
-          const isActive = statusFilter === filter && filter !== null;
-          return (
-            <Card
-              key={label}
-              onClick={() => setStatusFilter(isActive ? null : filter)}
-              className={`border-slate-200 shadow-sm transition-all dark:border-slate-800 dark:bg-slate-900 ${filter !== null ? "cursor-pointer hover:border-slate-400 dark:hover:border-slate-600" : ""} ${isActive ? "ring-2 ring-slate-400 dark:ring-slate-500" : ""}`}
-            >
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium text-slate-600 dark:text-slate-400 flex items-center justify-between">
-                  {label}
-                  {isActive && <span className="text-xs font-normal text-slate-400">✕ clear</span>}
-                </CardTitle>
-              </CardHeader>
-              <CardContent className={`text-2xl font-semibold text-slate-950 dark:text-slate-50 ${valueCls}`}>{value}</CardContent>
-            </Card>
-          );
-        })}
+          { label: "Agents",           value: String(agentGroups.length),  valueCls: "",                                                        modalKey: null },
+          { label: "Total Commission", value: money(adminTotals.total),     valueCls: "",                                                        modalKey: "total" },
+          { label: "Paid",             value: money(adminTotals.paid),      valueCls: "text-emerald-700 dark:text-emerald-400",                  modalKey: "paid" },
+          { label: "Partially Paid",   value: money(adminTotals.partial),   valueCls: "text-blue-700 dark:text-blue-400",                        modalKey: "partial" },
+          { label: "Awaiting",         value: money(adminTotals.awaiting),  valueCls: "text-orange-700 dark:text-orange-400",                    modalKey: "awaiting" },
+        ] as { label: string; value: string; valueCls: string; modalKey: "total"|"paid"|"partial"|"awaiting"|null }[]).map(({ label, value, valueCls, modalKey }) => (
+          <Card
+            key={label}
+            onClick={() => modalKey && setStatsModal(modalKey)}
+            className={`border-slate-200 shadow-sm dark:border-slate-800 dark:bg-slate-900 ${modalKey ? "cursor-pointer hover:border-slate-400 hover:shadow-md transition-shadow dark:hover:border-slate-600" : ""}`}
+          >
+            <CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-slate-600 dark:text-slate-400">{label}</CardTitle></CardHeader>
+            <CardContent className={`text-2xl font-semibold text-slate-950 dark:text-slate-50 ${valueCls}`}>{value}</CardContent>
+          </Card>
+        ))}
       </div>
 
-      {statusFilter && (
-        <p className="text-sm text-slate-500 dark:text-slate-400">
-          Filtering by <span className="font-medium text-slate-700 dark:text-slate-300">{statusFilter}</span> — showing {filteredGroups.length} agent{filteredGroups.length !== 1 ? "s" : ""}.{" "}
-          <button onClick={() => setStatusFilter(null)} className="text-slate-500 underline hover:text-slate-700 dark:hover:text-slate-300">Clear filter</button>
-        </p>
-      )}
+      {/* Agent selector + month filter + refresh */}
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-3 min-w-0">
+        <div className="relative w-72">
+          <button
+            type="button"
+            onClick={() => { setAgentDropdownOpen((o) => !o); setAgentSearch(""); }}
+            className="flex w-full items-center justify-between rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
+          >
+            <span className={pendingAgent ? "text-slate-900 dark:text-slate-50" : "text-slate-400 dark:text-slate-500"}>
+              {pendingAgent ?? "Select agent…"}
+            </span>
+            <Search className="ml-2 h-4 w-4 shrink-0 text-slate-400" />
+          </button>
+          {pendingAgent && (
+            <button
+              type="button"
+              onClick={() => { setPendingAgent(null); setSelectedAgent(null); }}
+              className="absolute top-1/2 right-8 -translate-y-1/2 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
+              title="Clear"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          )}
+          {agentDropdownOpen && (
+            <>
+              <div className="fixed inset-0 z-10" onClick={() => setAgentDropdownOpen(false)} />
+              <div className="absolute left-0 top-full z-20 mt-1 w-full rounded-md border border-slate-200 bg-white shadow-lg dark:border-slate-700 dark:bg-slate-900">
+                <div className="p-2 border-b border-slate-100 dark:border-slate-800">
+                  <Input
+                    autoFocus
+                    placeholder="Search…"
+                    value={agentSearch}
+                    onChange={(e) => setAgentSearch(e.target.value)}
+                    className="h-8 text-sm dark:border-slate-700 dark:bg-slate-950"
+                  />
+                </div>
+                <ul className="max-h-56 overflow-y-auto py-1">
+                  {agentOptions.length === 0 ? (
+                    <li className="px-3 py-2 text-sm text-slate-400">No agents found</li>
+                  ) : agentOptions.map((name) => (
+                    <li key={name}>
+                      <button
+                        type="button"
+                        onClick={() => { setPendingAgent(name); setAgentDropdownOpen(false); }}
+                        className={`w-full px-3 py-2 text-left text-sm hover:bg-slate-100 dark:hover:bg-slate-800 ${(pendingAgent ?? selectedAgent) === name ? "font-semibold text-slate-900 dark:text-slate-50" : "text-slate-700 dark:text-slate-300"}`}
+                      >
+                        {name}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </>
+          )}
+        </div>
+        <Button
+          disabled={!pendingAgent}
+          onClick={() => { if (pendingAgent) { setSelectedAgent(pendingAgent); setCurrentPage(1); } }}
+        >
+          View Records
+        </Button>
+        {selectedAgent && (
+          <button
+            type="button"
+            onClick={() => { setSelectedAgent(null); setPendingAgent(null); }}
+            className="text-sm text-slate-500 underline hover:text-slate-700 dark:hover:text-slate-300"
+          >
+            Clear
+          </button>
+        )}
+        </div>
+        <div className="flex shrink-0 items-center gap-1">
+          <Input
+            className="w-40 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 dark:[color-scheme:dark]"
+            type="month"
+            value={month}
+            onChange={(e) => { setMonth(e.target.value); setCurrentPage(1); }}
+          />
+          {month && (
+            <Button variant="ghost" size="sm" onClick={() => { setMonth(""); setCurrentPage(1); }} className="text-slate-500 hover:text-slate-900 dark:text-slate-400">
+              All
+            </Button>
+          )}
+          <Button variant="outline" onClick={() => load()} disabled={loading} className="dark:border-slate-700 dark:hover:bg-slate-800">
+            {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCcw className="mr-2 h-4 w-4" />}
+            Refresh
+          </Button>
+        </div>
+      </div>
 
-      {filteredGroups.length === 0 && (
+      {selectedAgent && filteredGroups.length === 0 && (
         <Card className="border-slate-200 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-          <CardContent className="py-12 text-center text-slate-500">No agent commissions found{statusFilter ? ` with status "${statusFilter}"` : month ? " for this month" : ""}.</CardContent>
+          <CardContent className="py-12 text-center text-slate-500">No commission records found for <span className="font-medium text-slate-700 dark:text-slate-300">{selectedAgent}</span>{month ? " for this month" : ""}.</CardContent>
         </Card>
       )}
 
       {filteredGroups.map((group) => {
-        const pendingBatch = group.batches.find((b) => b.status !== "Commission Paid");
-        const anyBatch     = group.batches[0];
-        const status       = agentStatusLabel(group);
-        const outstanding  = pendingBatch
-          ? Math.max(Number(pendingBatch.total_amount || 0) - Number(pendingBatch.amount_paid || 0), 0)
-          : 0;
+        const pendingBatches   = group.batches.filter((b) => b.status !== "Commission Paid");
+        const pendingBatch     = pendingBatches[0] ?? null;
+        const anyBatch         = group.batches[0];
+        const status           = agentStatusLabel(group);
+        const outstanding      = pendingBatches.reduce((sum, b) =>
+          sum + Math.max(Number(b.total_amount || 0) - Number(b.amount_paid || 0), 0), 0);
+        const totalPaid        = group.batches.reduce((sum, b) => sum + Number(b.amount_paid || 0), 0);
+
+        // Selection for this group
+        const selectableIds  = group.items.map((i) => i.commission_payment_receipt_id).filter(Boolean) as string[];
+        const selected       = getSelected(group.agentName);
+        const selectedHere   = selectableIds.filter((id) => selected.has(id));
+        const allChecked     = selectableIds.length > 0 && selectableIds.every((id) => selected.has(id));
+        const someChecked    = selectedHere.length > 0 && !allChecked;
+        const selectedTotal  = group.items
+          .filter((i) => i.commission_payment_receipt_id && selected.has(i.commission_payment_receipt_id))
+          .reduce((s, i) => s + Number(i.commission_amount || 0), 0);
+        const hasSelection   = selectedHere.length > 0;
 
         return (
           <Card key={group.agentName} className="border-slate-200 shadow-sm dark:border-slate-800 dark:bg-slate-900">
@@ -486,35 +644,49 @@ export default function AgentCommissionsPage() {
               <div>
                 <CardTitle className="text-slate-950 dark:text-slate-50">{group.agentName}</CardTitle>
                 <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-sm text-slate-500 dark:text-slate-400">
-                  <span>Total: <span className="font-medium text-slate-700 dark:text-slate-300">{money(group.total)}</span></span>
-                  {pendingBatch && Number(pendingBatch.amount_paid || 0) > 0 && (
-                    <>
-                      <span>Paid: <span className="font-medium text-emerald-700 dark:text-emerald-400">{money(pendingBatch.amount_paid)}</span></span>
-                      <span>Outstanding: <span className="font-medium text-orange-700 dark:text-orange-400">{money(outstanding)}</span></span>
-                    </>
+                  {outstanding > 0 && (
+                    <span>Outstanding: <span className="font-medium text-orange-700 dark:text-orange-400">{money(outstanding)}</span></span>
+                  )}
+                  {totalPaid > 0 && (
+                    <span>Paid: <span className="font-medium text-emerald-700 dark:text-emerald-400">{money(totalPaid)}</span></span>
+                  )}
+                  {hasSelection && (
+                    <span>Selected: <span className="font-medium text-blue-600 dark:text-blue-400">{money(selectedTotal)} ({selectedHere.length} item{selectedHere.length !== 1 ? "s" : ""})</span></span>
                   )}
                 </div>
               </div>
               <div className="flex flex-wrap gap-2">
                 <Badge className={statusCls[status] ?? ""}>{status}</Badge>
-                {pendingBatch && outstanding > 0 && (
-                  <Button size="sm" onClick={() => openPayAll(pendingBatch)} disabled={!!saving}>
+                {outstanding > 0 && !hasSelection && (
+                  <Button size="sm" onClick={() => openPayAll(group, pendingBatches, outstanding)} disabled={!!saving}>
                     Pay All ({money(outstanding)})
                   </Button>
                 )}
-                {!pendingBatch && anyBatch && (
+                {hasSelection && (
+                  <Button size="sm" onClick={() => openPayAll(group, pendingBatches, selectedTotal)} disabled={!!saving}>
+                    Pay Selected ({money(selectedTotal)})
+                  </Button>
+                )}
+                {!pendingBatch && anyBatch && !hasSelection && (
                   <Button size="sm" variant="outline" onClick={() => openManageSidebar(anyBatch)} disabled={!!saving} className="dark:border-slate-700 dark:hover:bg-slate-800">
                     Manage Payments
                   </Button>
                 )}
-                {anyBatch && (
-                  <StatementButton
-                    batchId={anyBatch.id}
-                    label={group.agentName}
-                    hasPaid={Number(anyBatch.amount_paid || 0) > 0}
-                    saving={saving}
-                    onDownload={downloadStatement}
-                  />
+                {hasSelection && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => downloadCustomStatement(group.agentName, selectedHere)}
+                    disabled={!!saving}
+                    className="dark:border-slate-700 dark:hover:bg-slate-800"
+                  >
+                    {saving === `dl-custom-${group.agentName}` ? (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    ) : (
+                      <Download className="mr-2 h-4 w-4" />
+                    )}
+                    Statement ({selectedHere.length})
+                  </Button>
                 )}
               </div>
             </CardHeader>
@@ -523,16 +695,26 @@ export default function AgentCommissionsPage() {
                 <table className="w-full min-w-[760px] text-sm">
                   <thead className="bg-slate-50 text-left text-xs font-semibold text-slate-500 uppercase dark:bg-slate-800/60 dark:text-slate-400">
                     <tr>
+                      <th className="px-4 py-3 w-10">
+                        <input
+                          type="checkbox"
+                          checked={allChecked}
+                          ref={(el) => { if (el) el.indeterminate = someChecked; }}
+                          onChange={() => toggleAll(group.agentName, selectableIds)}
+                          className="h-4 w-4 rounded border-slate-300 accent-slate-800 cursor-pointer"
+                          title="Select all"
+                        />
+                      </th>
                       <th className="px-4 py-3">Client</th>
                       <th className="px-4 py-3">Receipt Date</th>
                       <th className="px-4 py-3 text-right">Supplier Receipt</th>
                       <th className="px-4 py-3 text-right">Rate</th>
                       <th className="px-4 py-3 text-right">Commission</th>
-                      <th className="px-4 py-3" />
+                      <th className="px-4 py-3 text-center">Actions</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-200 bg-white dark:divide-slate-800 dark:bg-slate-900">
-                    {group.items.map((item, idx) => {
+                    {group.items.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE).map((item, idx) => {
                       const itemBatch = item.batch_id
                         ? group.batches.find((b) => b.id === item.batch_id) ?? pendingBatch
                         : null;
@@ -546,13 +728,24 @@ export default function AgentCommissionsPage() {
                       const rowCommission = Number(item.commission_amount || 0);
                       const rowFullyPaid  = rid && paidForRow >= rowCommission && rowCommission > 0;
                       const rowPartlyPaid = rid && paidForRow > 0 && !rowFullyPaid;
+                      const isChecked     = !!rid && selected.has(rid);
 
                       return (
                       <tr
                         key={item.id || `${item.client_name}-${idx}`}
+                        className={`transition-colors ${isChecked ? "bg-blue-50 dark:bg-blue-950/20" : "hover:bg-slate-50 dark:hover:bg-slate-800/50"} ${item.client_id ? "cursor-pointer" : ""}`}
                         onClick={() => item.client_id && window.open(`/dashboard/payments/history/${item.client_id}`, "_blank")}
-                        className={`dark:hover:bg-slate-800/50 hover:bg-slate-50 transition-colors ${item.client_id ? "cursor-pointer" : ""}`}
                       >
+                        <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
+                          {rid && (
+                            <input
+                              type="checkbox"
+                              checked={isChecked}
+                              onChange={() => toggleItem(group.agentName, rid)}
+                              className="h-4 w-4 rounded border-slate-300 accent-slate-800 cursor-pointer"
+                            />
+                          )}
+                        </td>
                         <td className="px-4 py-3 font-medium text-slate-950 dark:text-slate-100">
                           {item.client_name || "Client"}
                         </td>
@@ -560,34 +753,53 @@ export default function AgentCommissionsPage() {
                         <td className="px-4 py-3 text-right text-slate-700 dark:text-slate-300">{money(item.receipt_amount)}</td>
                         <td className="px-4 py-3 text-right text-slate-700 dark:text-slate-300">{Number(item.commission_rate || 0).toFixed(2)}%</td>
                         <td className="px-4 py-3 text-right font-semibold text-slate-950 dark:text-slate-100">{money(item.commission_amount)}</td>
-                        <td className="px-4 py-3 text-right">
-                          {rowFullyPaid ? (
-                            <button
-                              onClick={(e) => { e.stopPropagation(); if (itemBatch) openManageSidebar(itemBatch); }}
-                              disabled={!!saving}
-                              className="rounded-md bg-emerald-100 px-2.5 py-1 text-xs font-semibold text-emerald-700 hover:bg-emerald-200 disabled:opacity-40 dark:bg-emerald-950/60 dark:text-emerald-300 dark:hover:bg-emerald-950/80"
-                            >
-                              ✓ Paid
-                            </button>
-                          ) : rowPartlyPaid ? (
-                            <button
-                              onClick={(e) => { e.stopPropagation(); if (itemBatch) openPayItem(itemBatch, item, paidForRow); }}
-                              disabled={!!saving}
-                              className="rounded-md bg-blue-100 px-2.5 py-1 text-xs font-semibold text-blue-700 hover:bg-blue-200 disabled:opacity-40 dark:bg-blue-950/60 dark:text-blue-300 dark:hover:bg-blue-950/80"
-                            >
-                              Part Paid
-                            </button>
-                          ) : itemBatch ? (
-                            <button
-                              onClick={(e) => { e.stopPropagation(); openPayItem(itemBatch, item); }}
-                              disabled={!!saving}
-                              className="rounded-md border border-slate-300 px-2.5 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-40 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-800"
-                            >
-                              Pay
-                            </button>
-                          ) : (
-                            <span className="text-xs text-slate-400">—</span>
-                          )}
+                        <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
+                          <div className="flex items-center justify-center gap-1.5">
+                            {rowFullyPaid ? (
+                              <button
+                                onClick={() => { if (itemBatch) openManageSidebar(itemBatch); }}
+                                disabled={!!saving}
+                                className="rounded-md bg-emerald-100 px-2.5 py-1 text-xs font-semibold text-emerald-700 hover:bg-emerald-200 disabled:opacity-40 dark:bg-emerald-950/60 dark:text-emerald-300 dark:hover:bg-emerald-950/80"
+                              >
+                                ✓ Paid
+                              </button>
+                            ) : rowPartlyPaid ? (
+                              <button
+                                onClick={() => { if (itemBatch) openPayItem(itemBatch, item, paidForRow); }}
+                                disabled={!!saving}
+                                className="rounded-md bg-blue-100 px-2.5 py-1 text-xs font-semibold text-blue-700 hover:bg-blue-200 disabled:opacity-40 dark:bg-blue-950/60 dark:text-blue-300 dark:hover:bg-blue-950/80"
+                              >
+                                Part Paid
+                              </button>
+                            ) : itemBatch ? (
+                              <button
+                                onClick={() => openPayItem(itemBatch, item)}
+                                disabled={!!saving}
+                                className="rounded-md border border-slate-300 px-2.5 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-40 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-800"
+                              >
+                                Pay
+                              </button>
+                            ) : (
+                              <span className="text-xs text-slate-400">—</span>
+                            )}
+                            {/* Per-row download — enabled once this receipt is paid */}
+                            {rid && (rowFullyPaid || rowPartlyPaid) ? (
+                              <button
+                                onClick={() => downloadCustomStatement(group.agentName, [rid])}
+                                disabled={!!saving}
+                                title="Download statement for this record"
+                                className="rounded-md border border-slate-200 p-1 text-slate-500 hover:bg-slate-100 hover:text-slate-800 disabled:opacity-40 dark:border-slate-700 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-200"
+                              >
+                                {saving === `dl-custom-${group.agentName}` ? (
+                                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                ) : (
+                                  <Download className="h-3.5 w-3.5" />
+                                )}
+                              </button>
+                            ) : (
+                              <span className="inline-block w-[26px]" />
+                            )}
+                          </div>
                         </td>
                       </tr>
                       );
@@ -595,6 +807,55 @@ export default function AgentCommissionsPage() {
                   </tbody>
                 </table>
               </div>
+              {/* Pagination */}
+              {group.items.length > PAGE_SIZE && (() => {
+                const totalPages = Math.ceil(group.items.length / PAGE_SIZE);
+                const start = (currentPage - 1) * PAGE_SIZE + 1;
+                const end   = Math.min(currentPage * PAGE_SIZE, group.items.length);
+                return (
+                  <div className="flex items-center justify-between border-t border-slate-200 px-5 py-3 dark:border-slate-800">
+                    <span className="text-xs text-slate-500 dark:text-slate-400">
+                      Showing {start}–{end} of {group.items.length}
+                    </span>
+                    <div className="flex items-center gap-1">
+                      <button
+                        disabled={currentPage === 1}
+                        onClick={() => setCurrentPage((p) => p - 1)}
+                        className="rounded-md border border-slate-200 px-2.5 py-1 text-xs font-medium text-slate-600 hover:bg-slate-100 disabled:opacity-40 dark:border-slate-700 dark:text-slate-400 dark:hover:bg-slate-800"
+                      >
+                        ← Prev
+                      </button>
+                      {Array.from({ length: totalPages }, (_, i) => i + 1)
+                        .filter((p) => p === 1 || p === totalPages || Math.abs(p - currentPage) <= 1)
+                        .reduce<(number | "…")[]>((acc, p, i, arr) => {
+                          if (i > 0 && (p as number) - (arr[i - 1] as number) > 1) acc.push("…");
+                          acc.push(p);
+                          return acc;
+                        }, [])
+                        .map((p, i) =>
+                          p === "…" ? (
+                            <span key={`ellipsis-${i}`} className="px-1 text-xs text-slate-400">…</span>
+                          ) : (
+                            <button
+                              key={p}
+                              onClick={() => setCurrentPage(p as number)}
+                              className={`rounded-md border px-2.5 py-1 text-xs font-medium ${currentPage === p ? "border-slate-800 bg-slate-800 text-white dark:border-slate-200 dark:bg-slate-200 dark:text-slate-900" : "border-slate-200 text-slate-600 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-400 dark:hover:bg-slate-800"}`}
+                            >
+                              {p}
+                            </button>
+                          )
+                        )}
+                      <button
+                        disabled={currentPage === totalPages}
+                        onClick={() => setCurrentPage((p) => p + 1)}
+                        className="rounded-md border border-slate-200 px-2.5 py-1 text-xs font-medium text-slate-600 hover:bg-slate-100 disabled:opacity-40 dark:border-slate-700 dark:text-slate-400 dark:hover:bg-slate-800"
+                      >
+                        Next →
+                      </button>
+                    </div>
+                  </div>
+                );
+              })()}
             </CardContent>
           </Card>
         );
@@ -623,26 +884,18 @@ export default function AgentCommissionsPage() {
               {month ? "Showing commissions for selected month." : "Showing all-time commissions. Filter by month to manage payouts."}
             </p>
           </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <div className="relative w-full sm:w-auto">
-              <Search className="pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-slate-400" />
-              <Input className="w-full sm:w-64 pl-9 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-100" placeholder="Search agent or client…" value={search} onChange={(e) => setSearch(e.target.value)} />
-            </div>
-            <div className="flex items-center gap-1 w-full sm:w-auto">
-              <Input className="w-full sm:w-44 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-100 dark:[color-scheme:dark]" type="month" value={month} onChange={(e) => setMonth(e.target.value)} />
-              {month && <Button variant="ghost" size="sm" onClick={() => setMonth("")} className="text-slate-500 hover:text-slate-900 dark:text-slate-400">All</Button>}
-            </div>
-            <Button variant="outline" onClick={() => load()} disabled={loading} className="dark:border-slate-800 dark:hover:bg-slate-800">
-              {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCcw className="mr-2 h-4 w-4" />}
-              Refresh
-            </Button>
-            {isAdmin && (
-              <Button onClick={generateBatches} disabled={saving === "generate"}>
-                {saving === "generate" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <BadgePoundSterling className="mr-2 h-4 w-4" />}
-                Generate Payouts
+          {!isAdmin && (
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="flex items-center gap-1 w-full sm:w-auto">
+                <Input className="w-full sm:w-44 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-100 dark:[color-scheme:dark]" type="month" value={month} onChange={(e) => setMonth(e.target.value)} />
+                {month && <Button variant="ghost" size="sm" onClick={() => setMonth("")} className="text-slate-500 hover:text-slate-900 dark:text-slate-400">All</Button>}
+              </div>
+              <Button variant="outline" onClick={() => load()} disabled={loading} className="dark:border-slate-800 dark:hover:bg-slate-800">
+                {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCcw className="mr-2 h-4 w-4" />}
+                Refresh
               </Button>
-            )}
-          </div>
+            </div>
+          )}
         </div>
 
         {error   && <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-400">{error}</div>}
@@ -652,6 +905,81 @@ export default function AgentCommissionsPage() {
           ? <div className="flex min-h-64 items-center justify-center text-slate-500"><Loader2 className="mr-2 h-5 w-5 animate-spin" />Loading…</div>
           : isAdmin ? renderAdminView() : renderAgentView()}
       </div>
+
+      {/* ── stats drill-down modal ── */}
+      {statsModal && (() => {
+        const modalMeta: Record<string, { title: string; accentCls: string; emptyMsg: string }> = {
+          total:   { title: "All Agents — Commission",    accentCls: "text-slate-900 dark:text-slate-50",              emptyMsg: "No agents found." },
+          paid:    { title: "Agents — Fully Paid",        accentCls: "text-emerald-700 dark:text-emerald-400",         emptyMsg: "No fully paid agents." },
+          partial: { title: "Agents — Partially Paid",    accentCls: "text-blue-700 dark:text-blue-400",               emptyMsg: "No partially paid agents." },
+          awaiting:{ title: "Agents — Awaiting Payment",  accentCls: "text-orange-700 dark:text-orange-400",           emptyMsg: "No agents awaiting payment." },
+        };
+        const modalGroups = agentGroups.filter((g) => {
+          const s = agentStatusLabel(g);
+          if (statsModal === "total")   return true;
+          if (statsModal === "paid")    return s === "Commission Paid";
+          if (statsModal === "partial") return s === "Partially Paid";
+          if (statsModal === "awaiting")return s === "Awaiting Payment";
+          return false;
+        });
+        const { title, accentCls, emptyMsg } = modalMeta[statsModal];
+        return (
+          <>
+            <div className="fixed inset-0 z-40 bg-black/40 backdrop-blur-sm" onClick={() => setStatsModal(null)} />
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+              <div className="w-full max-w-md rounded-xl border border-slate-200 bg-white shadow-2xl dark:border-slate-700 dark:bg-slate-900">
+                {/* header */}
+                <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4 dark:border-slate-700">
+                  <h2 className="text-base font-semibold text-slate-900 dark:text-slate-50">{title}</h2>
+                  <button onClick={() => setStatsModal(null)} className="rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-800">
+                    <X className="h-5 w-5" />
+                  </button>
+                </div>
+                {/* list */}
+                <ul className="max-h-[60vh] overflow-y-auto divide-y divide-slate-100 dark:divide-slate-800">
+                  {modalGroups.length === 0 ? (
+                    <li className="px-5 py-10 text-center text-sm text-slate-400">{emptyMsg}</li>
+                  ) : modalGroups.map((g) => {
+                    const outstanding = g.batches
+                      .filter((b) => b.status !== "Commission Paid")
+                      .reduce((s, b) => s + Math.max(Number(b.total_amount||0) - Number(b.amount_paid||0), 0), 0);
+                    const totalPaid = g.batches.reduce((s, b) => s + Number(b.amount_paid||0), 0);
+                    const st = agentStatusLabel(g);
+                    const stCls = st === "Commission Paid" ? "text-emerald-700 dark:text-emerald-400"
+                                : st === "Partially Paid"  ? "text-blue-700 dark:text-blue-400"
+                                :                            "text-orange-700 dark:text-orange-400";
+                    return (
+                      <li key={g.agentName}>
+                        <button
+                          type="button"
+                          className="flex w-full items-center justify-between px-5 py-3.5 text-left hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-colors"
+                          onClick={() => {
+                            setPendingAgent(g.agentName);
+                            setSelectedAgent(g.agentName);
+                            setCurrentPage(1);
+                            setStatsModal(null);
+                          }}
+                        >
+                          <div>
+                            <p className="text-sm font-medium text-slate-900 dark:text-slate-50">{g.agentName}</p>
+                            <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
+                              {outstanding > 0 && <span>Outstanding: <span className="font-medium text-orange-600 dark:text-orange-400">{money(outstanding)}</span></span>}
+                              {outstanding > 0 && totalPaid > 0 && <span className="mx-1.5">·</span>}
+                              {totalPaid > 0 && <span>Paid: <span className="font-medium text-emerald-700 dark:text-emerald-400">{money(totalPaid)}</span></span>}
+                              {outstanding === 0 && totalPaid === 0 && <span>Total: <span className={`font-medium ${accentCls}`}>{money(g.total)}</span></span>}
+                            </p>
+                          </div>
+                          <span className={`text-xs font-medium ${stCls}`}>{st}</span>
+                        </button>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
+            </div>
+          </>
+        );
+      })()}
 
       {/* ── payment sidebar ── */}
       {sidebar && (
@@ -765,7 +1093,7 @@ export default function AgentCommissionsPage() {
                             <p className="text-xs text-slate-400 dark:text-slate-500">{new Date(entry.logged_at).toLocaleString("en-GB")}</p>
                           </div>
                           <button
-                            onClick={() => reversePayment(sidebar.batchId, entry.id)}
+                            onClick={() => sidebar.batchId && reversePayment(sidebar.batchId, entry.id)}
                             disabled={!!saving}
                             title="Reverse this payment"
                             className="ml-3 shrink-0 rounded-md border border-red-200 px-2 py-1 text-xs font-medium text-red-600 hover:bg-red-50 disabled:opacity-40 dark:border-red-800 dark:text-red-400 dark:hover:bg-red-950/40"
