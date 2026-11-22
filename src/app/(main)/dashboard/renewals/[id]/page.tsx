@@ -125,6 +125,11 @@ function buildCustomerUpdatePayload(data: Partial<EnergyCustomer>, extra?: Recor
     "status",
     "document_details",
     "comments",
+    "day_usage",
+    "night_usage",
+    "day_rate",
+    "night_rate",
+    "acquisition_uplift",
   ] as const;
   for (const key of fields) {
     if (key in data && (data as Record<string, unknown>)[key] !== undefined) {
@@ -214,6 +219,12 @@ interface EnergyCustomer {
 
   charity_ltd_company_number?: string;
   partner_details?: string;
+
+  day_usage?: number;
+  night_usage?: number;
+  day_rate?: number;
+  night_rate?: number;
+  acquisition_uplift?: number;
 }
 
 interface Employee {
@@ -2364,6 +2375,30 @@ export default function EnergyCustomerDetailsPage() {
                 </div>
 
                 <div>
+                  <label className="text-sm font-medium text-gray-700 dark:text-slate-300">Day Rate (p/kWh)</label>
+                  <Input
+                    type="number"
+                    step="0.0001"
+                    value={displayCustomer.day_rate || ""}
+                    onChange={(e) => handleUpdateField("day_rate", parseFloat(e.target.value))}
+                    disabled={!isEditing}
+                    className="mt-1 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-sm font-medium text-gray-700 dark:text-slate-300">Night Rate (p/kWh)</label>
+                  <Input
+                    type="number"
+                    step="0.0001"
+                    value={displayCustomer.night_rate || ""}
+                    onChange={(e) => handleUpdateField("night_rate", parseFloat(e.target.value))}
+                    disabled={!isEditing}
+                    className="mt-1 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+                  />
+                </div>
+
+                <div>
                   <label className="text-sm font-medium text-gray-700 dark:text-slate-300">Eve/Weekend Charge</label>
                   <Input
                     type="number"
@@ -2499,6 +2534,42 @@ export default function EnergyCustomerDetailsPage() {
                     step="0.01"
                     value={displayCustomer.uplift || ""}
                     onChange={(e) => handleUpdateField("uplift", parseFloat(e.target.value))}
+                    disabled={!isEditing}
+                    className="mt-1 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-sm font-medium text-gray-700 dark:text-slate-300">Acquisition Uplift</label>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    value={displayCustomer.acquisition_uplift || ""}
+                    onChange={(e) => handleUpdateField("acquisition_uplift", parseFloat(e.target.value))}
+                    disabled={!isEditing}
+                    className="mt-1 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-sm font-medium text-gray-700 dark:text-slate-300">Day Usage (kWh)</label>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    value={displayCustomer.day_usage || ""}
+                    onChange={(e) => handleUpdateField("day_usage", parseFloat(e.target.value))}
+                    disabled={!isEditing}
+                    className="mt-1 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-sm font-medium text-gray-700 dark:text-slate-300">Night Usage (kWh)</label>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    value={displayCustomer.night_usage || ""}
+                    onChange={(e) => handleUpdateField("night_usage", parseFloat(e.target.value))}
                     disabled={!isEditing}
                     className="mt-1 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
                   />

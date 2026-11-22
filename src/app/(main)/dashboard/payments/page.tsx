@@ -24,6 +24,7 @@ import {
   Zap,
   ListChecks,
   MessageCircleQuestion,
+  Info,
 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
@@ -70,6 +71,7 @@ type CommissionPayment = {
   last_checked_at: string | null;
   next_follow_up_date: string | null;
   follow_up_count?: number | null;
+  discontinue_note?: string | null;
   is_archived?: boolean;
   is_deleted?: boolean;
 };
@@ -272,6 +274,8 @@ export default function PaymentCheckerPage() {
   } | null;
   const [confirmDialog, setConfirmDialog] = useState<ConfirmDialogState>(null);
   const closeConfirmDialog = () => setConfirmDialog(null);
+  const [discontinueModal, setDiscontinueModal] = useState<{ type: 'payment'; payment: CommissionPayment } | { type: 'contract'; group: PaymentGroup } | null>(null);
+  const [discontinueNote, setDiscontinueNote] = useState("");
   const [closingAccount, setClosingAccount] = useState(false);
   const [followUpDate, setFollowUpDate] = useState(() => {
     const d = new Date();
@@ -1036,16 +1040,11 @@ export default function PaymentCheckerPage() {
 
   const discontinuePayment = () => {
     if (!selectedPayment) return;
-    setConfirmDialog({
-      title: "Supplier No Longer Trading",
-      message: "Mark this supplier as discontinued? The expected amount will be set to £0 and the payment will be closed.",
-      actionLabel: "Confirm",
-      actionVariant: "destructive",
-      onConfirm: _discontinuePaymentConfirmed,
-    });
+    setDiscontinueNote("");
+    setDiscontinueModal({ type: 'payment', payment: selectedPayment });
   };
 
-  const _discontinuePaymentConfirmed = async () => {
+  const _discontinuePaymentConfirmed = async (note: string) => {
     if (!selectedPayment) return;
     setDiscontinuing(true);
     setError(null);
@@ -1053,6 +1052,7 @@ export default function PaymentCheckerPage() {
     try {
       const data = await fetchWithAuth(`/api/commission/payments/${selectedPayment.id}/discontinue`, {
         method: "POST",
+        body: JSON.stringify({ note: note.trim() || undefined }),
       });
       updatePaymentInList(data.payment);
       setSelectedPayment(data.payment);
@@ -1101,22 +1101,20 @@ export default function PaymentCheckerPage() {
   const discontinueContract = (group: PaymentGroup) => {
     const contractId = group.payments[0]?.contract_id;
     if (!contractId) return;
-    setConfirmDialog({
-      title: "Supplier No Longer Trading",
-      message: `Mark all ${group.payments.length} instalments for "${group.title}" as supplier no longer trading? All expected amounts will be set to £0 and payments closed.`,
-      actionLabel: "Confirm",
-      actionVariant: "destructive",
-      onConfirm: () => _discontinueContractConfirmed(group),
-    });
+    setDiscontinueNote("");
+    setDiscontinueModal({ type: 'contract', group });
   };
 
-  const _discontinueContractConfirmed = async (group: PaymentGroup) => {
+  const _discontinueContractConfirmed = async (group: PaymentGroup, note: string) => {
     const contractId = group.payments[0]?.contract_id;
     if (!contractId) return;
     setDiscontinuingContractId(contractId);
     setError(null);
     try {
-      await fetchWithAuth(`/api/commission/contracts/${contractId}/discontinue`, { method: "POST" });
+      await fetchWithAuth(`/api/commission/contracts/${contractId}/discontinue`, {
+        method: "POST",
+        body: JSON.stringify({ note: note.trim() || undefined }),
+      });
       await loadPayments();
       setSuccessMessage(`All instalments for "${group.title}" closed — supplier no longer trading.`);
     } catch (err) {
@@ -1593,10 +1591,22 @@ export default function PaymentCheckerPage() {
                               <td className="px-2 py-2 text-right text-orange-700 font-medium dark:text-orange-400">{formatMoney(group.outstanding)}</td>
                               <td className="px-2 py-2 text-slate-700 whitespace-nowrap dark:text-slate-300">{formatDate(group.nextDue)}</td>
                               <td className="px-2 py-2 overflow-hidden min-w-0">
-                                <div className="flex flex-wrap gap-1">
+                                <div className="flex flex-wrap items-center gap-1">
                                   {group.statuses.map((status) => (
                                     <Badge key={status} className={`${statusTone[status]} whitespace-nowrap`}>{status}</Badge>
                                   ))}
+                                  {(() => {
+                                    const note = group.payments.find(p => p.discontinue_note)?.discontinue_note;
+                                    return note ? (
+                                      <button
+                                        title={note}
+                                        onClick={(e) => { e.stopPropagation(); alert(`Agent note:\n\n${note}`); }}
+                                        className="ml-0.5 inline-flex items-center justify-center rounded-full text-blue-500 hover:text-blue-700 hover:bg-blue-50 dark:hover:bg-blue-950/40 transition-colors p-0.5"
+                                      >
+                                        <Info className="h-3.5 w-3.5" />
+                                      </button>
+                                    ) : null;
+                                  })()}
                                 </div>
                               </td>
                               <td className="px-2 py-2 overflow-hidden min-w-0">
@@ -1726,7 +1736,18 @@ export default function PaymentCheckerPage() {
                                           <td className="px-4 py-2 text-right text-slate-900 dark:text-slate-100">{formatMoney(payment.outstanding_amount)}</td>
                                           <td className="px-4 py-2">
                                             <div className="flex flex-col gap-1">
-                                              <Badge className={`${statusTone[payment.status]} whitespace-nowrap`}>{payment.status}</Badge>
+                                              <div className="flex items-center gap-1">
+                                                <Badge className={`${statusTone[payment.status]} whitespace-nowrap`}>{payment.status}</Badge>
+                                                {payment.discontinue_note && (
+                                                  <button
+                                                    title={payment.discontinue_note}
+                                                    onClick={(e) => { e.stopPropagation(); alert(`Agent note:\n\n${payment.discontinue_note}`); }}
+                                                    className="inline-flex items-center justify-center rounded-full text-blue-500 hover:text-blue-700 hover:bg-blue-50 dark:hover:bg-blue-950/40 transition-colors p-0.5"
+                                                  >
+                                                    <Info className="h-3.5 w-3.5" />
+                                                  </button>
+                                                )}
+                                              </div>
                                               {Number(payment.outstanding_amount) > 0 &&
                                                 payment.due_date &&
                                                 new Date(payment.due_date) < today &&
@@ -2398,6 +2419,51 @@ export default function PaymentCheckerPage() {
               >
                 {confirmDialog?.actionLabel}
               </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* ── Supplier No Longer Trading Modal ── */}
+        <Dialog open={!!discontinueModal} onOpenChange={(open) => { if (!open) setDiscontinueModal(null); }}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle className="text-red-700 dark:text-red-400">Supplier No Longer Trading</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+              <p className="text-sm text-slate-600 dark:text-slate-400">
+                {discontinueModal?.type === 'contract'
+                  ? `Mark all ${discontinueModal.group.payments.length} instalments for "${discontinueModal.group.title}" as supplier no longer trading? All expected amounts will be set to £0 and payments closed.`
+                  : "Mark this supplier as discontinued? The expected amount will be set to £0 and the payment will be closed."}
+              </p>
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium text-slate-500 dark:text-slate-400">
+                  Note for agent <span className="text-slate-400">(optional)</span>
+                </label>
+                <textarea
+                  className="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-400 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 resize-none"
+                  rows={3}
+                  placeholder="e.g. Supplier entered administration on 01/11/2026 — commission will not be paid."
+                  value={discontinueNote}
+                  onChange={(e) => setDiscontinueNote(e.target.value)}
+                />
+                <p className="text-xs text-slate-400 dark:text-slate-500">This note will be visible to the agent via the info icon on the payment row.</p>
+              </div>
+              <div className="flex justify-end gap-2 pt-1">
+                <Button variant="outline" onClick={() => setDiscontinueModal(null)} className="dark:border-slate-700">Cancel</Button>
+                <Button
+                  variant="destructive"
+                  onClick={() => {
+                    if (discontinueModal?.type === 'payment') {
+                      _discontinuePaymentConfirmed(discontinueNote);
+                    } else if (discontinueModal?.type === 'contract') {
+                      _discontinueContractConfirmed(discontinueModal.group, discontinueNote);
+                    }
+                    setDiscontinueModal(null);
+                  }}
+                >
+                  Confirm
+                </Button>
+              </div>
             </div>
           </DialogContent>
         </Dialog>

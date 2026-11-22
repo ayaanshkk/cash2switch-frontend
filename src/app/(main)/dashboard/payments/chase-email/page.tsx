@@ -34,7 +34,8 @@ function buildDefaultBody(d: ChaseEmailDraft): string {
     `Expected Payment:  £${d.expected}\n` +
     `Received to Date:  £${d.received}\n\n` +
     `Please confirm when this will be resolved and reply back to this email.\n\n` +
-    `Regards`
+    `Regards\n` +
+    `Business Gas`
   );
 }
 

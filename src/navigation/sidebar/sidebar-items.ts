@@ -132,6 +132,13 @@ const allSidebarItems: NavGroup[] = [
         isNew: true,
       },
       {
+        title: "Commission",
+        url: "/dashboard/commission",
+        icon: BadgePoundSterling,
+        roles: ["salesperson"],
+        isNew: true,
+      },
+      {
         title: "Calendar",
         url: "/dashboard/calendar",
         icon: Calendar,
@@ -303,6 +310,10 @@ export const getSidebarItems = (userRole: string, notificationCount?: number): N
       items: group.items
         .filter((item) => {
           if (!item.roles || item.roles.length === 0) return true;
+          // Admins only see items that explicitly include 'platform admin'
+          if (isAdmin) {
+            return item.roles.some(role => role.toLowerCase() === 'platform admin');
+          }
           return item.roles.some(role => allowedRoles.includes(role.toLowerCase()));
         })
         .map((item) => {
