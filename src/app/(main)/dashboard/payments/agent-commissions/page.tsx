@@ -662,7 +662,7 @@ export default function AgentCommissionsPage() {
                     Pay All ({money(outstanding)})
                   </Button>
                 )}
-                {hasSelection && (
+                {hasSelection && outstanding > 0 && (
                   <Button size="sm" onClick={() => openPayAll(group, pendingBatches, selectedTotal)} disabled={!!saving}>
                     Pay Selected ({money(selectedTotal)})
                   </Button>

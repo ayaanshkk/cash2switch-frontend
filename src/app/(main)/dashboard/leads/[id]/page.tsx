@@ -134,12 +134,17 @@ interface Lead {
   other_charges_1?: number | null;
   other_charges_2?: number | null;
   other_charges_3?: number | null;
+  day_usage?: number | null;
+  night_usage?: number | null;
+  day_rate?: number | null;
+  night_rate?: number | null;
   // banking
   bank_name?: string | null;
   bank_account_number?: string | null;
   bank_sort_code?: string | null;
   charity_ltd_company_number?: string | null;
   partner_details?: string | null;
+  acquisition_uplift?: number | null;
   // others
   meter_ref?: string | null;
   uplift?: number | null;
@@ -1455,6 +1460,10 @@ export default function LeadDetailsPage() {
                     { label: "Other Charges 1", field: "other_charges_1", step: "0.01" },
                     { label: "Other Charges 2", field: "other_charges_2", step: "0.01" },
                     { label: "Other Charges 3", field: "other_charges_3", step: "0.01" },
+                    { label: "Day Usage (kWh)", field: "day_usage", step: "0.01" },
+                    { label: "Night Usage (kWh)", field: "night_usage", step: "0.01" },
+                    { label: "Day Rate (p/kWh)", field: "day_rate", step: "0.0001" },
+                    { label: "Night Rate (p/kWh)", field: "night_rate", step: "0.0001" },
                   ] as { label: string; field: keyof Lead; step: string }[]
                 ).map(({ label, field, step }) => (
                   <div key={field}>
@@ -1551,6 +1560,17 @@ export default function LeadDetailsPage() {
                     step="0.01"
                     value={displayLead.uplift || ""}
                     onChange={(e) => handleUpdateField("uplift", parseFloat(e.target.value))}
+                    disabled={!isEditing}
+                    className="mt-1 dark:bg-gray-800 dark:border-gray-700 dark:text-white"
+                  />
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Acquisition Uplift</label>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    value={displayLead.acquisition_uplift || ""}
+                    onChange={(e) => handleUpdateField("acquisition_uplift", parseFloat(e.target.value))}
                     disabled={!isEditing}
                     className="mt-1 dark:bg-gray-800 dark:border-gray-700 dark:text-white"
                   />

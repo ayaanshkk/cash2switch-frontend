@@ -172,13 +172,7 @@ const allSidebarItems: NavGroup[] = [
         isNew: true,
         subItems: [
           {
-            title: "Supplier Terms",
-            url: "/dashboard/payments/supplier-terms",
-            icon: Settings,
-            roles: ["platform admin"],
-          },
-          {
-            title: "Payment Checker",
+            title: "Payment Tracker",
             url: "/dashboard/payments",
             icon: ReceiptText,
             roles: ["platform admin"],
@@ -187,6 +181,24 @@ const allSidebarItems: NavGroup[] = [
             title: "Agent Commissions",
             url: "/dashboard/payments/agent-commissions",
             icon: BadgePoundSterling,
+            roles: ["platform admin"],
+          },
+          {
+            title: "Suppliers",
+            url: "/dashboard/payments/supplier-terms",
+            icon: Settings,
+            roles: ["platform admin"],
+          },
+          {
+            title: "Aggregators",
+            url: "/dashboard/payments/aggregators",
+            icon: Zap,
+            roles: ["platform admin"],
+          },
+          {
+            title: "Commission Statements",
+            url: "/dashboard/payments/commission-statements",
+            icon: FileText,
             roles: ["platform admin"],
           },
           {

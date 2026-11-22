@@ -16,6 +16,7 @@ import {
   ExternalLink,
   Layers3,
   Loader2,
+  Mail,
   ReceiptText,
   Search,
   X,
@@ -329,6 +330,11 @@ export default function PaymentCheckerPage() {
   const [summaryModal, setSummaryModal] = useState<SummaryModalType>(null);
   const [modalContracts, setModalContracts] = useState<PaymentGroup[]>([]);
   const [modalLoading, setModalLoading] = useState(false);
+
+  // Chase email modal
+  const [chaseEmailModal, setChaseEmailModal] = useState(false);
+  const [chaseSupplierEmails, setChaseSupplierEmails] = useState<{ primary: string | null; secondary: string | null }>({ primary: null, secondary: null });
+  const [chaseEmailError, setChaseEmailError] = useState<string | null>(null);
 
   const openSummaryModal = async (type: SummaryModalType) => {
     setSummaryModal(type);
@@ -884,6 +890,55 @@ export default function PaymentCheckerPage() {
     }
   };
 
+  const openChaseEmailModal = async () => {
+    if (!selectedPayment) return;
+    setChaseEmailModal(true);
+    setChaseEmailError(null);
+    setChaseSupplierEmails({ primary: null, secondary: null });
+    // Pre-fetch supplier emails so they're ready if user proceeds to composer
+    if (selectedPayment.supplier_id) {
+      try {
+        const data = await fetchWithAuth(`/api/commission/supplier-terms/${selectedPayment.supplier_id}`);
+        const s = data.supplier;
+        setChaseSupplierEmails({ primary: s.supplier_email || null, secondary: s.supplier_email_secondary || null });
+      } catch {
+        // proceed without emails
+      }
+    }
+  };
+
+  const goToChaseEmailComposer = async () => {
+    if (!selectedPayment) return;
+    // Always fetch supplier emails at click time — avoids stale state if the prefetch hadn't resolved yet
+    let emails = { primary: null as string | null, secondary: null as string | null };
+    if (selectedPayment.supplier_id) {
+      try {
+        const data = await fetchWithAuth(`/api/commission/supplier-terms/${selectedPayment.supplier_id}`);
+        const s = data.supplier;
+        emails = { primary: s.supplier_email || null, secondary: s.supplier_email_secondary || null };
+      } catch { /* navigate anyway */ }
+    }
+    const fmtDate = (d: string | null | undefined) => {
+      if (!d) return "—";
+      try { return new Date(d).toLocaleDateString("en-GB", { day: "2-digit", month: "2-digit", year: "numeric" }); } catch { return d; }
+    };
+    const draft = {
+      paymentId: selectedPayment.id,
+      mpan: selectedPayment.mpan_number || selectedPayment.mpan_bottom || "—",
+      businessName: selectedPayment.business_name || "—",
+      supplierName: selectedPayment.supplier_name || "—",
+      startDate: fmtDate(selectedPayment.contract_start_date),
+      endDate: fmtDate(selectedPayment.contract_end_date),
+      expected: Number(selectedPayment.expected_net_amount || 0).toFixed(2),
+      received: Number(selectedPayment.amount_received || 0).toFixed(2),
+      supplierId: selectedPayment.supplier_id ?? null,
+      supplierEmails: emails,
+    };
+    try { sessionStorage.setItem("chaseEmailDraft", JSON.stringify(draft)); } catch { /* ignore */ }
+    setChaseEmailModal(false);
+    router.push("/dashboard/payments/chase-email");
+  };
+
   const patchStatus = async (status: "Chasing Supplier" | "Query Raised" | "Closed") => {
     if (!selectedPayment) return;
 
@@ -1141,7 +1196,7 @@ export default function PaymentCheckerPage() {
           <div>
             <p className="text-sm font-medium text-slate-500 dark:text-slate-400">Payments</p>
             <h1 className="mt-1 text-3xl font-semibold tracking-tight text-slate-950 dark:text-slate-50">
-              Payment Checker
+              Payment Tracker
             </h1>
             <p className="mt-2 max-w-3xl text-sm text-slate-600 dark:text-slate-400">
               Track all renewal commission receipts, outstanding balances, and follow-up actions.
@@ -1418,16 +1473,16 @@ export default function PaymentCheckerPage() {
                     <colgroup>
                       <col className="w-[11%]" />
                       <col className="w-[7%]" />
-                      <col className="w-[7%]" />
-                      <col className="w-[7%]" />
-                      <col className="w-[9%]" />
-                      <col className="w-[13%]" />
-                      <col className="w-[7%]" />
-                      <col className="w-[7%]" />
-                      <col className="w-[7%]" />
-                      <col className="w-[7%]" />
+                      <col className="w-[6%]" />
+                      <col className="w-[6%]" />
                       <col className="w-[8%]" />
-                      <col className="w-[10%]" />
+                      <col className="w-[12%]" />
+                      <col className="w-[7%]" />
+                      <col className="w-[7%]" />
+                      <col className="w-[7%]" />
+                      <col className="w-[7%]" />
+                      <col className="w-[14%]" />
+                      <col className="w-[8%]" />
                     </colgroup>
                     <thead className="bg-slate-50 text-left text-xs font-semibold tracking-wide text-slate-500 uppercase border-b border-slate-200 dark:border-slate-800 dark:bg-slate-800/60 dark:text-slate-400">
                       <tr>
@@ -1497,7 +1552,7 @@ export default function PaymentCheckerPage() {
                               <td className="px-2 py-2 text-slate-700 truncate dark:text-slate-300">{group.payments[0]?.aggregator || "-"}</td>
                               <td className="px-2 py-2 text-slate-700 truncate dark:text-slate-300">{group.payments[0]?.agent_name || "-"}</td>
                               <td className="px-2 py-2 font-mono text-xs text-slate-700 dark:text-slate-300">{group.mpan || "-"}</td>
-                              <td className="px-2 py-2 text-slate-700 whitespace-nowrap dark:text-slate-300">
+                              <td className="px-2 py-2 pr-6 text-slate-700 whitespace-nowrap dark:text-slate-300">
                                 <span>{formatDate(group.contractStartDate)}</span>
                                 <span className="text-slate-400 mx-0.5">–</span>
                                 <span>{formatDate(group.contractEndDate)}</span>
@@ -1600,13 +1655,13 @@ export default function PaymentCheckerPage() {
                                 <td colSpan={13} className="p-0 bg-slate-50 dark:bg-slate-950/60" style={{ width: "100%" }}>
                                   <table className="w-full text-sm border-t border-b border-slate-200 dark:border-slate-800" style={{ tableLayout: "fixed", minWidth: "100%" }}>
                                     <colgroup>
-                                      <col style={{ width: "15%" }} />
-                                      <col style={{ width: "25%" }} />
                                       <col style={{ width: "12%" }} />
-                                      <col style={{ width: "13%" }} />
-                                      <col style={{ width: "12%" }} />
-                                      <col style={{ width: "12%" }} />
+                                      <col style={{ width: "26%" }} />
                                       <col style={{ width: "11%" }} />
+                                      <col style={{ width: "11%" }} />
+                                      <col style={{ width: "10%" }} />
+                                      <col style={{ width: "10%" }} />
+                                      <col style={{ width: "20%" }} />
                                     </colgroup>
                                     <thead className="bg-slate-100 text-left text-xs font-semibold tracking-wide text-slate-500 uppercase dark:bg-slate-800/80 dark:text-slate-400">
                                       <tr>
@@ -1629,7 +1684,7 @@ export default function PaymentCheckerPage() {
                                           <td className="px-8 py-2 font-medium text-slate-900 dark:text-slate-100">
                                             {payment.payment_period_label || `Year ${payment.instalment_year}`}
                                           </td>
-                                          <td className="px-4 py-2 text-slate-700 dark:text-slate-300">
+                                          <td className="px-4 py-2 pr-6 text-slate-700 dark:text-slate-300">
                                             {formatDate(payment.payment_period_start || payment.contract_start_date)}
                                             {" – "}
                                             {formatDate(payment.payment_period_end || payment.contract_end_date)}
@@ -1671,7 +1726,7 @@ export default function PaymentCheckerPage() {
                                           <td className="px-4 py-2 text-right text-slate-900 dark:text-slate-100">{formatMoney(payment.outstanding_amount)}</td>
                                           <td className="px-4 py-2">
                                             <div className="flex flex-col gap-1">
-                                              <Badge className={statusTone[payment.status]}>{payment.status}</Badge>
+                                              <Badge className={`${statusTone[payment.status]} whitespace-nowrap`}>{payment.status}</Badge>
                                               {Number(payment.outstanding_amount) > 0 &&
                                                 payment.due_date &&
                                                 new Date(payment.due_date) < today &&
@@ -1824,7 +1879,7 @@ export default function PaymentCheckerPage() {
                             <td className="px-3 py-2">
                               <div className="flex flex-wrap gap-1">
                                 {group.statuses.map((s) => (
-                                  <Badge key={s} className={statusTone[s]}>{s}</Badge>
+                                  <Badge key={s} className={`${statusTone[s]} whitespace-nowrap`}>{s}</Badge>
                                 ))}
                               </div>
                             </td>
@@ -1876,7 +1931,7 @@ export default function PaymentCheckerPage() {
                       </p>
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
-                      <Badge className={statusTone[selectedPayment.status]}>{selectedPayment.status}</Badge>
+                      <Badge className={`${statusTone[selectedPayment.status]} whitespace-nowrap`}>{selectedPayment.status}</Badge>
                       {!editingPaymentDetails && (
                         <button
                           type="button"
@@ -2135,7 +2190,7 @@ export default function PaymentCheckerPage() {
                       />
                     </div>
                     <div className="flex flex-wrap gap-2">
-                      <Button variant="outline" onClick={() => patchStatus("Chasing Supplier")} disabled={saving}>
+                      <Button variant="outline" onClick={openChaseEmailModal} disabled={saving}>
                         <CalendarCheck className="mr-2 h-4 w-4" />
                         Mark as Chasing Supplier
                       </Button>
@@ -2143,10 +2198,12 @@ export default function PaymentCheckerPage() {
                         <MessageCircleQuestion className="mr-2 h-4 w-4" />
                         Raise a Query
                       </Button>
-                      <Button variant="destructive" onClick={() => patchStatus("Closed")} disabled={saving}>
-                        <XCircle className="mr-2 h-4 w-4" />
-                        Close
-                      </Button>
+                      {selectedPayment.status !== "Closed" && selectedPayment.status !== "Received - Written Off" && (
+                        <Button variant="destructive" onClick={() => patchStatus("Closed")} disabled={saving}>
+                          <XCircle className="mr-2 h-4 w-4" />
+                          Close
+                        </Button>
+                      )}
                     </div>
                   </div>
 
@@ -2341,6 +2398,31 @@ export default function PaymentCheckerPage() {
               >
                 {confirmDialog?.actionLabel}
               </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* ── Chase Supplier Email Modal ── */}
+        <Dialog open={chaseEmailModal} onOpenChange={(open) => { if (!open) { setChaseEmailModal(false); setChaseEmailError(null); } }}>
+          <DialogContent className="max-w-sm">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Mail className="h-4 w-4 text-blue-500" />
+                Chase Supplier
+              </DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+              <p className="text-sm text-slate-600 dark:text-slate-400">
+                Would you like to send a payment query email to the supplier before marking this as Chasing Supplier?
+              </p>
+              <div className="flex justify-end gap-2">
+                <Button variant="outline" onClick={() => { patchStatus('Chasing Supplier'); setChaseEmailModal(false); }}>
+                  No, just mark it
+                </Button>
+                <Button onClick={goToChaseEmailComposer}>
+                  <Mail className="mr-2 h-4 w-4" />Yes, compose email
+                </Button>
+              </div>
             </div>
           </DialogContent>
         </Dialog>
