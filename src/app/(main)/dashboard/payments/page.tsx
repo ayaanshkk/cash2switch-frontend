@@ -25,8 +25,11 @@ import {
   ListChecks,
   MessageCircleQuestion,
   Info,
+  MoreHorizontal,
+  CheckCheck,
 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -340,6 +343,10 @@ export default function PaymentCheckerPage() {
   const [chaseSupplierEmails, setChaseSupplierEmails] = useState<{ primary: string | null; secondary: string | null }>({ primary: null, secondary: null });
   const [chaseEmailError, setChaseEmailError] = useState<string | null>(null);
 
+  // Follow-up due popup
+  const [followUpDuePayments, setFollowUpDuePayments] = useState<CommissionPayment[]>([]);
+  const [followUpDismissed, setFollowUpDismissed] = useState(false);
+
   const openSummaryModal = async (type: SummaryModalType) => {
     setSummaryModal(type);
     if (type === 'overdue') return; // uses chasingSummary already loaded
@@ -632,6 +639,17 @@ export default function PaymentCheckerPage() {
       }
 
       setPayments(mappedPayments);
+
+      // Check for payments due for follow-up (only on first load, not filtered views)
+      const today = new Date(); today.setHours(0, 0, 0, 0);
+      const overdue = mappedPayments.filter(p =>
+        p.status === "Chasing Supplier" &&
+        p.next_follow_up_date &&
+        new Date(p.next_follow_up_date) <= today &&
+        Number(p.outstanding_amount) > 0
+      );
+      if (overdue.length > 0) setFollowUpDuePayments(overdue);
+
       setTotals({
         expected: Number(data.summary?.expected || 0),
         received: Number(data.summary?.received || 0),
@@ -937,6 +955,7 @@ export default function PaymentCheckerPage() {
       received: Number(selectedPayment.amount_received || 0).toFixed(2),
       supplierId: selectedPayment.supplier_id ?? null,
       supplierEmails: emails,
+      followUpCount: selectedPayment.follow_up_count ?? 0,
     };
     try { sessionStorage.setItem("chaseEmailDraft", JSON.stringify(draft)); } catch { /* ignore */ }
     setChaseEmailModal(false);
@@ -958,7 +977,7 @@ export default function PaymentCheckerPage() {
         body: JSON.stringify(body),
       });
       updatePaymentInList(data.payment);
-      const msg = status === "Closed" ? "Payment closed." : status === "Query Raised" ? "Query raised." : "Marked as chasing supplier.";
+      const msg = status === "Closed" ? "Marked as payment received completely." : status === "Query Raised" ? "Query raised." : "Marked as chasing supplier.";
       setSuccessMessage(msg);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to update payment status");
@@ -1096,6 +1115,35 @@ export default function PaymentCheckerPage() {
     } finally {
       setClosingAccount(false);
     }
+  };
+
+  const patchGroupStatus = async (group: PaymentGroup, status: "Chasing Supplier" | "Query Raised" | "Closed") => {
+    const unpaid = group.payments.filter(p => !["Received", "Closed", "Received - Written Off"].includes(p.status));
+    if (!unpaid.length) return;
+    try {
+      await Promise.all(
+        unpaid.map(p =>
+          fetchWithAuth(`/api/commission/payments/${p.id}/status`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ status }),
+          })
+        )
+      );
+      // Refresh list
+      setPayments(prev => prev.map(p => unpaid.find(u => u.id === p.id) ? { ...p, status } : p));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to update status");
+    }
+  };
+
+  // Open chase email modal for a group (uses first unpaid payment)
+  const openGroupChaseEmailModal = (group: PaymentGroup) => {
+    const first = group.payments.find(p => !["Received", "Closed", "Received - Written Off"].includes(p.status));
+    if (!first) return;
+    setSelectedPayment(first);
+    setChaseEmailModal(true);
+    setChaseEmailError(null);
   };
 
   const discontinueContract = (group: PaymentGroup) => {
@@ -1637,19 +1685,32 @@ export default function PaymentCheckerPage() {
                                       }
                                     </Button>
                                   )}
-                                  <Button
-                                    size="sm"
-                                    variant="outline"
-                                    className="h-7 px-2 text-xs border-orange-200 text-orange-700 hover:bg-orange-50 hover:border-orange-300 dark:border-orange-900/50 dark:text-orange-400 dark:hover:bg-orange-950/30"
-                                    title="Supplier no longer trading — zero out all instalments"
-                                    disabled={discontinuingContractId === group.payments[0]?.contract_id}
-                                    onClick={() => discontinueContract(group)}
-                                  >
-                                    {discontinuingContractId === group.payments[0]?.contract_id
-                                      ? <Loader2 className="h-3 w-3 animate-spin" />
-                                      : <XCircle className="h-3 w-3" />
-                                    }
-                                  </Button>
+                                  {/* Group-level actions dropdown */}
+                                  <DropdownMenu>
+                                    <DropdownMenuTrigger asChild>
+                                      <Button size="sm" variant="outline" className="h-7 px-2 text-xs dark:border-slate-700 dark:hover:bg-slate-800">
+                                        <MoreHorizontal className="h-3 w-3" />
+                                      </Button>
+                                    </DropdownMenuTrigger>
+                                    <DropdownMenuContent align="end" className="w-52">
+                                      <DropdownMenuItem onClick={() => openGroupChaseEmailModal(group)} className="gap-2 cursor-pointer">
+                                        <CalendarCheck className="h-3.5 w-3.5" /> Mark as Chasing Supplier
+                                      </DropdownMenuItem>
+                                      <DropdownMenuItem onClick={() => openGroupChaseEmailModal(group)} className="gap-2 cursor-pointer text-amber-700 dark:text-amber-400">
+                                        <XCircle className="h-3.5 w-3.5" /> No Payment Received
+                                      </DropdownMenuItem>
+                                      <DropdownMenuItem onClick={() => patchGroupStatus(group, "Query Raised")} className="gap-2 cursor-pointer">
+                                        <MessageCircleQuestion className="h-3.5 w-3.5" /> Raise a Query
+                                      </DropdownMenuItem>
+                                      <DropdownMenuSeparator />
+                                      <DropdownMenuItem onClick={() => patchGroupStatus(group, "Closed")} className="gap-2 cursor-pointer text-emerald-700 dark:text-emerald-400">
+                                        <CheckCheck className="h-3.5 w-3.5" /> Payment Received Completely
+                                      </DropdownMenuItem>
+                                      <DropdownMenuItem onClick={() => discontinueContract(group)} className="gap-2 cursor-pointer text-orange-700 dark:text-orange-400">
+                                        <XCircle className="h-3.5 w-3.5" /> Supplier No Longer Trading
+                                      </DropdownMenuItem>
+                                    </DropdownMenuContent>
+                                  </DropdownMenu>
                                   <Button size="sm" variant="outline" className="h-7 px-2 text-xs dark:border-slate-700 dark:hover:bg-slate-800" onClick={() => openPaymentHistory(group.clientId)}>
                                     <ReceiptText className="h-3 w-3" />
                                   </Button>
@@ -2219,10 +2280,16 @@ export default function PaymentCheckerPage() {
                         <MessageCircleQuestion className="mr-2 h-4 w-4" />
                         Raise a Query
                       </Button>
+                      <Button variant="outline" onClick={openChaseEmailModal} disabled={saving}
+                        className="border-amber-200 text-amber-700 hover:bg-amber-50 hover:border-amber-300 dark:border-amber-900/50 dark:text-amber-400 dark:hover:bg-amber-950/30">
+                        <XCircle className="mr-2 h-4 w-4" />
+                        No Payment Received
+                      </Button>
                       {selectedPayment.status !== "Closed" && selectedPayment.status !== "Received - Written Off" && (
-                        <Button variant="destructive" onClick={() => patchStatus("Closed")} disabled={saving}>
-                          <XCircle className="mr-2 h-4 w-4" />
-                          Close
+                        <Button variant="outline" onClick={() => patchStatus("Closed")} disabled={saving}
+                          className="border-emerald-200 text-emerald-700 hover:bg-emerald-50 hover:border-emerald-300 dark:border-emerald-900/50 dark:text-emerald-400 dark:hover:bg-emerald-950/30">
+                          <CheckCheck className="mr-2 h-4 w-4" />
+                          Payment Received Completely
                         </Button>
                       )}
                     </div>
@@ -2462,6 +2529,44 @@ export default function PaymentCheckerPage() {
                   }}
                 >
                   Confirm
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* ── Follow-up Due Popup ── */}
+        <Dialog open={followUpDuePayments.length > 0 && !followUpDismissed} onOpenChange={(open) => { if (!open) setFollowUpDismissed(true); }}>
+          <DialogContent className="max-w-lg">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2 text-amber-700 dark:text-amber-400">
+                <CalendarCheck className="h-4 w-4" />
+                Follow-up Due — {followUpDuePayments.length} Contract{followUpDuePayments.length !== 1 ? "s" : ""}
+              </DialogTitle>
+            </DialogHeader>
+            <div className="space-y-3">
+              <p className="text-sm text-slate-600 dark:text-slate-400">
+                The following contracts are past their follow-up date and still have outstanding commission. Would you like to send a follow-up chase email?
+              </p>
+              <div className="max-h-60 overflow-y-auto space-y-2">
+                {followUpDuePayments.map(p => (
+                  <div key={p.id} className="flex items-center justify-between rounded-lg border border-amber-100 bg-amber-50 dark:border-amber-900/40 dark:bg-amber-950/20 px-3 py-2.5">
+                    <div>
+                      <p className="text-sm font-medium text-slate-800 dark:text-slate-200">{p.business_name || p.customer_name || "—"}</p>
+                      <p className="text-xs text-slate-500 dark:text-slate-400">
+                        {p.supplier_name} · Due {p.next_follow_up_date ? new Date(p.next_follow_up_date).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : "—"} · Chased {p.follow_up_count}×
+                      </p>
+                    </div>
+                    <Button size="sm" variant="outline" className="shrink-0 ml-3 text-xs border-amber-300 text-amber-700 hover:bg-amber-100 dark:border-amber-700 dark:text-amber-400 dark:hover:bg-amber-950/40"
+                      onClick={() => { setSelectedPayment(p); setFollowUpDismissed(true); setChaseEmailModal(true); }}>
+                      <Mail className="mr-1 h-3 w-3" /> Follow Up
+                    </Button>
+                  </div>
+                ))}
+              </div>
+              <div className="flex justify-end pt-1">
+                <Button variant="ghost" size="sm" className="text-slate-500" onClick={() => setFollowUpDismissed(true)}>
+                  Dismiss for now
                 </Button>
               </div>
             </div>

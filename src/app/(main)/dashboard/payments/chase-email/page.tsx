@@ -21,9 +21,33 @@ type ChaseEmailDraft = {
   received: string;
   supplierId?: number | null;
   supplierEmails?: SupplierEmails;
+  followUpCount?: number;
 };
 
 function buildDefaultBody(d: ChaseEmailDraft): string {
+  const isFollowUp = (d.followUpCount ?? 0) > 0;
+  const chaseNum = (d.followUpCount ?? 0) + 1;
+
+  if (isFollowUp) {
+    return (
+      `Hi,\n\n` +
+      `I am writing to follow up on our previous correspondence regarding the outstanding commission payment for MPAN ${d.mpan}.\n\n` +
+      `Despite our earlier contact, we have not yet received the payment or a confirmed resolution date. ` +
+      `This is our ${chaseNum === 2 ? "second" : chaseNum === 3 ? "third" : `${chaseNum}th`} chase on this matter.\n\n` +
+      `Business Name:     ${d.businessName}\n` +
+      `Supplier:          ${d.supplierName}\n` +
+      `Start Date:        ${d.startDate}\n` +
+      `End Date:          ${d.endDate}\n` +
+      `Expected Payment:  £${d.expected}\n` +
+      `Received to Date:  £${d.received}\n\n` +
+      `Could you please provide an update on when this payment will be processed? ` +
+      `If there is an issue preventing payment, we would appreciate being informed so we can resolve it promptly.\n\n` +
+      `Please reply to this email at your earliest convenience.\n\n` +
+      `Regards\n` +
+      `Business Gas`
+    );
+  }
+
   return (
     `Hi,\n\n` +
     `Raising a query for the payment for MPAN ${d.mpan}.\n\n` +
@@ -40,6 +64,11 @@ function buildDefaultBody(d: ChaseEmailDraft): string {
 }
 
 function buildDefaultSubject(d: ChaseEmailDraft): string {
+  const isFollowUp = (d.followUpCount ?? 0) > 0;
+  const chaseNum = (d.followUpCount ?? 0) + 1;
+  if (isFollowUp) {
+    return `Follow-up ${chaseNum}: Commission Payment Query — MPAN ${d.mpan} (${d.supplierName})`;
+  }
   return `Commission Payment Query — MPAN ${d.mpan} (${d.supplierName})`;
 }
 
@@ -172,12 +201,20 @@ export default function ChaseEmailPage() {
 
         {/* Page title */}
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight text-slate-950 dark:text-slate-50">
-            Chase Supplier Email
-          </h1>
+          <div className="flex items-center gap-3">
+            <h1 className="text-2xl font-semibold tracking-tight text-slate-950 dark:text-slate-50">
+              {(draft.followUpCount ?? 0) > 0 ? "Follow-up Chase Email" : "Chase Supplier Email"}
+            </h1>
+            {(draft.followUpCount ?? 0) > 0 && (
+              <span className="rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-semibold text-amber-800 dark:bg-amber-950/60 dark:text-amber-300">
+                Chase #{(draft.followUpCount ?? 0) + 1}
+              </span>
+            )}
+          </div>
           <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-            Review and edit before sending. The payment will be marked as{" "}
-            <strong className="text-slate-700 dark:text-slate-300">Chasing Supplier</strong> once sent.
+            {(draft.followUpCount ?? 0) > 0
+              ? `This supplier has been chased ${draft.followUpCount} time${draft.followUpCount === 1 ? "" : "s"} before. Review and edit the follow-up email below.`
+              : <>Review and edit before sending. The payment will be marked as{" "}<strong className="text-slate-700 dark:text-slate-300">Chasing Supplier</strong> once sent.</>}
           </p>
         </div>
 
