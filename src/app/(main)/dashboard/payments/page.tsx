@@ -288,6 +288,52 @@ export default function PaymentCheckerPage() {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
+  // Group log dialog
+  const [groupLogGroup, setGroupLogGroup] = useState<PaymentGroup | null>(null);
+  const [groupLogReceipts, setGroupLogReceipts] = useState<(Receipt & { payment_period_label?: string | null; instalment_year?: number | null })[]>([]);
+  const [groupLogLoading, setGroupLogLoading] = useState(false);
+  const [groupNoteDraft, setGroupNoteDraft] = useState("");
+  const [groupNoteSaving, setGroupNoteSaving] = useState(false);
+
+  const openGroupLog = async (group: PaymentGroup) => {
+    setGroupLogGroup(group);
+    setGroupLogReceipts([]);
+    setGroupLogLoading(true);
+    setGroupNoteDraft("");
+    try {
+      const ids = group.payments.map(p => p.id).join(",");
+      const data = await fetchWithAuth(`/api/commission/payments/group-receipts?payment_ids=${encodeURIComponent(ids)}`);
+      setGroupLogReceipts(data.receipts || []);
+    } catch {
+      // show empty
+    } finally {
+      setGroupLogLoading(false);
+    }
+  };
+
+  const submitGroupNote = async () => {
+    if (!groupLogGroup || !groupNoteDraft.trim()) return;
+    setGroupNoteSaving(true);
+    try {
+      await fetchWithAuth("/api/commission/payments/group-note", {
+        method: "POST",
+        body: JSON.stringify({
+          payment_ids: groupLogGroup.payments.map(p => p.id),
+          notes: groupNoteDraft.trim(),
+        }),
+      });
+      setGroupNoteDraft("");
+      // Refresh log
+      const ids = groupLogGroup.payments.map(p => p.id).join(",");
+      const data = await fetchWithAuth(`/api/commission/payments/group-receipts?payment_ids=${encodeURIComponent(ids)}`);
+      setGroupLogReceipts(data.receipts || []);
+    } catch {
+      // silent
+    } finally {
+      setGroupNoteSaving(false);
+    }
+  };
+
   // Bulk log modal
   const [bulkLogGroup, setBulkLogGroup] = useState<PaymentGroup | null>(null);
   const [bulkAmount, setBulkAmount] = useState("");
@@ -1515,20 +1561,20 @@ export default function PaymentCheckerPage() {
             ) : (
               <div className="border-t border-slate-200 dark:border-slate-800">
                 <div className="overflow-x-auto">
-                  <table className="w-full text-sm table-fixed">
+                  <table className="w-full text-sm min-w-[1100px]">
                     <colgroup>
-                      <col className="w-[11%]" />
-                      <col className="w-[7%]" />
-                      <col className="w-[6%]" />
-                      <col className="w-[6%]" />
-                      <col className="w-[8%]" />
-                      <col className="w-[12%]" />
-                      <col className="w-[7%]" />
-                      <col className="w-[7%]" />
-                      <col className="w-[7%]" />
-                      <col className="w-[7%]" />
                       <col className="w-[14%]" />
-                      <col className="w-[8%]" />
+                      <col className="w-[9%]" />
+                      <col className="w-[7%]" />
+                      <col className="w-[7%]" />
+                      <col className="w-[9%]" />
+                      <col className="w-[16%]" />
+                      <col className="w-[7%]" />
+                      <col className="w-[7%]" />
+                      <col className="w-[7%]" />
+                      <col className="w-[7%]" />
+                      <col className="w-[6%]" />
+                      <col className="w-[4%]" />
                     </colgroup>
                     <thead className="bg-slate-50 text-left text-xs font-semibold tracking-wide text-slate-500 uppercase border-b border-slate-200 dark:border-slate-800 dark:bg-slate-800/60 dark:text-slate-400">
                       <tr>
@@ -1598,13 +1644,13 @@ export default function PaymentCheckerPage() {
                               <td className="px-2 py-2 text-slate-700 truncate dark:text-slate-300">{group.payments[0]?.aggregator || "-"}</td>
                               <td className="px-2 py-2 text-slate-700 truncate dark:text-slate-300">{group.payments[0]?.agent_name || "-"}</td>
                               <td className="px-2 py-2 font-mono text-xs text-slate-700 dark:text-slate-300">{group.mpan || "-"}</td>
-                              <td className="px-2 py-2 pr-6 text-slate-700 whitespace-nowrap dark:text-slate-300">
+                              <td className="px-2 py-2 text-slate-700 whitespace-nowrap dark:text-slate-300">
                                 <span>{formatDate(group.contractStartDate)}</span>
                                 <span className="text-slate-400 mx-0.5">–</span>
                                 <span>{formatDate(group.contractEndDate)}</span>
                               </td>
                               <td
-                                className="px-2 py-2 text-right font-medium text-slate-900 dark:text-slate-100"
+                                className="px-2 py-2 text-right font-medium text-slate-900 dark:text-slate-100 whitespace-nowrap"
                                 onClick={(e) => {
                                   if (!group.payments[0]?.contract_id) return;
                                   e.stopPropagation();
@@ -2416,6 +2462,20 @@ export default function PaymentCheckerPage() {
                                 </p>
                                 {receipt.notes && <p className="mt-2 text-slate-700 dark:text-slate-300">{receipt.notes}</p>}
                               </>
+                            ) : receipt.notes?.startsWith("Chase email sent") ? (
+                              <div className="flex gap-2.5">
+                                <div className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-blue-100 dark:bg-blue-950/60">
+                                  <Mail className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400" />
+                                </div>
+                                <div className="min-w-0 flex-1">
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-xs font-semibold text-blue-700 uppercase tracking-wide dark:text-blue-400">Chase Email Sent</span>
+                                    <span className="text-xs text-slate-400 dark:text-slate-500">· {formatDateTime(receipt.created_at)}</span>
+                                  </div>
+                                  <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">{receipt.logged_by_name || "System"}</p>
+                                  <p className="mt-1 text-sm text-slate-700 dark:text-slate-300">{receipt.notes}</p>
+                                </div>
+                              </div>
                             ) : (
                               <>
                                 <div className="flex items-center gap-2">
@@ -2426,7 +2486,7 @@ export default function PaymentCheckerPage() {
                                 {receipt.notes && <p className="mt-1 text-slate-700 dark:text-slate-300">{receipt.notes}</p>}
                               </>
                             )}
-                            <div className="mt-3 flex gap-2">
+                            {!receipt.notes?.startsWith("Chase email sent") && <div className="mt-3 flex gap-2">
                               <Button
                                 type="button"
                                 size="sm"
@@ -2448,7 +2508,7 @@ export default function PaymentCheckerPage() {
                                 <XCircle className="mr-2 h-4 w-4" />
                                 Delete
                               </Button>
-                            </div>
+                            </div>}
                           </>
                         )}
                       </div>
@@ -2748,6 +2808,7 @@ export default function PaymentCheckerPage() {
             )}
           </DialogContent>
         </Dialog>
+
       </div>
     </div>
   );

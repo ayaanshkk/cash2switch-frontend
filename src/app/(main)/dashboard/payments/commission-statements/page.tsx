@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { Download, FileText, RefreshCw, ChevronLeft, ChevronRight } from "lucide-react";
+import { Download, Eye, FileText, RefreshCw, ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -94,22 +94,42 @@ export default function CommissionStatementsPage() {
     fetchStatements();
   }, [fetchStatements]);
 
+  async function getDownloadUrl(id: string): Promise<string | null> {
+    if (!token) return null;
+    const res = await fetch(`${API_BASE}/api/commission/statements/${id}/download`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) throw new Error("Failed");
+    const data = await res.json();
+    return data.download_url as string;
+  }
+
   async function handleDownload(id: string, fileName: string) {
     if (!token || downloading) return;
     setDownloading(id);
     try {
-      const res = await fetch(`${API_BASE}/api/commission/statements/${id}/download`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (!res.ok) throw new Error("Failed");
-      const data = await res.json();
+      const url = await getDownloadUrl(id);
+      if (!url) throw new Error("No URL");
       const a = document.createElement("a");
-      a.href = data.download_url;
-      a.download = data.file_name || fileName;
+      a.href = url;
+      a.download = fileName;
       a.target = "_blank";
       a.click();
     } catch {
       alert("Could not download the statement. Please try again.");
+    } finally {
+      setDownloading(null);
+    }
+  }
+
+  async function handleView(id: string) {
+    if (!token || downloading) return;
+    setDownloading(id);
+    try {
+      const url = await getDownloadUrl(id);
+      if (url) window.open(url, "_blank");
+    } catch {
+      alert("Could not open the statement. Please try again.");
     } finally {
       setDownloading(null);
     }
@@ -216,15 +236,27 @@ export default function CommissionStatementsPage() {
                     {fmt(s.total_commission)}
                   </td>
                   <td className="px-4 py-3 text-left">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      disabled={downloading === s.id}
-                      onClick={() => handleDownload(s.id, s.file_name)}
-                    >
-                      <Download className={`h-4 w-4 mr-1 ${downloading === s.id ? "animate-pulse" : ""}`} />
-                      Download
-                    </Button>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={!!downloading}
+                        onClick={() => handleView(s.id)}
+                        title="View PDF"
+                      >
+                        <Eye className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={!!downloading}
+                        onClick={() => handleDownload(s.id, s.file_name)}
+                        title="Download"
+                      >
+                        <Download className={`h-4 w-4 mr-1 ${downloading === s.id ? "animate-pulse" : ""}`} />
+                        Download
+                      </Button>
+                    </div>
                   </td>
                 </tr>
               ))

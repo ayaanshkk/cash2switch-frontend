@@ -26,6 +26,10 @@ type CommissionItem = {
   agent_name: string;
   employee_id?: number | null;
   date_received?: string | null;
+  mpan_number?: string | null;
+  payment_period_label?: string | null;
+  payment_period_start?: string | null;
+  payment_period_end?: string | null;
   receipt_amount?: string;
   commission_rate: string;
   commission_amount: string;
@@ -166,7 +170,7 @@ export default function AgentCommissionsPage() {
     msgTimerRef.current = setTimeout(() => setMessage(null), 4000);
   };
   const [error, setError] = useState<string | null>(null);
-  const [selectedAgent, setSelectedAgent] = useState<string | null>(null);
+
   const [pendingAgent, setPendingAgent] = useState<string | null>(null);
   const [agentDropdownOpen, setAgentDropdownOpen] = useState(false);
   const [agentSearch, setAgentSearch] = useState("");
@@ -176,6 +180,14 @@ export default function AgentCommissionsPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const PAGE_SIZE = 20;
   const [statsModal, setStatsModal] = useState<"total" | "paid" | "partial" | "awaiting" | null>(null);
+  const [paymentTrackerReceived, setPaymentTrackerReceived] = useState<number>(0);
+  const [receivedModal, setReceivedModal] = useState(false);
+  const [receivedModalLoading, setReceivedModalLoading] = useState(false);
+  type ReceivedRow = { key: string; clientId: number | null; title: string; agent: string | null; supplier: string; mpan: string | null; expected: number; received: number; outstanding: number; status: string };
+  const [receivedModalRows, setReceivedModalRows] = useState<ReceivedRow[]>([]);
+  const [receivedModalPage, setReceivedModalPage] = useState(1);
+  const [receivedModalAgentFilter, setReceivedModalAgentFilter] = useState<string>("all");
+  const RECEIVED_PAGE_SIZE = 20;
   const [sidebar, setSidebar] = useState<PaymentSidebar | null>(null);
   const [sidebarError, setSidebarError] = useState<string | null>(null);
   const amountRef = useRef<HTMLInputElement>(null);
@@ -199,10 +211,7 @@ export default function AgentCommissionsPage() {
     return Array.from(map.values()).sort((a, b) => a.agentName.localeCompare(b.agentName));
   }, [items, batches]);
 
-  const filteredGroups = useMemo(() => {
-    if (!selectedAgent) return [];
-    return agentGroups.filter((g) => g.agentName === selectedAgent);
-  }, [agentGroups, selectedAgent]);
+  const filteredGroups: typeof agentGroups = [];
 
   const agentOptions = useMemo(() => {
     const q = agentSearch.trim().toLowerCase();
@@ -235,14 +244,59 @@ export default function AgentCommissionsPage() {
         }
       }
       const url = month ? `/api/commission/agent-commissions?month=${month}` : `/api/commission/agent-commissions`;
-      const data = await fetchWithAuth(url);
+      const [data, trackerData] = await Promise.all([
+        fetchWithAuth(url),
+        fetchWithAuth("/api/commission/clients-with-payments?page=1&page_size=1").catch(() => null),
+      ]);
       setBatches(data.batches || []);
       setItems(data.items || []);
       setIsAdmin(Boolean(data.is_admin));
+      setPaymentTrackerReceived(Number(trackerData?.summary?.received || 0));
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to load");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const openReceivedModal = async () => {
+    setReceivedModal(true);
+    setReceivedModalLoading(true);
+    setReceivedModalRows([]);
+    setReceivedModalPage(1);
+    setReceivedModalAgentFilter("all");
+    try {
+      const statuses = ["Received", "Partially Paid", "Received - Written Off"];
+      const results = await Promise.all(
+        statuses.map((s) =>
+          fetchWithAuth(`/api/commission/clients-with-payments?page=1&page_size=200&status=${encodeURIComponent(s)}`).catch(() => null)
+        )
+      );
+      const rows: ReceivedRow[] = [];
+      results.forEach((data, i) => {
+        if (!data) return;
+        for (const client of data.clients || []) {
+          for (const p of client.payments) {
+            rows.push({
+              key: `${p.id}`,
+              clientId: client.client_id ?? null,
+              title: client.business_name || `Client #${client.client_id}`,
+              agent: client.agent_name || null,
+              supplier: client.supplier_name || "-",
+              mpan: client.mpan_number || client.mpan_bottom || null,
+              expected: Number(p.expected_net_amount || 0),
+              received: Number(p.amount_received || 0),
+              outstanding: Number(p.outstanding_amount || 0),
+              status: p.status || statuses[i],
+            });
+          }
+        }
+      });
+      setReceivedModalRows(rows);
+    } catch {
+      // non-fatal
+    } finally {
+      setReceivedModalLoading(false);
     }
   };
 
@@ -502,19 +556,24 @@ export default function AgentCommissionsPage() {
   const renderAdminView = () => (
     <div className="space-y-5">
       {/* Summary stats */}
-      <div className="grid gap-4 grid-cols-2 md:grid-cols-5">
+      <div className="grid gap-4 grid-cols-2 md:grid-cols-6">
+        {/* Agents */}
+        <Card className="border-slate-200 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+          <CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-slate-600 dark:text-slate-400">Agents</CardTitle></CardHeader>
+          <CardContent className="text-2xl font-semibold text-slate-950 dark:text-slate-50">{agentGroups.length}</CardContent>
+        </Card>
+        {/* Payment Received — after Agents, before Total Commission */}
+        <Card onClick={openReceivedModal} className="border-slate-200 shadow-sm dark:border-slate-800 dark:bg-slate-900 cursor-pointer hover:border-slate-400 hover:shadow-md transition-shadow dark:hover:border-slate-600">
+          <CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-slate-600 dark:text-slate-400">Payment Received</CardTitle></CardHeader>
+          <CardContent className="text-2xl font-semibold text-emerald-700 dark:text-emerald-400">{money(paymentTrackerReceived)}</CardContent>
+        </Card>
         {([
-          { label: "Agents",           value: String(agentGroups.length),  valueCls: "",                                                        modalKey: null },
-          { label: "Total Commission", value: money(adminTotals.total),     valueCls: "",                                                        modalKey: "total" },
-          { label: "Paid",             value: money(adminTotals.paid),      valueCls: "text-emerald-700 dark:text-emerald-400",                  modalKey: "paid" },
-          { label: "Partially Paid",   value: money(adminTotals.partial),   valueCls: "text-blue-700 dark:text-blue-400",                        modalKey: "partial" },
-          { label: "Awaiting",         value: money(adminTotals.awaiting),  valueCls: "text-orange-700 dark:text-orange-400",                    modalKey: "awaiting" },
-        ] as { label: string; value: string; valueCls: string; modalKey: "total"|"paid"|"partial"|"awaiting"|null }[]).map(({ label, value, valueCls, modalKey }) => (
-          <Card
-            key={label}
-            onClick={() => modalKey && setStatsModal(modalKey)}
-            className={`border-slate-200 shadow-sm dark:border-slate-800 dark:bg-slate-900 ${modalKey ? "cursor-pointer hover:border-slate-400 hover:shadow-md transition-shadow dark:hover:border-slate-600" : ""}`}
-          >
+          { label: "Total Commission", value: money(adminTotals.total),    valueCls: "",                                               modalKey: "total" },
+          { label: "Paid",             value: money(adminTotals.paid),     valueCls: "text-emerald-700 dark:text-emerald-400",         modalKey: "paid" },
+          { label: "Partially Paid",   value: money(adminTotals.partial),  valueCls: "text-blue-700 dark:text-blue-400",               modalKey: "partial" },
+          { label: "Awaiting",         value: money(adminTotals.awaiting), valueCls: "text-orange-700 dark:text-orange-400",           modalKey: "awaiting" },
+        ] as { label: string; value: string; valueCls: string; modalKey: "total"|"paid"|"partial"|"awaiting" }[]).map(({ label, value, valueCls, modalKey }) => (
+          <Card key={label} onClick={() => setStatsModal(modalKey)} className="border-slate-200 shadow-sm dark:border-slate-800 dark:bg-slate-900 cursor-pointer hover:border-slate-400 hover:shadow-md transition-shadow dark:hover:border-slate-600">
             <CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-slate-600 dark:text-slate-400">{label}</CardTitle></CardHeader>
             <CardContent className={`text-2xl font-semibold text-slate-950 dark:text-slate-50 ${valueCls}`}>{value}</CardContent>
           </Card>
@@ -566,7 +625,7 @@ export default function AgentCommissionsPage() {
                       <button
                         type="button"
                         onClick={() => { setPendingAgent(name); setAgentDropdownOpen(false); }}
-                        className={`w-full px-3 py-2 text-left text-sm hover:bg-slate-100 dark:hover:bg-slate-800 ${(pendingAgent ?? selectedAgent) === name ? "font-semibold text-slate-900 dark:text-slate-50" : "text-slate-700 dark:text-slate-300"}`}
+                        className={`w-full px-3 py-2 text-left text-sm hover:bg-slate-100 dark:hover:bg-slate-800 ${pendingAgent === name ? "font-semibold text-slate-900 dark:text-slate-50" : "text-slate-700 dark:text-slate-300"}`}
                       >
                         {name}
                       </button>
@@ -579,43 +638,32 @@ export default function AgentCommissionsPage() {
         </div>
         <Button
           disabled={!pendingAgent}
-          onClick={() => { if (pendingAgent) { setSelectedAgent(pendingAgent); setCurrentPage(1); } }}
+          onClick={() => {
+            if (!pendingAgent) return;
+            const group = agentGroups.find((g) => g.agentName === pendingAgent);
+            if (group?.employeeId) {
+              window.open(`/dashboard/payments/agent-commissions/agent/${group.employeeId}`, "_blank");
+            }
+          }}
         >
           View Records
         </Button>
-        {selectedAgent && (
+        {pendingAgent && (
           <button
             type="button"
-            onClick={() => { setSelectedAgent(null); setPendingAgent(null); }}
+            onClick={() => { setPendingAgent(null); }}
             className="text-sm text-slate-500 underline hover:text-slate-700 dark:hover:text-slate-300"
           >
             Clear
           </button>
         )}
         </div>
-        <div className="flex shrink-0 items-center gap-1">
-          <Input
-            className="w-40 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 dark:[color-scheme:dark]"
-            type="month"
-            value={month}
-            onChange={(e) => { setMonth(e.target.value); setCurrentPage(1); }}
-          />
-          {month && (
-            <Button variant="ghost" size="sm" onClick={() => { setMonth(""); setCurrentPage(1); }} className="text-slate-500 hover:text-slate-900 dark:text-slate-400">
-              All
-            </Button>
-          )}
-          <Button variant="outline" onClick={() => load()} disabled={loading} className="dark:border-slate-700 dark:hover:bg-slate-800">
-            {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCcw className="mr-2 h-4 w-4" />}
-            Refresh
-          </Button>
-        </div>
       </div>
 
-      {selectedAgent && filteredGroups.length === 0 && (
-        <Card className="border-slate-200 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-          <CardContent className="py-12 text-center text-slate-500">No commission records found for <span className="font-medium text-slate-700 dark:text-slate-300">{selectedAgent}</span>{month ? " for this month" : ""}.</CardContent>
-        </Card>
+      {!pendingAgent && (
+        <div className="flex flex-col items-center justify-center py-20 text-slate-400 dark:text-slate-500">
+          <p className="text-sm">Select an agent above to view their commission records.</p>
+        </div>
       )}
 
       {filteredGroups.map((group) => {
@@ -667,9 +715,9 @@ export default function AgentCommissionsPage() {
                     Pay Selected ({money(selectedTotal)})
                   </Button>
                 )}
-                {!pendingBatch && anyBatch && !hasSelection && (
-                  <Button size="sm" variant="outline" onClick={() => window.open(`/dashboard/payments/agent-commissions/batch/${anyBatch.id}`, "_blank")} className="dark:border-slate-700 dark:hover:bg-slate-800">
-                    Manage Payments
+                {group.employeeId && (
+                  <Button size="sm" variant="outline" onClick={() => window.open(`/dashboard/payments/agent-commissions/agent/${group.employeeId}`, "_blank")} className="dark:border-slate-700 dark:hover:bg-slate-800">
+                    Overview
                   </Button>
                 )}
                 {hasSelection && (
@@ -692,7 +740,7 @@ export default function AgentCommissionsPage() {
             </CardHeader>
             <CardContent className="p-0">
               <div className="overflow-x-auto border-t border-slate-200 dark:border-slate-800">
-                <table className="w-full min-w-[760px] text-sm">
+                <table className="w-full min-w-[960px] text-sm">
                   <thead className="bg-slate-50 text-left text-xs font-semibold text-slate-500 uppercase dark:bg-slate-800/60 dark:text-slate-400">
                     <tr>
                       <th className="px-4 py-3 w-10">
@@ -706,7 +754,8 @@ export default function AgentCommissionsPage() {
                         />
                       </th>
                       <th className="px-4 py-3">Client</th>
-                      <th className="px-4 py-3">Receipt Date</th>
+                      <th className="px-4 py-3">MPAN/MPR</th>
+                      <th className="px-4 py-3">Period</th>
                       <th className="px-4 py-3 text-right">Supplier Receipt</th>
                       <th className="px-4 py-3 text-right">Rate</th>
                       <th className="px-4 py-3 text-right">Commission</th>
@@ -749,7 +798,17 @@ export default function AgentCommissionsPage() {
                         <td className="px-4 py-3 font-medium text-slate-950 dark:text-slate-100">
                           {item.client_name || "Client"}
                         </td>
-                        <td className="px-4 py-3 text-slate-500 dark:text-slate-400">{item.date_received || "-"}</td>
+                        <td className="px-4 py-3 text-sm text-slate-600 dark:text-slate-400">{item.mpan_number || "-"}</td>
+                        <td className="px-4 py-3 text-slate-600 dark:text-slate-400 whitespace-nowrap">
+                          {item.payment_period_label
+                            ? <span className="font-medium text-slate-800 dark:text-slate-200">{item.payment_period_label}</span>
+                            : "-"}
+                          {(item.payment_period_start || item.payment_period_end) && (
+                            <span className="block text-xs text-slate-400 dark:text-slate-500">
+                              {item.payment_period_start} – {item.payment_period_end}
+                            </span>
+                          )}
+                        </td>
                         <td className="px-4 py-3 text-right text-slate-700 dark:text-slate-300">{money(item.receipt_amount)}</td>
                         <td className="px-4 py-3 text-right text-slate-700 dark:text-slate-300">{Number(item.commission_rate || 0).toFixed(2)}%</td>
                         <td className="px-4 py-3 text-right font-semibold text-slate-950 dark:text-slate-100">{money(item.commission_amount)}</td>
@@ -972,6 +1031,115 @@ export default function AgentCommissionsPage() {
                     );
                   })}
                 </ul>
+              </div>
+            </div>
+          </>
+        );
+      })()}
+
+      {/* ── payment received modal ── */}
+      {receivedModal && (() => {
+        const agentOptions = Array.from(new Set(receivedModalRows.map((r) => r.agent).filter(Boolean))) as string[];
+        const filteredRows = receivedModalAgentFilter === "all"
+          ? receivedModalRows
+          : receivedModalRows.filter((r) => r.agent === receivedModalAgentFilter);
+        const totalPages = Math.max(1, Math.ceil(filteredRows.length / RECEIVED_PAGE_SIZE));
+        const pageRows = filteredRows.slice((receivedModalPage - 1) * RECEIVED_PAGE_SIZE, receivedModalPage * RECEIVED_PAGE_SIZE);
+        return (
+          <>
+            <div className="fixed inset-0 z-40 bg-black/40 backdrop-blur-sm" onClick={() => setReceivedModal(false)} />
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+              <div className="w-full max-w-6xl max-h-[90vh] flex flex-col rounded-xl border border-slate-200 bg-white shadow-2xl dark:border-slate-700 dark:bg-slate-900">
+                <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4 dark:border-slate-700 shrink-0">
+                  <div>
+                    <h2 className="text-base font-semibold text-slate-900 dark:text-slate-50">Payment Received</h2>
+                    <p className="text-xs text-slate-500 mt-0.5">Received · Partially Paid · Received — Written Off · Click a row to open payment history</p>
+                  </div>
+                  <button onClick={() => setReceivedModal(false)} className="rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-800">
+                    <X className="h-5 w-5" />
+                  </button>
+                </div>
+                {agentOptions.length > 0 && (
+                  <div className="flex items-center gap-3 border-b border-slate-200 dark:border-slate-700 px-5 py-3 shrink-0">
+                    <label className="text-xs font-medium text-slate-500 dark:text-slate-400 whitespace-nowrap">Filter by Agent</label>
+                    <select
+                      value={receivedModalAgentFilter}
+                      onChange={(e) => { setReceivedModalAgentFilter(e.target.value); setReceivedModalPage(1); }}
+                      className="rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-1.5 text-xs text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                      <option value="all">All Agents</option>
+                      {agentOptions.map((a) => <option key={a} value={a}>{a}</option>)}
+                    </select>
+                  </div>
+                )}
+                <div className="overflow-y-auto flex-1">
+                  {receivedModalLoading ? (
+                    <div className="flex items-center justify-center py-16 text-slate-500">
+                      <Loader2 className="mr-2 h-5 w-5 animate-spin" /> Loading…
+                    </div>
+                  ) : receivedModalRows.length === 0 ? (
+                    <p className="py-12 text-center text-sm text-slate-400">No received payments found.</p>
+                  ) : (
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm min-w-[800px]">
+                        <thead className="bg-slate-50 dark:bg-slate-800/60 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide border-b border-slate-200 dark:border-slate-700 sticky top-0">
+                          <tr>
+                            <th className="px-4 py-2.5">Client</th>
+                            <th className="px-4 py-2.5">Agent</th>
+                            <th className="px-4 py-2.5">Supplier</th>
+                            <th className="px-4 py-2.5">MPAN/MPR</th>
+                            <th className="px-4 py-2.5 text-right">Expected</th>
+                            <th className="px-4 py-2.5 text-right">Received</th>
+                            <th className="px-4 py-2.5 text-right">Outstanding</th>
+                            <th className="px-4 py-2.5">Status</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100 dark:divide-slate-800 bg-white dark:bg-slate-900">
+                          {pageRows.map((row) => (
+                            <tr
+                              key={row.key}
+                              className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors cursor-pointer"
+                              onClick={() => row.clientId && window.open(`/dashboard/payments/history/${row.clientId}`, "_blank")}
+                            >
+                              <td className="px-4 py-2.5 font-medium text-slate-900 dark:text-slate-100">{row.title}</td>
+                              <td className="px-4 py-2.5 text-slate-600 dark:text-slate-400">{row.agent || <span className="text-slate-400">—</span>}</td>
+                              <td className="px-4 py-2.5 text-slate-600 dark:text-slate-400">{row.supplier}</td>
+                              <td className="px-4 py-2.5 text-slate-600 dark:text-slate-400">{row.mpan || "-"}</td>
+                              <td className="px-4 py-2.5 text-right text-slate-700 dark:text-slate-300">{money(row.expected)}</td>
+                              <td className="px-4 py-2.5 text-right font-medium text-emerald-700 dark:text-emerald-400">{money(row.received)}</td>
+                              <td className="px-4 py-2.5 text-right text-orange-700 dark:text-orange-400">{row.outstanding > 0 ? money(row.outstanding) : <span className="text-slate-400">—</span>}</td>
+                              <td className="px-4 py-2.5">
+                                <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${
+                                  row.status === "Received" ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300"
+                                  : row.status === "Partially Paid" ? "bg-blue-100 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300"
+                                  : "bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300"
+                                }`}>{row.status}</span>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+                {/* Pagination footer */}
+                {!receivedModalLoading && filteredRows.length > RECEIVED_PAGE_SIZE && (
+                  <div className="flex items-center justify-between border-t border-slate-200 dark:border-slate-700 px-5 py-3 shrink-0 text-sm text-slate-600 dark:text-slate-400">
+                    <span>Page {receivedModalPage} of {totalPages} · {filteredRows.length} rows</span>
+                    <div className="flex gap-2">
+                      <button
+                        disabled={receivedModalPage <= 1}
+                        onClick={() => setReceivedModalPage((p) => p - 1)}
+                        className="rounded-md border border-slate-200 dark:border-slate-700 px-3 py-1 text-xs font-medium hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-40 disabled:cursor-not-allowed"
+                      >Previous</button>
+                      <button
+                        disabled={receivedModalPage >= totalPages}
+                        onClick={() => setReceivedModalPage((p) => p + 1)}
+                        className="rounded-md border border-slate-200 dark:border-slate-700 px-3 py-1 text-xs font-medium hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-40 disabled:cursor-not-allowed"
+                      >Next</button>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           </>
