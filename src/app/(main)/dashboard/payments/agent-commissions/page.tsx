@@ -597,7 +597,7 @@ export default function AgentCommissionsPage() {
           {pendingAgent && (
             <button
               type="button"
-              onClick={() => { setPendingAgent(null); setSelectedAgent(null); }}
+              onClick={() => { setPendingAgent(null); }}
               className="absolute top-1/2 right-8 -translate-y-1/2 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
               title="Clear"
             >
@@ -1011,7 +1011,6 @@ export default function AgentCommissionsPage() {
                           className="flex w-full items-center justify-between px-5 py-3.5 text-left hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-colors"
                           onClick={() => {
                             setPendingAgent(g.agentName);
-                            setSelectedAgent(g.agentName);
                             setCurrentPage(1);
                             setStatsModal(null);
                           }}
