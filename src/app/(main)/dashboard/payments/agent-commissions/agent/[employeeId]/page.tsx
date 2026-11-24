@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { ArrowLeft, Download, Eye, Loader2, RefreshCcw, X } from "lucide-react";
+import { ArrowLeft, Download, Eye, Loader2, RefreshCcw, Trash2, X } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -211,6 +211,16 @@ export default function AgentOverviewPage() {
       const url = await getStatementUrl(id);
       if (url) window.open(url, "_blank");
     } catch (e) { setError(e instanceof Error ? e.message : "Could not open statement"); }
+    finally { setStmtDownloading(null); }
+  };
+
+  const deleteStatement = async (id: string) => {
+    if (!confirm("Delete this statement? This cannot be undone.")) return;
+    setStmtDownloading(id);
+    try {
+      await fetchWithAuth(`/api/commission/statements/${id}`, { method: "DELETE" });
+      setStatements((prev) => prev.filter((s) => s.id !== id));
+    } catch (e) { setError(e instanceof Error ? e.message : "Could not delete statement"); }
     finally { setStmtDownloading(null); }
   };
 
@@ -593,6 +603,14 @@ export default function AgentOverviewPage() {
                                   >
                                     <Download className="h-3.5 w-3.5" />
                                     Download
+                                  </button>
+                                  <button
+                                    onClick={() => deleteStatement(s.id)}
+                                    disabled={!!stmtDownloading}
+                                    title="Delete"
+                                    className="inline-flex items-center justify-center rounded-md border border-red-200 dark:border-red-800 p-1.5 text-red-500 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 disabled:opacity-40"
+                                  >
+                                    <Trash2 className="h-3.5 w-3.5" />
                                   </button>
                                 </div>
                               </td>
