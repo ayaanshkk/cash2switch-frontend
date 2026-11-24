@@ -243,8 +243,17 @@ export default function AgentOverviewPage() {
   /* ── pending batches ── */
   const pendingBatches = useMemo(() => batches.filter((b) => b.status !== "Commission Paid"), [batches]);
 
+  const [statusFilter, setStatusFilter] = useState<"all" | "Commission Paid" | "Partially Paid" | "Awaiting Payment">("all");
+
   /* ── paginated items ── */
-  const filteredItems = items;
+  const filteredItems = useMemo(() => {
+    if (statusFilter === "all") return items;
+    return items.filter((item) => {
+      const batch = item.batch_id ? batches.find((b) => b.id === item.batch_id) : null;
+      const itemStatus = batch ? batch.status : "Awaiting Payment";
+      return itemStatus === statusFilter;
+    });
+  }, [items, batches, statusFilter]);
 
   const totalPages  = Math.max(1, Math.ceil(filteredItems.length / PAGE_SIZE));
   const pageItems   = filteredItems.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
@@ -457,7 +466,7 @@ export default function AgentOverviewPage() {
             <Card className="border-slate-200 shadow-sm dark:border-slate-800 dark:bg-slate-900">
               {/* Tab bar + actions */}
               <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 dark:border-slate-800 px-5 pt-4 pb-0">
-                <div className="flex gap-1">
+                <div className="flex items-center gap-1">
                   {(["commissions", "payment-history", "statements"] as const).map((tab) => {
                     const allLogEntries = batches.flatMap((b) => (b.payment_log ?? []).map((e) => ({ ...e, batchId: b.id })));
                     const label = tab === "commissions" ? "Commissions" : tab === "payment-history" ? "Payment History" : "Statements";
@@ -483,6 +492,33 @@ export default function AgentOverviewPage() {
                       </button>
                     );
                   })}
+                  {activeTab === "commissions" && (
+                    <div className="ml-3 mb-0.5 flex items-center gap-1 self-center">
+                      {(["all", "Commission Paid", "Partially Paid", "Awaiting Payment"] as const).map((f) => {
+                        const label = f === "all" ? "All" : f === "Commission Paid" ? "Paid" : f === "Partially Paid" ? "Partial" : "Awaiting";
+                        const active = statusFilter === f;
+                        return (
+                          <button
+                            key={f}
+                            onClick={() => { setStatusFilter(f); setCurrentPage(1); }}
+                            className={`px-2.5 py-0.5 rounded-full text-xs font-medium transition-colors border ${
+                              active
+                                ? f === "Commission Paid"
+                                  ? "bg-emerald-100 text-emerald-700 border-emerald-200 dark:bg-emerald-950/60 dark:text-emerald-300 dark:border-emerald-800"
+                                  : f === "Partially Paid"
+                                  ? "bg-blue-100 text-blue-700 border-blue-200 dark:bg-blue-950/60 dark:text-blue-300 dark:border-blue-800"
+                                  : f === "Awaiting Payment"
+                                  ? "bg-amber-100 text-amber-700 border-amber-200 dark:bg-amber-950/60 dark:text-amber-300 dark:border-amber-800"
+                                  : "bg-slate-200 text-slate-700 border-slate-300 dark:bg-slate-700 dark:text-slate-200 dark:border-slate-600"
+                                : "bg-transparent text-slate-500 border-slate-200 hover:border-slate-300 hover:text-slate-700 dark:border-slate-700 dark:text-slate-400 dark:hover:text-slate-300"
+                            }`}
+                          >
+                            {label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
                 {activeTab === "commissions" && (
                   <div className="flex flex-wrap gap-2 items-center pb-3 ml-auto">
