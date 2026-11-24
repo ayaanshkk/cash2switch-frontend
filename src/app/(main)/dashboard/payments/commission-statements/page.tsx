@@ -5,9 +5,8 @@ import { Download, Eye, FileText, RefreshCw, ChevronLeft, ChevronRight } from "l
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { useAuth } from "@/contexts/AuthContext";
+import { fetchWithAuth } from "@/lib/api";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "";
 const PER_PAGE = 20;
 
 interface Statement {
@@ -36,7 +35,6 @@ function fmtDate(iso: string) {
 }
 
 export default function CommissionStatementsPage() {
-  const { token } = useAuth();
   const [statements, setStatements] = useState<Statement[]>([]);
   const [agents, setAgents] = useState<string[]>([]);
   const [total, setTotal] = useState(0);
@@ -50,21 +48,15 @@ export default function CommissionStatementsPage() {
   }, [selectedAgent]);
 
   const fetchAgents = useCallback(async () => {
-    if (!token) return;
     try {
-      const res = await fetch(`${API_BASE}/api/commission/statements/agents`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (!res.ok) return;
-      const data = await res.json();
+      const data = await fetchWithAuth("/api/commission/statements/agents");
       setAgents(data.agents || []);
     } catch {
       // silent
     }
-  }, [token]);
+  }, []);
 
   const fetchStatements = useCallback(async () => {
-    if (!token) return;
     setLoading(true);
     try {
       const params = new URLSearchParams({
@@ -72,11 +64,7 @@ export default function CommissionStatementsPage() {
         per_page: String(PER_PAGE),
       });
       if (selectedAgent !== "all") params.set("agent_name", selectedAgent);
-      const res = await fetch(`${API_BASE}/api/commission/statements?${params}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (!res.ok) throw new Error("Failed to load");
-      const data = await res.json();
+      const data = await fetchWithAuth(`/api/commission/statements?${params}`);
       setStatements(data.statements || []);
       setTotal(data.total || 0);
     } catch {
@@ -84,7 +72,7 @@ export default function CommissionStatementsPage() {
     } finally {
       setLoading(false);
     }
-  }, [token, page, selectedAgent]);
+  }, [page, selectedAgent]);
 
   useEffect(() => {
     fetchAgents();
@@ -95,17 +83,12 @@ export default function CommissionStatementsPage() {
   }, [fetchStatements]);
 
   async function getDownloadUrl(id: string): Promise<string | null> {
-    if (!token) return null;
-    const res = await fetch(`${API_BASE}/api/commission/statements/${id}/download`, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    if (!res.ok) throw new Error("Failed");
-    const data = await res.json();
+    const data = await fetchWithAuth(`/api/commission/statements/${id}/download`);
     return data.download_url as string;
   }
 
   async function handleDownload(id: string, fileName: string) {
-    if (!token || downloading) return;
+    if (downloading) return;
     setDownloading(id);
     try {
       const url = await getDownloadUrl(id);
@@ -123,7 +106,7 @@ export default function CommissionStatementsPage() {
   }
 
   async function handleView(id: string) {
-    if (!token || downloading) return;
+    if (downloading) return;
     setDownloading(id);
     try {
       const url = await getDownloadUrl(id);
