@@ -243,7 +243,7 @@ export default function AgentOverviewPage() {
   /* ── pending batches ── */
   const pendingBatches = useMemo(() => batches.filter((b) => b.status !== "Commission Paid"), [batches]);
 
-  const [statusFilter, setStatusFilter] = useState<"all" | "Commission Paid" | "Partially Paid" | "Awaiting Payment">("all");
+  const [statusFilter, setStatusFilter] = useState<"all" | "Commission Paid" | "Partially Paid">("all");
 
   /* ── paginated items ── */
   const filteredItems = useMemo(() => {
@@ -466,8 +466,8 @@ export default function AgentOverviewPage() {
             <div className="flex justify-end">
               <div className="flex items-center gap-1.5">
                 <span className="text-xs text-slate-400 dark:text-slate-500 mr-1">Filter:</span>
-                {(["all", "Commission Paid", "Partially Paid", "Awaiting Payment"] as const).map((f) => {
-                  const label = f === "all" ? "All" : f === "Commission Paid" ? "Paid" : f === "Partially Paid" ? "Partial" : "Awaiting";
+                {(["all", "Commission Paid", "Partially Paid"] as const).map((f) => {
+                  const label = f === "all" ? "All" : f === "Commission Paid" ? "Paid" : "Partial";
                   const active = statusFilter === f;
                   return (
                     <button
@@ -479,8 +479,6 @@ export default function AgentOverviewPage() {
                             ? "bg-emerald-100 text-emerald-700 border-emerald-200 dark:bg-emerald-950/60 dark:text-emerald-300 dark:border-emerald-800"
                             : f === "Partially Paid"
                             ? "bg-blue-100 text-blue-700 border-blue-200 dark:bg-blue-950/60 dark:text-blue-300 dark:border-blue-800"
-                            : f === "Awaiting Payment"
-                            ? "bg-amber-100 text-amber-700 border-amber-200 dark:bg-amber-950/60 dark:text-amber-300 dark:border-amber-800"
                             : "bg-slate-200 text-slate-700 border-slate-300 dark:bg-slate-700 dark:text-slate-200 dark:border-slate-600"
                           : "bg-white text-slate-500 border-slate-200 hover:border-slate-300 hover:text-slate-700 dark:bg-slate-900 dark:border-slate-700 dark:text-slate-400 dark:hover:text-slate-300"
                       }`}
