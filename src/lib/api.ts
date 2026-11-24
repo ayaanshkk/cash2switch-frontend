@@ -122,7 +122,6 @@ export async function fetchWithAuth(url: string, options: RequestInit = {}) {
           response = await fetch(fullUrl, {
             ...requestOptions,
             headers,
-            credentials: 'include',
             signal: controller.signal,
           });
         } catch (err: any) {
@@ -206,7 +205,6 @@ export async function fetchPublic(url: string, options: RequestInit = {}) {
   const response = await fetch(fullUrl, {
     ...options,
     headers,
-    credentials: 'include',
     signal: controller.signal,
   });
 
