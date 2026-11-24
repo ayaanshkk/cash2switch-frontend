@@ -611,6 +611,7 @@ export default function AgentOverviewPage() {
                         </th>
                         <th className="px-4 py-3">Client</th>
                         <th className="px-4 py-3">MPAN/MPR</th>
+                        <th className="px-4 py-3">Type</th>
                         <th className="px-4 py-3">Period</th>
                         <th className="px-4 py-3 text-right">Supplier Receipt</th>
                         <th className="px-4 py-3 text-right">Rate</th>
@@ -640,13 +641,13 @@ export default function AgentOverviewPage() {
                             </td>
                             <td className="px-4 py-3 font-medium text-slate-950 dark:text-slate-100">{item.client_name || "Client"}</td>
                             <td className="px-4 py-3 text-slate-600 dark:text-slate-400">{item.mpan_number || "—"}</td>
-                            <td className="px-4 py-3 text-slate-600 dark:text-slate-400 whitespace-nowrap">
-                              {item.payment_period_label
-                                ? <span className="font-medium text-slate-800 dark:text-slate-200">{item.payment_period_label}</span>
+                            <td className="px-4 py-3 text-slate-700 dark:text-slate-300 whitespace-nowrap">
+                              {item.payment_period_label || "—"}
+                            </td>
+                            <td className="px-4 py-3 text-slate-500 dark:text-slate-400 whitespace-nowrap text-sm">
+                              {(item.payment_period_start || item.payment_period_end)
+                                ? `${item.payment_period_start} – ${item.payment_period_end}`
                                 : "—"}
-                              {(item.payment_period_start || item.payment_period_end) && (
-                                <span className="block text-xs text-slate-400">{item.payment_period_start} – {item.payment_period_end}</span>
-                              )}
                             </td>
                             <td className="px-4 py-3 text-right text-slate-700 dark:text-slate-300">{money(item.receipt_amount)}</td>
                             <td className="px-4 py-3 text-right text-slate-700 dark:text-slate-300">{Number(item.commission_rate || 0).toFixed(2)}%</td>
