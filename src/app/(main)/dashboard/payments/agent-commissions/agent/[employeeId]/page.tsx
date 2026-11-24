@@ -462,6 +462,36 @@ export default function AgentOverviewPage() {
               </Card>
             </div>
 
+            {/* ── status filter ── */}
+            <div className="flex justify-end">
+              <div className="flex items-center gap-1.5">
+                <span className="text-xs text-slate-400 dark:text-slate-500 mr-1">Filter:</span>
+                {(["all", "Commission Paid", "Partially Paid", "Awaiting Payment"] as const).map((f) => {
+                  const label = f === "all" ? "All" : f === "Commission Paid" ? "Paid" : f === "Partially Paid" ? "Partial" : "Awaiting";
+                  const active = statusFilter === f;
+                  return (
+                    <button
+                      key={f}
+                      onClick={() => { setStatusFilter(f); setCurrentPage(1); setActiveTab("commissions"); }}
+                      className={`px-3 py-1 rounded-full text-xs font-medium transition-colors border ${
+                        active
+                          ? f === "Commission Paid"
+                            ? "bg-emerald-100 text-emerald-700 border-emerald-200 dark:bg-emerald-950/60 dark:text-emerald-300 dark:border-emerald-800"
+                            : f === "Partially Paid"
+                            ? "bg-blue-100 text-blue-700 border-blue-200 dark:bg-blue-950/60 dark:text-blue-300 dark:border-blue-800"
+                            : f === "Awaiting Payment"
+                            ? "bg-amber-100 text-amber-700 border-amber-200 dark:bg-amber-950/60 dark:text-amber-300 dark:border-amber-800"
+                            : "bg-slate-200 text-slate-700 border-slate-300 dark:bg-slate-700 dark:text-slate-200 dark:border-slate-600"
+                          : "bg-white text-slate-500 border-slate-200 hover:border-slate-300 hover:text-slate-700 dark:bg-slate-900 dark:border-slate-700 dark:text-slate-400 dark:hover:text-slate-300"
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
             {/* ── tabbed card ── */}
             <Card className="border-slate-200 shadow-sm dark:border-slate-800 dark:bg-slate-900">
               {/* Tab bar + actions */}
@@ -492,33 +522,6 @@ export default function AgentOverviewPage() {
                       </button>
                     );
                   })}
-                  {activeTab === "commissions" && (
-                    <div className="ml-3 mb-0.5 flex items-center gap-1 self-center">
-                      {(["all", "Commission Paid", "Partially Paid", "Awaiting Payment"] as const).map((f) => {
-                        const label = f === "all" ? "All" : f === "Commission Paid" ? "Paid" : f === "Partially Paid" ? "Partial" : "Awaiting";
-                        const active = statusFilter === f;
-                        return (
-                          <button
-                            key={f}
-                            onClick={() => { setStatusFilter(f); setCurrentPage(1); }}
-                            className={`px-2.5 py-0.5 rounded-full text-xs font-medium transition-colors border ${
-                              active
-                                ? f === "Commission Paid"
-                                  ? "bg-emerald-100 text-emerald-700 border-emerald-200 dark:bg-emerald-950/60 dark:text-emerald-300 dark:border-emerald-800"
-                                  : f === "Partially Paid"
-                                  ? "bg-blue-100 text-blue-700 border-blue-200 dark:bg-blue-950/60 dark:text-blue-300 dark:border-blue-800"
-                                  : f === "Awaiting Payment"
-                                  ? "bg-amber-100 text-amber-700 border-amber-200 dark:bg-amber-950/60 dark:text-amber-300 dark:border-amber-800"
-                                  : "bg-slate-200 text-slate-700 border-slate-300 dark:bg-slate-700 dark:text-slate-200 dark:border-slate-600"
-                                : "bg-transparent text-slate-500 border-slate-200 hover:border-slate-300 hover:text-slate-700 dark:border-slate-700 dark:text-slate-400 dark:hover:text-slate-300"
-                            }`}
-                          >
-                            {label}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  )}
                 </div>
                 {activeTab === "commissions" && (
                   <div className="flex flex-wrap gap-2 items-center pb-3 ml-auto">
