@@ -919,6 +919,7 @@ export default function AgentOverviewPage() {
                   </div>
                 )}
               </div>
+              {alreadyPaid < batchTotal && (<>
               {/* amount */}
               <div className="space-y-1.5">
                 <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">Amount <span className="text-red-500">*</span></label>
@@ -943,6 +944,7 @@ export default function AgentOverviewPage() {
                 <textarea rows={3} placeholder="e.g. Paid via bank transfer, ref #12345" value={sidebar.notes} onChange={(e) => setSidebar((s) => s ? { ...s, notes: e.target.value } : s)} className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-400 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 dark:placeholder:text-slate-500" />
               </div>
               {sidebarError && <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700 dark:bg-red-950/40 dark:text-red-400">{sidebarError}</p>}
+              </>)}
               {/* payment history */}
               {(() => {
                 const currentBatch = batches.find((b) => b.id === sidebar.batchId);
@@ -970,11 +972,13 @@ export default function AgentOverviewPage() {
               })()}
             </div>
             <div className="border-t border-slate-200 px-6 py-4 dark:border-slate-800 flex gap-3">
-              <Button className="flex-1" onClick={submitPayment} disabled={!!saving}>
-                {saving?.startsWith("pay-") ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                Log Payment
-              </Button>
-              <Button variant="outline" onClick={() => setSidebar(null)} className="dark:border-slate-700 dark:hover:bg-slate-800">Cancel</Button>
+              {alreadyPaid < batchTotal && (
+                <Button className="flex-1" onClick={submitPayment} disabled={!!saving}>
+                  {saving?.startsWith("pay-") ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                  Log Payment
+                </Button>
+              )}
+              <Button variant="outline" onClick={() => setSidebar(null)} className={`${alreadyPaid >= batchTotal ? "flex-1" : ""} dark:border-slate-700 dark:hover:bg-slate-800`}>Close</Button>
             </div>
           </div>
         </>
